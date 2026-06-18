@@ -34,7 +34,9 @@ export default function MainContent({ activeTab }) {
         <span>Đang nạp dữ liệu phân hệ hạch toán...</span>
       </div>
     }>
-      <LazyComponent />
+      <div className="w-full max-w-5xl mx-auto px-2 md:px-0">
+        <LazyComponent />
+      </div>
     </Suspense>
   );
 }

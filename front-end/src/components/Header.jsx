@@ -12,7 +12,7 @@ export default function Header({ onMenuClick }) {
   const availableYears = [2024, 2025, 2026, 2027, 2028];
 
   return (
-    <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-6 z-10 shrink-0">
+    <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-4 md:px-6 z-10 shrink-0 py-3 md:py-0">
       {/* Mobile menu button */}
       <button
         className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100"
@@ -21,14 +21,14 @@ export default function Header({ onMenuClick }) {
       >
         <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
       </button>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 w-full md:w-auto">
         {/* Bộ chọn doanh nghiệp hạch toán */}
-        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold">
+        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold w-full md:w-auto">
           <Building2 size={16} className="text-emerald-600" />
           <select 
             value={activeCompany || ''} 
             onChange={(e) => changeCompany(Number(e.target.value))}
-            className="bg-transparent border-none focus:outline-none font-bold text-slate-800"
+            className="bg-transparent border-none focus:outline-none font-bold text-slate-800 w-full"
             disabled={user?.role !== 'admin' && user?.role !== 'ktt'}
           >
             <option value="" disabled>-- Chọn doanh nghiệp hạch toán --</option>
@@ -55,7 +55,7 @@ export default function Header({ onMenuClick }) {
       </div>
 
       {/* Khối thông tin tài khoản và Đăng xuất */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 mt-3 md:mt-0 md:ml-2">
         <div className="flex items-center gap-2 text-right">
           <div>
             <div className="text-xs font-bold text-slate-800">{user?.username}</div>
