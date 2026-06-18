@@ -36,6 +36,8 @@ if (!process.env.DATABASE_URL) {
         expires_at TIMESTAMP WITH TIME ZONE
       );
     `);
+    // Ensure users table has must_change_password column
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false`);
   } catch (error) {
     console.error('Lỗi kết nối cơ sở dữ liệu:', error.message);
     process.exit(1);
@@ -132,7 +134,8 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.json({ 
       token, 
-      user: { id: user.id, username: user.username, role: user.role, company_id: user.company_id } 
+      user: { id: user.id, username: user.username, role: user.role, company_id: user.company_id },
+      must_change_password: !!user.must_change_password
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -144,6 +147,40 @@ app.post('/api/auth/logout', authenticate, async (req, res) => {
     if (!token) return res.status(400).json({ error: 'Thiếu token.' });
     await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
     res.json({ success: true, message: 'Đăng xuất thành công.' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Thay đổi mật khẩu cho user đã đăng nhập
+app.post('/api/auth/change-password', authenticate, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ error: 'Thiếu mật khẩu mới.' });
+    const q = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    if (q.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
+    const user = q.rows[0];
+    // Verify old password
+    if (!(await bcrypt.compare(oldPassword || '', user.password))) {
+      return res.status(400).json({ error: 'Mật khẩu hiện tại không đúng.' });
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1, must_change_password = false WHERE id = $2', [hashed, req.user.id]);
+    // Optionally remove all sessions and create a new one for this login
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
+    res.json({ success: true, message: 'Đổi mật khẩu thành công.' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Admin reset password for a user (returns temp password)
+app.post('/api/auth/admin-reset-password', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Thiếu userId.' });
+    const temp = Math.random().toString(36).slice(-8) + 'A1!';
+    const hashed = await bcrypt.hash(temp, 10);
+    await pool.query('UPDATE users SET password = $1, must_change_password = true WHERE id = $2', [hashed, userId]);
+    // invalidate existing sessions for that user
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    res.json({ success: true, tempPassword: temp, message: 'Đã reset mật khẩu, người dùng cần đổi mật khẩu lần đầu khi đăng nhập.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -192,8 +229,8 @@ app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) =>
 
     // 3. Tiến hành lưu vào bảng dữ liệu (nhận diện cột 'password' chuẩn xác)
     const result = await pool.query(
-      'INSERT INTO users (username, password, role, company_id) VALUES ($1, $2, $3, $4) RETURNING id, username, role, company_id',
-      [username, hashed, role, companyId || null]
+      'INSERT INTO users (username, password, role, company_id, must_change_password) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, role, company_id, must_change_password',
+      [username, hashed, role, companyId || null, true]
     );
 
     res.status(201).json({ success: true, message: 'Thêm nhân sự mới thành công!', user: result.rows[0] });

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from './context/AuthContext.jsx';
 import Login from './views/auth/Login.jsx';
 import Register from './views/auth/Register.jsx';
+import ChangePassword from './views/auth/ChangePassword.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import MainContent from './components/MainContent.jsx';
@@ -17,6 +18,10 @@ export default function App() {
       return <Register onSwitch={() => setIsFirstRun(false)} />;
     }
     return <Login onFirstRun={() => setIsFirstRun(true)} />;
+  }
+
+  if (token && mustChangePassword) {
+    return <ChangePassword />;
   }
 
   return (
