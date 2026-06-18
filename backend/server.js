@@ -10,7 +10,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL chưa được cấu hình. Vui lòng thêm biến môi trường DATABASE_URL.');
+  process.exit(1);
+}
+
+(async () => {
+  try {
+    await pool.query('SELECT 1');
+    console.log('Kết nối đến cơ sở dữ liệu thành công.');
+  } catch (error) {
+    console.error('Lỗi kết nối cơ sở dữ liệu:', error.message);
+    process.exit(1);
+  }
+})();
 
 // ==========================================
 // MIDDLEWARE XÁC THỰC VÀ PHÂN QUYỀN (PRIVATE API)
@@ -102,6 +120,15 @@ app.get('/api/users', authenticate, requireRole(['admin', 'ktt']), async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', message: 'Backend chạy tốt' });
+  } catch (err) {
+    console.error('Health check failed:', err.message);
+    res.status(500).json({ status: 'error', message: 'Lỗi kết nối cơ sở dữ liệu' });
+  }
+});
 
 // =========================================================
 // 🔥 BỔ SUNG: API THÊM MỚI TÀI KHOẢN NHÂN SỰ (DÀNH CHO FRONTEND)
