@@ -8,7 +8,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,3 +20,18 @@ api.interceptors.request.use((config) => {
 export default api;
 
 // api.js
+// Global response handler: if server invalidates session (401), clear session and redirect to login
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.status === 401) {
+      try {
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+      } catch (e) {}
+      // redirect to root/login
+      if (typeof window !== 'undefined') window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);

@@ -6,8 +6,8 @@ const AuthContext = createContext(null);
 
 // 2. Định nghĩa Component Provider (Bắt buộc viết hoa chữ cái đầu)
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')) || null);
+  const [token, setToken] = useState(sessionStorage.getItem('token') || null);
+  const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
   const [companies, setCompanies] = useState([]);
   const [activeCompany, setActiveCompany] = useState(Number(localStorage.getItem('activeCompany')) || null);
   
@@ -56,8 +56,8 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+      sessionStorage.setItem('token', res.data.token);
+      sessionStorage.setItem('user', JSON.stringify(res.data.user));
       setToken(res.data.token);
       setUser(res.data.user);
       
@@ -72,7 +72,12 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.clear();
+    try {
+      // notify backend to invalidate session
+      api.post('/api/auth/logout');
+    } catch (e) {}
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setToken(null);
     setUser(null);
     setCompanies([]);

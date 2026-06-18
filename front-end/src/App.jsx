@@ -9,6 +9,7 @@ import MainContent from './components/MainContent.jsx';
 export default function App() {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState('opening');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(false);
 
   if (!token) {
@@ -20,10 +21,15 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        mobileOpen={mobileSidebarOpen}
+        onRequestClose={() => setMobileSidebarOpen(false)}
+      />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">
+        <Header onMenuClick={() => setMobileSidebarOpen(open => !open)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <MainContent activeTab={activeTab} />
         </main>
       </div>

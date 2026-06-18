@@ -24,6 +24,18 @@ if (!process.env.DATABASE_URL) {
   try {
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
+    // Ensure sessions table exists for single-device session enforcement
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        device_info TEXT,
+        ip_address TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        expires_at TIMESTAMP WITH TIME ZONE
+      );
+    `);
   } catch (error) {
     console.error('Lỗi kết nối cơ sở dữ liệu:', error.message);
     process.exit(1);
@@ -41,7 +53,17 @@ const authenticate = (req, res, next) => {
   
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
+    // verify token exists in sessions table and is not expired
+    (async () => {
+      try {
+        const q = await pool.query('SELECT id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1', [token, req.user.id]);
+        if (q.rows.length === 0) return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã bị đăng nhập từ nơi khác.' });
+        next();
+      } catch (err) {
+        console.error('Session check error:', err.message);
+        res.status(500).json({ error: 'Lỗi xác thực phiên làm việc' });
+      }
+    })();
   } catch {
     res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn!' });
   }
@@ -99,11 +121,29 @@ app.post('/api/auth/login', async (req, res) => {
       process.env.JWT_SECRET, 
       { expiresIn: '24h' }
     );
-    
+    // Enforce single active session: remove existing sessions for this user
+    try {
+      await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+      await pool.query('INSERT INTO sessions (user_id, token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, now(), $3, $4, $5)', [user.id, token, expiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]);
+    } catch (err) {
+      console.error('Không thể lưu session:', err.message);
+    }
+
     res.json({ 
       token, 
       user: { id: user.id, username: user.username, role: user.role, company_id: user.company_id } 
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Đăng xuất: xóa session hiện tại
+app.post('/api/auth/logout', authenticate, async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(400).json({ error: 'Thiếu token.' });
+    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    res.json({ success: true, message: 'Đăng xuất thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
