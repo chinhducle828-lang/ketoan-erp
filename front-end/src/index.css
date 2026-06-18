@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Viết đè trực tiếp cho thẻ body và các thẻ form theo chuẩn v3 */
+@layer base {
+  body {
+    @apply bg-slate-50 font-sans antialiased text-slate-800;
+  }
+
+  input, select, textarea {
+    @apply transition-all duration-200;
+  }
+}
