@@ -21,7 +21,7 @@ export default function Register({ onSwitch }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-      <div className="w-full max-w-sm bg-white p-6 rounded-2xl shadow-xl space-y-6">
+      <div className="w-full max-w-sm md:max-w-md bg-white p-5 sm:p-6 rounded-2xl shadow-xl space-y-6">
         <div className="text-center space-y-1">
           <div className="inline-flex p-3 bg-blue-50 text-blue-600 rounded-xl mb-2">
             <ShieldCheck size={24} />
@@ -40,7 +40,7 @@ export default function Register({ onSwitch }) {
               placeholder="Tên đăng nhập hệ thống gốc (Ví dụ: admin)..." 
               value={form.username}
               onChange={e => setForm({...form, username: e.target.value})}
-              className="w-full text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none" 
+              className="w-full text-sm px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none" 
             />
             <input 
               type="password" 
@@ -48,7 +48,7 @@ export default function Register({ onSwitch }) {
               placeholder="Mật khẩu bảo mật cấp cao..." 
               value={form.password}
               onChange={e => setForm({...form, password: e.target.value})}
-              className="w-full text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none" 
+              className="w-full text-sm px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none" 
             />
           </div>
 
