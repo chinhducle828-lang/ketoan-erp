@@ -4,9 +4,7 @@ import { Calculator, Plus, Trash2, Landmark, CheckCircle2 } from 'lucide-react';
 
 export default function FixedAssets() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
-  const [assets, setAssets] = useState([
-    { id: 'TS001', name: 'Xe tải chuyên chở Suzuki Carry', originalPrice: 360000000, life: 60, deptCode: '6421', date: '2026-01-01' }
-  ]);
+  const [assets, setAssets] = useState([]);
   const [form, setForm] = useState({ id: '', name: '', originalPrice: '', life: 60, deptCode: '6422', date: '2026-01-01' });
   const [msg, setMsg] = useState('');
 

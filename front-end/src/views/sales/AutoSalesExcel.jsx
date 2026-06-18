@@ -4,10 +4,7 @@ import { Layers, FileSpreadsheet } from 'lucide-react';
 
 export default function AutoSalesExcel() {
   const { createNewVoucher } = useVouchers();
-  const [simulatedRows, setSimulatedRows] = useState([
-    { id: 'HD01', customer: 'Công ty TNHH Thép Việt', amount: 150000000 },
-    { id: 'HD02', customer: 'Tập đoàn Xây dựng An Phong', amount: 280000000 }
-  ]);
+  const [simulatedRows, setSimulatedRows] = useState([]);
 
   const handleSyncAll = async () => {
     for (const row of simulatedRows) {
