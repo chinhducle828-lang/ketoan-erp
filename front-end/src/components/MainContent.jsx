@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { MODULES_REGISTER } from '../views/index.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
+import ResponsiveContainer from './ResponsiveContainer.jsx';
 
 export default function MainContent({ activeTab }) {
   const { activeCompany } = useAuth();
@@ -34,9 +35,9 @@ export default function MainContent({ activeTab }) {
         <span>Đang nạp dữ liệu phân hệ hạch toán...</span>
       </div>
     }>
-      <div className="w-full max-w-5xl mx-auto px-2 md:px-0">
-        <LazyComponent />
-      </div>
+        <ResponsiveContainer>
+          <LazyComponent />
+        </ResponsiveContainer>
     </Suspense>
   );
 }
