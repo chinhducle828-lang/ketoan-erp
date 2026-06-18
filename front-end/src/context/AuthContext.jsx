@@ -8,6 +8,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(sessionStorage.getItem('token') || null);
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [activeCompany, setActiveCompany] = useState(Number(localStorage.getItem('activeCompany')) || null);
   
@@ -60,6 +61,7 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem('user', JSON.stringify(res.data.user));
       setToken(res.data.token);
       setUser(res.data.user);
+      setMustChangePassword(!!res.data.must_change_password);
       
       if (res.data.user.company_id) {
         setActiveCompany(res.data.user.company_id);
@@ -80,9 +82,20 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setMustChangePassword(false);
     setCompanies([]);
     setActiveCompany(null);
     setFiscalYearState(2026); // Reset về niên độ mặc định khi đăng xuất
+  };
+
+  const changePassword = async (oldPassword, newPassword) => {
+    try {
+      const res = await api.post('/api/auth/change-password', { oldPassword, newPassword });
+      setMustChangePassword(false);
+      return res.data;
+    } catch (err) {
+      throw err.response?.data?.error || err.message || 'Lỗi đổi mật khẩu';
+    }
   };
 
   const changeCompany = (id) => {
@@ -101,6 +114,8 @@ export function AuthProvider({ children }) {
       changeCompany, 
       login, 
       logout, 
+      mustChangePassword,
+      changePassword,
       registerAdmin, 
       fetchCompanies 
     }}>

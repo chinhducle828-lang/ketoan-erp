@@ -238,13 +238,31 @@ export default function CompanyManagement() {
                       </td>
                       <td className="p-3 text-center">
                         {u.id !== currentUser?.id && !isAdmin && (
-                          <button
-                            onClick={() => handleDeleteUser(u.id, u.username)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition"
-                            title="Xóa nhân sự"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.username)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition"
+                              title="Xóa nhân sự"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+
+                            {currentUser?.role === 'admin' && (
+                              <button
+                                onClick={async () => {
+                                  if (!window.confirm(`Reset mật khẩu cho ${u.username}? Mật khẩu tạm thời sẽ được hiển thị cho Admin.`)) return;
+                                  try {
+                                    const res = await api.post('/api/auth/admin-reset-password', { userId: u.id });
+                                    alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
+                                  } catch (err) { alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); }
+                                }}
+                                className="ml-2 p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-amber-50 transition"
+                                title="Reset mật khẩu"
+                              >
+                                <UserPlus size={15} />
+                              </button>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>
