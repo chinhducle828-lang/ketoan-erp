@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Plus } from 'lucide-react';
+import { Package, Plus, Trash2 } from 'lucide-react';
 
 export default function ItemManagement() {
   const [items, setItems] = useState([
@@ -12,6 +12,11 @@ export default function ItemManagement() {
     e.preventDefault();
     setItems([...items, form]);
     setForm({ code: '', name: '', unit: 'Cái' });
+  };
+
+  const handleDelete = (code) => {
+    if (!window.confirm(`Xóa sản phẩm "${code}"? Hành động này không thể hoàn tác.`)) return;
+    setItems(items.filter(i => i.code !== code));
   };
 
   return (
@@ -27,11 +32,11 @@ export default function ItemManagement() {
         <div className="bg-white p-5 rounded-2xl border shadow-sm col-span-2">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 font-bold border-b"><th className="p-2">Mã SKU</th><th className="p-2">Tên vật tư hàng hóa</th><th className="p-2">ĐVT</th></tr>
+              <tr className="bg-slate-50 font-bold border-b"><th className="p-2">Mã SKU</th><th className="p-2">Tên vật tư hàng hóa</th><th className="p-2">ĐVT</th><th className="p-2 text-center">Hành động</th></tr>
             </thead>
             <tbody>
               {items.map(i => (
-                <tr key={i.code} className="border-b"><td className="p-2 font-mono font-bold text-slate-600">{i.code}</td><td className="p-2">{i.name}</td><td className="p-2">{i.unit}</td></tr>
+                <tr key={i.code} className="border-b hover:bg-slate-50/50 transition"><td className="p-2 font-mono font-bold text-slate-600">{i.code}</td><td className="p-2">{i.name}</td><td className="p-2">{i.unit}</td><td className="p-2 text-center"><button onClick={() => handleDelete(i.code)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Xóa sản phẩm"><Trash2 size={16} /></button></td></tr>
               ))}
             </tbody>
           </table>
