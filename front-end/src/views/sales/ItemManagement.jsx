@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { Package, Plus, Trash2 } from 'lucide-react';
 
 export default function ItemManagement() {
-  const [items, setItems] = useState([
-    { code: 'VT001', name: 'Thép cuộn xây dựng Hòa Phát F10', unit: 'Tấn' },
-    { code: 'HH002', name: 'Xi măng Hoàng Thạch P400', unit: 'Bao' }
-  ]);
+  const [items, setItems] = useState([]);
   const [form, setForm] = useState({ code: '', name: '', unit: 'Cái' });
 
   const handleAdd = (e) => {
