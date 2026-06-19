@@ -145,8 +145,9 @@ export function AuthProvider({ children }) {
       token, 
       user, 
       setUser,
-      users,             // <--- Cung cấp state users xuống các component con
-      loadUsers,         // <--- Cung cấp hàm loadUsers xuống các component con
+      users,             
+      setUsers,          // <--- THÊM DÒNG NÀY VÀO ĐỂ CÁC COMPONENT CÓ QUYỀN SỬA STATE NGAY LẬP TỨC
+      loadUsers,         
       updateUserCompanies,
       companies, 
       activeCompany, 
@@ -159,7 +160,7 @@ export function AuthProvider({ children }) {
       mustChangePassword,
       changePassword,
       registerAdmin, 
-      fetchCompanies 
+      fetchCompanies
     }}>
       {children}
     </AuthContext.Provider>

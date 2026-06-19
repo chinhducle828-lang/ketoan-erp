@@ -9,6 +9,14 @@ export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
   const { fetchCompanies, companies, user: currentUser, users = [], loadUsers } = useAuth();
 
+  // MẸO XỬ LÝ CHỐNG GIẬT/TRƯỢT GIAO DIỆN: Tạo 1 bản sao danh sách user để giao diện phản hồi tức thì
+  const [localUsers, setLocalUsers] = useState([]);
+
+  // Đồng bộ dữ liệu gốc từ Server vào danh sách hiển thị
+  useEffect(() => {
+    setLocalUsers(users);
+  }, [users]);
+
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -23,50 +31,67 @@ export default function CompanyManagement() {
   // Thay đổi đơn vị công tác trực tiếp trên bảng
   const handleAssign = async (userId, companyId) => {
     const targetCompanyId = companyId ? Number(companyId) : null;
-    const targetUser = users.find(u => u.id === userId);
+    const targetUser = localUsers.find(u => u.id === userId);
 
-    // BẢO VỆ TÀI KHOẢN ROOT: Không ai được phép gán hay đổi đơn vị của root
+    // BẢO VỆ TÀI KHOẢN ROOT
     if (targetUser?.username === 'admin') {
       alert('Không thể cấu hình đơn vị công tác cho tài khoản Root!');
       return;
     }
     
+    // 1. CẬP NHẬT GIAO DIỆN TỨC THÌ (Chống trượt giá trị select box)
+    setLocalUsers(prev => prev.map(u => 
+      u.id === userId ? { ...u, company_id: targetCompanyId } : u
+    ));
+
     try {
+      // 2. Gọi API chạy ngầm
       await api.post('/api/auth/assign-company', { 
         userId, 
         companyId: targetCompanyId,
         role: targetUser?.role || 'nv'
       });
       
-      await loadUsers(); // Gọi bất đồng bộ hoàn tất để đồng bộ toàn cục
+      // 3. Khớp lại dữ liệu chuẩn từ server
+      await loadUsers(); 
     } catch (err) { 
       alert('Lỗi gán quyền đơn vị'); 
-      await loadUsers(); 
+      await loadUsers(); // Reset lại nếu lỗi
     }
   };
 
   // Thay đổi Vai trò trực tiếp trên bảng
   const handleRoleChange = async (userId, newRole) => {
-    const targetUser = users.find(u => u.id === userId);
+    const targetUser = localUsers.find(u => u.id === userId);
 
-    // BẢO VỆ TÀI KHOẢN ROOT: Ngăn chặn tuyệt đối tương tác ngược hay hạ quyền root
     if (targetUser?.username === 'admin') {
       alert('Cấm tuyệt đối hành vi tương tác hoặc thay đổi vai trò của tài khoản Root hệ thống!');
       return;
     }
 
-    // Không cho tự hạ quyền chính mình
     if (userId === currentUser?.id) {
       alert('Bạn không thể tự thay đổi vai trò của chính mình!');
       return;
     }
 
+    // 1. CẬP NHẬT GIAO DIỆN TỨC THÌ
+    setLocalUsers(prev => prev.map(u => 
+      u.id === userId ? { 
+        ...u, 
+        role: newRole,
+        company_id: newRole === 'admin' ? null : u.company_id // Admin thì gỡ company
+      } : u
+    ));
+
     try {
+      // 2. Gọi API chạy ngầm
       await api.post('/api/auth/assign-company', { 
         userId, 
         companyId: newRole === 'admin' ? null : (targetUser?.company_id || null),
         role: newRole 
       });
+      
+      // 3. Khớp lại dữ liệu chuẩn từ server
       await loadUsers();
     } catch (err) { 
       alert('Lỗi cập nhật vai trò'); 
@@ -94,7 +119,7 @@ export default function CompanyManagement() {
       setNewCompanyId('');
       setNewRole('nv');
       
-      await loadUsers(); // Kích hoạt nạp lại dữ liệu trung tâm cho tất cả các phân hệ hiển thị bên ngoài
+      await loadUsers(); 
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi thêm nhân sự mới!');
     }
@@ -221,7 +246,8 @@ export default function CompanyManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map(u => {
+                {/* DÙNG localUsers THAY VÌ users Ở ĐÂY ĐỂ UI KHÔNG BỊ TRƯỢT */}
+                {localUsers.map(u => {
                   const isRoot = u.username === 'admin';
                   const isSelf = u.id === currentUser?.id;
                   const isAdminMode = u.role === 'admin';
@@ -316,7 +342,7 @@ export default function CompanyManagement() {
           <Users size={16} /> Danh sách nhân sự hệ thống
         </h3>
         
-        {users.length === 0 ? (
+        {localUsers.length === 0 ? (
           <div className="text-center py-10 text-slate-400 text-xs">
             Chưa có nhân sự nào trực thuộc hệ thống.
           </div>
@@ -330,7 +356,8 @@ export default function CompanyManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map(user => (
+                {/* DÙNG localUsers THAY VÌ users Ở ĐÂY */}
+                {localUsers.map(user => (
                   <tr key={user.id} className="hover:bg-slate-50/50 transition">
                     <td className="p-3 font-bold text-slate-700">{user.username}</td>
                     <td className="p-3">
