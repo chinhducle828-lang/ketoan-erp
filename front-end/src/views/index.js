@@ -106,14 +106,10 @@ export const MODULES_REGISTER = [
     id: 'users',
     name: 'Quản lý ô tích phân quyền',
     icon: UserCheck,
-    // FIX CHI TIẾT: Sử dụng React.createElement thay thế cho cú pháp viết thẻ HTML/JSX trực tiếp
-    component: React.lazy(() => Promise.resolve({ 
-      default: () => React.createElement('div', { className: 'hidden' }) 
-    })),
+    // ĐÃ SỬA: Cho module quản lý ô tích import thẳng component CompanyManagement.jsx
+    // Khi đổi tab trên sidebar, React sẽ ép unmount và mount lại view, kích hoạt useEffect tải lại dữ liệu mới nhất.
+    component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
     allowedRoles: ['admin'],
     requiresActiveCompany: false 
   }
 ];
-
-
-  

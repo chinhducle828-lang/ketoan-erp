@@ -3,7 +3,7 @@ import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AddCompanyForm from './AddCompanyForm.jsx';
 import CompanyList from './CompanyList.jsx';
-import { ShieldAlert, Users, UserPlus, Trash2 } from 'lucide-react';
+import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
 
 export default function CompanyManagement() {
   const { fetchCompanies, companies, user: currentUser } = useAuth();
@@ -15,6 +15,7 @@ export default function CompanyManagement() {
   const [newRole, setNewRole] = useState('nv');
   const [newCompanyId, setNewCompanyId] = useState('');
 
+  // Tải lại dữ liệu nhân sự mỗi khi component được kích hoạt (đồng bộ chuyển tab)
   useEffect(() => {
     loadUsers();
   }, []);
@@ -23,7 +24,9 @@ export default function CompanyManagement() {
     try {
       const res = await api.get('/api/users');
       setUsers(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error('Lỗi tải danh sách nhân sự:', err); 
+    }
   };
 
   // Thay đổi đơn vị công tác trực tiếp trên bảng
@@ -35,7 +38,7 @@ export default function CompanyManagement() {
       const currentU = users.find(u => u.id === userId);
       if (currentU?.role === 'admin') return;
 
-      // CẬP NHẬT NGAY LẬP TỨC TRÊN STATE TRƯỚC ĐỂ GIỮ HIỂN THỊ TRÊN MÀN HÌNH MƯỢT MÀ
+      // CẬP NHẬT TRÊN STATE TRƯỚC ĐỂ GIỮ HIỂN THỊ TRÊN MÀN HÌNH KHÔNG BỊ TRỐNG
       setUsers(prevUsers => 
         prevUsers.map(u => u.id === userId ? { ...u, company_id: targetCompanyId } : u)
       );
@@ -46,11 +49,11 @@ export default function CompanyManagement() {
         role: currentU?.role || 'nv'
       });
       
-      // Đồng bộ lại với database ngầm
+      // Đồng bộ dữ liệu chuẩn với database
       loadUsers();
     } catch (err) { 
-      alert('Lỗi gán quyền'); 
-      loadUsers(); // Lỗi thì tải lại data cũ
+      alert('Lỗi gán quyền đơn vị'); 
+      loadUsers(); // Khôi phục lại nếu lỗi xảy ra
     }
   };
 
@@ -94,6 +97,7 @@ export default function CompanyManagement() {
       alert('Thêm nhân sự mới thành công!');
       setNewUsername('');
       setNewPassword('');
+      setNewCompanyId('');
       loadUsers();
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi thêm nhân sự mới!');
@@ -163,7 +167,10 @@ export default function CompanyManagement() {
               <div className="grid grid-cols-2 gap-2">
                 <select
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value)}
+                  onChange={(e) => {
+                    setNewRole(e.target.value);
+                    if (e.target.value === 'admin') setNewCompanyId('');
+                  }}
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
                 >
                   <option value="nv">Nhân viên (nv)</option>
@@ -183,7 +190,7 @@ export default function CompanyManagement() {
                 >
                   <option value="">-- Chọn đơn vị --</option>
                   {companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={Number(c.id)}>{c.name}</option>
                   ))}
                 </select>
               </div>
@@ -237,7 +244,7 @@ export default function CompanyManagement() {
                         </select>
                       </td>
                       <td className="p-3">
-                        {/* CHỖ SỬA QUAN TRỌNG: Ép kiểu dữ liệu đồng nhất Number cho value */}
+                        {/* Đã đồng bộ ép kiểu dữ liệu từ backend và frontend về dạng Number */}
                         <select 
                           value={isAdmin ? '' : (u.company_id ? Number(u.company_id) : '')} 
                           onChange={(e) => handleAssign(u.id, e.target.value)}
@@ -254,7 +261,7 @@ export default function CompanyManagement() {
                           ))}
                         </select>
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-3 text-center flex items-center justify-center gap-1">
                         {u.id !== currentUser?.id && !isAdmin && (
                           <>
                             <button
@@ -272,12 +279,14 @@ export default function CompanyManagement() {
                                   try {
                                     const res = await api.post('/api/auth/admin-reset-password', { userId: u.id });
                                     alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
-                                  } catch (err) { alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); }
+                                  } catch (err) { 
+                                    alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); 
+                                  }
                                 }}
-                                className="ml-2 p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-amber-50 transition"
+                                className="p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-amber-50 transition"
                                 title="Reset mật khẩu"
                               >
-                                <UserPlus size={15} />
+                                <KeyRound size={15} />
                               </button>
                             )}
                           </>
