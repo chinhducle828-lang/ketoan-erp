@@ -4,26 +4,27 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 
 export default function ItemManagement() {
-  const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc
+  const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc từ Header
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ code: '', name: '', unit: 'Cái' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Tự động đồng bộ gọi API tải dữ liệu khi vào phân hệ hoặc khi đổi công ty trên Header
+  // Tự động tải lại danh sách khi vào phân hệ hoặc khi người dùng chuyển đổi công ty
   useEffect(() => {
     if (activeCompany) {
       fetchItems();
     }
   }, [activeCompany]);
 
-  // Lấy danh sách vật tư từ API thực
+  // 1. ĐỌC DANH SÁCH: Đã bổ sung tham số ?company_id phục vụ tài khoản Admin xem chéo
   const fetchItems = async () => {
+    if (!activeCompany) return;
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/api/items');
+      const res = await api.get(`/api/items?company_id=${activeCompany}`);
       setItems(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Không thể kết nối lấy danh mục vật tư!');
@@ -32,37 +33,42 @@ export default function ItemManagement() {
     }
   };
 
-  // Thêm mới vật tư vào Database qua API
+  // 2. THÊM MỚI VẬT TƯ: Gửi kèm companyId để Backend nhận diện đúng thực thể hạch toán
   const handleAdd = async (e) => {
     e.preventDefault();
+    if (!activeCompany) {
+      setError('Vui lòng chọn một doanh nghiệp trên thanh công cụ trước!');
+      return;
+    }
     setError('');
     setSuccess('');
     
     try {
       const res = await api.post('/api/items', {
-        code: form.code.toUpperCase().trim(), // Chuẩn hóa mã viết hoa
+        code: form.code.toUpperCase().trim(), // Chuẩn hóa viết hoa mã SKU
         name: form.name.trim(),
-        unit: form.unit.trim()
+        unit: form.unit.trim(),
+        companyId: activeCompany // Truyền mã doanh nghiệp hiện tại
       });
       
       if (res.data.success) {
         setSuccess('Đăng ký mã vật tư mới thành công!');
         setForm({ code: '', name: '', unit: 'Cái' });
-        fetchItems(); // Tải lại danh sách sau khi thêm mới
+        fetchItems(); // Tải lại danh sách sau khi lưu
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Lỗi hệ thống khi đăng ký vật tư!');
     }
   };
 
-  // Xóa vật tư khỏi Database qua API
+  // 3. XÓA VẬT TƯ: Truyền company_id qua URL để khớp chính xác với Khóa chính phức hợp ở DB
   const handleDelete = async (code) => {
     if (!window.confirm(`Xóa sản phẩm "${code}"? Hành động này không thể hoàn tác.`)) return;
     setError('');
     setSuccess('');
 
     try {
-      const res = await api.delete(`/api/items/${code}`);
+      const res = await api.delete(`/api/items/${code}?company_id=${activeCompany}`);
       if (res.data.success) {
         setSuccess('Đã xóa vật tư thành công khỏi hệ thống!');
         fetchItems(); // Tải lại danh sách sau khi xóa
