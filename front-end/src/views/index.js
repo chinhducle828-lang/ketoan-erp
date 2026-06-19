@@ -98,7 +98,6 @@ export const MODULES_REGISTER = [
     id: 'companies',
     name: 'Cấu hình hệ thống pháp nhân',
     icon: Settings,
-    // ĐÂY LÀ FILE BẠN CẦN VÀO SỬA THẺ <SELECT> BỊ ĐƠ GIAO DIỆN
     component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
     allowedRoles: ['admin'],
     requiresActiveCompany: false
@@ -107,9 +106,14 @@ export const MODULES_REGISTER = [
     id: 'users',
     name: 'Quản lý ô tích phân quyền',
     icon: UserCheck,
-    // Chuẩn hóa Component rỗng để tránh lỗi crash khi MainContent cố gắng mount thẻ <LazyComponent />
-    component: React.lazy(() => Promise.resolve({ default: () => <div className="hidden" /> })),
+    // FIX CHI TIẾT: Sử dụng React.createElement thay thế cho cú pháp viết thẻ HTML/JSX trực tiếp
+    component: React.lazy(() => Promise.resolve({ 
+      default: () => React.createElement('div', { className: 'hidden' }) 
+    })),
     allowedRoles: ['admin'],
     requiresActiveCompany: false 
   }
-];  
+];
+
+
+  
