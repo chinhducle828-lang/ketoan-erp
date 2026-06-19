@@ -11,8 +11,14 @@ export function AuthProvider({ children }) {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [companies, setCompanies] = useState([]);
   
-  // ĐỒNG BỘ CÔNG TY ACTIVE: Lấy từ localStorage để giữ trạng thái khi F5 trang web
-  const [activeCompany, setActiveCompany] = useState(Number(localStorage.getItem('activeCompany')) || null);
+  // ĐỒNG BỘ CÔNG TY ACTIVE: Lưu trữ dưới dạng Object để Header hiển thị mượt mà, tránh lỗi đơ nút bấm
+  const [activeCompany, setActiveCompany] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('activeCompany')) || null;
+    } catch {
+      return null;
+    }
+  });
   
   // ĐỒNG BỘ NIÊN ĐỘ: Tự động lấy từ localStorage, mặc định lấy 2026
   const [fiscalYear, setFiscalYearState] = useState(
@@ -28,19 +34,25 @@ export function AuthProvider({ children }) {
     if (token) {
       fetchCompanies();
     }
-  }, [token]);
+  }, [token, user?.company_ids]); // Lắng nghe thay đổi của mảng phân quyền
 
   const fetchCompanies = async () => {
     try {
       const res = await api.get('/api/companies');
-      setCompanies(res.data);
+      const listCompanies = res.data || [];
+      setCompanies(listCompanies);
       
-      // Nếu có danh sách công ty từ server đổ về mà client chưa chọn công ty làm việc nào
-      if (res.data.length > 0 && !activeCompany) {
-        // Tự động chọn công ty đầu tiên trong danh sách liên kết để làm việc
-        const defaultId = res.data[0].id;
-        setActiveCompany(defaultId);
-        localStorage.setItem('activeCompany', defaultId);
+      // Đồng bộ hóa: Nếu có danh sách công ty mà chưa chọn công ty nào, hoặc công ty cũ không còn nằm trong danh sách được phân quyền
+      if (listCompanies.length > 0) {
+        const isExist = activeCompany ? listCompanies.some(c => c.id === activeCompany.id) : false;
+        if (!activeCompany || !isExist) {
+          const defaultComp = listCompanies[0];
+          setActiveCompany(defaultComp);
+          localStorage.setItem('activeCompany', JSON.stringify(defaultComp));
+        }
+      } else {
+        setActiveCompany(null);
+        localStorage.removeItem('activeCompany');
       }
     } catch (err) {
       console.error('Lỗi lấy danh sách công ty:', err);
@@ -61,20 +73,11 @@ export function AuthProvider({ children }) {
       const res = await api.post('/api/auth/login', { username, password });
       sessionStorage.setItem('token', res.data.token);
       sessionStorage.setItem('user', JSON.stringify(res.data.user));
+      
       setToken(res.data.token);
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
       
-      // ĐỒNG BỘ ĐA CÔNG TY: Lấy phần tử đầu tiên từ mảng company_ids mà backend trả về làm mặc định
-      if (res.data.user.company_ids && res.data.user.company_ids.length > 0) {
-        const defaultCompanyId = res.data.user.company_ids[0];
-        setActiveCompany(defaultCompanyId);
-        localStorage.setItem('activeCompany', defaultCompanyId);
-      } else {
-        // Dự phòng trường hợp Admin tối cao không thuộc về công ty con cụ thể nào
-        setActiveCompany(null);
-        localStorage.removeItem('activeCompany');
-      }
       return res.data;
     } catch (err) {
       throw err;
@@ -109,17 +112,30 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const changeCompany = (id) => {
-    setActiveCompany(id);
-    localStorage.setItem('activeCompany', id);
+  // Thay đổi công ty active bằng Object (Khớp hoàn toàn với cơ chế của Header)
+  const changeCompany = (companyObj) => {
+    setActiveCompany(companyObj);
+    localStorage.setItem('activeCompany', JSON.stringify(companyObj));
+  };
+
+  // HÀM ĐỒNG BỘ NÓNG: Cập nhật trực tiếp danh sách quyền mà không cần đăng xuất
+  const updateUserCompanies = (newCompanyIds) => {
+    if (user) {
+      const updatedUser = { ...user, company_ids: newCompanyIds };
+      setUser(updatedUser);
+      sessionStorage.setItem('user', JSON.stringify(updatedUser));
+    }
   };
 
   return (
     <AuthContext.Provider value={{ 
       token, 
       user, 
+      setUser,
+      updateUserCompanies,
       companies, 
       activeCompany, 
+      setActiveCompany,
       fiscalYear,      
       setFiscalYear,   
       changeCompany, 

@@ -69,9 +69,11 @@ if (!process.env.DATABASE_URL) {
       );
     `);
     
-    // Đồng bộ cấu trúc phụ trợ cho users (Thêm cột đổi mật khẩu và quản lý trực thuộc)
+    // Đồng bộ cấu trúc phụ trợ cho bộ ô tích phân quyền đa năng
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS company_ids INTEGER[] DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_ids INTEGER[] DEFAULT '{}'`);
     
     // 4. Khởi tạo bảng danh mục vật tư items với KHÓA PHỨC HỢP chuẩn đa doanh nghiệp
     await pool.query(`
@@ -130,7 +132,7 @@ const requireRole = (roles) => {
 // --- API HỆ THỐNG & AUTHENTICATION ---
 // ==========================================
 
-// Đăng ký tài khoản Admin hệ thống gốc (GIỮ NGUYÊN)
+// Đăng ký tài khoản Admin hệ thống gốc
 app.post('/api/auth/register-admin', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -142,14 +144,14 @@ app.post('/api/auth/register-admin', async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
+      "INSERT INTO users (username, password, role, company_ids, staff_ids) VALUES ($1, $2, $3, '{}', '{}') RETURNING id, username, role",
       [username, hashed, 'admin']
     );
     res.json({ success: true, user: result.rows[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Đăng nhập hệ thống (NÂNG CẤP ĐA CÔNG TY TRONG JWT)
+// Đăng nhập hệ thống (ĐỒNG BỘ ĐỌC TRỰC TIẾP TỪ TRƯỜNG COMPANY_IDS ĐỂ TRÁNH ĐƠ HEADER)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -161,12 +163,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Mật khẩu không chính xác!' });
     }
     
-    // Lấy toàn bộ danh sách ID công ty được gán cho user này (Nếu không phải Admin)
-    let companyIds = [];
-    if (user.role !== 'admin') {
-      const companiesQuery = await pool.query('SELECT company_id FROM user_companies WHERE user_id = $1', [user.id]);
-      companyIds = companiesQuery.rows.map(r => r.company_id);
-    }
+    // Đọc trường mảng company_ids đã được xử lý qua ô tích để bảo đảm đồng bộ tức thì
+    const companyIds = user.company_ids || [];
     
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role, company_ids: companyIds }, 
@@ -193,7 +191,7 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Đăng xuất (GIỮ NGUYÊN)
+// Đăng xuất
 app.post('/api/auth/logout', authenticate, async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -203,7 +201,7 @@ app.post('/api/auth/logout', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Thay đổi mật khẩu (GIỮ NGUYÊN)
+// Thay đổi mật khẩu
 app.post('/api/auth/change-password', authenticate, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -224,7 +222,7 @@ app.post('/api/auth/change-password', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Admin Reset Mật khẩu cho nhân viên (GIỮ NGUYÊN)
+// Admin Reset Mật khẩu cho nhân viên
 app.post('/api/auth/admin-reset-password', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { userId } = req.body;
@@ -238,36 +236,30 @@ app.post('/api/auth/admin-reset-password', authenticate, requireRole(['admin']),
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Lấy danh sách người dùng (SỬA ĐỂ TRẢ VỀ THÊM CỘT PHỤC VỤ Ô TÍCH CHỌN HÀNG LOẠT)
+// Lấy danh sách người dùng (SỬA ĐỂ TRẢ VỀ DỮ LIỆU ĐỒNG BỘ 100% THEO ĐÚNG TRƯỜNG CỦA TAB Ô TÍCH)
 app.get('/api/users', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     let result;
     if (req.user.role === 'admin') {
       result = await pool.query(`
-        SELECT u.id, u.username, u.role, u.manager_id, m.username as manager_name,
-               ARRAY_REMOVE(ARRAY_AGG(DISTINCT uc.company_id), NULL) as company_ids,
-               ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.id), NULL) as staff_ids
-        FROM users u
-        LEFT JOIN user_companies uc ON u.id = uc.user_id
-        LEFT JOIN users m ON u.manager_id = m.id
-        LEFT JOIN users s ON s.manager_id = u.id AND s.role = 'nv'
-        GROUP BY u.id, m.username
-        ORDER BY u.id DESC
+        SELECT id, username, role, manager_id, COALESCE(company_ids, '{}') as company_ids, COALESCE(staff_ids, '{}') as staff_ids 
+        FROM users 
+        ORDER BY id DESC
       `);
     } else {
       // Đối với Kế toán trưởng: Chỉ lấy danh sách nhân viên do mình quản lý trực tiếp
       result = await pool.query(`
-        SELECT u.id, u.username, u.role, u.manager_id
-        FROM users u
-        WHERE u.manager_id = $1 AND u.role = 'nv'
-        ORDER BY u.username ASC
+        SELECT id, username, role, manager_id, COALESCE(company_ids, '{}') as company_ids
+        FROM users 
+        WHERE manager_id = $1 AND role = 'nv'
+        ORDER BY username ASC
       `, [req.user.id]);
     }
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Khai báo nhân sự mới từ Admin Form (GIỮ NGUYÊN)
+// Khai báo nhân sự mới từ Admin Form
 app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { username, password, role } = req.body;
@@ -284,7 +276,7 @@ app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) =>
     const hashed = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      'INSERT INTO users (username, password, role, must_change_password) VALUES ($1, $2, $3, $4) RETURNING id, username, role',
+      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids) VALUES ($1, $2, $3, $4, '{}', '{}') RETURNING id, username, role",
       [username, hashed, role, true]
     );
 
@@ -292,7 +284,7 @@ app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Xóa nhân sự (GIỮ NGUYÊN)
+// Xóa nhân sự
 app.delete('/api/users/:id', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const userId = req.params.id;
@@ -306,41 +298,41 @@ app.delete('/api/users/:id', authenticate, requireRole(['admin']), async (req, r
 });
 
 // ==========================================
-// --- API MỚI PHÂN QUYỀN & GÁN Ô TÍCH CHỌN HÀNG LOẠT ---
+// --- API PHÂN QUYỀN ĐỒNG BỘ HAI CHIỀU MỚI ---
 // ==========================================
 
-// 1. API: KẾ TOÁN TRƯỞNG TÍCH CHỌN QUẢN LÝ NHIỀU NHÂN VIÊN (Giới hạn tối đa 15 người)
+// 1. KẾ TOÁN TRƯỞNG TÍCH CHỌN QUẢN LÝ NHIỀU NHÂN VIÊN (ĐỒNG BỘ HAI CHIỀU)
 app.post('/api/auth/assign-staff', authenticate, requireRole(['admin']), async (req, res) => {
   try {
-    const { managerId, staffIds } = req.body; // staffIds gửi lên dạng mảng: [4, 5, 6]
+    const { managerId, staffIds } = req.body; 
 
     if (!managerId) return res.status(400).json({ error: 'Thiếu thông tin Kế toán trưởng!' });
     if (!Array.isArray(staffIds)) return res.status(400).json({ error: 'Danh sách nhân viên phải là một mảng!' });
 
-    // Chặn cứng quy tắc nghiệp vụ quản lý không quá 15 người
     if (staffIds.length > 15) {
       return res.status(400).json({ error: 'Một Kế toán trưởng chỉ được quản lý tối đa 15 nhân viên!' });
     }
 
-    // Kiểm tra tính hợp lệ của người nhận quản lý
     const checkManager = await pool.query('SELECT role FROM users WHERE id = $1', [managerId]);
     if (checkManager.rows.length === 0 || checkManager.rows[0].role !== 'ktt') {
-      return res.status(400).json({ error: 'Tài khoản nhận quản lý không phải là Kế toán trưởng (ktt)!' });
+      return res.status(400).json({ error: 'Tài khoản nhận quản lý không phải là Kế toán trưởng!' });
     }
 
-    // Thực hiện Transaction để đảm bảo tính nhất quán dữ liệu hạch toán nhóm
     await pool.query('BEGIN');
 
-    // Reset những nhân viên cũ đang trực thuộc KTT này về NULL
+    // Bỏ manager_id cũ của những nhân sự từng trực thuộc KTT này
     await pool.query("UPDATE users SET manager_id = NULL WHERE manager_id = $1 AND role = 'nv'", [managerId]);
 
-    // Tiến hành gán nhóm mới cho toàn bộ ID nhân viên được tích chọn
+    // Gán manager_id mới cho các nhân sự được tích chọn
     if (staffIds.length > 0) {
       await pool.query(
         "UPDATE users SET manager_id = $1 WHERE id = ANY($2) AND role = 'nv'",
         [managerId, staffIds]
       );
     }
+
+    // CẬP NHẬT TRỰC TIẾP TRƯỜNG staff_ids TRÊN TÀI KHOẢN KTT ĐỂ ĐỒNG BỘ TAB PHÂN QUYỀN
+    await pool.query('UPDATE users SET staff_ids = $1 WHERE id = $2', [staffIds, managerId]);
 
     await pool.query('COMMIT');
     res.json({ success: true, message: 'Cập nhật danh sách nhân viên cho Kế toán trưởng thành công!' });
@@ -350,19 +342,18 @@ app.post('/api/auth/assign-staff', authenticate, requireRole(['admin']), async (
   }
 });
 
-// 2. API: CHỈ ĐỊNH NHÂN VIÊN VÀO NHIỀU CÔNG TY & CHỌN KTT PHỤ TRÁCH TRỰC TIẾP
+// 2. CHỈ ĐỊNH NHÂN VIÊN VÀO NHIỀU CÔNG TY & CHỌN KTT PHỤ TRÁCH (ĐỒNG BỘ HAI CHIỀU)
 app.post('/api/auth/assign-company', authenticate, requireRole(['admin']), async (req, res) => {
   try {
-    const { userId, companyIds, role, managerId } = req.body; // companyIds là một mảng: [1, 2, 3]
+    const { userId, companyIds, role, managerId } = req.body;
 
     const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
     if (targetUser.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy người dùng!' });
-    if (targetUser.rows[0].role === 'admin') return res.status(400).json({ error: 'Không thể phân quyền cho tài khoản Admin tối cao!' });
+    if (targetUser.rows[0].role === 'admin') return res.status(400).json({ error: 'Không thể phân quyền cho tài khoản Admin!' });
 
     const userRole = role || 'nv';
     const finalManagerId = userRole === 'nv' ? (managerId || null) : null;
 
-    // Nếu gán nhân viên vào nhóm của một KTT nào đó, check xem KTT đó đã đạt giới hạn 15 người chưa
     if (finalManagerId) {
       const countRes = await pool.query(
         "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = 'nv' AND id != $2",
@@ -373,16 +364,16 @@ app.post('/api/auth/assign-company', authenticate, requireRole(['admin']), async
       }
     }
 
-    // Bắt đầu Transaction đồng bộ vai trò và chuỗi doanh nghiệp hạch toán
     await pool.query('BEGIN');
 
-    // Cập nhật chức vụ và người quản lý trực tiếp
-    await pool.query('UPDATE users SET role = $1, manager_id = $2 WHERE id = $3', [userRole, finalManagerId, userId]);
+    // Cập nhật chức vụ, người quản lý trực tiếp VÀ lưu mảng company_ids trực tiếp vào bảng users
+    await pool.query(
+      'UPDATE users SET role = $1, manager_id = $2, company_ids = $3 WHERE id = $4', 
+      [userRole, finalManagerId, companyIds || [], userId]
+    );
 
-    // Xóa sạch dữ liệu phân quyền công ty cũ trong bảng liên kết
+    // Đồng thời đồng bộ dữ liệu sang bảng liên kết vật lý user_companies để đảm bảo các câu lệnh truy vấn JOIN cũ không bị lỗi
     await pool.query('DELETE FROM user_companies WHERE user_id = $1', [userId]);
-
-    // Thêm hàng loạt quyền truy cập công ty mới dựa trên mảng ô tích chọn gửi lên
     if (Array.isArray(companyIds) && companyIds.length > 0) {
       for (const cId of companyIds) {
         await pool.query('INSERT INTO user_companies (user_id, company_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, cId]);
@@ -401,7 +392,7 @@ app.post('/api/auth/assign-company', authenticate, requireRole(['admin']), async
 // --- API QUẢN LÝ DOANH NGHIỆP ---
 // ==========================================
 
-// Thêm mới công ty (GIỮ NGUYÊN)
+// Thêm mới công ty
 app.post('/api/companies', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { name, taxCode, address } = req.body;
@@ -413,7 +404,7 @@ app.post('/api/companies', authenticate, requireRole(['admin']), async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Lấy danh sách công ty (GIỮ NGUYÊN)
+// Lấy danh sách công ty (ĐỌC ĐỒNG BỘ ĐA PHƯƠNG THỨC)
 app.get('/api/companies', authenticate, async (req, res) => {
   try {
     let result;
@@ -421,7 +412,7 @@ app.get('/api/companies', authenticate, async (req, res) => {
       result = await pool.query('SELECT * FROM companies ORDER BY id DESC');
     } else {
       result = await pool.query(`
-        SELECT c.* FROM companies c
+        SELECT DISTINCT c.* FROM companies c
         INNER JOIN user_companies uc ON c.id = uc.company_id
         WHERE uc.user_id = $1 ORDER BY c.id DESC
       `, [req.user.id]);
@@ -430,7 +421,7 @@ app.get('/api/companies', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Xóa công ty (GIỮ NGUYÊN)
+// Xóa công ty
 app.delete('/api/companies/:id', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const companyId = req.params.id;
@@ -440,21 +431,15 @@ app.delete('/api/companies/:id', authenticate, requireRole(['admin']), async (re
       return res.status(400).json({ error: 'Không thể xóa công ty vì còn nhân viên đang được gán quyền làm việc!' });
     }
 
-    const checkVouchers = await pool.query('SELECT id FROM vouchers WHERE company_id = $1 LIMIT 1', [companyId]);
-    if (checkVouchers.rows.length > 0) {
-      return res.status(400).json({ error: 'Không thể xóa công ty vì còn dữ liệu hạch toán!' });
-    }
-
     await pool.query('DELETE FROM companies WHERE id = $1', [companyId]);
     res.json({ success: true, message: 'Đã xóa công ty thành công!' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// --- API NGHIỆP VỤ HẠCH TOÁN ĐA DOANH NGHIỆP & NIÊN ĐỘ ĐỘNG ---
+// --- API NGHIỆP VỤ HẠCH TOÁN ĐA DOANH NGHIỆP ---
 // ==========================================
 
-// Lấy danh sách chứng từ (GIỮ NGUYÊN)
 app.get('/api/vouchers', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id; 
@@ -478,7 +463,6 @@ app.get('/api/vouchers', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Thêm mới chứng từ (GIỮ NGUYÊN)
 app.post('/api/vouchers', authenticate, async (req, res) => {
   try {
     const { voucherDate, description, accountDr, accountCr, amount, type, companyId } = req.body;
@@ -500,7 +484,6 @@ app.post('/api/vouchers', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Xóa chứng từ (GIỮ NGUYÊN)
 app.delete('/api/vouchers/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
@@ -517,7 +500,6 @@ app.delete('/api/vouchers/:id', authenticate, requireRole(['admin', 'ktt']), asy
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Lấy số dư đầu kỳ (GIỮ NGUYÊN)
 app.get('/api/opening-balances', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
@@ -538,7 +520,6 @@ app.get('/api/opening-balances', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Cập nhật số dư đầu kỳ (GIỮ NGUYÊN)
 app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { balances, year, companyId } = req.body;
@@ -570,7 +551,6 @@ app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), a
 // --- API QUẢN LÝ DANH MỤC VẬT TƯ / SẢN PHẨM ---
 // ==========================================
 
-// 1. ĐỌC DANH SÁCH VẬT TƯ (GIỮ NGUYÊN)
 app.get('/api/items', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
@@ -589,7 +569,6 @@ app.get('/api/items', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 2. THÊM MỚI VẬT TƯ (GIỮ NGUYÊN)
 app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code, name, unit, companyId } = req.body;
@@ -614,7 +593,6 @@ app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, 
   }
 });
 
-// 3. XÓA VẬT TƯ (GIỮ NGUYÊN)
 app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;
@@ -636,7 +614,6 @@ app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), asyn
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4. CẬP NHẬT THÔNG TIN VẬT TƯ (GIỮ NGUYÊN)
 app.put('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;

@@ -5,7 +5,8 @@ import { RefreshCw, AlertTriangle, Users, Save, CheckSquare } from 'lucide-react
 import ResponsiveContainer from './ResponsiveContainer.jsx';
 
 export default function MainContent({ activeTab }) {
-  const { activeCompany, token, user } = useAuth();
+  // Lấy thêm hàm updateUserCompanies từ AuthContext để đồng bộ nóng dữ liệu quyền
+  const { activeCompany, token, user, updateUserCompanies } = useAuth();
 
   // ==========================================
   // STATE & LOGIC PHỤC VỤ QUẢN LÝ Ô TÍCH CHỌN NHÂN SỰ (KHI ACTIVE_TAB = 'users')
@@ -28,7 +29,7 @@ export default function MainContent({ activeTab }) {
   const fetchUsers = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token || localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${token || sessionStorage.getItem('token')}` }
       });
       const data = await res.json();
       setUsers(Array.isArray(data) ? data : []);
@@ -38,7 +39,7 @@ export default function MainContent({ activeTab }) {
   const fetchCompanies = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/companies', {
-        headers: { 'Authorization': `Bearer ${token || localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${token || sessionStorage.getItem('token')}` }
       });
       const data = await res.json();
       setCompanies(Array.isArray(data) ? data : []);
@@ -87,7 +88,7 @@ export default function MainContent({ activeTab }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token || sessionStorage.getItem('token')}`
         },
         body: JSON.stringify(body)
       });
@@ -95,6 +96,12 @@ export default function MainContent({ activeTab }) {
       const data = await res.json();
       if (res.ok) {
         setUserMsg('Cập nhật cấu hình phân quyền thành công!');
+        
+        // ĐỒNG BỘ NÓNG: Nếu Admin phân quyền cho chính mình hoặc tài khoản hiện tại, kích hoạt cập nhật Context ngay lập tức
+        if (selectedUser.id === user?.id && selectedUser.role === 'nv') {
+          updateUserCompanies(checkedIds);
+        }
+
         fetchUsers(); 
       } else {
         setUserMsg(`Lỗi: ${data.error}`);
@@ -156,7 +163,7 @@ export default function MainContent({ activeTab }) {
                     Phân quyền ô tích: <span className="text-blue-600 normal-case">{selectedUser.username}</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {selectedUser.role === 'ktt' ? 'Nhóm Kế toán trưởng $\rightarrow$ Tích chọn nhân viên quản lý' : 'Nhóm Kế toán viên $\rightarrow$ Tích chọn doanh nghiệp phân phối'}
+                    {selectedUser.role === 'ktt' ? 'Nhóm Kế toán trưởng -> Tích chọn nhân viên quản lý' : 'Nhóm Kế toán viên -> Tích chọn doanh nghiệp phân phối'}
                   </p>
                 </div>
 
@@ -257,7 +264,8 @@ export default function MainContent({ activeTab }) {
     return <div className="p-4 text-xs text-rose-600">Phân hệ không hợp lệ.</div>;
   }
 
-  if (currentModule.requiresActiveCompany && !activeCompany) {
+  // ĐỒNG BỘ: Kiểm tra thuộc tính id của Object activeCompany thay vì check trực tiếp biến
+  if (currentModule.requiresActiveCompany && !activeCompany?.id) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-white border border-slate-200 rounded-2xl shadow-sm max-w-lg mx-auto mt-12 animate-fade-in">
         <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl mb-4 border border-amber-100">
