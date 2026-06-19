@@ -1,5 +1,17 @@
 import React from 'react';
-import { Wallet, Package, Calculator, BookOpenCheck, Settings, ShoppingBag, Users, Percent, Coins, Layers } from 'lucide-react';
+import { 
+  Wallet, 
+  Package, 
+  Calculator, 
+  BookOpenCheck, 
+  Settings, 
+  ShoppingBag, 
+  Users, 
+  Percent, 
+  Coins, 
+  Layers, 
+  UserCheck 
+} from 'lucide-react';
 
 export const MODULES_REGISTER = [
   {
@@ -89,5 +101,19 @@ export const MODULES_REGISTER = [
     component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
     allowedRoles: ['admin'],
     requiresActiveCompany: false
+  },
+  
+  // ==========================================
+  // THÊM MỚI PHÂN HỆ QUẢN LÝ THÀNH VIÊN & Ô TÍCH PHÂN QUYỀN VÀO ĐÂY
+  // ==========================================
+  {
+    id: 'users',
+    name: 'Quản lý ô tích phân quyền',
+    icon: UserCheck,
+    // Vì giao diện ô tích đã được tích hợp thẳng vào MainContent xử lý,
+    // ta trỏ tạm component về một component trống hoặc giữ cấu trúc lazy load mà không sợ lỗi.
+    component: React.lazy(() => Promise.resolve({ default: () => null })),
+    allowedRoles: ['admin'],
+    requiresActiveCompany: false // Admin phân quyền diện rộng, không cần bắt ép chọn công ty trước
   }
 ];
