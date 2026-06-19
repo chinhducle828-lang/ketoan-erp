@@ -8,17 +8,19 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequest
 
   // Bộ lọc phân hệ hiển thị trên thanh Menu bên trái
   const accessibleModules = MODULES_REGISTER.filter(module => {
-    // CHẶN BẢO MẬT: Phân hệ cấu hình hệ thống (id: 'config') CHỈ dành riêng cho admin tối cao
-    if (module.id === 'config' && user?.role !== 'admin') {
+    // 1. Chặn bảo mật cứng cho cả phân hệ 'config' cũ và phân hệ 'users' mới (Nếu không phải admin thì ẩn luôn)
+    if ((module.id === 'config' || module.id === 'users') && user?.role !== 'admin') {
       return false;
     }
-    // Các phân hệ khác sẽ kiểm tra danh sách quyền được cấu hình sẵn
+    
+    // 2. Các phân hệ khác sẽ kiểm tra danh sách vai trò allowedRoles được cấu hình sẵn trong views/index.js
     return module.allowedRoles && module.allowedRoles.includes(user?.role);
   });
 
   // hide sidebar on small screens, but allow overlay when `mobileOpen` is true
   return (
     <>
+      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-slate-900 text-slate-400 border-r border-slate-800 flex-col h-full shrink-0">
         <div className="h-16 flex items-center gap-2 px-6 border-b border-slate-800 bg-slate-950">
           <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
