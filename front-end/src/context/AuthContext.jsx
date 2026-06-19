@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../utils/api.js';
 
-// 1. Khởi tạo Context nội bộ (Không export trực tiếp dòng này)
+// 1. Khởi tạo Context nội bộ
 const AuthContext = createContext(null);
 
-// 2. Định nghĩa Component Provider (Bắt buộc viết hoa chữ cái đầu)
+// 2. Định nghĩa Component Provider
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(sessionStorage.getItem('token') || null);
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
@@ -12,12 +12,11 @@ export function AuthProvider({ children }) {
   const [companies, setCompanies] = useState([]);
   const [activeCompany, setActiveCompany] = useState(Number(localStorage.getItem('activeCompany')) || null);
   
-  // ĐỒNG BỘ NIÊN ĐỘ: Tự động lấy từ localStorage, nếu chưa có thì mặc định lấy năm hiện tại (2026)
+  // ĐỒNG BỘ NIÊN ĐỘ: Tự động lấy từ localStorage, mặc định lấy 2026
   const [fiscalYear, setFiscalYearState] = useState(
     Number(localStorage.getItem('fiscalYear')) || 2026
   );
 
-  // Hàm cập nhật Niên độ kế toán, đồng thời lưu vào localStorage để giữ trạng thái khi F5
   const setFiscalYear = (year) => {
     setFiscalYearState(year);
     localStorage.setItem('fiscalYear', year);
@@ -43,13 +42,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Hàm Đăng ký Quản trị viên gốc (Bổ sung để sửa lỗi nút kích hoạt hệ thống gốc)
   const registerAdmin = async (username, password) => {
     try {
       const res = await api.post('/api/auth/register-admin', { username, password });
       return res.data;
     } catch (err) {
-      // Ném lỗi chi tiết từ backend trả về (ví dụ: "Hệ thống đã có tài khoản quản trị viên!")
       throw err.response?.data?.error || err.message || 'Lỗi đăng ký hệ thống gốc';
     }
   };
@@ -69,18 +66,17 @@ export function AuthProvider({ children }) {
       }
       return res.data;
     } catch (err) {
-      throw err.response?.data?.error || err.message || 'Lỗi đăng nhập trái phép';
+      // Ép trả lỗi thô ra để Frontend bắt được thay vì crash ngầm
+      throw err;
     }
   };
 
-  // NÂNG CẤP async/await để đảm bảo API thông báo logout tới backend chạy thành công trước khi dọn dẹp state
   const logout = async () => {
     try {
       await api.post('/api/auth/logout');
     } catch (e) {
       console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
     } finally {
-      // Đảm bảo luôn dọn dẹp bộ nhớ kể cả khi API logout gặp sự cố mạng
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
       setToken(null);
@@ -88,7 +84,7 @@ export function AuthProvider({ children }) {
       setMustChangePassword(false);
       setCompanies([]);
       setActiveCompany(null);
-      setFiscalYearState(2026); // Reset về niên độ mặc định khi đăng xuất
+      setFiscalYearState(2026);
     }
   };
 
@@ -113,8 +109,8 @@ export function AuthProvider({ children }) {
       user, 
       companies, 
       activeCompany, 
-      fiscalYear,      // Truyền dữ liệu năm xuống Header và các phân hệ
-      setFiscalYear,   // Truyền hàm cập nhật năm xuống Header
+      fiscalYear,      
+      setFiscalYear,   
       changeCompany, 
       login, 
       logout, 
@@ -137,8 +133,4 @@ function useAuth() {
   return context;
 }
 
-// ==========================================
-// BẮT BUỘC CHO VITE: Export tập trung tất cả hook thuần ở cuối file
-// ==========================================
 export { useAuth };
-// ==========================================   
