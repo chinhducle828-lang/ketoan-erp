@@ -38,6 +38,17 @@ if (!process.env.DATABASE_URL) {
     `);
     // Ensure users table has must_change_password column
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false`);
+    // Ensure items table exists for product/material master data
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS items (
+        code VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        unit VARCHAR(50) NOT NULL,
+        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   } catch (error) {
     console.error('Lỗi kết nối cơ sở dữ liệu:', error.message);
     process.exit(1);
@@ -210,6 +221,63 @@ app.get('/api/health', async (req, res) => {
 // =========================================================
 // 🔥 BỔ SUNG: API THÊM MỚI TÀI KHOẢN NHÂN SỰ (DÀNH CHO FRONTEND)
 // =========================================================
+
+// ==========================
+// API DANH MỤC VẬT TƯ / SẢN PHẨM
+// ==========================
+
+app.get('/api/items', authenticate, async (req, res) => {
+  try {
+    const items = await pool.query('SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', [req.user.company_id]);
+    res.json(items.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+  try {
+    const { code, name, unit } = req.body;
+    if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
+    await pool.query(
+      'INSERT INTO items (code, name, unit, company_id, created_by) VALUES ($1, $2, $3, $4, $5)',
+      [code, name, unit, req.user.company_id, req.user.id]
+    );
+    res.status(201).json({ success: true, message: 'Đã lưu vật tư/sản phẩm mới.' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Mã vật tư đã tồn tại.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+  try {
+    const { code } = req.params;
+    const result = await pool.query('DELETE FROM items WHERE code = $1 AND company_id = $2 RETURNING code', [code, req.user.company_id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc đơn vị của bạn.' });
+    res.json({ success: true, message: 'Đã xóa vật tư.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { name, unit } = req.body;
+    if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính.' });
+    const result = await pool.query(
+      'UPDATE items SET name = $1, unit = $2 WHERE code = $3 AND company_id = $4 RETURNING code',
+      [name, unit, code, req.user.company_id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc đơn vị của bạn.' });
+    res.json({ success: true, message: 'Cập nhật vật tư thành công.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { username, password, role, companyId } = req.body;
@@ -403,4 +471,4 @@ app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), a
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));        
