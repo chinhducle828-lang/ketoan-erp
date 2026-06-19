@@ -10,6 +10,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [companies, setCompanies] = useState([]);
+  
+  // ĐỒNG BỘ CÔNG TY ACTIVE: Lấy từ localStorage để giữ trạng thái khi F5 trang web
   const [activeCompany, setActiveCompany] = useState(Number(localStorage.getItem('activeCompany')) || null);
   
   // ĐỒNG BỘ NIÊN ĐỘ: Tự động lấy từ localStorage, mặc định lấy 2026
@@ -32,8 +34,11 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.get('/api/companies');
       setCompanies(res.data);
+      
+      // Nếu có danh sách công ty từ server đổ về mà client chưa chọn công ty làm việc nào
       if (res.data.length > 0 && !activeCompany) {
-        const defaultId = user?.company_id || res.data[0].id;
+        // Tự động chọn công ty đầu tiên trong danh sách liên kết để làm việc
+        const defaultId = res.data[0].id;
         setActiveCompany(defaultId);
         localStorage.setItem('activeCompany', defaultId);
       }
@@ -60,13 +65,18 @@ export function AuthProvider({ children }) {
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
       
-      if (res.data.user.company_id) {
-        setActiveCompany(res.data.user.company_id);
-        localStorage.setItem('activeCompany', res.data.user.company_id);
+      // ĐỒNG BỘ ĐA CÔNG TY: Lấy phần tử đầu tiên từ mảng company_ids mà backend trả về làm mặc định
+      if (res.data.user.company_ids && res.data.user.company_ids.length > 0) {
+        const defaultCompanyId = res.data.user.company_ids[0];
+        setActiveCompany(defaultCompanyId);
+        localStorage.setItem('activeCompany', defaultCompanyId);
+      } else {
+        // Dự phòng trường hợp Admin tối cao không thuộc về công ty con cụ thể nào
+        setActiveCompany(null);
+        localStorage.removeItem('activeCompany');
       }
       return res.data;
     } catch (err) {
-      // Ép trả lỗi thô ra để Frontend bắt được thay vì crash ngầm
       throw err;
     }
   };
@@ -79,6 +89,7 @@ export function AuthProvider({ children }) {
     } finally {
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
+      localStorage.removeItem('activeCompany'); // Dọn dẹp cache công ty khi thoát
       setToken(null);
       setUser(null);
       setMustChangePassword(false);
