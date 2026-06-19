@@ -20,7 +20,7 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// BẬC THẦY KHỞI TẠO: Kiểm tra và đồng bộ cấu trúc dữ liệu an toàn
+// BẬC THẦY KHỞI TẠO: Kiểm tra và đồng bộ cấu trúc dữ liệu an toàn tuần tự
 (async () => {
   try {
     await pool.query('SELECT 1');
@@ -78,9 +78,8 @@ if (!process.env.DATABASE_URL) {
     
     console.log('Đồng bộ cấu trúc bảng cơ sở dữ liệu hoàn tất.');
   } catch (error) {
-    // LOẠI BỎ process.exit(1) để tránh tạo vòng lặp boot-loop sập server liên tục trên Railway
+    // Không dùng process.exit(1) để chặn vòng lặp boot-loop sập server liên tục trên Railway
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);
-    console.error('Mẹo: Hãy đảm bảo các bảng gốc đã khớp dữ liệu hoặc kiểm tra log cụ thể.');
   }
 })();
 
@@ -122,6 +121,7 @@ const requireRole = (roles) => {
 // --- API HỆ THỐNG & AUTHENTICATION ---
 // ==========================================
 
+// Đăng ký tài khoản Admin hệ thống gốc
 app.post('/api/auth/register-admin', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -140,6 +140,7 @@ app.post('/api/auth/register-admin', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Đăng nhập hệ thống
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -176,6 +177,7 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Đăng xuất
 app.post('/api/auth/logout', authenticate, async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -185,6 +187,7 @@ app.post('/api/auth/logout', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Thay đổi mật khẩu
 app.post('/api/auth/change-password', authenticate, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -205,6 +208,7 @@ app.post('/api/auth/change-password', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Admin Reset Mật khẩu cho nhân viên
 app.post('/api/auth/admin-reset-password', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { userId } = req.body;
@@ -218,6 +222,7 @@ app.post('/api/auth/admin-reset-password', authenticate, requireRole(['admin']),
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Lấy danh sách người dùng
 app.get('/api/users', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     let result;
@@ -230,6 +235,7 @@ app.get('/api/users', authenticate, requireRole(['admin', 'ktt']), async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Khai báo nhân sự mới từ Admin Form
 app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { username, password, role, companyId } = req.body;
@@ -255,6 +261,7 @@ app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Xóa nhân sự
 app.delete('/api/users/:id', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const userId = req.params.id;
@@ -313,6 +320,7 @@ app.delete('/api/companies/:id', authenticate, requireRole(['admin']), async (re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Chỉ định/Gán nhân viên vào công ty
 app.post('/api/auth/assign-company', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const { userId, companyId, role } = req.body;
@@ -332,12 +340,14 @@ app.post('/api/auth/assign-company', authenticate, requireRole(['admin']), async
 // --- API NGHIỆP VỤ HẠCH TOÁN ĐA DOANH NGHIỆP & NIÊN ĐỘ ĐỘNG ---
 // ==========================================
 
+// Lấy danh sách chứng từ (Đã fix chặn lỗi văng màn hình cho tài khoản mới)
 app.get('/api/vouchers', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.user.role === 'admin' ? req.query.company_id : req.user.company_id;
     const year = req.query.year ? Number(req.query.year) : 2026;
 
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu tham số company_id!' });
+    // Fix: Trả về mảng rỗng thay vì lỗi 400 nếu user mới chưa được gán công ty hạch toán
+    if (!targetCompanyId) return res.json([]);
 
     const result = await pool.query(
       `SELECT * FROM vouchers 
@@ -350,6 +360,7 @@ app.get('/api/vouchers', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Thêm mới chứng từ
 app.post('/api/vouchers', authenticate, async (req, res) => {
   try {
     const { voucherDate, description, accountDr, accountCr, amount, type } = req.body;
@@ -366,6 +377,7 @@ app.post('/api/vouchers', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Xóa chứng từ
 app.delete('/api/vouchers/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     if (req.user.role === 'admin') {
@@ -377,12 +389,14 @@ app.delete('/api/vouchers/:id', authenticate, requireRole(['admin', 'ktt']), asy
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Lấy số dư đầu kỳ (Đã fix chặn lỗi văng màn hình cho tài khoản mới)
 app.get('/api/opening-balances', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.user.role === 'admin' ? req.query.company_id : req.user.company_id;
     const year = req.query.year ? Number(req.query.year) : 2026;
 
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu tham số company_id!' });
+    // Fix: Trả về mảng rỗng nếu chưa có công ty
+    if (!targetCompanyId) return res.json([]);
 
     const result = await pool.query(
       'SELECT * FROM opening_balances WHERE company_id = $1 AND fiscal_year = $2 ORDER BY account_code ASC', 
@@ -392,6 +406,7 @@ app.get('/api/opening-balances', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Cập nhật số dư đầu kỳ
 app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { balances, year } = req.body;
@@ -418,10 +433,13 @@ app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), a
 // --- API QUẢN LÝ DANH MỤC VẬT TƯ / SẢN PHẨM ---
 // ==========================================
 
+// 1. ĐỌC DANH SÁCH (Đã fix chặn lỗi văng màn hình cho tài khoản mới)
 app.get('/api/items', authenticate, async (req, res) => {
   try {
     const targetCompanyId = req.user.role === 'admin' ? req.query.company_id : req.user.company_id;
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp hạch toán!' });
+    
+    // Fix: Trả về mảng rỗng thay vì lỗi sập khi tài khoản chưa cấu hình công ty thuộc về
+    if (!targetCompanyId) return res.json([]);
 
     const items = await pool.query(
       'SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', 
@@ -431,6 +449,7 @@ app.get('/api/items', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 2. THÊM MỚI VẬT TƯ
 app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code, name, unit, companyId } = req.body;
@@ -450,6 +469,7 @@ app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, 
   }
 });
 
+// 3. XÓA VẬT TƯ
 app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;
@@ -466,6 +486,7 @@ app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), asyn
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 4. CẬP NHẬT THÔNG TIN VẬT TƯ
 app.put('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;
