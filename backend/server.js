@@ -41,15 +41,16 @@ if (!process.env.DATABASE_URL) {
     // Đồng bộ cấu trúc bảng users
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false`);
     
-    // Khởi tạo bảng danh mục vật tư items
+    // Khởi tạo bảng danh mục vật tư items với KHÓA PHỨC HỢP chuẩn đa doanh nghiệp
     await pool.query(`
       CREATE TABLE IF NOT EXISTS items (
-        code VARCHAR(50) PRIMARY KEY,
+        code VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
         unit VARCHAR(50) NOT NULL,
-        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
         created_by INTEGER REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (code, company_id)
       );
     `);
   } catch (error) {
@@ -62,29 +63,23 @@ if (!process.env.DATABASE_URL) {
 // MIDDLEWARE XÁC THỰC VÀ PHÂN QUYỀN (PRIVATE API)
 // ==========================================
 
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Truy cập bị từ chối. Vui lòng đăng nhập!' });
   
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Kiểm tra tính hợp lệ của Session trong DB
-    (async () => {
-      try {
-        const q = await pool.query(
-          'SELECT id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1', 
-          [token, req.user.id]
-        );
-        if (q.rows.length === 0) {
-          return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã bị đăng nhập từ nơi khác.' });
-        }
-        next();
-      } catch (err) {
-        console.error('Session check error:', err.message);
-        res.status(500).json({ error: 'Lỗi xác thực phiên làm việc' });
-      }
-    })();
+    // Đã vá lỗi Race Condition bằng việc gọi trực tiếp await lên DB chặn đứng token lậu
+    const q = await pool.query(
+      'SELECT id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1', 
+      [token, req.user.id]
+    );
+    
+    if (q.rows.length === 0) {
+      return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã bị đăng nhập từ nơi khác.' });
+    }
+    next();
   } catch {
     res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn!' });
   }
@@ -391,7 +386,7 @@ app.get('/api/opening-balances', authenticate, async (req, res) => {
 // Cập nhật số dư đầu kỳ (CHẤP NHẬN NIÊN ĐỘ ĐỘNG TRUYỀN LÊN TỪ CLIENT)
 app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
-    const { balances, year } = req.body; // Lấy 'year' động do client gửi (2024, 2025, 2026, 2027...)
+    const { balances, year } = req.body; // Lấy 'year' động do client gửi
     const targetCompanyId = req.user.role === 'admin' ? req.body.companyId : req.user.company_id;
     const finalYear = year ? Number(year) : 2026; // Mặc định phòng hờ là 2026
 
@@ -411,52 +406,83 @@ app.post('/api/opening-balances', authenticate, requireRole(['admin', 'ktt']), a
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// API DANH MỤC VẬT TƯ / SẢN PHẨM
+// ==========================================
+// --- API QUẢN LÝ DANH MỤC VẬT TƯ / SẢN PHẨM ---
+// ==========================================
+
+// 1. ĐỌC DANH SÁCH (Hỗ trợ Admin xem chéo theo tham số truyền từ Header)
 app.get('/api/items', authenticate, async (req, res) => {
   try {
-    const items = await pool.query('SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', [req.user.company_id]);
+    const targetCompanyId = req.user.role === 'admin' ? req.query.company_id : req.user.company_id;
+    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp hạch toán!' });
+
+    const items = await pool.query(
+      'SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', 
+      [targetCompanyId]
+    );
     res.json(items.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 2. THÊM MỚI VẬT TƯ (Hỗ trợ khóa chính phức hợp)
 app.post('/api/items', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
-    const { code, name, unit } = req.body;
+    const { code, name, unit, companyId } = req.body;
+    const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
+
     if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
+    if (!targetCompanyId) return res.status(400).json({ error: 'Không xác định được doanh nghiệp cần khai báo vật tư!' });
+
     await pool.query(
       'INSERT INTO items (code, name, unit, company_id, created_by) VALUES ($1, $2, $3, $4, $5)',
-      [code, name, unit, req.user.company_id, req.user.id]
+      [code.toUpperCase().trim(), name.trim(), unit.trim(), targetCompanyId, req.user.id]
     );
     res.status(201).json({ success: true, message: 'Đã lưu vật tư/sản phẩm mới.' });
   } catch (err) {
-    if (err.code === '23505') return res.status(400).json({ error: 'Mã vật tư đã tồn tại.' });
+    if (err.code === '23505') return res.status(400).json({ error: 'Mã vật tư này đã được đăng ký tại doanh nghiệp hiện tại!' });
     res.status(500).json({ error: err.message });
   }
 });
 
+// 3. XÓA VẬT TƯ
 app.delete('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;
-    const result = await pool.query('DELETE FROM items WHERE code = $1 AND company_id = $2 RETURNING code', [code, req.user.company_id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc đơn vị của bạn.' });
-    res.json({ success: true, message: 'Đã xóa vật tư.' });
+    const targetCompanyId = req.user.role === 'admin' ? req.query.company_id : req.user.company_id;
+    
+    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu tham số xác định doanh nghiệp cần xóa!' });
+
+    const result = await pool.query(
+      'DELETE FROM items WHERE code = $1 AND company_id = $2 RETURNING code', 
+      [code, targetCompanyId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+    res.json({ success: true, message: 'Đã xóa vật tư thành công khỏi danh mục.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 4. CẬP NHẬT THÔNG TIN VẬT TƯ
 app.put('/api/items/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const { code } = req.params;
-    const { name, unit } = req.body;
-    if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính.' });
+    const { name, unit, companyId } = req.body;
+    const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
+
+    if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính mới.' });
+    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp cần cập nhật!' });
+
     const result = await pool.query(
       'UPDATE items SET name = $1, unit = $2 WHERE code = $3 AND company_id = $4 RETURNING code',
-      [name, unit, code, req.user.company_id]
+      [name.trim(), unit.trim(), code, targetCompanyId]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc đơn vị của bạn.' });
-    res.json({ success: true, message: 'Cập nhật vật tư thành công.' });
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+    res.json({ success: true, message: 'Cập nhật thông tin vật tư thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// --- HEALTH CHECK SYSTEM ---
+// ==========================================
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
