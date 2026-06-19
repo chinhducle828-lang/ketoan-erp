@@ -6,8 +6,8 @@ import CompanyList from './CompanyList.jsx';
 import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
 
 export default function CompanyManagement() {
-  // Lấy danh sách users và hàm loadUsers trực tiếp từ Context chung của hệ thống
-  const { fetchCompanies, companies, user: currentUser, users, loadUsers } = useAuth();
+  // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
+  const { fetchCompanies, companies, user: currentUser, users = [], loadUsers } = useAuth();
 
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
@@ -308,6 +308,42 @@ export default function CompanyManagement() {
           </div>
         </div>
 
+      </div>
+
+      {/* KHỐI HIỂN THỊ DANH SÁCH NHÂN SỰ HỆ THỐNG ĐÃ ĐƯỢC ĐỒNG BỘ ĐỘNG */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+          <Users size={16} /> Danh sách nhân sự hệ thống
+        </h3>
+        
+        {users.length === 0 ? (
+          <div className="text-center py-10 text-slate-400 text-xs">
+            Chưa có nhân sự nào trực thuộc hệ thống.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600">
+                  <th className="p-3">Tên tài khoản</th>
+                  <th className="p-3">Vai trò</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-slate-50/50 transition">
+                    <td className="p-3 font-bold text-slate-700">{user.username}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-black uppercase text-[10px]">
+                        {user.role}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <CompanyList companies={companies} onRefresh={fetchCompanies} />
