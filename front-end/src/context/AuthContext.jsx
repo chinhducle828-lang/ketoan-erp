@@ -10,7 +10,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [companies, setCompanies] = useState([]);
-  
+  const [users, setUsers] = useState([]); // <--- Thêm state quản lý danh sách nhân sự toàn cục
+
   // ĐỒNG BỘ CÔNG TY ACTIVE: Lưu trữ dưới dạng Object để Header hiển thị mượt mà, tránh lỗi đơ nút bấm
   const [activeCompany, setActiveCompany] = useState(() => {
     try {
@@ -30,9 +31,20 @@ export function AuthProvider({ children }) {
     localStorage.setItem('fiscalYear', year);
   };
 
+  // Hàm quét danh sách nhân sự dùng chung cho mọi cấu trúc màn hình
+  const loadUsers = async () => {
+    try {
+      const res = await api.get('/api/users');
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error('Lỗi tải danh sách nhân sự tại Context:', err);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchCompanies();
+      loadUsers(); // <--- Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
     }
   }, [token, user?.company_ids]); // Lắng nghe thay đổi của mảng phân quyền
 
@@ -97,6 +109,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       setMustChangePassword(false);
       setCompanies([]);
+      setUsers([]); // Clear danh sách nhân sự
       setActiveCompany(null);
       setFiscalYearState(2026);
     }
@@ -132,6 +145,8 @@ export function AuthProvider({ children }) {
       token, 
       user, 
       setUser,
+      users,             // <--- Cung cấp state users xuống các component con
+      loadUsers,         // <--- Cung cấp hàm loadUsers xuống các component con
       updateUserCompanies,
       companies, 
       activeCompany, 
