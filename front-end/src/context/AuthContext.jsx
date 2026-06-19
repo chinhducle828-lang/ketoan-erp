@@ -73,19 +73,23 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  // NÂNG CẤP async/await để đảm bảo API thông báo logout tới backend chạy thành công trước khi dọn dẹp state
+  const logout = async () => {
     try {
-      // notify backend to invalidate session
-      api.post('/api/auth/logout');
-    } catch (e) {}
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    setMustChangePassword(false);
-    setCompanies([]);
-    setActiveCompany(null);
-    setFiscalYearState(2026); // Reset về niên độ mặc định khi đăng xuất
+      await api.post('/api/auth/logout');
+    } catch (e) {
+      console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
+    } finally {
+      // Đảm bảo luôn dọn dẹp bộ nhớ kể cả khi API logout gặp sự cố mạng
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+      setMustChangePassword(false);
+      setCompanies([]);
+      setActiveCompany(null);
+      setFiscalYearState(2026); // Reset về niên độ mặc định khi đăng xuất
+    }
   };
 
   const changePassword = async (oldPassword, newPassword) => {
@@ -138,6 +142,3 @@ function useAuth() {
 // ==========================================
 export { useAuth };
 // ==========================================   
-
-
-      
