@@ -6,14 +6,18 @@ export default function Login({ onFirstRun }) {
   const { login } = useAuth();
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
       await login(form.username, form.password);
     } catch (err) {
       setError(err.response?.data?.error || 'Không thể kết nối đến máy chủ.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -28,7 +32,11 @@ export default function Login({ onFirstRun }) {
           <p className="text-xs text-slate-400">Đăng nhập tài khoản kế toán doanh nghiệp</p>
         </div>
 
-        {error && <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs font-semibold text-rose-600">{error}</div>}
+        {error && (
+          <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs font-semibold text-rose-600">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
@@ -37,10 +45,11 @@ export default function Login({ onFirstRun }) {
               <input 
                 type="text" 
                 required 
+                disabled={loading}
                 placeholder="Tên người dùng..." 
                 value={form.username}
                 onChange={e => setForm({...form, username: e.target.value})}
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60" 
               />
             </div>
             <div className="relative">
@@ -48,16 +57,21 @@ export default function Login({ onFirstRun }) {
               <input 
                 type="password" 
                 required 
+                disabled={loading}
                 placeholder="Mật khẩu bảo mật..." 
                 value={form.password}
                 onChange={e => setForm({...form, password: e.target.value})}
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60" 
               />
             </div>
           </div>
 
-          <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition-all">
-            Xác thực & Vào hệ thống
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition-all disabled:opacity-60"
+          >
+            {loading ? 'Đang xác thực thông tin...' : 'Xác thực & Vào hệ thống'}
           </button>
         </form>
 
@@ -70,6 +84,3 @@ export default function Login({ onFirstRun }) {
     </div>
   );
 }
-
-// Login.jsx 
-//  
