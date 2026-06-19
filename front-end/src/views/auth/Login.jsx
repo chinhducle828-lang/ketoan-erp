@@ -40,9 +40,13 @@ export default function Login({ onFirstRun }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
+            {/* Ô nhập Tên người dùng - Đã thêm id, name và label ẩn */}
             <div className="relative">
+              <label htmlFor="username" className="sr-only">Tên người dùng</label>
               <User className="absolute left-3 top-3 text-slate-400" size={16} />
               <input 
+                id="username"
+                name="username"
                 type="text" 
                 required 
                 disabled={loading}
@@ -52,9 +56,14 @@ export default function Login({ onFirstRun }) {
                 className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60" 
               />
             </div>
+
+            {/* Ô nhập Mật khẩu - Đã thêm id, name và label ẩn */}
             <div className="relative">
+              <label htmlFor="password" className="sr-only">Mật khẩu bảo mật</label>
               <Lock className="absolute left-3 top-3 text-slate-400" size={16} />
               <input 
+                id="password"
+                name="password"
                 type="password" 
                 required 
                 disabled={loading}
