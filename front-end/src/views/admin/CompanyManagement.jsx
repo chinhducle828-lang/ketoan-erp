@@ -28,26 +28,42 @@ export default function CompanyManagement() {
 
   // Thay đổi đơn vị công tác trực tiếp trên bảng
   const handleAssign = async (userId, companyId) => {
+    // Chuẩn hóa giá trị id được chọn sang Number hoặc null
+    const targetCompanyId = companyId ? Number(companyId) : null;
+    
     try {
       const currentU = users.find(u => u.id === userId);
-      // Chống xử lý nếu lỡ kích hoạt trên tài khoản admin
       if (currentU?.role === 'admin') return;
+
+      // CẬP NHẬT NGAY LẬP TỨC TRÊN STATE TRƯỚC ĐỂ GIỮ HIỂN THỊ TRÊN MÀN HÌNH MƯỢT MÀ
+      setUsers(prevUsers => 
+        prevUsers.map(u => u.id === userId ? { ...u, company_id: targetCompanyId } : u)
+      );
 
       await api.post('/api/auth/assign-company', { 
         userId, 
-        companyId: companyId ? Number(companyId) : null,
+        companyId: targetCompanyId,
         role: currentU?.role || 'nv'
       });
+      
+      // Đồng bộ lại với database ngầm
       loadUsers();
-    } catch (err) { alert('Lỗi gán quyền'); }
+    } catch (err) { 
+      alert('Lỗi gán quyền'); 
+      loadUsers(); // Lỗi thì tải lại data cũ
+    }
   };
 
   // Thay đổi Vai trò trực tiếp trên bảng
   const handleRoleChange = async (userId, newRole) => {
     try {
       const currentU = users.find(u => u.id === userId);
-      // Ngăn chặn hạ cấp hoặc thay đổi vai trò nếu tài khoản hiện tại đang là admin
       if (currentU?.role === 'admin') return;
+
+      // Cập nhật giao diện trước
+      setUsers(prevUsers => 
+        prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u)
+      );
 
       await api.post('/api/auth/assign-company', { 
         userId, 
@@ -55,7 +71,10 @@ export default function CompanyManagement() {
         role: newRole 
       });
       loadUsers();
-    } catch (err) { alert('Lỗi cập nhật vai trò'); }
+    } catch (err) { 
+      alert('Lỗi cập nhật vai trò'); 
+      loadUsers();
+    }
   };
 
   // Xử lý Thêm nhân sự mới
@@ -111,10 +130,8 @@ export default function CompanyManagement() {
         
         {/* CỘT TRÁI (Bao gồm form Công ty và Form Nhân sự mới) */}
         <div className="space-y-6 col-span-1">
-          {/* Form thêm công ty gốc */}
           <AddCompanyForm onRefresh={fetchCompanies} />
 
-          {/* Form thêm nhân sự mới bổ sung */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <UserPlus size={16} className="text-emerald-600" /> Khai báo nhân sự mới
@@ -181,7 +198,7 @@ export default function CompanyManagement() {
           </div>
         </div>
 
-        {/* CỘT PHẢI (Danh sách hiển thị có nút xóa bảo vệ hệ thống) */}
+        {/* CỘT PHẢI (Danh sách hiển thị) */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 space-y-4">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Users size={16} /> Danh sách người dùng và gán đơn vị công tác
@@ -220,8 +237,9 @@ export default function CompanyManagement() {
                         </select>
                       </td>
                       <td className="p-3">
+                        {/* CHỖ SỬA QUAN TRỌNG: Ép kiểu dữ liệu đồng nhất Number cho value */}
                         <select 
-                          value={isAdmin ? '' : (u.company_id || '')} 
+                          value={isAdmin ? '' : (u.company_id ? Number(u.company_id) : '')} 
                           onChange={(e) => handleAssign(u.id, e.target.value)}
                           disabled={isAdmin}
                           className={`w-full border rounded-xl p-1.5 focus:outline-none text-slate-700 ${
@@ -232,7 +250,7 @@ export default function CompanyManagement() {
                         >
                           <option value="">-- Để trống / Toàn quyền hệ thống --</option>
                           {companies.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
+                            <option key={c.id} value={Number(c.id)}>{c.name}</option>
                           ))}
                         </select>
                       </td>
@@ -275,7 +293,6 @@ export default function CompanyManagement() {
 
       </div>
 
-      {/* Danh sách công ty */}
       <CompanyList companies={companies} onRefresh={fetchCompanies} />
     </div>
   );

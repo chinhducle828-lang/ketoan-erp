@@ -98,22 +98,18 @@ export const MODULES_REGISTER = [
     id: 'companies',
     name: 'Cấu hình hệ thống pháp nhân',
     icon: Settings,
+    // ĐÂY LÀ FILE BẠN CẦN VÀO SỬA THẺ <SELECT> BỊ ĐƠ GIAO DIỆN
     component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
     allowedRoles: ['admin'],
     requiresActiveCompany: false
   },
-  
-  // ==========================================
-  // THÊM MỚI PHÂN HỆ QUẢN LÝ THÀNH VIÊN & Ô TÍCH PHÂN QUYỀN VÀO ĐÂY
-  // ==========================================
   {
     id: 'users',
     name: 'Quản lý ô tích phân quyền',
     icon: UserCheck,
-    // Vì giao diện ô tích đã được tích hợp thẳng vào MainContent xử lý,
-    // ta trỏ tạm component về một component trống hoặc giữ cấu trúc lazy load mà không sợ lỗi.
-    component: React.lazy(() => Promise.resolve({ default: () => null })),
+    // Chuẩn hóa Component rỗng để tránh lỗi crash khi MainContent cố gắng mount thẻ <LazyComponent />
+    component: React.lazy(() => Promise.resolve({ default: () => <div className="hidden" /> })),
     allowedRoles: ['admin'],
-    requiresActiveCompany: false // Admin phân quyền diện rộng, không cần bắt ép chọn công ty trước
+    requiresActiveCompany: false 
   }
-];
+];  
