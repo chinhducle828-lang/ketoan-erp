@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../utils/api.js';
 
 // 1. Khởi tạo Context nội bộ
@@ -34,7 +34,7 @@ export function AuthProvider({ children }) {
   };
 
   // Hàm quét danh sách nhân sự dùng chung cho mọi cấu trúc màn hình
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const res = await api.get('/api/users');
       const data = res.data || [];
@@ -44,16 +44,16 @@ export function AuthProvider({ children }) {
       console.error('Lỗi tải danh sách nhân sự tại Context:', err);
       return [];
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) {
       fetchCompanies();
       loadUsers(); // <--- Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
     }
-  }, [token]);
+  }, [token, fetchCompanies, loadUsers]);
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     try {
       const res = await api.get('/api/companies');
       const listCompanies = res.data || [];
@@ -74,7 +74,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('Lỗi lấy danh sách công ty:', err);
     }
-  };
+  }, [activeCompany]);
 
   const registerAdmin = async (username, password) => {
     try {
