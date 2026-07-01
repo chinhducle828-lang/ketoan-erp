@@ -9,21 +9,45 @@ export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
   const { fetchCompanies, companies, user: currentUser, users = [], loadUsers } = useAuth();
 
-  // MẸO XỬ LÝ CHỐNG GIẬT/TRƯỢT GIAO DIỆN: Tạo 1 bản sao danh sách user để giao diện phản hồi tức thì
-  const [localUsers, setLocalUsers] = useState(() => (
-    users.map(user => ({
+  const [localUsers, setLocalUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  const syncLocalUsers = (userList) => {
+    setLocalUsers(Array.isArray(userList) ? userList.map(user => ({
       ...user,
       company_id: Array.isArray(user.company_ids) ? (user.company_ids[0] || null) : null
-    }))
-  ));
+    })) : []);
+  };
+
+  const fetchUsersFromApi = async () => {
+    try {
+      const res = await api.get('/api/users');
+      return Array.isArray(res.data) ? res.data : [];
+    } catch (err) {
+      console.error('Lỗi tải trực tiếp danh sách nhân sự:', err);
+      return [];
+    }
+  };
 
   // Đồng bộ dữ liệu gốc từ Server vào danh sách hiển thị
   useEffect(() => {
-    setLocalUsers(users.map(user => ({
-      ...user,
-      company_id: Array.isArray(user.company_ids) ? (user.company_ids[0] || null) : null
-    })));
+    syncLocalUsers(users);
   }, [users]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoadingUsers(true);
+      await fetchCompanies();
+      const loadedUsers = await loadUsers();
+      const finalUsers = Array.isArray(loadedUsers) && loadedUsers.length > 0
+        ? loadedUsers
+        : await fetchUsersFromApi();
+      syncLocalUsers(finalUsers);
+      setLoadingUsers(false);
+    };
+
+    init();
+  }, [fetchCompanies, loadUsers]);
 
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
@@ -291,9 +315,14 @@ export default function CompanyManagement() {
 
         {/* CỘT PHẢI */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Users size={16} /> Danh sách người dùng và gán đơn vị công tác
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Users size={16} /> Danh sách người dùng và gán đơn vị công tác
+            </h3>
+            {loadingUsers && (
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Đang tải dữ liệu...</span>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
@@ -306,88 +335,96 @@ export default function CompanyManagement() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {/* DÙNG localUsers THAY VÌ users Ở ĐÂY ĐỂ UI KHÔNG BỊ TRƯỢT */}
-                {localUsers.map(u => {
-                  const isRoot = u.username === 'admin';
-                  const isSelf = u.id === currentUser?.id;
-                  const isAdminMode = u.role === 'admin';
-                  
-                  return (
-                    <tr key={u.id} className="hover:bg-slate-50/50 transition">
-                      <td className="p-3 font-bold text-slate-700 flex items-center gap-1">
-                        {u.username}
-                        {isRoot && <span className="text-[9px] font-bold bg-rose-100 text-rose-700 px-1 rounded uppercase">Root</span>}
-                      </td>
-                      <td className="p-3">
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                          disabled={isRoot || isSelf}
-                          className={`border rounded-lg p-1 text-[10px] font-black uppercase focus:outline-none transition-colors ${
-                            u.role === 'admin' 
-                              ? 'bg-amber-50 border-amber-200 text-amber-700' 
-                              : u.role === 'ktt'
-                              ? 'bg-purple-50 border-purple-200 text-purple-700'
-                              : 'bg-slate-50 border-slate-200 text-blue-600'
-                          } ${(isRoot || isSelf) ? 'cursor-not-allowed opacity-75' : ''}`}
-                        >
-                          <option value="admin">ADMIN</option>
-                          <option value="ktt">KTT</option>
-                          <option value="nv">NV</option>
-                        </select>
-                      </td>
-                      <td className="p-3">
-                        <select 
-                          value={isAdminMode ? '' : (u.company_id ? Number(u.company_id) : '')} 
-                          onChange={(e) => handleAssign(u.id, e.target.value)}
-                          disabled={isAdminMode || isRoot}
-                          className={`w-full border rounded-xl p-1.5 focus:outline-none text-slate-700 transition-colors ${
-                            isAdminMode || isRoot
-                              ? 'bg-amber-50 border-amber-200 font-bold text-amber-700 cursor-not-allowed' 
-                              : 'bg-slate-50 border-slate-200'
-                          }`}
-                        >
-                          <option value="">-- Để trống / Toàn quyền hệ thống --</option>
-                          {companies.map(c => (
-                            <option key={c.id} value={Number(c.id)}>{c.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-1 min-h-[28px]">
-                          {!isRoot && !isSelf && (
-                            <>
-                              <button
-                                onClick={() => handleDeleteUser(u.id, u.username)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition"
-                                title="Xóa nhân sự"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-
-                              {currentUser?.role === 'admin' && (
+                {localUsers.length > 0 ? (
+                  localUsers.map(u => {
+                    const isRoot = u.username === 'admin';
+                    const isSelf = u.id === currentUser?.id;
+                    const isAdminMode = u.role === 'admin';
+                    
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/50 transition">
+                        <td className="p-3 font-bold text-slate-700 flex items-center gap-1">
+                          {u.username}
+                          {isRoot && <span className="text-[9px] font-bold bg-rose-100 text-rose-700 px-1 rounded uppercase">Root</span>}
+                        </td>
+                        <td className="p-3">
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            disabled={isRoot || isSelf}
+                            className={`border rounded-lg p-1 text-[10px] font-black uppercase focus:outline-none transition-colors ${
+                              u.role === 'admin' 
+                                ? 'bg-amber-50 border-amber-200 text-amber-700' 
+                                : u.role === 'ktt'
+                                ? 'bg-purple-50 border-purple-200 text-purple-700'
+                                : 'bg-slate-50 border-slate-200 text-blue-600'
+                            } ${(isRoot || isSelf) ? 'cursor-not-allowed opacity-75' : ''}`}
+                          >
+                            <option value="admin">ADMIN</option>
+                            <option value="ktt">KTT</option>
+                            <option value="nv">NV</option>
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <select 
+                            value={isAdminMode ? '' : (u.company_id ? Number(u.company_id) : '')} 
+                            onChange={(e) => handleAssign(u.id, e.target.value)}
+                            disabled={isAdminMode || isRoot}
+                            className={`w-full border rounded-xl p-1.5 focus:outline-none text-slate-700 transition-colors ${
+                              isAdminMode || isRoot
+                                ? 'bg-amber-50 border-amber-200 font-bold text-amber-700 cursor-not-allowed' 
+                                : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            <option value="">-- Để trống / Toàn quyền hệ thống --</option>
+                            {companies.map(c => (
+                              <option key={c.id} value={Number(c.id)}>{c.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1 min-h-[28px]">
+                            {!isRoot && !isSelf && (
+                              <>
                                 <button
-                                  onClick={async () => {
-                                    if (!window.confirm(`Reset mật khẩu cho ${u.username}? Mật khẩu tạm thời sẽ được hiển thị cho Admin.`)) return;
-                                    try {
-                                      const res = await api.post('/api/auth/admin-reset-password', { userId: u.id });
-                                      alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
-                                    } catch (err) { 
-                                      alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); 
-                                    }
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-amber-50 transition"
-                                  title="Reset mật khẩu"
+                                  onClick={() => handleDeleteUser(u.id, u.username)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition"
+                                  title="Xóa nhân sự"
                                 >
-                                  <KeyRound size={15} />
+                                  <Trash2 size={15} />
                                 </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+
+                                {currentUser?.role === 'admin' && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Reset mật khẩu cho ${u.username}? Mật khẩu tạm thời sẽ được hiển thị cho Admin.`)) return;
+                                      try {
+                                        const res = await api.post('/api/auth/admin-reset-password', { userId: u.id });
+                                        alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
+                                      } catch (err) { 
+                                        alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); 
+                                      }
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded-xl hover:bg-amber-50 transition"
+                                    title="Reset mật khẩu"
+                                  >
+                                    <KeyRound size={15} />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="text-center py-8 text-slate-400 text-xs">
+                      Chưa có nhân sự nào trực thuộc hệ thống.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
