@@ -46,9 +46,10 @@ export default function CompanyManagement() {
 
     try {
       // 2. Gọi API chạy ngầm
-      await api.post('/api/auth/assign-company', { 
-        userId, 
+      await api.post('/api/auth/assign-company', {
+        userId,
         companyId: targetCompanyId,
+        companyIds: targetCompanyId ? [targetCompanyId] : [],
         role: targetUser?.role || 'nv'
       });
       
@@ -85,10 +86,11 @@ export default function CompanyManagement() {
 
     try {
       // 2. Gọi API chạy ngầm
-      await api.post('/api/auth/assign-company', { 
-        userId, 
+      await api.post('/api/auth/assign-company', {
+        userId,
         companyId: newRole === 'admin' ? null : (targetUser?.company_id || null),
-        role: newRole 
+        companyIds: newRole === 'admin' ? [] : (targetUser?.company_id ? [targetUser.company_id] : []),
+        role: newRole
       });
       
       // 3. Khớp lại dữ liệu chuẩn từ server
@@ -111,7 +113,8 @@ export default function CompanyManagement() {
         username: newUsername,
         password: newPassword,
         role: newRole,
-        companyId: newRole === 'admin' ? null : (newCompanyId ? Number(newCompanyId) : null)
+        companyId: newRole === 'admin' ? null : (newCompanyId ? Number(newCompanyId) : null),
+        companyIds: newRole === 'admin' ? [] : (newCompanyId ? [Number(newCompanyId)] : [])
       });
       alert('Thêm nhân sự mới thành công!');
       setNewUsername('');

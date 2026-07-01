@@ -3,6 +3,7 @@ import { MODULES_REGISTER } from '../views/index.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle, Users, Save, CheckSquare } from 'lucide-react';
 import ResponsiveContainer from './ResponsiveContainer.jsx';
+import api from '../utils/api.js';
 
 export default function MainContent({ activeTab }) {
   // Lấy thêm hàm updateUserCompanies từ AuthContext để đồng bộ nóng dữ liệu quyền
@@ -28,21 +29,15 @@ export default function MainContent({ activeTab }) {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token || sessionStorage.getItem('token')}` }
-      });
-      const data = await res.json();
-      setUsers(Array.isArray(data) ? data : []);
+      const res = await api.get('/api/users');
+      setUsers(Array.isArray(res.data) ? res.data : []);
     } catch (err) { console.error('Lỗi lấy danh sách user:', err); }
   };
 
   const fetchCompanies = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/companies', {
-        headers: { 'Authorization': `Bearer ${token || sessionStorage.getItem('token')}` }
-      });
-      const data = await res.json();
-      setCompanies(Array.isArray(data) ? data : []);
+      const res = await api.get('/api/companies');
+      setCompanies(Array.isArray(res.data) ? res.data : []);
     } catch (err) { console.error('Lỗi lấy danh sách công ty:', err); }
   };
 
@@ -71,10 +66,10 @@ export default function MainContent({ activeTab }) {
     let body = {};
 
     if (selectedUser.role === 'ktt') {
-      url = 'http://localhost:5000/api/auth/assign-staff';
+      url = '/api/auth/assign-staff';
       body = { managerId: selectedUser.id, staffIds: checkedIds };
     } else {
-      url = 'http://localhost:5000/api/auth/assign-company';
+      url = '/api/auth/assign-company';
       body = {
         userId: selectedUser.id,
         companyIds: checkedIds,
@@ -84,17 +79,9 @@ export default function MainContent({ activeTab }) {
     }
 
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || sessionStorage.getItem('token')}`
-        },
-        body: JSON.stringify(body)
-      });
-
-      const data = await res.json();
-      if (res.ok) {
+      const res = await api.post(url, body);
+      const data = res.data;
+      if (res.status >= 200 && res.status < 300) {
         setUserMsg('Cập nhật cấu hình phân quyền thành công!');
         
         // ĐỒNG BỘ NÓNG: Nếu Admin phân quyền cho chính mình hoặc tài khoản hiện tại, kích hoạt cập nhật Context ngay lập tức
@@ -107,7 +94,7 @@ export default function MainContent({ activeTab }) {
         setUserMsg(`Lỗi: ${data.error}`);
       }
     } catch (err) {
-      setUserMsg(`Lỗi kết nối máy chủ: ${err.message}`);
+      setUserMsg(`Lỗi kết nối máy chủ: ${err.response?.data?.error || err.message}`);
     }
   };
 
