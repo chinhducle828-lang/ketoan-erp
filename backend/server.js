@@ -8,7 +8,11 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
+// Cấu hình đường dẫn tuyệt đối cho file .env (Để chạy local không lỗi thư mục)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const app = express();
 
 // CORS configuration
@@ -36,11 +40,26 @@ export const cookieOptions = {
   maxAge: REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000,
 };
 
-// Database pool
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
+// --- ĐOẠN ĐÃ SỬA: Khởi tạo database Pool linh hoạt gộp/rời ---
+export const pool = process.env.DATABASE_URL
+  ? new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    })
+  : new pg.Pool({
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      database: process.env.DB_NAME,
+      ssl: false
+    });
+
+// --- ĐOẠN ĐÃ SỬA: Check cấu hình môi trường an toàn (Đã gộp & xoá đoạn cũ thừa) ---
+if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
+  console.error('ERROR: Chưa cấu hình Database! Vui lòng điền DATABASE_URL (Online) hoặc các biến DB_* (Local) vào file .env.');
+  process.exit(1);
+}
 
 // Utility functions
 export const parseCookies = (cookieHeader = '') => {
@@ -59,12 +78,6 @@ export const hashToken = (token) => {
 export const createRefreshToken = () => {
   return crypto.randomBytes(64).toString('hex');
 };
-
-// Check database connection and initialize schema
-if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL chưa được cấu hình. Vui lòng thêm biến môi trường DATABASE_URL.');
-  process.exit(1);
-}
 
 // Initialize database schema
 (async () => {
@@ -206,8 +219,6 @@ if (process.env.SEED_DATABASE === 'true') {
 }
 
 // Serve frontend static files when in production mode
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '..', 'front-end', 'dist');
   app.use(express.static(clientDist));
