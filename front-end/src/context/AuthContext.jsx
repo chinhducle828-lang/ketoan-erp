@@ -29,6 +29,10 @@ export function AuthProvider({ children }) {
   const [fiscalYear, setFiscalYearState] = useState(
     Number(localStorage.getItem('fiscalYear')) || 2026
   );
+  
+  // Trạng thái kiểm tra số dư đầu kỳ
+  const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
+  const [openingBalanceMessage, setOpeningBalanceMessage] = useState('');
 
   // Hàm lưu preferences lên server (activeCompany, fiscalYear)
   const savePreferencesToServer = useCallback(async (prefs) => {
@@ -213,6 +217,24 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Kiểm tra trạng thái số dư đầu kỳ của công ty đang chọn
+  const checkOpeningBalanceStatus = useCallback(async (companyId) => {
+    if (!companyId) {
+      setHasOpeningBalance(false);
+      setOpeningBalanceMessage('');
+      return;
+    }
+    try {
+      const res = await api.get(`/api/opening-balances/status?company_id=${companyId}`);
+      setHasOpeningBalance(res.data.hasOpeningBalance || false);
+      setOpeningBalanceMessage(res.data.message || '');
+    } catch (err) {
+      console.error('Lỗi kiểm tra số dư đầu kỳ:', err);
+      setHasOpeningBalance(false);
+      setOpeningBalanceMessage('');
+    }
+  }, [token]);
+
   return (
     <AuthContext.Provider value={{ 
       token, 
@@ -233,7 +255,10 @@ export function AuthProvider({ children }) {
       mustChangePassword,
       changePassword,
       registerAdmin, 
-      fetchCompanies
+      fetchCompanies,
+      hasOpeningBalance,
+      openingBalanceMessage,
+      checkOpeningBalanceStatus
     }}>
       {children}
     </AuthContext.Provider>

@@ -7,9 +7,18 @@ const VoucherContext = createContext(null);
 
 // 2. Định nghĩa Component Provider (Viết hoa chữ cái đầu)
 export function VoucherProvider({ children }) {
-  const { activeCompany } = useAuth();
+  const { activeCompany, checkOpeningBalanceStatus, hasOpeningBalance, openingBalanceMessage } = useAuth();
   const [vouchers, setVouchers] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [blockedByOpeningBalance, setBlockedByOpeningBalance] = useState(false);
+
+  // Kiểm tra số dư đầu kỳ khi chuyển công ty
+  useEffect(() => {
+    if (activeCompany?.id) {
+      checkOpeningBalanceStatus(activeCompany.id);
+      setBlockedByOpeningBalance(false);
+    }
+  }, [activeCompany?.id, checkOpeningBalanceStatus]);
 
   useEffect(() => {
     if (activeCompany) {
@@ -33,6 +42,14 @@ export function VoucherProvider({ children }) {
   };
 
   const createNewVoucher = async (data) => {
+    // Kiểm tra xem đã nhập số dư đầu kỳ chưa
+    if (hasOpeningBalance === false && activeCompany?.id) {
+      return { 
+        success: false, 
+        error: 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.' 
+      };
+    }
+
     try {
       const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.post('/api/vouchers', { ...data, companyId });
