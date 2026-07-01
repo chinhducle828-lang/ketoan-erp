@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext';
 import { Building2, LogOut, User, Calendar } from 'lucide-react';
 
 export default function Header({ onMenuClick }) {
@@ -11,16 +11,19 @@ export default function Header({ onMenuClick }) {
 
   // Xử lý chuyển đổi công ty an toàn bằng cách tìm và truyền Object
   const handleCompanyChange = (e) => {
-    const selectedId = Number(e.target.value);
-    const targetCompObj = companies.find(c => c.id === selectedId);
+    const selectedId = e.target.value; // Giữ nguyên dạng String
+    const targetCompObj = companies.find(c => String(c.id) === String(selectedId));
     if (targetCompObj) {
       changeCompany(targetCompObj);
     }
   };
 
+  // Xác định vai trò quản trị hệ thống tối cao
+  const isAdmin = user?.roleId === 'admin' || user?.role === 'admin';
+
   return (
     <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-4 md:px-6 z-10 shrink-0 py-3 md:py-0">
-      {/* Mobile menu button */}
+      {/* Nút bật menu trên thiết bị di động */}
       <button
         className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100"
         aria-label="Open menu"
@@ -32,18 +35,20 @@ export default function Header({ onMenuClick }) {
       </button>
 
       <div className="flex items-center gap-4 w-full md:w-auto">
-        {/* Bộ chọn doanh nghiệp hạch toán (ĐỒNG BỘ THEO ID CỦA OBJECT ACTIVE) */}
+        {/* Bộ chọn doanh nghiệp hạch toán (ĐỒNG BỘ THEO CHUỖI ID AN TOÀN) */}
         <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold w-full md:w-auto">
-          <Building2 size={16} className="text-emerald-600" />
+          <Building2 size={16} className="text-emerald-600 animate-pulse" />
           <select 
-            value={activeCompany?.id || ''} 
+            value={activeCompany?.id || activeCompany || ''} 
             onChange={handleCompanyChange}
             className="bg-transparent border-none focus:outline-none font-bold text-slate-800 w-full cursor-pointer"
-            disabled={user?.role !== 'admin' && user?.role !== 'ktt'}
+            disabled={!isAdmin} // CHỈ Quản trị viên (Admin) tối cao mới được quyền chuyển chéo doanh nghiệp hạch toán
           >
             <option value="" disabled>-- Chọn doanh nghiệp hạch toán --</option>
             {companies.map(c => (
-              <option key={c.id} value={c.id}>{c.name} ({c.tax_code})</option>
+              <option key={c.id} value={c.id}>
+                {c.name} {c.tax_code || c.taxCode ? `(${c.tax_code || c.taxCode})` : ''}
+              </option>
             ))}
           </select>
         </div>
@@ -64,23 +69,23 @@ export default function Header({ onMenuClick }) {
         </div>
       </div>
 
-      {/* Khối thông tin tài khoản và Đăng xuất */}
+      {/* Khối hiển thị thông tin tài khoản và Đăng xuất */}
       <div className="flex items-center gap-4 mt-3 md:mt-0 md:ml-2">
         <div className="flex items-center gap-2 text-right">
           <div>
-            <div className="text-xs font-bold text-slate-800">{user?.username}</div>
+            <div className="text-xs font-bold text-slate-800">{user?.fullName || user?.username}</div>
             <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-              {user?.role === 'admin' ? 'Quản trị tối cao' : user?.role === 'ktt' ? 'Kế toán trưởng' : 'Kế toán viên'}
+              {isAdmin ? 'Quản trị tối cao' : user?.roleId === 'ktt' || user?.role === 'ktt' ? 'Kế toán trưởng' : 'Kế toán viên'}
             </div>
           </div>
-          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 border border-slate-200">
+          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 border border-slate-200 shadow-inner">
             <User size={16} />
           </div>
         </div>
 
         <button 
           onClick={logout}
-          className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-200"
+          className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-200 active:scale-95"
           title="Đăng xuất khỏi hệ thống"
         >
           <LogOut size={18} />
@@ -88,6 +93,4 @@ export default function Header({ onMenuClick }) {
       </div>
     </header>
   );
-} 
-
-  
+}
