@@ -9,6 +9,33 @@
   }
 
   input, select, textarea {
-    @apply transition-all duration-200;
+    /* Chỉ transition các thuộc tính liên quan đến màu sắc để tối ưu performance */
+    @apply transition-colors duration-200;
+    /* Viền mặc định khi focus */
+    @apply focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500;
+  }
+
+  /* Thanh cuộn mềm mại giống phần mềm ERP chuyên nghiệp */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
   }
 }
