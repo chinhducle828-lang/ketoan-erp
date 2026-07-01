@@ -109,20 +109,36 @@ export default function CompanyManagement() {
       return;
     }
     try {
-      await api.post('/api/users', {
+      const res = await api.post('/api/users', {
         username: newUsername,
         password: newPassword,
         role: newRole,
         companyId: newRole === 'admin' ? null : (newCompanyId ? Number(newCompanyId) : null),
         companyIds: newRole === 'admin' ? [] : (newCompanyId ? [Number(newCompanyId)] : [])
       });
+
+      const createdUser = res.data?.user;
+      if (createdUser) {
+        setLocalUsers(prev => [
+          ...prev,
+          {
+            ...createdUser,
+            company_id: newCompanyId ? Number(newCompanyId) : null,
+            company_ids: newCompanyId ? [Number(newCompanyId)] : []
+          }
+        ]);
+      }
+
       alert('Thêm nhân sự mới thành công!');
       setNewUsername('');
       setNewPassword('');
       setNewCompanyId('');
       setNewRole('nv');
       
-      await loadUsers(); 
+      const refreshedUsers = await loadUsers();
+      if (refreshedUsers.length > 0) {
+        setLocalUsers(refreshedUsers);
+      }
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi thêm nhân sự mới!');
     }
