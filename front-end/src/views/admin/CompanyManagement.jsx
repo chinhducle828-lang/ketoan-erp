@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import AddCompanyForm from './AddCompanyForm.jsx';
 import CompanyList from './CompanyList.jsx';
 import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
@@ -430,9 +431,12 @@ export default function CompanyManagement() {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Users size={16} /> Danh sách người dùng và gán đơn vị công tác
             </h3>
-            {loadingUsers && (
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Đang tải dữ liệu...</span>
-            )}
+            <div className="flex items-center gap-2">
+              <ExportExcelButton endpoint="users" filename="Nhan_Su_He_Thong" label="Xuất Excel" />
+              {loadingUsers && (
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider">Đang tải dữ liệu...</span>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -560,20 +564,39 @@ export default function CompanyManagement() {
                 <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600">
                   <th className="p-3">Tên tài khoản</th>
                   <th className="p-3">Vai trò</th>
+                  <th className="p-3">Kế toán trưởng quản lý</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {/* DÙNG localUsers THAY VÌ users Ở ĐÂY */}
-                {localUsers.map(user => (
-                  <tr key={user.id} className="hover:bg-slate-50/50 transition">
-                    <td className="p-3 font-bold text-slate-700">{user.username}</td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-black uppercase text-[10px]">
-                        {user.role}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {localUsers.map(user => {
+                  const managerName = user.manager_id
+                    ? localUsers.find(u => u.id === user.manager_id)?.username || 'N/A'
+                    : '—';
+                  return (
+                    <tr key={user.id} className="hover:bg-slate-50/50 transition">
+                      <td className="p-3 font-bold text-slate-700">{user.username}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          user.role === 'admin'
+                            ? 'bg-amber-50 text-amber-700'
+                            : user.role === 'ktt'
+                            ? 'bg-purple-50 text-purple-700'
+                            : 'bg-blue-50 text-blue-600'
+                        }`}>
+                          {user.role === 'admin' ? 'Admin' : user.role === 'ktt' ? 'KTT' : 'NV'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {user.role === 'nv' ? (
+                          <span className="text-slate-600 font-medium">{managerName}</span>
+                        ) : (
+                          <span className="text-slate-300 italic">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

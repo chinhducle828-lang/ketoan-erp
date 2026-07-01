@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { Percent, Landmark } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function TaxReporting() {
   const { vouchers } = useVouchers();
@@ -17,7 +18,10 @@ export default function TaxReporting() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Percent className="text-rose-600" size={24} /> TỜ KHAI TỔNG HỢP NGHĨA VỤ THUẾ GTGT (MẪU 01/GTGT)</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Percent className="text-rose-600" size={24} /> TỜ KHAI TỔNG HỢP NGHĨA VỤ THUẾ GTGT (MẪU 01/GTGT)</h1>
+        <ExportExcelButton endpoint="vouchers" filename="To_Khai_Thue_GTGT" label="Xuất Excel" />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-5 rounded-2xl border shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase block">Thuế GTGT đầu vào tích lũy (TK 1331)</span>

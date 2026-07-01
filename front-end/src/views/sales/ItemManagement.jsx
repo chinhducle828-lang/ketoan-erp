@@ -3,6 +3,7 @@ import { Package, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function ItemManagement() {
   const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc từ Header
@@ -89,15 +90,18 @@ export default function ItemManagement() {
           <Package className="text-amber-600" size={24} /> 
           DANH MỤC MÃ VẬT TƯ, SẢN PHẨM HÀNG HÓA TỒN KHO
         </h1>
-        <button 
-          onClick={fetchItems} 
-          disabled={loading}
-          className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 transition-all flex items-center gap-1 text-xs font-semibold border bg-white"
-          title="Tải lại danh sách"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin text-amber-600' : ''} />
-          {loading ? 'Đang tải...' : 'Làm mới'}
-        </button>
+        <div className="flex items-center gap-2">
+          <ExportExcelButton endpoint="items" filename="Danh_Muc_Vat_Tu" label="Xuất Excel" />
+          <button 
+            onClick={fetchItems} 
+            disabled={loading}
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 transition-all flex items-center gap-1 text-xs font-semibold border bg-white"
+            title="Tải lại danh sách"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-amber-600' : ''} />
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+        </div>
       </div>
 
       {/* Box Hiển thị thông báo trạng thái */}
