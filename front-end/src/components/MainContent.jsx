@@ -25,8 +25,13 @@ export default function MainContent({ activeTab }) {
     const initUsers = async () => {
       if (activeTab === 'users' && token && user?.role === 'admin') {
         setLoading(true);
-        await Promise.all([fetchUsers(), fetchCompanies()]);
-        setLoading(false);
+        try {
+          await Promise.all([fetchUsers(), fetchCompanies()]);
+        } catch (err) {
+          console.error('Lỗi tải dữ liệu users/companies:', err);
+        } finally {
+          setLoading(false);
+        }
       }
     };
     initUsers();
