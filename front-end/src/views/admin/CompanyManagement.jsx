@@ -21,7 +21,8 @@ export default function CompanyManagement() {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('nv');
-  const [newCompanyId, setNewCompanyId] = useState('');
+  const [newManagerId, setNewManagerId] = useState('');
+  const [newCompanyIds, setNewCompanyIds] = useState([]);
 
   // Tải lại dữ liệu nhân sự mỗi khi component được kích hoạt (đồng bộ chuyển tab)
   useEffect(() => {
@@ -109,12 +110,13 @@ export default function CompanyManagement() {
       return;
     }
     try {
+      const companyIdsPayload = newRole === 'admin' ? [] : newCompanyIds.map(Number).filter(id => id > 0);
       const res = await api.post('/api/users', {
         username: newUsername,
         password: newPassword,
         role: newRole,
-        companyId: newRole === 'admin' ? null : (newCompanyId ? Number(newCompanyId) : null),
-        companyIds: newRole === 'admin' ? [] : (newCompanyId ? [Number(newCompanyId)] : [])
+        companyIds: companyIdsPayload,
+        managerId: newRole === 'nv' ? (newManagerId ? Number(newManagerId) : null) : null
       });
 
       const createdUser = res.data?.user;
@@ -123,8 +125,9 @@ export default function CompanyManagement() {
           ...prev,
           {
             ...createdUser,
-            company_id: newCompanyId ? Number(newCompanyId) : null,
-            company_ids: newCompanyId ? [Number(newCompanyId)] : []
+            company_ids: companyIdsPayload,
+            company_id: companyIdsPayload[0] || null,
+            manager_id: newRole === 'nv' ? (newManagerId ? Number(newManagerId) : null) : null
           }
         ]);
       }
@@ -132,7 +135,8 @@ export default function CompanyManagement() {
       alert('Thêm nhân sự mới thành công!');
       setNewUsername('');
       setNewPassword('');
-      setNewCompanyId('');
+      setNewCompanyIds([]);
+      setNewManagerId('');
       setNewRole('nv');
       
       const refreshedUsers = await loadUsers();
@@ -212,8 +216,15 @@ export default function CompanyManagement() {
                 <select
                   value={newRole}
                   onChange={(e) => {
-                    setNewRole(e.target.value);
-                    if (e.target.value === 'admin') setNewCompanyId('');
+                    const selectedRole = e.target.value;
+                    setNewRole(selectedRole);
+                    if (selectedRole === 'admin') {
+                      setNewCompanyIds([]);
+                      setNewManagerId('');
+                    }
+                    if (selectedRole === 'ktt') {
+                      setNewManagerId('');
+                    }
                   }}
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
                 >
@@ -223,21 +234,36 @@ export default function CompanyManagement() {
                 </select>
 
                 <select
-                  value={newRole === 'admin' ? '' : newCompanyId}
-                  onChange={(e) => setNewCompanyId(e.target.value)}
+                  multiple
+                  value={newCompanyIds.map(String)}
+                  onChange={(e) => setNewCompanyIds(Array.from(e.target.selectedOptions, opt => opt.value))}
                   disabled={newRole === 'admin'}
                   className={`w-full text-xs border rounded-xl p-2.5 focus:outline-none font-bold ${
-                    newRole === 'admin' 
-                      ? 'bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed' 
+                    newRole === 'admin'
+                      ? 'bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed'
                       : 'bg-slate-50 border-slate-200 text-blue-600'
                   }`}
+                  size={4}
                 >
-                  <option value="">-- Chọn đơn vị --</option>
                   {companies.map(c => (
                     <option key={c.id} value={Number(c.id)}>{c.name}</option>
                   ))}
                 </select>
               </div>
+              {newRole === 'nv' && (
+                <div>
+                  <select
+                    value={newManagerId}
+                    onChange={(e) => setNewManagerId(e.target.value)}
+                    className="w-full text-xs border rounded-xl p-2.5 focus:outline-none bg-slate-50 border-slate-200"
+                  >
+                    <option value="">-- Chọn Kế toán trưởng quản lý --</option>
+                    {localUsers.filter(u => u.role === 'ktt').map(ktt => (
+                      <option key={ktt.id} value={ktt.id}>{ktt.username}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button
                 type="submit"

@@ -359,7 +359,7 @@ app.get('/api/users', authenticate, requireRole(['admin', 'ktt']), async (req, r
 // Khai báo nhân sự mới từ Admin Form
 app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) => {
   try {
-    const { username, password, role, companyIds, companyId } = req.body;
+    const { username, password, role, companyIds, companyId, managerId } = req.body;
 
     if (!username || !password || !role) {
       return res.status(400).json({ error: 'Vui lòng điền đầy đủ tài khoản, mật khẩu và vai trò!' });
@@ -372,14 +372,39 @@ app.post('/api/users', authenticate, requireRole(['admin']), async (req, res) =>
 
     const hashed = await bcrypt.hash(password, 10);
     const normalizedCompanyIds = role === 'admin' ? [] : normalizeCompanyIds(companyIds ?? companyId);
+    const finalManagerId = role === 'nv' ? (managerId || null) : null;
+
+    if (finalManagerId) {
+      const managerRes = await pool.query('SELECT role FROM users WHERE id = $1', [finalManagerId]);
+      if (managerRes.rows.length === 0 || managerRes.rows[0].role !== 'ktt') {
+        return res.status(400).json({ error: 'KTT quản lý không hợp lệ!' });
+      }
+
+      const countRes = await pool.query(
+        "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = 'nv'",
+        [finalManagerId]
+      );
+      if (parseInt(countRes.rows[0].count, 10) >= 15) {
+        return res.status(400).json({ error: 'Kế toán trưởng này đã quản lý đủ tối đa 15 nhân viên!' });
+      }
+    }
 
     const result = await pool.query(
-      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids) VALUES ($1, $2, $3, $4, $5, '{}') RETURNING id, username, role",
-      [username, hashed, role, true, normalizedCompanyIds]
+      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids, manager_id) VALUES ($1, $2, $3, $4, $5, '{}', $6) RETURNING id, username, role, manager_id, company_ids",
+      [username, hashed, role, true, normalizedCompanyIds, finalManagerId]
     );
 
     if (result.rows[0] && normalizedCompanyIds.length > 0) {
       await syncUserCompanyLinks(result.rows[0].id, normalizedCompanyIds);
+    }
+
+    if (finalManagerId) {
+      const staffRes = await pool.query(
+        "SELECT id FROM users WHERE manager_id = $1 AND role = 'nv' ORDER BY id DESC",
+        [finalManagerId]
+      );
+      const currentStaffIds = staffRes.rows.map((row) => row.id);
+      await pool.query('UPDATE users SET staff_ids = $1 WHERE id = $2', [currentStaffIds, finalManagerId]);
     }
 
     res.status(201).json({ success: true, message: 'Thêm nhân sự mới thành công!', user: result.rows[0] });
