@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+// Định nghĩa một helper để xử lý biến số có thể rỗng/null từ frontend gửi lên
+const optionalNumericField = z.preprocess(
+  (val) => (val === '' || val === undefined || val === null ? null : Number(val)),
+  z.number().positive().nullable().optional()
+);
+
 // Auth validators
 export const registerAdminSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự'),
@@ -20,14 +26,17 @@ export const adminResetPasswordSchema = z.object({
   userId: z.number().positive('ID người dùng không hợp lệ'),
 });
 
-// User validators
+// User validators (ĐÃ SỬA ĐỂ KHÔNG BỊ LỖI KHI BỎ TRỐNG KTT/CÔNG TY)
 export const createUserSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
   role: z.enum(['admin', 'ktt', 'nv'], { required_error: 'Vui lòng chọn vai trò' }),
-  companyIds: z.array(z.number().positive()).optional(),
-  companyId: z.number().positive().optional(),
-  managerId: z.number().positive().optional(),
+  companyIds: z.preprocess(
+    (val) => (Array.isArray(val) ? val.map(Number).filter((n) => n > 0) : []),
+    z.array(z.number().positive()).optional().default([])
+  ),
+  companyId: optionalNumericField,
+  managerId: optionalNumericField,
 });
 
 export const assignStaffSchema = z.object({
@@ -37,10 +46,13 @@ export const assignStaffSchema = z.object({
 
 export const assignCompanySchema = z.object({
   userId: z.number().positive('ID người dùng không hợp lệ'),
-  companyIds: z.array(z.number().positive()).optional(),
-  companyId: z.number().positive().optional(),
+  companyIds: z.preprocess(
+    (val) => (Array.isArray(val) ? val.map(Number).filter((n) => n > 0) : []),
+    z.array(z.number().positive()).optional().default([])
+  ),
+  companyId: optionalNumericField,
   role: z.enum(['admin', 'ktt', 'nv']).optional(),
-  managerId: z.number().positive().optional(),
+  managerId: optionalNumericField,
 });
 
 // Company validators
