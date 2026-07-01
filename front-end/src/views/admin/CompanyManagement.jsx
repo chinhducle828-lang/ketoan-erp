@@ -33,15 +33,21 @@ export default function CompanyManagement() {
   useEffect(() => {
     const init = async () => {
       setLoadingUsers(true);
-      const [companiesList, usersList] = await Promise.all([
-        fetchCompanies().catch((err) => {
-          console.error('Lỗi tải danh sách công ty:', err);
-          return [];
-        }),
-        fetchUsersFromApi()
-      ]);
-      syncLocalUsers(usersList);
-      setLoadingUsers(false);
+      try {
+        const [companiesList, usersList] = await Promise.all([
+          fetchCompanies().catch((err) => {
+            console.error('Lỗi tải danh sách công ty:', err);
+            return [];
+          }),
+          fetchUsersFromApi()
+        ]);
+        syncLocalUsers(usersList);
+      } catch (err) {
+        console.error('Lỗi khởi tạo CompanyManagement:', err);
+        syncLocalUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
     };
 
     init();
