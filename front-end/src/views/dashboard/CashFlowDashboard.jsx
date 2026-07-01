@@ -129,7 +129,7 @@ export default function CashFlowDashboard() {
         )}
       </div>
 
-      {/* GIAO DỊCH GẦN ĐÂY */}
+      {/* GIAO DỊCH GẦN ĐÂY MASTER-DETAIL */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Clock size={16} className="text-blue-600" /> Giao dịch gần đây
@@ -143,29 +143,46 @@ export default function CashFlowDashboard() {
                 <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600">
                   <th className="p-2.5">Ngày</th>
                   <th className="p-2.5">Loại</th>
-                  <th className="p-2.5">Định khoản</th>
+                  <th className="p-2.5">Chi tiết hạch toán (TK)</th>
                   <th className="p-2.5">Diễn giải</th>
                   <th className="p-2.5 text-right">Số tiền</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recent.map(v => (
-                  <tr key={v.id} className="hover:bg-slate-50/50 transition">
-                    <td className="p-2.5 font-mono">{v.voucher_date?.slice(0, 10)}</td>
-                    <td className="p-2.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        v.voucher_type === 'Thu' || v.voucher_type === 'Nhap'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-rose-50 text-rose-700'
-                      }`}>
-                        {v.voucher_type}
-                      </span>
-                    </td>
-                    <td className="p-2.5 font-mono text-blue-700">{v.account_dr} / {v.account_cr}</td>
-                    <td className="p-2.5 text-slate-600 max-w-[200px] truncate">{v.description}</td>
-                    <td className="p-2.5 text-right font-bold">{Number(v.amount).toLocaleString()} đ</td>
-                  </tr>
-                ))}
+                {recent.map(v => {
+                  // Tính toán tổng tiền thực tế của voucher từ danh sách details con
+                  const voucherTotal = v.details?.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0) || parseFloat(v.amount || 0);
+
+                  return (
+                    <tr key={v.id} className="hover:bg-slate-50/50 transition align-top">
+                      <td className="p-2.5 font-mono">{v.voucher_date?.slice(0, 10)}</td>
+                      <td className="p-2.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          v.voucher_type === 'Thu' || v.voucher_type === 'Nhap'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-700'
+                        }`}>
+                          {v.voucher_type}
+                        </span>
+                      </td>
+                      <td className="p-2.5 font-mono text-[11px] space-y-0.5">
+                        {v.details && v.details.length > 0 ? (
+                          v.details.map((dt, idx) => (
+                            <div key={idx}>
+                              <span className={dt.entryType === 'DR' ? 'text-blue-600 font-bold' : 'text-amber-600 font-bold pl-2'}>
+                                {dt.entryType} {dt.accountCode}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-400">Không có định khoản</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-slate-600 max-w-[200px] truncate">{v.description}</td>
+                      <td className="p-2.5 text-right font-bold text-slate-800">{voucherTotal.toLocaleString()} đ</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

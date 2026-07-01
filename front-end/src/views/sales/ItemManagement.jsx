@@ -9,7 +9,7 @@ import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 export default function ItemManagement() {
   const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc từ Header
   const [items, setItems] = useState([]);
-  const [form, setForm] = usePersistentState('item-management-form', { code: '', name: '', unit: 'Cái' });
+  const [form, setForm] = usePersistentState('item-management-form-v2', { code: '', name: '', unit: 'Cái' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -21,7 +21,7 @@ export default function ItemManagement() {
     }
   }, [activeCompany]);
 
-  // 1. ĐỌC DANH SÁCH: Đã bổ sung tham số ?company_id phục vụ tài khoản Admin xem chéo
+  // 1. ĐỌC DANH SÁCH
   const fetchItems = async () => {
     if (!activeCompany) return;
     setLoading(true);
@@ -37,7 +37,7 @@ export default function ItemManagement() {
     }
   };
 
-  // 2. THÊM MỚI VẬT TƯ: Gửi kèm companyId để Backend nhận diện đúng thực thể hạch toán
+  // 2. THÊM MỚI VẬT TƯ
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!activeCompany) {
@@ -66,7 +66,7 @@ export default function ItemManagement() {
     }
   };
 
-  // 3. XÓA VẬT TƯ: Truyền company_id qua URL để khớp chính xác với Khóa chính phức hợp ở DB
+  // 3. XÓA VẬT TƯ: Sử dụng khóa phức hợp an toàn
   const handleDelete = async (code) => {
     if (!window.confirm(`Xóa sản phẩm "${code}"? Hành động này không thể hoàn tác.`)) return;
     setError('');
@@ -185,7 +185,8 @@ export default function ItemManagement() {
                   </tr>
                 ) : (
                   items.map(i => (
-                    <tr key={i.code} className="hover:bg-slate-50/50 transition">
+                    /* SỬA TẠI ĐÂY: Kết hợp id hoặc mã công ty vào key để tránh trùng lặp Dom giữa các doanh nghiệp */
+                    <tr key={i.id || `${i.company_id || 'com'}-${i.code}`} className="hover:bg-slate-50/50 transition">
                       <td className="p-3 font-mono font-bold text-blue-600">{i.code}</td>
                       <td className="p-3 font-semibold text-slate-800">{i.name}</td>
                       <td className="p-3">
