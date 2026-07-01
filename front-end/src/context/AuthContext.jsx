@@ -46,35 +46,39 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  useEffect(() => {
-    if (token) {
-      fetchCompanies();
-      loadUsers(); // <--- Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
-    }
-  }, [token, fetchCompanies, loadUsers]);
-
   const fetchCompanies = useCallback(async () => {
     try {
       const res = await api.get('/api/companies');
       const listCompanies = res.data || [];
       setCompanies(listCompanies);
-      
-      // Đồng bộ hóa: Nếu có danh sách công ty mà chưa chọn công ty nào, hoặc công ty cũ không còn nằm trong danh sách được phân quyền
-      if (listCompanies.length > 0) {
-        const isExist = activeCompany ? listCompanies.some(c => c.id === activeCompany.id) : false;
-        if (!activeCompany || !isExist) {
-          const defaultComp = listCompanies[0];
-          setActiveCompany(defaultComp);
-          localStorage.setItem('activeCompany', JSON.stringify(defaultComp));
+
+      // Use functional update to avoid creating a changing dependency on `activeCompany`
+      setActiveCompany(prev => {
+        if (!Array.isArray(listCompanies) || listCompanies.length === 0) {
+          localStorage.removeItem('activeCompany');
+          return null;
         }
-      } else {
-        setActiveCompany(null);
-        localStorage.removeItem('activeCompany');
-      }
+
+        const exists = prev ? listCompanies.some(c => c.id === prev.id) : false;
+        if (!prev || !exists) {
+          const defaultComp = listCompanies[0];
+          localStorage.setItem('activeCompany', JSON.stringify(defaultComp));
+          return defaultComp;
+        }
+        return prev;
+      });
     } catch (err) {
       console.error('Lỗi lấy danh sách công ty:', err);
     }
-  }, [activeCompany]);
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      // Load companies then users; both are stable (useCallback) so effect won't loop
+      fetchCompanies();
+      loadUsers(); // Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
+    }
+  }, [token, fetchCompanies, loadUsers]);
 
   const registerAdmin = async (username, password) => {
     try {
