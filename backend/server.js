@@ -1638,6 +1638,40 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ==========================================
+// --- API KIỂM TRA TRẠNG THÁI SỐ DƯ ĐẦU KỲ ---
+// ==========================================
+app.get('/api/opening-balances/status', authenticate, async (req, res) => {
+  try {
+    const targetCompanyId = req.query.company_id;
+    if (!targetCompanyId) {
+      return res.json({ hasOpeningBalance: false, message: 'Chưa chọn doanh nghiệp' });
+    }
+
+    if (req.user.role !== 'admin') {
+      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Bạn không có quyền truy cập!' });
+      }
+    }
+
+    const result = await pool.query(
+      'SELECT COUNT(*) as count FROM opening_balances WHERE company_id = $1 AND (debit_balance > 0 OR credit_balance > 0)',
+      [targetCompanyId]
+    );
+
+    const hasBalance = result.rows[0].count > 0;
+    res.json({ 
+      hasOpeningBalance: hasBalance,
+      message: hasBalance 
+        ? 'Đã nhập số dư đầu kỳ' 
+        : 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 // Serve frontend static files when in production mode
 if (process.env.NODE_ENV === 'production') {
