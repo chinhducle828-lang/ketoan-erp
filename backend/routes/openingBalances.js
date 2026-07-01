@@ -1,23 +1,18 @@
 import express from 'express';
 import { pool } from '../server.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+// Thêm checkCompanyAccess vào danh sách import
+import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 import { invalidateCache } from '../cache/redis.js';
 
 const router = express.Router();
 
-// 1. Lấy số dư đầu kỳ (Sửa cột trả về dạng camelCase thống nhất với Front-end)
-router.get('/', authenticate, async (req, res) => {
+// 1. Lấy số dư đầu kỳ (Đã bọc checkCompanyAccess bảo mật)
+router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
     const year = req.query.year ? Number(req.query.year) : 2026;
 
-    if (!targetCompanyId) return res.json([]);
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Quyền truy cập số dư bị từ chối!' });
-    }
+    // (Đoạn check quyền canAccessCompany cũ đã được middleware checkCompanyAccess xử lý triệt để ở ngoài)
 
     const queryStr = `
       SELECT 
@@ -39,22 +34,18 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// 2. Cập nhật số dư đầu kỳ (Tối ưu Bulk Upsert - 1 câu lệnh duy nhất)
-router.post('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+// 2. Cập nhật số dư đầu kỳ (Đồng bộ role 'accountant' và bọc bảo mật RLS)
+router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
     const { balances, year, companyId } = req.body;
     const targetCompanyId = companyId;
     const finalYear = year ? Number(year) : 2026;
 
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thông tin công ty không hợp lệ!' });
     if (!balances || Object.keys(balances).length === 0) {
       return res.status(400).json({ error: 'Dữ liệu số dư trống!' });
     }
 
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Bạn không có quyền chỉnh sửa số dư tại doanh nghiệp này!' });
-    }
+    // (Đoạn check quyền cũ được lược bỏ nhờ middleware xếp hàng phía trên)
 
     const entries = Object.entries(balances);
     const valueExpressions = [];
@@ -87,18 +78,10 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) =
   }
 });
 
-// 3. Kiểm tra trạng thái số dư đầu kỳ (Ép kiểu COUNT để đọc Javascript an toàn)
-router.get('/status', authenticate, async (req, res) => {
+// 3. Kiểm tra trạng thái số dư đầu kỳ
+router.get('/status', authenticate, checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
-    if (!targetCompanyId) {
-      return res.json({ hasOpeningBalance: false, message: 'Chưa chọn doanh nghiệp' });
-    }
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Bạn không có quyền truy cập!' });
-    }
 
     const result = await pool.query(
       'SELECT COUNT(*)::int as count FROM opening_balances WHERE company_id = $1 AND (debit_balance > 0 OR credit_balance > 0)',

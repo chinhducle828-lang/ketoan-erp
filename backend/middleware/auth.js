@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../server.js';
 
+// 1. Middleware Xác thực người dùng & Kiểm tra Phiên làm việc (Giữ nguyên của bạn)
 export const authenticate = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Truy cập bị từ chối. Vui lòng đăng nhập!' });
@@ -22,6 +23,7 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+// 2. Middleware Phân quyền Chức năng (Giữ nguyên của bạn)
 export const requireRole = (roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -29,4 +31,30 @@ export const requireRole = (roles) => {
     }
     next();
   };
+};
+
+// 3. TÍNH NĂNG MỚI: Middleware Cách ly dữ liệu giữa các Công ty (Row-Level Security)
+export const checkCompanyAccess = (req, res, next) => {
+  // Bóc tách companyId đích từ mọi ngả đường mà Frontend có thể gửi lên
+  const targetCompanyId = req.body.companyId || req.query.company_id || req.params.company_id;
+  
+  // Nếu request gọi vào API có tính chất cô lập dữ liệu mà không truyền companyId -> Chặn ngay
+  if (!targetCompanyId) {
+    return res.status(400).json({ error: 'Yêu cầu không hợp lệ. Thiếu thông tin định danh công ty (companyId)!' });
+  }
+
+  // ĐẶC CÁCH: Nếu user là 'admin' tổng của hệ thống ERP -> Cho phép đi qua để quản trị toàn cục
+  if (req.user && req.user.role === 'admin') {
+    return next();
+  }
+
+  // Đối chiếu ID công ty mã hóa trong Token với ID công ty trong gói tin Request
+  // Ép kiểu về String để tránh lỗi lệch kiểu dữ liệu (ví dụ: một bên là Number, một bên là String)
+  if (!req.user || String(req.user.company_id) !== String(targetCompanyId)) {
+    return res.status(403).json({ 
+      error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.' 
+    });
+  }
+
+  next();
 };

@@ -30,8 +30,14 @@ export const writePersistedState = (key, value, storageType = 'sessionStorage') 
   const storage = getStorage(storageType);
   if (!storage) return;
 
-  if (value === undefined) {
-    storage.removeItem(key);
+  // CẢI TIẾN MỚI: Kiểm tra xem dữ liệu có phải là trống rỗng (undefined, null, {}, hoặc [])
+  const isEmpty = 
+    value === undefined || 
+    value === null || 
+    (typeof value === 'object' && Object.keys(value).length === 0);
+
+  if (isEmpty) {
+    storage.removeItem(key); // Dọn sạch hẳn key khỏi trình duyệt, trả về trạng thái nguyên bản
     return;
   }
 
