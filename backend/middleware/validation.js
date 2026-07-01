@@ -27,7 +27,7 @@ export const createUserSchema = z.object({
   role: z.enum(['admin', 'ktt', 'nv'], { required_error: 'Vui lòng chọn vai trò' }),
   companyIds: z.array(z.number().positive()).optional(),
   companyId: z.number().positive().optional(),
-  managerId: z.number().positive().optional().nullable(), // Đã sửa: Cho phép nhận giá trị null từ form Frontend
+  managerId: z.number().positive().optional().nullable(),
 });
 
 export const assignStaffSchema = z.object({
@@ -40,7 +40,7 @@ export const assignCompanySchema = z.object({
   companyIds: z.array(z.number().positive()).optional(),
   companyId: z.number().positive().optional(),
   role: z.enum(['admin', 'ktt', 'nv']).optional(),
-  managerId: z.number().positive().optional().nullable(), // Đã sửa: Cho phép nhận giá trị null khi cập nhật công ty/quyền
+  managerId: z.number().positive().optional().nullable(),
 });
 
 // Company validators
@@ -95,3 +95,25 @@ export const companyIdQuerySchema = z.object({
   }),
   year: z.string().transform((val) => Number(val)).optional(),
 });
+
+// Middleware kiểm tra dữ liệu bằng Zod
+export const validate = (schema) => async (req, res, next) => {
+  try {
+    // Kiểm tra dữ liệu được gửi lên trong body, query hoặc params
+    await schema.parseAsync(req.body);
+    return next(); // Nếu dữ liệu chuẩn, cho phép request đi tiếp vào controller
+  } catch (error) {
+    // Nếu dữ liệu vi phạm schema (thiếu trường, sai kiểu), trả về lỗi 400 và chi tiết
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.errors[0].message, // Lấy câu thông báo lỗi đầu tiên bằng tiếng Việt
+        errors: error.errors
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: 'Dữ liệu đầu vào không hợp lệ'
+    });
+  }
+};
