@@ -15,7 +15,8 @@ if (!baseURL) {
 }
 
 const api = axios.create({
-  baseURL: baseURL
+  baseURL: baseURL,
+  timeout: 10000
 });
 
 // Global request handler: Tự động đính kèm token bảo mật vào Header
@@ -25,6 +26,9 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // ensure we accept json by default
+    config.headers = config.headers || {};
+    if (!config.headers.Accept) config.headers.Accept = 'application/json';
     return config;
   }, 
   (error) => {
@@ -36,7 +40,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    if (status === 401 || status === 403) {
       try {
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
@@ -44,11 +49,16 @@ api.interceptors.response.use(
       } catch (e) {
         console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
       }
-      
-      // Chuyển hướng an toàn về màn hình đăng nhập gốc
-      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-        window.location.href = '/';
+
+      if (typeof window !== 'undefined') {
+        // If already on login page, don't redirect again
+        if (window.location.pathname !== '/') {
+          window.location.href = '/';
+        }
       }
+    } else if (!error.response) {
+      // Network or CORS error
+      console.error('Network or CORS error calling API:', error.message || error);
     }
     return Promise.reject(error);
   }
