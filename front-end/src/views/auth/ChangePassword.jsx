@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 
 export default function ChangePassword() {
   const { changePassword } = useAuth();
-  const [form, setForm] = useState({ oldPassword: '', newPassword: '', confirm: '' });
+  const [form, setForm] = usePersistentState('change-password-form', { oldPassword: '', newPassword: '', confirm: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 

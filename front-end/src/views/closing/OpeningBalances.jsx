@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Coins, Save } from 'lucide-react';
 
 export default function OpeningBalances() {
   const { activeCompany } = useAuth();
-  const [balances, setBalances] = useState({});
+  const [balances, setBalances] = usePersistentState('opening-balances-form', {});
 
   useEffect(() => {
     if (activeCompany) loadOpeningBalances();

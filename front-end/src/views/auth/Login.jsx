@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Lock, User, Terminal } from 'lucide-react';
 
 export default function Login({ onFirstRun }) {
   const { login } = useAuth();
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = usePersistentState('login-form', { username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Package, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
+import { usePersistentState } from '../../utils/persistence.js';
 
 export default function ItemManagement() {
   const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc từ Header
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ code: '', name: '', unit: 'Cái' });
+  const [form, setForm] = usePersistentState('item-management-form', { code: '', name: '', unit: 'Cái' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

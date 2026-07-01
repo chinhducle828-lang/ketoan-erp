@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import api from '../../utils/api.js';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Plus } from 'lucide-react';
 
 export default function AddCompanyForm({ onRefresh }) {
-  const [form, setForm] = useState({ name: '', taxCode: '', address: '' });
+  const [form, setForm] = usePersistentState('add-company-form', { name: '', taxCode: '', address: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Wallet, Plus, Trash2 } from 'lucide-react';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
-  const [form, setForm] = useState({ date: '2026-01-01', desc: '', dr: '1111', cr: '131', amount: '' });
+  const [form, setForm] = usePersistentState('cash-management-form', { date: '2026-01-01', desc: '', dr: '1111', cr: '131', amount: '' });
 
   const cashVouchers = vouchers.filter(v => v.voucher_type === 'Thu' || v.voucher_type === 'Chi');
 

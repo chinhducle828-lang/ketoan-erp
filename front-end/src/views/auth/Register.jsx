@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import api from '../../utils/api.js';
+import { usePersistentState } from '../../utils/persistence.js';
 import { ShieldCheck, Terminal } from 'lucide-react';
 
 export default function Register({ onSwitch }) {
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = usePersistentState('register-form', { username: '', password: '' });
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
