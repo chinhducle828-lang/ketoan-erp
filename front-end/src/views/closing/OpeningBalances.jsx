@@ -72,6 +72,35 @@ export default function OpeningBalances() {
     };
   }, [balances, activeCompany]);
 
+  // Ensure pending changes are flushed on page unload
+  useEffect(() => {
+    const handler = () => {
+      if (!activeCompany) return;
+      if (saveTimerRef.current) {
+        // immediate send using fetch keepalive
+        try {
+          const companyId = activeCompany?.id ?? activeCompany;
+          const token = localStorage.getItem('token');
+          navigator.sendBeacon && false; // prefer fetch keepalive for Authorization header
+          fetch('/api/opening-balances', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({ companyId, balances }),
+            keepalive: true
+          });
+        } catch (e) {
+          console.error('Failed to flush opening balances on unload', e);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [balances, activeCompany]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b pb-4">
