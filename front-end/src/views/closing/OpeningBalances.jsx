@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
@@ -8,6 +8,9 @@ import { Coins, Save } from 'lucide-react';
 export default function OpeningBalances() {
   const { activeCompany } = useAuth();
   const [balances, setBalances] = usePersistentState('opening-balances-form', {});
+  const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const saveTimerRef = useRef(null);
 
   useEffect(() => {
     if (activeCompany) loadOpeningBalances();
@@ -36,9 +39,38 @@ export default function OpeningBalances() {
     try {
       const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.post('/api/opening-balances', { companyId, balances });
-      if (res.data.success) alert('Lưu số dư đầu kỳ thành công!');
+      if (res.data.success) {
+        setLastSavedAt(new Date().toISOString());
+        alert('Lưu số dư đầu kỳ thành công!');
+      }
     } catch { alert('Lỗi hệ thống'); }
   };
+
+  // Auto-save: debounce balances changes
+  useEffect(() => {
+    if (!activeCompany) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        setSaving(true);
+        const companyId = activeCompany?.id ?? activeCompany;
+        const res = await api.post('/api/opening-balances', { companyId, balances });
+        if (res.data && res.data.success) setLastSavedAt(new Date().toISOString());
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+      } finally {
+        setSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [balances, activeCompany]);
 
   return (
     <div className="space-y-6">
@@ -52,6 +84,11 @@ export default function OpeningBalances() {
             <tr className="bg-slate-50 font-bold border-b"><th className="p-3 w-32">Mã tài khoản</th><th className="p-3">Tên tài khoản Thông tư 200</th><th className="p-3 text-center">Dư Nợ đầu kỳ</th><th className="p-3 text-center">Dư Có đầu kỳ</th></tr>
           </thead>
           <tbody className="divide-y">
+            <tr>
+              <td colSpan={4} className="text-xs p-3 text-right text-slate-500">
+                {saving ? 'Đang tự động lưu...' : lastSavedAt ? `Lần lưu: ${new Date(lastSavedAt).toLocaleString()}` : 'Chưa lưu'}
+              </td>
+            </tr>
             {CHART_OF_ACCOUNTS.map(acc => (
               <tr key={acc.code}>
                 <td className="p-3 font-mono font-bold text-slate-600">{acc.code}</td>
