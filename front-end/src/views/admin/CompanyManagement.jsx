@@ -47,6 +47,7 @@ export default function CompanyManagement() {
         syncLocalUsers([]);
       } finally {
         setLoadingUsers(false);
+        if (companies && companies.length > 0 && exportCompanyId == null) setExportCompanyId(companies[0].id);
       }
     };
 
@@ -59,6 +60,8 @@ export default function CompanyManagement() {
   const [newRole, setNewRole] = useState('nv');
   const [newManagerId, setNewManagerId] = useState('');
   const [newCompanyIds, setNewCompanyIds] = useState([]);
+  const [exportCompanyId, setExportCompanyId] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   const toggleCompanySelection = (companyId) => {
     setNewCompanyIds(prev => {
@@ -181,6 +184,45 @@ export default function CompanyManagement() {
     }
   };
 
+  // Export company data as JSON file
+  const handleExportCompany = async () => {
+    try {
+      const id = exportCompanyId || (companies[0] && companies[0].id);
+      if (!id) return alert('Vui lòng chọn công ty để xuất dữ liệu.');
+      const res = await api.get(`/api/companies/${id}/export`);
+      const dataStr = JSON.stringify(res.data, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `company_${id}_export.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi xuất dữ liệu công ty');
+    }
+  };
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    const id = exportCompanyId || (companies[0] && companies[0].id);
+    if (!id) return alert('Vui lòng chọn công ty để nhập dữ liệu.');
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const res = await api.post(`/api/companies/${id}/import`, payload);
+      if (res.data && res.data.success) {
+        alert('Nhập dữ liệu thành công.');
+        fetchCompanies();
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || err.message || 'Lỗi khi nhập dữ liệu');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Xử lý Xóa nhân sự
   const handleDeleteUser = async (userId, username) => {
     if (username === 'admin') {
@@ -217,6 +259,23 @@ export default function CompanyManagement() {
         {/* CỘT TRÁI */}
         <div className="space-y-6 col-span-1">
           <AddCompanyForm onRefresh={fetchCompanies} />
+
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div className="flex items-center gap-2 justify-between">
+              <div className="text-xs font-bold text-slate-500">Sao lưu / Phục hồi dữ liệu công ty</div>
+              <div className="flex items-center gap-2">
+                <select value={exportCompanyId || ''} onChange={e => setExportCompanyId(Number(e.target.value))} className="text-xs p-2 border rounded-lg bg-white">
+                  <option value="">-- Chọn công ty --</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button onClick={handleExportCompany} className="text-xs bg-amber-600 text-white px-2 py-1 rounded-lg">Export</button>
+                <label className="text-xs bg-emerald-600 text-white px-2 py-1 rounded-lg cursor-pointer">
+                  {importing ? 'Đang nhập...' : 'Import'}
+                  <input type="file" accept="application/json" onChange={e => handleImportFile(e.target.files?.[0])} className="hidden" />
+                </label>
+              </div>
+            </div>
+          </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
