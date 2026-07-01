@@ -596,6 +596,68 @@ app.delete('/api/companies/:id', authenticate, requireRole(['admin']), async (re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Export a single company's data (items, vouchers, opening_balances)
+app.get('/api/companies/:id/export', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const companyId = Number(req.params.id);
+    const comp = await pool.query('SELECT * FROM companies WHERE id = $1', [companyId]);
+    if (comp.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy công ty.' });
+
+    const items = await pool.query('SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', [companyId]);
+    const vouchers = await pool.query('SELECT id, company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by, created_at FROM vouchers WHERE company_id = $1 ORDER BY id', [companyId]);
+    const opening = await pool.query('SELECT account_code, debit_balance, credit_balance, fiscal_year FROM opening_balances WHERE company_id = $1 ORDER BY account_code', [companyId]);
+
+    res.json({
+      company: comp.rows[0],
+      items: items.rows,
+      vouchers: vouchers.rows,
+      opening_balances: opening.rows
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Import data for a company (admin only). The payload should include arrays for items, vouchers, opening_balances.
+app.post('/api/companies/:id/import', authenticate, requireRole(['admin']), async (req, res) => {
+  const companyId = Number(req.params.id);
+  const { items = [], vouchers = [], opening_balances = [] } = req.body || {};
+  try {
+    await pool.query('BEGIN');
+
+    // Upsert items (code, company_id)
+    for (const it of items) {
+      await pool.query(
+        'INSERT INTO items (code, name, unit, company_id, created_by, created_at) VALUES ($1, $2, $3, $4, $5, COALESCE($6, now())) ON CONFLICT (code, company_id) DO UPDATE SET name = EXCLUDED.name, unit = EXCLUDED.unit',
+        [it.code, it.name, it.unit, companyId, req.user.id, it.created_at || null]
+      );
+    }
+
+    // Insert opening balances (upsert)
+    for (const ob of opening_balances) {
+      await pool.query(
+        `INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (company_id, account_code, fiscal_year) DO UPDATE SET debit_balance = EXCLUDED.debit_balance, credit_balance = EXCLUDED.credit_balance`,
+        [companyId, ob.account_code, ob.debit_balance || 0, ob.credit_balance || 0, ob.fiscal_year || 2026]
+      );
+    }
+
+    // Insert vouchers: avoid importing IDs to prevent conflicts; created_by set to null
+    for (const v of vouchers) {
+      await pool.query(
+        `INSERT INTO vouchers (company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, COALESCE($8, now()))`,
+        [companyId, v.voucher_date, v.description, v.account_dr, v.account_cr, v.amount, v.voucher_type, v.created_at || null]
+      );
+    }
+
+    await pool.query('COMMIT');
+    res.json({ success: true, message: 'Import dữ liệu công ty thành công.' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // --- API NGHIỆP VỤ HẠCH TOÁN ĐA DOANH NGHIỆP ---
 // ==========================================

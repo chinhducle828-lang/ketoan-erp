@@ -6,10 +6,13 @@ const AuthContext = createContext(null);
 
 // 2. Định nghĩa Component Provider
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(sessionStorage.getItem('token') || null);
-  const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
+  // Persist across tabs/devices using localStorage for session token/user
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; }
+  });
   const [mustChangePassword, setMustChangePassword] = useState(() => {
-    return sessionStorage.getItem('mustChangePassword') === 'true';
+    return localStorage.getItem('mustChangePassword') === 'true';
   });
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]); // <--- Thêm state quản lý danh sách nhân sự toàn cục
@@ -92,10 +95,11 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      sessionStorage.setItem('token', res.data.token);
-      sessionStorage.setItem('user', JSON.stringify(res.data.user));
-      sessionStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
-      
+      // Persist to localStorage to share session across tabs/devices on same origin
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
+
       setToken(res.data.token);
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
@@ -113,9 +117,9 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
     } finally {
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      sessionStorage.removeItem('mustChangePassword');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('mustChangePassword');
       localStorage.removeItem('activeCompany'); // Dọn dẹp cache công ty khi thoát
       setToken(null);
       setUser(null);
