@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Users, Plus } from 'lucide-react';
 
 export default function Payroll() {
   const { createNewVoucher } = useVouchers();
-  const [salary, setSalary] = useState('');
+  const [salary, setSalary] = usePersistentState('payroll-form', '');
 
   const handleCalculatePayroll = async (e) => {
     e.preventDefault();

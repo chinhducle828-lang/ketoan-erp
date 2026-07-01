@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { Calculator, Plus, Trash2, Landmark, CheckCircle2 } from 'lucide-react';
 
 export default function FixedAssets() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
   const [assets, setAssets] = useState([]);
-  const [form, setForm] = useState({ id: '', name: '', originalPrice: '', life: 60, deptCode: '6422', date: '2026-01-01' });
+  const [form, setForm] = usePersistentState('fixed-assets-form', { id: '', name: '', originalPrice: '', life: 60, deptCode: '6422', date: '2026-01-01' });
   const [msg, setMsg] = useState('');
 
   const assetVouchers = vouchers.filter(v => v.account_dr === '211' || v.account_cr === '211');

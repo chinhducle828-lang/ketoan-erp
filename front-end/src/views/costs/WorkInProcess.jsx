@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { BookOpenCheck, Layers } from 'lucide-react';
 
 export default function WorkInProcess() {
   const { vouchers, createNewVoucher } = useVouchers();
-  const [wipAmount, setWipAmount] = useState('');
+  const [wipAmount, setWipAmount] = usePersistentState('work-in-process-form', '');
 
   const materialCosts = vouchers.filter(v => v.account_dr === '154').reduce((sum, v) => sum + parseFloat(v.amount), 0);
 

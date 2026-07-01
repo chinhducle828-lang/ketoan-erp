@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
+import { usePersistentState } from '../../utils/persistence.js';
 import { ShoppingBag, Plus } from 'lucide-react';
 
 export default function PurchaseInventory() {
   const { createNewVoucher } = useVouchers();
-  const [form, setForm] = useState({ item: '', amount: '', tax: '10' });
+  const [form, setForm] = usePersistentState('purchase-inventory-form', { item: '', amount: '', tax: '10' });
 
   const handlePurchase = async (e) => {
     e.preventDefault();
