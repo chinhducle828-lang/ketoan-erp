@@ -16,14 +16,40 @@ if (!baseURL) {
 
 const api = axios.create({
   baseURL: baseURL,
-  timeout: 10000
+  timeout: 10000,
+  withCredentials: true
 });
+
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (cb) => {
+  refreshSubscribers.push(cb);
+};
+
+const onRrefreshed = (token) => {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+};
+
+const refreshAccessToken = async () => {
+  const refreshRes = await axios.post(`${baseURL}/api/auth/refresh`, null, {
+    withCredentials: true,
+    headers: { Accept: 'application/json' }
+  });
+  const newToken = refreshRes.data?.accessToken;
+  if (newToken) {
+    localStorage.setItem('token', newToken);
+  }
+  return newToken;
+};
 
 // Global request handler: Tự động đính kèm token bảo mật vào Header
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     // ensure we accept json by default
@@ -36,28 +62,62 @@ api.interceptors.request.use(
   }
 );
 
-// Global response handler: Nếu phiên làm việc hết hạn (401), dọn dẹp hệ thống và đá về trang login
+// Global response handler: refresh token on 401 then retry once
 api.interceptors.response.use(
   (res) => res,
-  (error) => {
+  async (error) => {
     const status = error.response?.status;
-    if (status === 401 || status === 403) {
+    const originalRequest = error.config;
+
+    if (status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          const newToken = await refreshAccessToken();
+          isRefreshing = false;
+          onRrefreshed(newToken);
+        } catch (refreshError) {
+          isRefreshing = false;
+          try {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('activeCompany');
+          } catch (e) {
+            console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
+          }
+          if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+            window.location.href = '/';
+          }
+          return Promise.reject(refreshError);
+        }
+      }
+
+      return new Promise((resolve, reject) => {
+        subscribeTokenRefresh((token) => {
+          if (token) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
+          } else {
+            reject(error);
+          }
+        });
+      });
+    }
+
+    if (status === 403) {
       try {
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         localStorage.removeItem('activeCompany');
       } catch (e) {
         console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
       }
-
-      if (typeof window !== 'undefined') {
-        // If already on login page, don't redirect again
-        if (window.location.pathname !== '/') {
-          window.location.href = '/';
-        }
+      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+        window.location.href = '/';
       }
     } else if (!error.response) {
-      // Network or CORS error
       console.error('Network or CORS error calling API:', error.message || error);
     }
     return Promise.reject(error);

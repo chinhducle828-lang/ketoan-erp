@@ -4,6 +4,7 @@ import pg from 'pg';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -23,6 +24,33 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30;
+const REFRESH_COOKIE_NAME = 'refresh_token';
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+  maxAge: REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000,
+};
+
+const parseCookies = (cookieHeader = '') => {
+  return cookieHeader.split(';').reduce((acc, cookie) => {
+    const [name, ...rest] = cookie.trim().split('=');
+    if (!name) return acc;
+    acc[name] = rest.join('=');
+    return acc;
+  }, {});
+};
+
+const hashToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+const createRefreshToken = () => {
+  return crypto.randomBytes(64).toString('hex');
+};
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -142,6 +170,7 @@ if (!process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS company_ids INTEGER[] DEFAULT '{}'`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_ids INTEGER[] DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS refresh_token TEXT`);
     
     // 4. Khởi tạo bảng danh mục vật tư items với KHÓA PHỨC HỢP chuẩn đa doanh nghiệp
     await pool.query(`
@@ -265,29 +294,77 @@ app.post('/api/auth/login', async (req, res) => {
 
     await pool.query('UPDATE users SET company_ids = $1 WHERE id = $2', [companyIds, user.id]);
     
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { id: user.id, username: user.username, role: user.role, company_ids: companyIds }, 
       process.env.JWT_SECRET, 
-      { expiresIn: '24h' }
+      { expiresIn: '15m' }
     );
+
+    const refreshToken = createRefreshToken();
+    const hashedRefresh = hashToken(refreshToken);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
     try {
       await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await pool.query(
-        'INSERT INTO sessions (user_id, token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, now(), $3, $4, $5)', 
-        [user.id, token, expiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
+        'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)', 
+        [user.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
       );
     } catch (err) {
       console.error('Không thể lưu session:', err.message);
     }
 
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
     res.json({ 
-      token, 
+      accessToken, 
       user: { id: user.id, username: user.username, role: user.role, company_ids: companyIds },
       must_change_password: !!user.must_change_password
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const cookies = parseCookies(req.headers.cookie || '');
+    const refreshToken = cookies[REFRESH_COOKIE_NAME];
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token không tồn tại.' });
+
+    const hashedRefresh = hashToken(refreshToken);
+    const session = await pool.query(
+      'SELECT s.*, u.username, u.role, u.company_ids, u.must_change_password FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.refresh_token = $1 AND s.expires_at > now() LIMIT 1',
+      [hashedRefresh]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(401).json({ error: 'Refresh token không hợp lệ hoặc đã hết hạn.' });
+    }
+
+    const current = session.rows[0];
+    const accessToken = jwt.sign(
+      { id: current.user_id, username: current.username, role: current.role, company_ids: current.company_ids },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    const newRefreshToken = createRefreshToken();
+    const newHashedRefresh = hashToken(newRefreshToken);
+    const newRefreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE sessions SET token = $1, refresh_token = $2, expires_at = $3, ip_address = $4, device_info = $5 WHERE id = $6',
+      [accessToken, newHashedRefresh, newRefreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null, current.id]
+    );
+
+    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
+    res.json({
+      accessToken,
+      user: { id: current.user_id, username: current.username, role: current.role, company_ids: current.company_ids },
+      must_change_password: !!current.must_change_password
+    });
+  } catch (err) {
+    console.error('Lỗi refresh token:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Đăng xuất
@@ -296,6 +373,7 @@ app.post('/api/auth/logout', authenticate, async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(400).json({ error: 'Thiếu token.' });
     await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    res.clearCookie(REFRESH_COOKIE_NAME, cookieOptions);
     res.json({ success: true, message: 'Đăng xuất thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
