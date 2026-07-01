@@ -1,0 +1,48 @@
+Tóm tắt sửa lỗi hiển thị danh sách nhân sự
+
+Mục tiêu:
+- Khắc phục lỗi khi tài khoản `admin` bị ẩn dẫn tới toàn bộ danh sách nhân sự (nhân viên, KTT) cũng không hiển thị.
+
+Những thay đổi đã thực hiện:
+- Sửa `front-end/src/views/admin/CompanyManagement.jsx`:
+  - Thay việc gọi API trực tiếp bằng hàm `loadUsers()` từ `AuthContext`.
+  - Đồng bộ dữ liệu về `localUsers` từ kết quả `loadUsers()` để UI ổn định.
+- Sửa `front-end/src/components/MainContent.jsx`:
+  - Thay `api.get('/api/users')` bằng `loadUsers()` và set state `users` từ đó.
+- Commit và push lên nhánh `main` với commit message:
+  - "fix(users): use AuthContext.loadUsers to keep user list stable when admin hidden"
+
+Lý do và giải pháp:
+- Trước đây frontend gọi API `/api/users` trực tiếp ở nhiều nơi, khi backend/logic ẩn admin có thể khiến kết quả khác nhau và làm trống UI.
+- Bằng cách dùng `loadUsers()` (chung trong `AuthContext`), mọi component dùng chung nguồn dữ liệu duy nhất, tránh trạng thái lệch (stale state) khi reload hoặc khi admin được ẩn.
+
+Cách kiểm tra nhanh (local):
+1. Khởi động backend (đặt `DATABASE_URL` và `JWT_SECRET` trong `.env`):
+
+   Windows PowerShell:
+   ```powershell
+   cd backend
+   $env:DATABASE_URL = 'postgresql://user:password@localhost:5432/ketoan_db'
+   $env:JWT_SECRET = 'a_very_secret_key'
+   node server.js
+   ```
+
+2. Khởi động frontend:
+
+   ```bash
+   cd front-end
+   npm install
+   npm run dev
+   ```
+
+3. Mở trình duyệt `http://localhost:3000`, đăng nhập bằng tài khoản admin, mở module 'Cấu hình hệ thống pháp nhân' hoặc tab 'Quản lý ô tích phân quyền' và kiểm tra danh sách nhân sự hiển thị đầy đủ.
+
+Nếu vấn đề còn tồn tại:
+- Kiểm tra xem backend `/api/users` có trả về dữ liệu đúng khi gọi bằng token admin.
+- Kiểm tra `sessionStorage` và `localStorage` (token, user, activeCompany).
+
+Muốn tôi làm tiếp:
+- Chạy backend + frontend ở môi trường hiện tại và kiểm tra UI (tôi có thể khởi động server trên máy nếu bạn ok).
+- Hoặc xuất file log / response từ `/api/users` để phân tích.
+
+File này được tạo tự động bởi bot để bạn dễ theo dõi thay đổi và các bước kiểm tra.
