@@ -4,6 +4,7 @@ import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Coins, Save } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function OpeningBalances() {
   const { activeCompany } = useAuth();
@@ -105,7 +106,10 @@ export default function OpeningBalances() {
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b pb-4">
         <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Coins className="text-amber-500" size={24} /> KHAI BÁO SỐ DƯ ĐẦU KỲ HỆ THỐNG TÀI KHOẢN TT200</h1>
-        <button onClick={handleSave} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"><Save size={16} /> Lưu bảng cân đối số dư</button>
+        <div className="flex items-center gap-2">
+          <ExportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Xuất Excel" />
+          <button onClick={handleSave} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"><Save size={16} /> Lưu bảng cân đối số dư</button>
+        </div>
       </div>
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
         <table className="w-full text-left text-xs">

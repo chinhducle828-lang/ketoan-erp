@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { ShoppingBag, Plus } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function PurchaseInventory() {
   const { createNewVoucher } = useVouchers();
@@ -35,7 +36,10 @@ export default function PurchaseInventory() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><ShoppingBag className="text-emerald-600" size={24} /> PHÂN HỆ MUA HÀNG VÀ HẠCH TOÁN VẬT TƯ NHẬP KHO</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><ShoppingBag className="text-emerald-600" size={24} /> PHÂN HỆ MUA HÀNG VÀ HẠCH TOÁN VẬT TƯ NHẬP KHO</h1>
+        <ExportExcelButton endpoint="purchases" filename="Mua_Hang_Nhap_Kho" label="Xuất Excel" />
+      </div>
       <form onSubmit={handlePurchase} className="bg-white p-5 rounded-2xl border shadow-sm max-w-md space-y-3">
         <input type="text" placeholder="Tên nguyên vật liệu / Hàng hóa nhập kho..." value={form.item} onChange={e => setForm({...form, item: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" />
         <input type="number" placeholder="Giá trị mua trước thuế (VND)..." value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" />

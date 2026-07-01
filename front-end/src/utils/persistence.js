@@ -38,7 +38,7 @@ export const writePersistedState = (key, value, storageType = 'sessionStorage') 
   storage.setItem(key, JSON.stringify(value));
 };
 
-export const usePersistentState = (key, initialValue, storageType = 'sessionStorage') => {
+export const usePersistentState = (key, initialValue, storageType = 'localStorage') => {
   const [state, setState] = useState(() => readPersistedState(key, initialValue, storageType));
 
   useEffect(() => {

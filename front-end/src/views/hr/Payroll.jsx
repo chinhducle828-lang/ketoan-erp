@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Users, Plus } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function Payroll() {
   const { createNewVoucher } = useVouchers();
@@ -33,7 +34,10 @@ export default function Payroll() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Users className="text-orange-600" size={24} /> PHÂN HỆ TÍNH LƯƠNG & KHẤU TRỪ BẢO HIỂM (334 - 338)</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Users className="text-orange-600" size={24} /> PHÂN HỆ TÍNH LƯƠNG & KHẤU TRỪ BẢO HIỂM (334 - 338)</h1>
+        <ExportExcelButton endpoint="payroll" filename="Bang_Luong_Bao_Hiem" label="Xuất Excel" />
+      </div>
       <div className="bg-white p-6 rounded-2xl border shadow-sm max-w-md space-y-4">
         <form onSubmit={handleCalculatePayroll} className="space-y-3">
           <label className="text-xs font-bold text-slate-500 block">Tổng quỹ lương gộp của doanh nghiệp (Gross Salary)</label>

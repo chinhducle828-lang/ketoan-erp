@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Calculator, Plus, Trash2, Landmark, CheckCircle2 } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function FixedAssets() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -33,8 +34,11 @@ export default function FixedAssets() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Calculator className="text-emerald-600" size={24} /> PHÂN HỆ TÀI SẢN CỐ ĐỊNH & KHẤU HAO (211 - 214)</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Calculator className="text-emerald-600" size={24} /> PHÂN HỆ TÀI SẢN CỐ ĐỊNH & KHẤU HAO (211 - 214)</h1>
+        </div>
+        <ExportExcelButton endpoint="fixed-assets" filename="Tai_San_Co_Dinh" label="Xuất Excel" />
       </div>
       {msg && <div className="p-3 bg-emerald-50 text-emerald-800 border rounded-xl text-xs">{msg}</div>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

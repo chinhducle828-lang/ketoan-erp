@@ -1,5 +1,5 @@
 import React from 'react';
-import { 
+import {
   Wallet, 
   Package, 
   Calculator, 
@@ -10,7 +10,7 @@ import {
   Percent, 
   Coins, 
   Layers, 
-  UserCheck 
+  BarChart3
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -103,13 +103,11 @@ export const MODULES_REGISTER = [
     requiresActiveCompany: false
   },
   {
-    id: 'users',
-    name: 'Quản lý ô tích phân quyền',
-    icon: UserCheck,
-    // ĐÃ SỬA: Cho module quản lý ô tích import thẳng component CompanyManagement.jsx
-    // Khi đổi tab trên sidebar, React sẽ ép unmount và mount lại view, kích hoạt useEffect tải lại dữ liệu mới nhất.
-    component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
-    allowedRoles: ['admin'],
-    requiresActiveCompany: false 
+    id: 'dashboard',
+    name: 'Dashboard dòng tiền',
+    icon: BarChart3,
+    component: React.lazy(() => import('./dashboard/CashFlowDashboard.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
   }
 ];

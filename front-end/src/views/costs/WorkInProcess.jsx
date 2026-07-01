@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { BookOpenCheck, Layers } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function WorkInProcess() {
   const { vouchers, createNewVoucher } = useVouchers();
@@ -22,7 +23,10 @@ export default function WorkInProcess() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><BookOpenCheck className="text-sky-600" size={24} /> TẬP HỢP CHI PHÍ & TÍNH GIÁ THÀNH SẢN XUẤT DỞ DANG (154)</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><BookOpenCheck className="text-sky-600" size={24} /> TẬP HỢP CHI PHÍ & TÍNH GIÁ THÀNH SẢN XUẤT DỞ DANG (154)</h1>
+        <ExportExcelButton endpoint="production-costs" filename="Chi_Phi_San_Xuat" label="Xuất Excel" />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-2xl border shadow-sm flex items-center gap-4">
           <div className="p-3 bg-sky-50 text-sky-600 rounded-xl"><Layers size={24} /></div>

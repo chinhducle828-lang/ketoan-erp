@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Wallet, Plus, Trash2 } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -25,7 +26,13 @@ export default function CashManagement() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Wallet className="text-emerald-600" size={24} /> PHÂN HỆ QUỸ TIỀN MẶT & TIỀN GỬI NGÂN HÀNG</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Wallet className="text-emerald-600" size={24} /> PHÂN HỆ QUỸ TIỀN MẶT & TIỀN GỬI NGÂN HÀNG</h1>
+        <div className="flex items-center gap-2">
+          <ExportExcelButton endpoint="cashbook" filename="So_Quy" label="Xuất sổ quỹ" />
+          <ExportExcelButton endpoint="vouchers" filename="So_Nhat_Ky" label="Xuất nhật ký" />
+        </div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3 shadow-sm h-fit">
           <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" />

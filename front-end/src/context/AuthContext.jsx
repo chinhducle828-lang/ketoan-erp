@@ -30,17 +30,51 @@ export function AuthProvider({ children }) {
     Number(localStorage.getItem('fiscalYear')) || 2026
   );
 
+  // Hàm lưu preferences lên server (activeCompany, fiscalYear)
+  const savePreferencesToServer = useCallback(async (prefs) => {
+    if (!token) return;
+    try {
+      await api.put('/api/auth/preferences', prefs);
+    } catch (err) {
+      console.warn('Không thể đồng bộ preferences lên server:', err.message);
+    }
+  }, [token]);
+
+  // Hàm tải preferences từ server sau khi đăng nhập
+  const loadPreferencesFromServer = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await api.get('/api/auth/preferences');
+      const prefs = res.data || {};
+      if (prefs.fiscalYear) {
+        setFiscalYearState(Number(prefs.fiscalYear));
+        localStorage.setItem('fiscalYear', String(prefs.fiscalYear));
+      }
+      return prefs;
+    } catch (err) {
+      console.warn('Không thể tải preferences từ server:', err.message);
+      return {};
+    }
+  }, [token]);
+
   const setFiscalYear = (year) => {
     setFiscalYearState(year);
     localStorage.setItem('fiscalYear', year);
+    // Đồng bộ lên server để dùng được ở máy khác
+    savePreferencesToServer({ fiscalYear: year });
   };
 
   // Hàm quét danh sách nhân sự dùng chung cho mọi cấu trúc màn hình
   const loadUsers = useCallback(async () => {
-    const res = await api.get('/api/users');
-    const data = res.data || [];
-    setUsers(data);
-    return data;
+    try {
+      const res = await api.get('/api/users');
+      const data = res.data || [];
+      setUsers(data);
+      return data;
+    } catch (err) {
+      console.error('Lỗi tải danh sách nhân sự tại Context:', err);
+      return [];
+    }
   }, [token]);
 
   const fetchCompanies = useCallback(async () => {
@@ -86,7 +120,7 @@ export function AuthProvider({ children }) {
           setMustChangePassword(!!res.data.must_change_password);
           localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
         }
-        await Promise.all([fetchCompanies(), loadUsers()]);
+        await Promise.all([fetchCompanies(), loadUsers(), loadPreferencesFromServer()]);
       } catch (err) {
         console.warn('Không thể làm mới phiên tự động:', err.message || err);
       }
@@ -95,10 +129,11 @@ export function AuthProvider({ children }) {
     if (token) {
       fetchCompanies().catch(() => {});
       loadUsers().catch(() => {});
+      loadPreferencesFromServer().catch(() => {});
     } else {
       silentRefresh();
     }
-  }, [token, fetchCompanies, loadUsers]);
+  }, [token, fetchCompanies, loadUsers, loadPreferencesFromServer]);
 
   const registerAdmin = async (username, password) => {
     try {
@@ -125,7 +160,7 @@ export function AuthProvider({ children }) {
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
 
-      await Promise.all([fetchCompanies(), loadUsers()]);
+      await Promise.all([fetchCompanies(), loadUsers(), loadPreferencesFromServer()]);
       return res.data;
     } catch (err) {
       throw err;

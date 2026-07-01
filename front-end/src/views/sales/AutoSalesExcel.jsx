@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { Layers, FileSpreadsheet } from 'lucide-react';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
 export default function AutoSalesExcel() {
   const { createNewVoucher } = useVouchers();
@@ -20,7 +21,10 @@ export default function AutoSalesExcel() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Layers className="text-emerald-600" size={24} /> ĐỒNG BỘ DOANH THU HOÁ ĐƠN HÀNG LOẠT TỪ EXCEL</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Layers className="text-emerald-600" size={24} /> ĐỒNG BỘ DOANH THU HOÁ ĐƠN HÀNG LOẠT TỪ EXCEL</h1>
+        <ExportExcelButton endpoint="vouchers" filename="Doanh_Thu_Ban_Hang" label="Xuất Excel" />
+      </div>
       <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
         <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-center p-6 bg-slate-50">
           <FileSpreadsheet className="text-emerald-600 mb-2" size={32} />
