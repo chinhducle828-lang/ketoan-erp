@@ -8,7 +8,9 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(sessionStorage.getItem('token') || null);
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem('user')) || null);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(() => {
+    return sessionStorage.getItem('mustChangePassword') === 'true';
+  });
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]); // <--- Thêm state quản lý danh sách nhân sự toàn cục
 
@@ -88,6 +90,7 @@ export function AuthProvider({ children }) {
       const res = await api.post('/api/auth/login', { username, password });
       sessionStorage.setItem('token', res.data.token);
       sessionStorage.setItem('user', JSON.stringify(res.data.user));
+      sessionStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
       
       setToken(res.data.token);
       setUser(res.data.user);
@@ -107,6 +110,7 @@ export function AuthProvider({ children }) {
     } finally {
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
+      sessionStorage.removeItem('mustChangePassword');
       localStorage.removeItem('activeCompany'); // Dọn dẹp cache công ty khi thoát
       setToken(null);
       setUser(null);
@@ -122,6 +126,7 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.post('/api/auth/change-password', { oldPassword, newPassword });
       setMustChangePassword(false);
+      sessionStorage.setItem('mustChangePassword', 'false');
       return res.data;
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đổi mật khẩu';
