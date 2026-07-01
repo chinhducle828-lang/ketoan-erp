@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
-import { Coins, Save, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Coins, Save, Loader2, AlertTriangle, CheckCircle, Trash2 } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
@@ -36,7 +36,6 @@ export default function OpeningBalances() {
       const res = await api.get(`/api/opening-balances?company_id=${companyId}&year=2026`);
       const initial = {};
       res.data.forEach(b => {
-        // b.accountCode, b.debitBalance, b.creditBalance đã được Backend alias thành camelCase
         const code = b.accountCode || b.account_code;
         const dr = b.debitBalance || b.debit_balance;
         const cr = b.creditBalance || b.credit_balance;
@@ -95,7 +94,15 @@ export default function OpeningBalances() {
     }
   };
 
-  // 5. Cơ chế Auto-save (Chỉ lưu tự động khi hai vế đã thực sự cân bằng)
+  // 5. Hàm xóa hết làm lại (Reset) dữ liệu tạm thời
+  const handleResetBalances = () => {
+    const confirmReset = window.confirm("⚠️ BẠN CÓ CHẮC CHẮN MUỐN XÓA SẠCH?\nHành động này sẽ đưa toàn bộ số dư đang nhập trên màn hình và LocalStorage về 0. Bạn sẽ phải nhập lại từ đầu.");
+    if (confirmReset) {
+      setBalances({});
+    }
+  };
+
+  // 6. Cơ chế Auto-save (Chỉ lưu tự động khi hai vế đã thực sự cân bằng)
   useEffect(() => {
     if (!activeCompany || Object.keys(balances).length === 0) return;
     if (!isBalanced) return; // Nếu đang lệch thì không kích hoạt auto-save tránh đẩy rác lên DB
@@ -126,12 +133,11 @@ export default function OpeningBalances() {
     };
   }, [balances, activeCompany, isBalanced]);
 
-  // 6. Đồng bộ cưỡng bức dữ liệu khi người dùng đóng tab đột ngột (Chỉ chạy khi cân đối)
+  // 7. Đồng bộ cưỡng bức dữ liệu khi người dùng đóng tab đột ngột (Chỉ chạy khi cân đối)
   useEffect(() => {
     const handler = () => {
       if (!activeCompany || Object.keys(balancesRef.current).length === 0) return;
       
-      // Tính lại kiểm tra cân đối tại thời điểm đóng tab
       const currentDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.dr) || 0), 0);
       const currentCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.cr) || 0), 0);
       if (Math.abs(currentDr - currentCr) > 0.5) return; 
@@ -167,6 +173,17 @@ export default function OpeningBalances() {
         <div className="flex items-center gap-2">
           <ExportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Xuất Excel" />
           <ImportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Nhập Excel" />
+          
+          {/* NÚT XÓA HẾT LÀM LẠI MỚI THÊM */}
+          <button 
+            onClick={handleResetBalances}
+            type="button"
+            className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+          >
+            <Trash2 size={14} />
+            Xóa hết làm lại
+          </button>
+
           <button 
             onClick={handleSave} 
             disabled={saving}
@@ -229,30 +246,39 @@ export default function OpeningBalances() {
               </tr>
 
               {/* Danh sách tài khoản sinh từ danh mục từ điển kế toán */}
-              {CHART_OF_ACCOUNTS.map(acc => (
-                <tr key={acc.code} className="hover:bg-slate-50/40 transition">
-                  <td className="p-3 font-mono font-bold text-slate-600">{acc.code}</td>
-                  <td className="p-3 text-slate-700 font-semibold">{acc.name}</td>
-                  <td className="p-3">
-                    <input 
-                      type="number" 
-                      placeholder="0" 
-                      value={balances[acc.code]?.dr || ''} 
-                      onChange={e => handleInputChange(acc.code, 'dr', e.target.value)} 
-                      className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition" 
-                    />
-                  </td>
-                  <td className="p-3">
-                    <input 
-                      type="number" 
-                      placeholder="0" 
-                      value={balances[acc.code]?.cr || ''} 
-                      onChange={e => handleInputChange(acc.code, 'cr', e.target.value)} 
-                      className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition" 
-                    />
-                  </td>
-                </tr>
-              ))}
+              {CHART_OF_ACCOUNTS.map(acc => {
+                // KIỂM TRA TÀI KHOẢN DOANH THU/CHI PHÍ ĐẦU 5 ĐẾN 9
+                const isReadOnly = ['5', '6', '7', '8', '9'].includes(acc.code[0]);
+
+                return (
+                  <tr key={acc.code} className={`hover:bg-slate-50/40 transition ${isReadOnly ? 'bg-slate-100/60 opacity-60' : ''}`}>
+                    <td className="p-3 font-mono font-bold text-slate-600">{acc.code}</td>
+                    <td className="p-3 text-slate-700 font-semibold">
+                      {acc.name} {isReadOnly && <span className="text-[10px] text-slate-400 font-normal italic ml-1">(Không có số dư)</span>}
+                    </td>
+                    <td className="p-3">
+                      <input 
+                        type="number" 
+                        placeholder={isReadOnly ? "X" : "0"} 
+                        disabled={isReadOnly}
+                        value={isReadOnly ? '' : (balances[acc.code]?.dr || '')} 
+                        onChange={e => handleInputChange(acc.code, 'dr', e.target.value)} 
+                        className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input 
+                        type="number" 
+                        placeholder={isReadOnly ? "X" : "0"} 
+                        disabled={isReadOnly}
+                        value={isReadOnly ? '' : (balances[acc.code]?.cr || '')} 
+                        onChange={e => handleInputChange(acc.code, 'cr', e.target.value)} 
+                        className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
 
             {/* CHÈN HÀNG TỔNG CÂN ĐỐI TÀI KHOẢN THEO THÔNG TƯ ĐÚNG TIÊU CHUẨN */}
