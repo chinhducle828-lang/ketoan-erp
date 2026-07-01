@@ -95,7 +95,8 @@ export function AuthProvider({ children }) {
       setToken(res.data.token);
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
-      
+
+      await Promise.all([fetchCompanies(), loadUsers()]);
       return res.data;
     } catch (err) {
       throw err;
