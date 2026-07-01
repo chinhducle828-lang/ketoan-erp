@@ -26,7 +26,7 @@ export const adminResetPasswordSchema = z.object({
   userId: z.number().positive('ID người dùng không hợp lệ'),
 });
 
-// User validators (ĐÃ SỬA ĐỂ KHÔNG BỊ LỖI KHI BỎ TRỐNG KTT/CÔNG TY)
+// User validators
 export const createUserSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
@@ -62,15 +62,24 @@ export const createCompanySchema = z.object({
   address: z.string().optional(),
 });
 
-// Voucher validators
+// CHUẨN MỚI: Voucher validators (Cấu trúc Master-Detail)
 export const createVoucherSchema = z.object({
   voucherDate: z.string().min(1, 'Ngày chứng từ không được để trống'),
   description: z.string().min(1, 'Diễn giải không được để trống'),
-  accountDr: z.string().min(1, 'Tài khoản nợ không được để trống'),
-  accountCr: z.string().min(1, 'Tài khoản có không được để trống'),
-  amount: z.number().positive('Số tiền phải lớn hơn 0'),
   type: z.string().min(1, 'Loại chứng từ không được để trống'),
   companyId: z.number().positive('Công ty không hợp lệ'),
+  details: z.array(
+    z.object({
+      accountCode: z.string().min(1, 'Tài khoản không được để trống'),
+      entryType: z.enum(['DR', 'CR'], { required_error: 'Bắt buộc chọn DR (Nợ) hoặc CR (Có)' }),
+      amount: z.number().positive('Số tiền từng dòng phải lớn hơn 0')
+    })
+  ).min(2, 'Chứng từ phải có ít nhất 2 dòng hạch toán').refine((items) => {
+    const drSum = items.filter(i => i.entryType === 'DR').reduce((sum, i) => sum + i.amount, 0);
+    const crSum = items.filter(i => i.entryType === 'CR').reduce((sum, i) => sum + i.amount, 0);
+    // Cho phép sai số rất nhỏ do kiểu float js (0.001)
+    return Math.abs(drSum - crSum) < 0.01;
+  }, { message: 'Tổng số tiền ghi Nợ phải bằng tổng số tiền ghi Có!' })
 });
 
 // Item validators

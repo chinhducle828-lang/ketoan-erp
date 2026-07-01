@@ -1,5 +1,6 @@
 -- ====================================================================
 -- CẤU TRÚC CƠ SỞ DỮ LIỆU HỆ THỐNG KETOAN ERP - THÔNG TƯ 200/2014/TT-BTC
+-- BẢN CHUẨN HÓA: HẠCH TOÁN ĐA DÒNG - RÀNG BUỘC KHO - TỐI ƯU INDEX
 -- ====================================================================
 
 CREATE TABLE IF NOT EXISTS companies (
@@ -35,18 +36,38 @@ CREATE TABLE IF NOT EXISTS opening_balances (
     UNIQUE(company_id, account_code, fiscal_year)
 );
 
+-- BẢNG 1 (MASTER): Lưu thông tin chung của chứng từ hạch toán
 CREATE TABLE IF NOT EXISTS vouchers (
     id SERIAL PRIMARY KEY,
     company_id INT REFERENCES companies(id) ON DELETE CASCADE,
     voucher_date DATE NOT NULL,
     description TEXT NOT NULL,
-    account_dr VARCHAR(20) REFERENCES accounts(code),
-    account_cr VARCHAR(20) REFERENCES accounts(code),
-    amount NUMERIC(15,2) NOT NULL,
     voucher_type VARCHAR(50) NOT NULL, -- Thu, Chi, Nhap, Xuan, Khac
     created_by INT REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- BẢNG 2 (DETAIL): Cho phép 1 chứng từ có nhiều dòng Nợ/Có (Xử lý lỗi hạch toán kèm Thuế GTGT)
+CREATE TABLE IF NOT EXISTS voucher_details (
+    id SERIAL PRIMARY KEY,
+    voucher_id INT REFERENCES vouchers(id) ON DELETE CASCADE,
+    account_code VARCHAR(20) REFERENCES accounts(code) ON DELETE RESTRICT,
+    entry_type VARCHAR(2) NOT NULL CHECK (entry_type IN ('DR', 'CR')), -- DR: Ghi Nợ, CR: Ghi Có
+    amount NUMERIC(15,2) NOT NULL CHECK (amount > 0)
+);
+
+-- ====================================================================
+-- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG (Gánh tải khi nghiệp vụ lũy thừa lên hàng triệu dòng)
+-- ====================================================================
+CREATE INDEX IF NOT EXISTS idx_vouchers_date_company 
+ON vouchers(company_id, voucher_date);
+
+CREATE INDEX IF NOT EXISTS idx_voucher_details_lookup 
+ON voucher_details(voucher_id, account_code, entry_type);
+
+CREATE INDEX IF NOT EXISTS idx_opening_balances_lookup 
+ON opening_balances(company_id, fiscal_year, account_code);
+
 
 -- ====================================================================
 -- NẠP DANH MỤC TÀI KHOẢN CHI TIẾT THEO THÔNG TƯ 200
@@ -149,4 +170,4 @@ ON CONFLICT (code) DO NOTHING;
 
 -- ====================================================================
 -- KẾT THÚC CẤU TRÚC VÀ DANH MỤC TÀI KHOẢN CHI TIẾT THEO THÔNG TƯ 200
--- ==================================================================== 
+-- ====================================================================
