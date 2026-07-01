@@ -22,7 +22,7 @@ const addRows = (ws, rows) => {
   });
 };
 
-// 1. Xuất Sổ Nhật ký chung (Vouchers)
+// 1. Xuất Sổ Nhật ký chung (Bản Master-Detail đa dòng)
 router.get('/vouchers', authenticate, async (req, res) => {
   try {
     const { company_id, year } = req.query;
@@ -30,7 +30,13 @@ router.get('/vouchers', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, id, description, account_dr, account_cr, amount, voucher_type FROM vouchers WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2 ORDER BY voucher_date, id`,
+      `SELECT 
+        v.voucher_date, v.id, v.description, v.voucher_type,
+        vd.account_code, vd.entry_type, vd.amount
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2 
+       ORDER BY v.voucher_date, v.id, vd.entry_type DESC`,
       [company_id, year || 2026]
     );
 
@@ -46,10 +52,18 @@ router.get('/vouchers', authenticate, async (req, res) => {
       { header: 'Loại', key: 'type', width: 10 },
     ];
     styleHeader(ws);
-    addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10), id: v.id, desc: v.description,
-      dr: v.account_dr, cr: v.account_cr, amount: Number(v.amount), type: v.voucher_type
-    })));
+
+    const formattedRows = result.rows.map(v => ({
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
+      id: v.id,
+      desc: v.description,
+      dr: v.entry_type === 'DR' ? v.account_code : '',
+      cr: v.entry_type === 'CR' ? v.account_code : '',
+      amount: Number(v.amount),
+      type: v.voucher_type
+    }));
+
+    addRows(ws, formattedRows);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=So_Nhat_Ky_Chung_${company_id}_${year || 2026}.xlsx`);
@@ -66,11 +80,16 @@ router.get('/cashbook', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, description, 
-              CASE WHEN account_dr IN ('1111','1121') THEN amount ELSE 0 END AS thu,
-              CASE WHEN account_cr IN ('1111','1121') THEN amount ELSE 0 END AS chi
-       FROM vouchers WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2
-       ORDER BY voucher_date, id`,
+      `SELECT 
+        v.voucher_date, v.description,
+        SUM(CASE WHEN vd.entry_type = 'DR' AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%') THEN vd.amount ELSE 0 END) AS thu,
+        SUM(CASE WHEN vd.entry_type = 'CR' AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%') THEN vd.amount ELSE 0 END) AS chi
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2
+       GROUP BY v.id, v.voucher_date, v.description
+       HAVING SUM(CASE WHEN vd.account_code LIKE '111%' OR vd.account_code LIKE '112%' THEN 1 ELSE 0 END) > 0
+       ORDER BY v.voucher_date, v.id`,
       [company_id, year || 2026]
     );
 
@@ -84,7 +103,8 @@ router.get('/cashbook', authenticate, async (req, res) => {
     ];
     styleHeader(ws);
     addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10), desc: v.description,
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
+      desc: v.description,
       thu: Number(v.thu), chi: Number(v.chi)
     })));
 
@@ -95,7 +115,7 @@ router.get('/cashbook', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. Xuất Danh mục vật tư
+// 3. Xuất Danh mục vật tư (Giữ nguyên)
 router.get('/items', authenticate, async (req, res) => {
   try {
     const { company_id } = req.query;
@@ -121,7 +141,7 @@ router.get('/items', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4. Xuất Số dư đầu kỳ
+// 4. Xuất Số dư đầu kỳ (Giữ nguyên)
 router.get('/opening-balances', authenticate, async (req, res) => {
   try {
     const { company_id, year } = req.query;
@@ -150,7 +170,7 @@ router.get('/opening-balances', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 5. Xuất Danh sách nhân sự
+// 5. Xuất Danh sách nhân sự (Giữ nguyên)
 router.get('/users', authenticate, requireRole(['admin']), async (req, res) => {
   try {
     const result = await pool.query(`
@@ -194,12 +214,13 @@ router.get('/fixed-assets', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, description, amount, account_dr, account_cr, voucher_type 
-       FROM vouchers 
-       WHERE company_id = $1 
-         AND EXTRACT(YEAR FROM voucher_date) = $2
-         AND (account_dr = '211' OR account_cr = '211')
-       ORDER BY voucher_date, id`,
+      `SELECT v.voucher_date, v.description, v.voucher_type, vd.account_code, vd.entry_type, vd.amount
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 
+         AND EXTRACT(YEAR FROM v.voucher_date) = $2
+         AND v.id IN (SELECT DISTINCT voucher_id FROM voucher_details WHERE account_code LIKE '211%')
+       ORDER BY v.voucher_date, v.id, vd.entry_type DESC`,
       [company_id, year || 2026]
     );
 
@@ -215,10 +236,10 @@ router.get('/fixed-assets', authenticate, async (req, res) => {
     ];
     styleHeader(ws);
     addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10),
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
       desc: v.description,
-      dr: v.account_dr,
-      cr: v.account_cr,
+      dr: v.entry_type === 'DR' ? v.account_code : '',
+      cr: v.entry_type === 'CR' ? v.account_code : '',
       amount: Number(v.amount),
       type: v.voucher_type
     })));
@@ -238,12 +259,13 @@ router.get('/production-costs', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, description, amount, account_dr, account_cr, voucher_type 
-       FROM vouchers 
-       WHERE company_id = $1 
-         AND EXTRACT(YEAR FROM voucher_date) = $2
-         AND (account_dr IN ('154', '156') OR account_cr IN ('154', '156'))
-       ORDER BY voucher_date, id`,
+      `SELECT v.voucher_date, v.description, v.voucher_type, vd.account_code, vd.entry_type, vd.amount
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 
+         AND EXTRACT(YEAR FROM v.voucher_date) = $2
+         AND v.id IN (SELECT DISTINCT voucher_id FROM voucher_details WHERE account_code LIKE '154%' OR account_code LIKE '156%')
+       ORDER BY v.voucher_date, v.id, vd.entry_type DESC`,
       [company_id, year || 2026]
     );
 
@@ -259,10 +281,10 @@ router.get('/production-costs', authenticate, async (req, res) => {
     ];
     styleHeader(ws);
     addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10),
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
       desc: v.description,
-      dr: v.account_dr,
-      cr: v.account_cr,
+      dr: v.entry_type === 'DR' ? v.account_code : '',
+      cr: v.entry_type === 'CR' ? v.account_code : '',
       amount: Number(v.amount),
       type: v.voucher_type
     })));
@@ -282,12 +304,13 @@ router.get('/purchases', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, description, amount, account_dr, account_cr, voucher_type 
-       FROM vouchers 
-       WHERE company_id = $1 
-         AND EXTRACT(YEAR FROM voucher_date) = $2
-         AND (account_dr IN ('156', '331', '1331') OR account_cr IN ('156', '331', '1331'))
-       ORDER BY voucher_date, id`,
+      `SELECT v.voucher_date, v.description, v.voucher_type, vd.account_code, vd.entry_type, vd.amount
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 
+         AND EXTRACT(YEAR FROM v.voucher_date) = $2
+         AND v.id IN (SELECT DISTINCT voucher_id FROM voucher_details WHERE account_code LIKE '156%' OR account_code LIKE '331%' OR account_code LIKE '1331%')
+       ORDER BY v.voucher_date, v.id, vd.entry_type DESC`,
       [company_id, year || 2026]
     );
 
@@ -303,10 +326,10 @@ router.get('/purchases', authenticate, async (req, res) => {
     ];
     styleHeader(ws);
     addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10),
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
       desc: v.description,
-      dr: v.account_dr,
-      cr: v.account_cr,
+      dr: v.entry_type === 'DR' ? v.account_code : '',
+      cr: v.entry_type === 'CR' ? v.account_code : '',
       amount: Number(v.amount),
       type: v.voucher_type
     })));
@@ -326,12 +349,13 @@ router.get('/payroll', authenticate, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
 
     const result = await pool.query(
-      `SELECT voucher_date, description, amount, account_dr, account_cr, voucher_type 
-       FROM vouchers 
-       WHERE company_id = $1 
-         AND EXTRACT(YEAR FROM voucher_date) = $2
-         AND (account_dr IN ('6422', '3341', '3383') OR account_cr IN ('6422', '3341', '3383'))
-       ORDER BY voucher_date, id`,
+      `SELECT v.voucher_date, v.description, v.voucher_type, vd.account_code, vd.entry_type, vd.amount
+       FROM vouchers v
+       JOIN voucher_details vd ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 
+         AND EXTRACT(YEAR FROM v.voucher_date) = $2
+         AND v.id IN (SELECT DISTINCT voucher_id FROM voucher_details WHERE account_code LIKE '6421%' OR account_code LIKE '6422%' OR account_code LIKE '3341%' OR account_code LIKE '3383%')
+       ORDER BY v.voucher_date, v.id, vd.entry_type DESC`,
       [company_id, year || 2026]
     );
 
@@ -347,10 +371,10 @@ router.get('/payroll', authenticate, async (req, res) => {
     ];
     styleHeader(ws);
     addRows(ws, result.rows.map(v => ({
-      date: v.voucher_date?.slice(0, 10),
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
       desc: v.description,
-      dr: v.account_dr,
-      cr: v.account_cr,
+      dr: v.entry_type === 'DR' ? v.account_code : '',
+      cr: v.entry_type === 'CR' ? v.account_code : '',
       amount: Number(v.amount),
       type: v.voucher_type
     })));
@@ -371,11 +395,12 @@ router.get('/dashboard', authenticate, async (req, res) => {
 
     const monthly = await pool.query(`
       SELECT 
-        EXTRACT(MONTH FROM voucher_date)::int AS month,
-        SUM(CASE WHEN voucher_type IN ('Thu','Nhap') THEN amount ELSE 0 END) AS thu,
-        SUM(CASE WHEN voucher_type IN ('Chi','Xuat') THEN amount ELSE 0 END) AS chi
-      FROM vouchers
-      WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2
+        EXTRACT(MONTH FROM v.voucher_date)::int AS month,
+        SUM(CASE WHEN v.voucher_type IN ('Thu','Nhap') THEN vd.amount ELSE 0 END) AS thu,
+        SUM(CASE WHEN v.voucher_type IN ('Chi','Xuat') THEN vd.amount ELSE 0 END) AS chi
+      FROM vouchers v
+      JOIN voucher_details vd ON v.id = vd.voucher_id
+      WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2 AND vd.entry_type = 'DR'
       GROUP BY month
       ORDER BY month
     `, [company_id, year || 2026]);

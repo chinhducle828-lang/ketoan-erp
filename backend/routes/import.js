@@ -60,6 +60,7 @@ const parseExcelFile = async (fileBuffer) => {
 
 // 1. Nhập Danh mục vật tư từ Excel
 router.post('/items', authenticate, requireRole(['admin', 'ktt']), upload.single('file'), async (req, res) => {
+  const client = await pool.connect();
   try {
     if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file Excel để nhập.' });
     
@@ -77,6 +78,9 @@ router.post('/items', authenticate, requireRole(['admin', 'ktt']), upload.single
     let errorCount = 0;
     const errors = [];
 
+    // Bọc toàn bộ quá trình Import vào một Transaction lớn nhằm tối ưu hóa hiệu năng và an toàn dữ liệu
+    await client.query('BEGIN');
+
     for (const row of rows) {
       try {
         const code = row['Mã hàng'] || row['code'] || row['Mã'];
@@ -89,16 +93,18 @@ router.post('/items', authenticate, requireRole(['admin', 'ktt']), upload.single
           continue;
         }
 
-        await pool.query(
+        await client.query(
           'INSERT INTO items (code, name, unit, company_id, created_by) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (code, company_id) DO UPDATE SET name = EXCLUDED.name, unit = EXCLUDED.unit',
-          [code.toUpperCase().trim(), name.trim(), unit.trim(), companyId, req.user.id]
+          [code.toString().toUpperCase().trim(), name.toString().trim(), unit.toString().trim(), companyId, req.user.id]
         );
         successCount++;
       } catch (err) {
         errorCount++;
-        errors.push(`Lỗi nhập ${row['Mã hàng'] || row['code']}: ${err.message}`);
+        errors.push(`Lỗi nhập mã ${row['Mã hàng'] || row['code']}: ${err.message}`);
       }
     }
+
+    await client.query('COMMIT');
 
     res.json({ 
       success: true, 
@@ -106,12 +112,16 @@ router.post('/items', authenticate, requireRole(['admin', 'ktt']), upload.single
       details: { successCount, errorCount, errors: errors.slice(0, 10) }
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
 // 2. Nhập Số dư đầu kỳ từ Excel
 router.post('/opening-balances', authenticate, requireRole(['admin', 'ktt']), upload.single('file'), async (req, res) => {
+  const client = await pool.connect();
   try {
     if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file Excel để nhập.' });
     
@@ -129,6 +139,8 @@ router.post('/opening-balances', authenticate, requireRole(['admin', 'ktt']), up
     
     let successCount = 0;
     let errorCount = 0;
+
+    await client.query('BEGIN');
 
     for (const row of rows) {
       try {
@@ -141,12 +153,12 @@ router.post('/opening-balances', authenticate, requireRole(['admin', 'ktt']), up
           continue;
         }
 
-        await pool.query(
+        await client.query(
           `INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year)
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (company_id, account_code, fiscal_year)
            DO UPDATE SET debit_balance = $3, credit_balance = $4`,
-          [companyId, accountCode, debitBalance || 0, creditBalance || 0, year]
+          [companyId, accountCode.toString().trim(), debitBalance || 0, creditBalance || 0, year]
         );
         successCount++;
       } catch (err) {
@@ -154,7 +166,9 @@ router.post('/opening-balances', authenticate, requireRole(['admin', 'ktt']), up
       }
     }
 
-    // Invalidate dashboard cache
+    await client.query('COMMIT');
+
+    // Chỉ xóa Cache sau khi Postgres báo trạng thái lưu hoàn thành 100%
     await invalidateCache(`dashboard:cashflow:${companyId}:*`);
     
     res.json({ 
@@ -163,18 +177,20 @@ router.post('/opening-balances', authenticate, requireRole(['admin', 'ktt']), up
       details: { successCount, errorCount }
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
-// 3. Nhập Chứng từ hạch toán từ Excel
+// 3. Nhập Chứng từ hạch toán từ Excel (Hỗ trợ cấu trúc Master-Detail)
 router.post('/vouchers', authenticate, requireRole(['admin', 'ktt']), upload.single('file'), async (req, res) => {
+  const client = await pool.connect();
   try {
     if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file Excel để nhập.' });
     
     const companyId = req.body.company_id;
-    const year = req.body.year || 2026;
-    
     if (!companyId) return res.status(400).json({ error: 'Thiếu company_id' });
     
     if (req.user.role !== 'admin') {
@@ -186,6 +202,8 @@ router.post('/vouchers', authenticate, requireRole(['admin', 'ktt']), upload.sin
     
     let successCount = 0;
     let errorCount = 0;
+
+    await client.query('BEGIN');
 
     for (const row of rows) {
       try {
@@ -201,27 +219,50 @@ router.post('/vouchers', authenticate, requireRole(['admin', 'ktt']), upload.sin
           continue;
         }
 
-        await pool.query(
-          `INSERT INTO vouchers (company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [companyId, voucherDate, description, accountDr, accountCr, amount, voucherType, req.user.id]
+        // Bước 1: Insert thông tin chung vào bảng MASTER (vouchers)
+        const voucherRes = await client.query(
+          `INSERT INTO vouchers (company_id, voucher_date, description, voucher_type, created_by)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [companyId, voucherDate, description.toString().trim(), voucherType.toString().trim(), req.user.id]
         );
+        
+        const voucherId = voucherRes.rows[0].id;
+
+        // Bước 2: Tách dòng Nợ (DR) đẩy vào bảng DETAIL (voucher_details)
+        await client.query(
+          `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
+           VALUES ($1, $2, 'DR', $3)`,
+          [voucherId, accountDr.toString().trim(), amount]
+        );
+
+        // Bước 3: Tách dòng Có (CR) đẩy vào bảng DETAIL (voucher_details)
+        await client.query(
+          `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
+           VALUES ($1, $2, 'CR', $3)`,
+          [voucherId, accountCr.toString().trim(), amount]
+        );
+
         successCount++;
       } catch (err) {
         errorCount++;
       }
     }
 
-    // Invalidate dashboard cache
+    await client.query('COMMIT');
+
+    // Làm sạch bộ nhớ tạm Redis sau khi nạp mớ chứng từ mới hoàn tất
     await invalidateCache(`dashboard:cashflow:${companyId}:*`);
     
     res.json({ 
       success: true, 
-      message: `Nhập chứng từ thành công ${successCount} dòng, lỗi ${errorCount} dòng.`,
+      message: `Nhập chứng từ thành công ${successCount} dòng (chia thành ${successCount * 2} bút toán đối ứng Nợ/Có), lỗi ${errorCount} dòng.`,
       details: { successCount, errorCount }
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

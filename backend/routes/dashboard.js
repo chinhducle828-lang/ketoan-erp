@@ -6,11 +6,10 @@ import { cacheMiddleware } from '../cache/redis.js';
 
 const router = express.Router();
 
-// Dashboard cashflow with Redis caching
 router.get('/cashflow', authenticate, cacheMiddleware('dashboard:cashflow', 300), async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
-    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    const year = req.query.year ? Number(req.query.year) : 2026;
 
     if (!targetCompanyId) return res.json([]);
     if (req.user.role !== 'admin') {
@@ -18,33 +17,45 @@ router.get('/cashflow', authenticate, cacheMiddleware('dashboard:cashflow', 300)
       if (!hasAccess) return res.status(403).json({ error: 'Không có quyền truy cập!' });
     }
 
-    // Thống kê thu/chi theo tháng
+    // 1. Thống kê thu/chi theo tháng (Chỉ lấy ở 1 bên dòng DR tránh nhân đôi số tiền)
     const monthly = await pool.query(`
       SELECT 
-        EXTRACT(MONTH FROM voucher_date)::int AS month,
-        SUM(CASE WHEN voucher_type IN ('Thu','Nhap') THEN amount ELSE 0 END) AS thu,
-        SUM(CASE WHEN voucher_type IN ('Chi','Xuat') THEN amount ELSE 0 END) AS chi
-      FROM vouchers
-      WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2
+        EXTRACT(MONTH FROM v.voucher_date)::int AS month,
+        SUM(CASE WHEN v.voucher_type IN ('Thu','Nhap') THEN vd.amount ELSE 0 END) AS thu,
+        SUM(CASE WHEN v.voucher_type IN ('Chi','Xuat') THEN vd.amount ELSE 0 END) AS chi
+      FROM vouchers v
+      JOIN voucher_details vd ON v.id = vd.voucher_id
+      WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2 AND vd.entry_type = 'DR'
       GROUP BY month
       ORDER BY month
     `, [targetCompanyId, year]);
 
-    // Tổng số dư tiền mặt (1111, 1121)
+    // 2. Tổng số dư tiền mặt (1111, 1121)
     const cashBalances = await pool.query(`
       SELECT 
-        COALESCE(SUM(CASE WHEN account_dr IN ('1111','1121') THEN amount ELSE 0 END), 0) AS tong_thu_tien,
-        COALESCE(SUM(CASE WHEN account_cr IN ('1111','1121') THEN amount ELSE 0 END), 0) AS tong_chi_tien
-      FROM vouchers
-      WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2
+        COALESCE(SUM(CASE WHEN vd.entry_type = 'DR' AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%') THEN vd.amount ELSE 0 END), 0) AS tong_thu_tien,
+        COALESCE(SUM(CASE WHEN vd.entry_type = 'CR' AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%') THEN vd.amount ELSE 0 END), 0) AS tong_chi_tien
+      FROM vouchers v
+      JOIN voucher_details vd ON v.id = vd.voucher_id
+      WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2
     `, [targetCompanyId, year]);
 
-    // Danh sách giao dịch gần đây nhất (10 cái)
+    // 3. Danh sách giao dịch gần đây nhất kèm mảng details lồng nhau
     const recent = await pool.query(`
-      SELECT id, voucher_date, description, account_dr, account_cr, amount, voucher_type
-      FROM vouchers
-      WHERE company_id = $1 AND EXTRACT(YEAR FROM voucher_date) = $2
-      ORDER BY voucher_date DESC, id DESC
+      SELECT 
+        v.id, v.voucher_date as "voucherDate", v.description, v.voucher_type as "voucherType",
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'accountCode', vd.account_code,
+            'entryType', vd.entry_type,
+            'amount', vd.amount
+          )
+        ) AS details
+      FROM vouchers v
+      JOIN voucher_details vd ON v.id = vd.voucher_id
+      WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2
+      GROUP BY v.id
+      ORDER BY v.voucher_date DESC, v.id DESC
       LIMIT 10
     `, [targetCompanyId, year]);
 
