@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AddCompanyForm from './AddCompanyForm.jsx';
@@ -9,28 +9,57 @@ export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
   const { fetchCompanies, companies, user: currentUser, loadUsers } = useAuth();
 
-  const [localUsers, setLocalUsers] = useState([]);
+  const [localUsers, setLocalUsers] = useState(() => {
+    // Khôi phục danh sách từ localStorage để không mất dữ liệu khi F5
+    try {
+      const saved = localStorage.getItem('companyManagement_users');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const initialFetchDone = useRef(false);
 
-  const syncLocalUsers = (userList) => {
-    setLocalUsers(Array.isArray(userList) ? userList.map(user => ({
+  // Lưu localUsers vào localStorage mỗi khi có thay đổi
+  useEffect(() => {
+    try {
+      localStorage.setItem('companyManagement_users', JSON.stringify(localUsers));
+    } catch (e) {
+      console.error('Không thể lưu danh sách nhân sự vào localStorage:', e);
+    }
+  }, [localUsers]);
+
+  const syncLocalUsers = useCallback((userList) => {
+    const mapped = Array.isArray(userList) ? userList.map(user => ({
       ...user,
       company_id: Array.isArray(user.company_ids) ? (user.company_ids[0] || null) : null
-    })) : []);
-  };
+    })) : [];
+    setLocalUsers(mapped);
+    // Lưu ngay vào localStorage
+    try {
+      localStorage.setItem('companyManagement_users', JSON.stringify(mapped));
+    } catch (e) {
+      console.error('Không thể lưu danh sách nhân sự vào localStorage:', e);
+    }
+  }, []);
 
   // Use centralized loader from AuthContext to avoid divergent user state
   const fetchUsersFromApi = async () => {
     try {
       const data = await loadUsers();
-      return Array.isArray(data) ? data : [];
+      return Array.isArray(data) ? data : null; // null = lỗi, không sync
     } catch (err) {
       console.error('Lỗi tải danh sách nhân sự từ Context:', err);
-      return [];
+      return null; // null = lỗi, không sync
     }
   };
 
   useEffect(() => {
+    // Chỉ chạy 1 lần khi component mount để tránh vòng lặp vô hạn
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+
     const init = async () => {
       setLoadingUsers(true);
       try {
@@ -41,10 +70,21 @@ export default function CompanyManagement() {
           }),
           fetchUsersFromApi()
         ]);
-        syncLocalUsers(usersList);
+        // Chỉ sync khi có dữ liệu thật từ API (không null, không [] rỗng do lỗi)
+        // Khi API lỗi trả về null => giữ nguyên localUsers (mảng rỗng ban đầu hoặc dữ liệu cũ)
+        if (Array.isArray(usersList)) {
+          if (usersList.length > 0) {
+            syncLocalUsers(usersList);
+          } else if (usersList.length === 0 && localUsers.length === 0) {
+            // DB rỗng thật sự (lần đầu mount, localUsers cũng rỗng)
+            syncLocalUsers(usersList);
+          }
+          // Nếu usersList rỗng nhưng localUsers đã có dữ liệu => API lỗi => giữ nguyên
+        }
+        // Nếu usersList là null => API lỗi => giữ nguyên localUsers
       } catch (err) {
         console.error('Lỗi khởi tạo CompanyManagement:', err);
-        syncLocalUsers([]);
+        // Không syncLocalUsers([]) ở đây vì sẽ làm mất dữ liệu hiện có
       } finally {
         setLoadingUsers(false);
         if (companies && companies.length > 0 && exportCompanyId == null) setExportCompanyId(companies[0].id);
@@ -52,7 +92,7 @@ export default function CompanyManagement() {
     };
 
     init();
-  }, [fetchCompanies]);
+  }, []);
 
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
@@ -159,6 +199,7 @@ export default function CompanyManagement() {
 
       const createdUser = res.data?.user;
       if (createdUser) {
+        // Thêm ngay vào localUsers để UI cập nhật tức thì
         setLocalUsers(prev => [
           ...prev,
           {
@@ -177,8 +218,17 @@ export default function CompanyManagement() {
       setNewManagerId('');
       setNewRole('nv');
       
-      const refreshedUsers = await fetchUsersFromApi();
-      syncLocalUsers(refreshedUsers);
+      // Refresh từ API để đồng bộ với dữ liệu server
+      // Chỉ ghi đè nếu refresh thành công (có dữ liệu), tránh mất danh sách khi API lỗi
+      try {
+        const refreshedUsers = await fetchUsersFromApi();
+        if (refreshedUsers && refreshedUsers.length > 0) {
+          syncLocalUsers(refreshedUsers);
+        }
+      } catch (err) {
+        console.error('Lỗi refresh danh sách sau khi thêm nhân sự:', err);
+        // Giữ nguyên localUsers từ optimistic update
+      }
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi thêm nhân sự mới!');
     }

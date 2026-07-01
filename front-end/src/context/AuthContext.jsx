@@ -37,15 +37,10 @@ export function AuthProvider({ children }) {
 
   // Hàm quét danh sách nhân sự dùng chung cho mọi cấu trúc màn hình
   const loadUsers = useCallback(async () => {
-    try {
-      const res = await api.get('/api/users');
-      const data = res.data || [];
-      setUsers(data);
-      return data;
-    } catch (err) {
-      console.error('Lỗi tải danh sách nhân sự tại Context:', err);
-      return [];
-    }
+    const res = await api.get('/api/users');
+    const data = res.data || [];
+    setUsers(data);
+    return data;
   }, [token]);
 
   const fetchCompanies = useCallback(async () => {
@@ -98,8 +93,8 @@ export function AuthProvider({ children }) {
     };
 
     if (token) {
-      fetchCompanies();
-      loadUsers();
+      fetchCompanies().catch(() => {});
+      loadUsers().catch(() => {});
     } else {
       silentRefresh();
     }
