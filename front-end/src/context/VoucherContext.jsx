@@ -22,7 +22,8 @@ export function VoucherProvider({ children }) {
   const loadVouchers = async () => {
     setIsSyncing(true);
     try {
-      const res = await api.get(`/api/vouchers?company_id=${activeCompany}`);
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.get(`/api/vouchers?company_id=${companyId}`);
       setVouchers(res.data);
     } catch (err) {
       console.error('Lỗi tải danh sách chứng từ:', err);
@@ -33,7 +34,8 @@ export function VoucherProvider({ children }) {
 
   const createNewVoucher = async (data) => {
     try {
-      const res = await api.post('/api/vouchers', { ...data, companyId: activeCompany });
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.post('/api/vouchers', { ...data, companyId });
       if (res.data.success) {
         setVouchers(prev => [res.data.voucher, ...prev]);
         return { success: true };

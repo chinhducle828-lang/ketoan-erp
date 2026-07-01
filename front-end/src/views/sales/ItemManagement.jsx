@@ -25,7 +25,8 @@ export default function ItemManagement() {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get(`/api/items?company_id=${activeCompany}`);
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.get(`/api/items?company_id=${companyId}`);
       setItems(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Không thể kết nối lấy danh mục vật tư!');
@@ -45,11 +46,12 @@ export default function ItemManagement() {
     setSuccess('');
     
     try {
+      const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.post('/api/items', {
         code: form.code.toUpperCase().trim(), // Chuẩn hóa viết hoa mã SKU
         name: form.name.trim(),
         unit: form.unit.trim(),
-        companyId: activeCompany // Truyền mã doanh nghiệp hiện tại
+        companyId // Truyền mã doanh nghiệp hiện tại
       });
       
       if (res.data.success) {
@@ -69,7 +71,8 @@ export default function ItemManagement() {
     setSuccess('');
 
     try {
-      const res = await api.delete(`/api/items/${code}?company_id=${activeCompany}`);
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.delete(`/api/items/${code}?company_id=${companyId}`);
       if (res.data.success) {
         setSuccess('Đã xóa vật tư thành công khỏi hệ thống!');
         fetchItems(); // Tải lại danh sách sau khi xóa

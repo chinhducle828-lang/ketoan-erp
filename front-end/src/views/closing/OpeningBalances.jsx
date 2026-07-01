@@ -15,7 +15,8 @@ export default function OpeningBalances() {
 
   const loadOpeningBalances = async () => {
     try {
-      const res = await api.get(`/api/opening-balances?company_id=${activeCompany}`);
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.get(`/api/opening-balances?company_id=${companyId}`);
       const initial = {};
       res.data.forEach(b => {
         initial[b.account_code] = { dr: b.debit_balance, cr: b.credit_balance };
@@ -33,7 +34,8 @@ export default function OpeningBalances() {
 
   const handleSave = async () => {
     try {
-      const res = await api.post('/api/opening-balances', { companyId: activeCompany, balances });
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.post('/api/opening-balances', { companyId, balances });
       if (res.data.success) alert('Lưu số dư đầu kỳ thành công!');
     } catch { alert('Lỗi hệ thống'); }
   };
