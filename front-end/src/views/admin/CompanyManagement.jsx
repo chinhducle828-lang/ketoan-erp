@@ -7,7 +7,7 @@ import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
 
 export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
-  const { fetchCompanies, companies, user: currentUser } = useAuth();
+  const { fetchCompanies, companies, user: currentUser, loadUsers } = useAuth();
 
   const [localUsers, setLocalUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -19,12 +19,13 @@ export default function CompanyManagement() {
     })) : []);
   };
 
+  // Use centralized loader from AuthContext to avoid divergent user state
   const fetchUsersFromApi = async () => {
     try {
-      const res = await api.get('/api/users');
-      return Array.isArray(res.data) ? res.data : [];
+      const data = await loadUsers();
+      return Array.isArray(data) ? data : [];
     } catch (err) {
-      console.error('Lỗi tải trực tiếp danh sách nhân sự:', err);
+      console.error('Lỗi tải danh sách nhân sự từ Context:', err);
       return [];
     }
   };

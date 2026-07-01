@@ -6,8 +6,8 @@ import ResponsiveContainer from './ResponsiveContainer.jsx';
 import api from '../utils/api.js';
 
 export default function MainContent({ activeTab }) {
-  // Lấy thêm hàm updateUserCompanies từ AuthContext để đồng bộ nóng dữ liệu quyền
-  const { activeCompany, token, user, updateUserCompanies } = useAuth();
+  // Lấy thêm hàm updateUserCompanies và loadUsers từ AuthContext để đồng bộ nóng dữ liệu quyền
+  const { activeCompany, token, user, updateUserCompanies, loadUsers } = useAuth();
 
   // ==========================================
   // STATE & LOGIC PHỤC VỤ QUẢN LÝ Ô TÍCH CHỌN NHÂN SỰ (KHI ACTIVE_TAB = 'users')
@@ -34,8 +34,8 @@ export default function MainContent({ activeTab }) {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get('/api/users');
-      setUsers(Array.isArray(res.data) ? res.data : []);
+      const data = await loadUsers();
+      setUsers(Array.isArray(data) ? data : []);
     } catch (err) { console.error('Lỗi lấy danh sách user:', err); }
   };
 
