@@ -1,21 +1,12 @@
 import React, { Suspense } from 'react';
-import { MODULES_REGISTER } from '../views/index.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
-import ResponsiveContainer from './ResponsiveContainer.jsx';
 
-export default function MainContent({ activeTab }) {
+export default function CompanyRouteWrapper({ component: Component, requiresActiveCompany }) {
   const { activeCompany } = useAuth();
 
-  // Luồng xử lý phân hệ hạch toán thông thường
-  const currentModule = MODULES_REGISTER.find(m => m.id === activeTab);
-
-  if (!currentModule) {
-    return <div className="p-4 text-xs text-rose-600">Phân hệ không hợp lệ.</div>;
-  }
-
-  // ĐỒNG BỘ: Kiểm tra thuộc tính id của Object activeCompany thay vì check trực tiếp biến
-  if (currentModule.requiresActiveCompany && !activeCompany?.id) {
+  // Kiểm tra nếu phân hệ yêu cầu công ty mà người dùng chưa chọn pháp nhân
+  if (requiresActiveCompany && !activeCompany?.id) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-white border border-slate-200 rounded-2xl shadow-sm max-w-lg mx-auto mt-12 animate-fade-in">
         <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl mb-4 border border-amber-100">
@@ -29,8 +20,7 @@ export default function MainContent({ activeTab }) {
     );
   }
 
-  const LazyComponent = currentModule.component;
-
+  // Nếu hợp lệ, render component đó trong Suspense mượt mà
   return (
     <Suspense fallback={
       <div className="h-full w-full flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
@@ -38,9 +28,7 @@ export default function MainContent({ activeTab }) {
         <span>Đang nạp dữ liệu phân hệ hạch toán...</span>
       </div>
     }>
-      <ResponsiveContainer>
-        <LazyComponent />
-      </ResponsiveContainer>
+      <Component />
     </Suspense>
   );
 }
