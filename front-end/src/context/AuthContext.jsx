@@ -6,7 +6,6 @@ const AuthContext = createContext(null);
 
 // 2. Định nghĩa Component Provider
 export function AuthProvider({ children }) {
-  // Persist across tabs/devices using localStorage for session token/user
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; }
@@ -76,10 +75,33 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   useEffect(() => {
+    const silentRefresh = async () => {
+      try {
+        const res = await api.post('/api/auth/refresh', null, { withCredentials: true });
+        const accessToken = res.data.accessToken;
+        if (accessToken) {
+          localStorage.setItem('token', accessToken);
+          setToken(accessToken);
+        }
+        if (res.data.user) {
+          setUser(res.data.user);
+          localStorage.setItem('user', JSON.stringify(res.data.user));
+        }
+        if (res.data.must_change_password !== undefined) {
+          setMustChangePassword(!!res.data.must_change_password);
+          localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
+        }
+        await Promise.all([fetchCompanies(), loadUsers()]);
+      } catch (err) {
+        console.warn('Không thể làm mới phiên tự động:', err.message || err);
+      }
+    };
+
     if (token) {
-      // Load companies then users; both are stable (useCallback) so effect won't loop
       fetchCompanies();
-      loadUsers(); // Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
+      loadUsers();
+    } else {
+      silentRefresh();
     }
   }, [token, fetchCompanies, loadUsers]);
 
@@ -95,12 +117,16 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      // Persist to localStorage to share session across tabs/devices on same origin
-      localStorage.setItem('token', res.data.token);
+      const accessToken = res.data.accessToken || res.data.token;
+      if (!accessToken) {
+        throw new Error('Không nhận được access token từ server.');
+      }
+
+      localStorage.setItem('token', accessToken);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
 
-      setToken(res.data.token);
+      setToken(accessToken);
       setUser(res.data.user);
       setMustChangePassword(!!res.data.must_change_password);
 
@@ -113,7 +139,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await api.post('/api/auth/logout');
+      await api.post('/api/auth/logout', null, { withCredentials: true });
     } catch (e) {
       console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
     } finally {
@@ -135,7 +161,7 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.post('/api/auth/change-password', { oldPassword, newPassword });
       setMustChangePassword(false);
-      sessionStorage.setItem('mustChangePassword', 'false');
+      localStorage.setItem('mustChangePassword', 'false');
       return res.data;
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đổi mật khẩu';
@@ -153,7 +179,7 @@ export function AuthProvider({ children }) {
     if (user) {
       const updatedUser = { ...user, company_ids: newCompanyIds };
       setUser(updatedUser);
-      sessionStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem('user', JSON.stringify(updatedUser));
     }
   };
 
