@@ -21,7 +21,7 @@ router.get('/', authenticate, async (req, res) => {
       }
     }
 
-    // Câu lệnh SQL nâng cao: Lấy chứng từ gộp mảng các dòng chi tiết bằng JSON_AGG
+    // Câu lệnh SQL: Đảm bảo điền đầy đủ GROUP BY tránh lỗi phân rã cấu trúc PostgreSQL
     const queryStr = `
       SELECT 
         v.id, 
@@ -36,13 +36,13 @@ router.get('/', authenticate, async (req, res) => {
               'accountCode', vd.account_code,
               'entryType', vd.entry_type,
               'amount', vd.amount
-            )
+            ) ORDER BY vd.entry_type DESC
           ) FILTER (WHERE vd.id IS NOT NULL), '[]'
         ) AS details
       FROM vouchers v
       LEFT JOIN voucher_details vd ON v.id = vd.voucher_id
       WHERE v.company_id = $1 AND EXTRACT(YEAR FROM v.voucher_date) = $2
-      GROUP BY v.id
+      GROUP BY v.id, v.company_id, v.voucher_date, v.description, v.voucher_type
       ORDER BY v.voucher_date DESC, v.id DESC
     `;
 
@@ -53,12 +53,10 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// 2. Tạo chứng từ mới (Hỗ trợ cấu trúc đa dòng Nợ/Có)
+// 2. Tạo chứng từ mới (Tối ưu hóa ghi số lượng lớn bằng Bulk Insert)
 router.post('/', authenticate, async (req, res) => {
   const client = await pool.connect();
   try {
-    // Frontend giờ đây sẽ gửi lên mảng 'details' thay vì accountDr, accountCr phẳng
-    // Định dạng details: [{ accountCode: '1111', entryType: 'DR', amount: 1000 }, ...]
     const { voucherDate, description, type, companyId, details } = req.body;
     const targetCompanyId = companyId;
     
@@ -74,44 +72,49 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    // Kiểm tra ràng buộc kế toán cân bằng (Tổng Nợ = Tổng Có)
+    // SỬA LOGIC CÂN BẰNG: Tránh sai lệch dấu phẩy động bằng Math.abs()
     const drSum = details.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
     const crSum = details.filter(d => d.entryType === 'CR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
     
-    if (drSum !== crSum) {
-      return res.status(400).json({ error: `Hạch toán không cân! Tổng Nợ (${drSum}) phải bằng Tổng Có (${crSum})` });
+    if (Math.abs(drSum - crSum) > 0.5) {
+      return res.status(400).json({ error: `Hạch toán không cân! Tổng Nợ (${drSum.toLocaleString()}) phải bằng Tổng Có (${crSum.toLocaleString()})` });
     }
 
-    // Bắt đầu Transaction ghi nhận đa dòng liên đới
     await client.query('BEGIN');
 
-    // Bước 2a: Ghi vào bảng MASTER (vouchers)
+    // Bước 2a: Ghi vào bảng MASTER
     const masterQuery = `
       INSERT INTO vouchers (company_id, voucher_date, description, voucher_type, created_by) 
-      VALUES ($1, $2, $3, $4, $5) RETURNING id, company_id as "companyId", voucher_date as "voucherDate", description, voucher_type as "type"
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING id, company_id as "companyId", voucher_date as "voucherDate", description, voucher_type as "type"
     `;
     const masterRes = await client.query(masterQuery, [targetCompanyId, voucherDate, description, type, req.user.id]);
     const newVoucher = masterRes.rows[0];
 
-    // Bước 2b: Vòng lặp ghi vào bảng DETAIL (voucher_details)
-    const detailQuery = `
+    // Bước 2b: SỬA THÀNH BULK INSERT - Xây dựng câu lệnh 1 phát ăn ngay giảm tải DB
+    const valuesArr = [];
+    const queryArgs = [];
+    
+    details.forEach((item, index) => {
+      const offset = index * 4;
+      valuesArr.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+      queryArgs.push(newVoucher.id, item.accountCode, item.entryType, item.amount);
+    });
+
+    const bulkDetailQuery = `
       INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-      VALUES ($1, $2, $3, $4) RETURNING id, account_code as "accountCode", entry_type as "entryType", amount
+      VALUES ${valuesArr.join(', ')} 
+      RETURNING id, account_code as "accountCode", entry_type as "entryType", amount
     `;
     
-    const savedDetails = [];
-    for (const item of details) {
-      const detailRes = await client.query(detailQuery, [newVoucher.id, item.accountCode, item.entryType, item.amount]);
-      savedDetails.push(detailRes.rows[0]);
-    }
+    const detailRes = await client.query(bulkDetailQuery, queryArgs);
 
     await client.query('COMMIT');
 
-    // Giải phóng bộ nhớ tạm Redis
+    // Giải phóng bộ nhớ đệm
     await invalidateCache(`dashboard:cashflow:${targetCompanyId}:*`);
     
-    // Trả ra cấu trúc dữ liệu đầy đủ cho Frontend hiển thị
-    res.json({ ...newVoucher, details: savedDetails });
+    res.json({ ...newVoucher, details: detailRes.rows });
   } catch (err) { 
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message }); 
@@ -120,7 +123,7 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// 3. Xóa chứng từ (Cơ chế ON DELETE CASCADE tự động dọn sạch voucher_details)
+// 3. Xóa chứng từ (Sửa lỗi cú pháp error:a thành công)
 router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
@@ -136,13 +139,12 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
       await pool.query('DELETE FROM vouchers WHERE id = $1', [req.params.id]);
     }
     
-    // Invalidate dashboard cache
     await invalidateCache(`dashboard:cashflow:${targetCompanyId}:*`);
-    
     res.json({ success: true, message: 'Xóa chứng từ thành công!' });
   } catch (err) { 
     res.status(500).json({ error: err.message }); 
   }
 });
 
-export { router as vouchersRouter };
+export { router as vouchersRouter };  
+
