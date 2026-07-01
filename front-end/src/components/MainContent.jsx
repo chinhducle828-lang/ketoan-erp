@@ -15,16 +15,21 @@ export default function MainContent({ activeTab }) {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [checkedIds, setCheckedIds] = useState([]); 
-  const [selectedManagerId, setSelectedManagerId] = useState(''); 
+  const [checkedIds, setCheckedIds] = useState([]);
+  const [selectedManagerId, setSelectedManagerId] = useState('');
   const [userMsg, setUserMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Tự động tải danh sách dữ liệu khi Admin mở tab quản lý nhân sự
   useEffect(() => {
-    if (activeTab === 'users' && token && user?.role === 'admin') {
-      fetchUsers();
-      fetchCompanies();
-    }
+    const initUsers = async () => {
+      if (activeTab === 'users' && token && user?.role === 'admin') {
+        setLoading(true);
+        await Promise.all([fetchUsers(), fetchCompanies()]);
+        setLoading(false);
+      }
+    };
+    initUsers();
   }, [activeTab, token, user]);
 
   const fetchUsers = async () => {
