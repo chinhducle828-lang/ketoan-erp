@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
       fetchCompanies();
       loadUsers(); // <--- Tự động tải danh sách nhân sự khi ứng dụng khởi chạy có token
     }
-  }, [token, user?.company_ids]); // Lắng nghe thay đổi của mảng phân quyền
+  }, [token]);
 
   const fetchCompanies = async () => {
     try {
