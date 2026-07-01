@@ -7,7 +7,7 @@ import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
 
 export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
-  const { fetchCompanies, companies, user: currentUser, users = [], loadUsers } = useAuth();
+  const { fetchCompanies, companies, user: currentUser } = useAuth();
 
   const [localUsers, setLocalUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -29,25 +29,22 @@ export default function CompanyManagement() {
     }
   };
 
-  // Đồng bộ dữ liệu gốc từ Server vào danh sách hiển thị
-  useEffect(() => {
-    syncLocalUsers(users);
-  }, [users]);
-
   useEffect(() => {
     const init = async () => {
       setLoadingUsers(true);
-      await fetchCompanies();
-      const loadedUsers = await loadUsers();
-      const finalUsers = Array.isArray(loadedUsers) && loadedUsers.length > 0
-        ? loadedUsers
-        : await fetchUsersFromApi();
-      syncLocalUsers(finalUsers);
+      const [companiesList, usersList] = await Promise.all([
+        fetchCompanies().catch((err) => {
+          console.error('Lỗi tải danh sách công ty:', err);
+          return [];
+        }),
+        fetchUsersFromApi()
+      ]);
+      syncLocalUsers(usersList);
       setLoadingUsers(false);
     };
 
     init();
-  }, [fetchCompanies, loadUsers]);
+  }, [fetchCompanies]);
 
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
@@ -55,11 +52,6 @@ export default function CompanyManagement() {
   const [newRole, setNewRole] = useState('nv');
   const [newManagerId, setNewManagerId] = useState('');
   const [newCompanyIds, setNewCompanyIds] = useState([]);
-
-  // Tải lại dữ liệu nhân sự mỗi khi component được kích hoạt (đồng bộ chuyển tab)
-  useEffect(() => {
-    loadUsers();
-  }, []);
 
   const toggleCompanySelection = (companyId) => {
     setNewCompanyIds(prev => {
@@ -91,10 +83,12 @@ export default function CompanyManagement() {
         companyIds: targetCompanyId ? [targetCompanyId] : [],
         role: targetUser?.role || 'nv'
       });
-      await loadUsers();
+      const updatedUsers = await fetchUsersFromApi();
+      syncLocalUsers(updatedUsers);
     } catch (err) {
       alert('Lỗi gán quyền đơn vị');
-      await loadUsers();
+      const updatedUsers = await fetchUsersFromApi();
+      syncLocalUsers(updatedUsers);
     }
   };
 
@@ -127,10 +121,12 @@ export default function CompanyManagement() {
         companyIds: newRole === 'admin' ? [] : (targetUser?.company_id ? [targetUser.company_id] : []),
         role: newRole
       });
-      await loadUsers();
+      const updatedUsers = await fetchUsersFromApi();
+      syncLocalUsers(updatedUsers);
     } catch (err) {
       alert('Lỗi cập nhật vai trò');
-      await loadUsers();
+      const updatedUsers = await fetchUsersFromApi();
+      syncLocalUsers(updatedUsers);
     }
   };
 
@@ -171,10 +167,8 @@ export default function CompanyManagement() {
       setNewManagerId('');
       setNewRole('nv');
       
-      const refreshedUsers = await loadUsers();
-      if (refreshedUsers.length > 0) {
-        setLocalUsers(refreshedUsers);
-      }
+      const refreshedUsers = await fetchUsersFromApi();
+      syncLocalUsers(refreshedUsers);
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi thêm nhân sự mới!');
     }
@@ -195,7 +189,8 @@ export default function CompanyManagement() {
     try {
       await api.delete(`/api/users/${userId}`);
       alert('Đã xóa nhân sự thành công!');
-      await loadUsers();
+      const refreshedUsers = await fetchUsersFromApi();
+      syncLocalUsers(refreshedUsers);
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi xóa nhân sự!');
     }
