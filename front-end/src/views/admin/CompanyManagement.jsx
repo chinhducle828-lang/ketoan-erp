@@ -10,11 +10,19 @@ export default function CompanyManagement() {
   const { fetchCompanies, companies, user: currentUser, users = [], loadUsers } = useAuth();
 
   // MẸO XỬ LÝ CHỐNG GIẬT/TRƯỢT GIAO DIỆN: Tạo 1 bản sao danh sách user để giao diện phản hồi tức thì
-  const [localUsers, setLocalUsers] = useState([]);
+  const [localUsers, setLocalUsers] = useState(() => (
+    users.map(user => ({
+      ...user,
+      company_id: Array.isArray(user.company_ids) ? (user.company_ids[0] || null) : null
+    }))
+  ));
 
   // Đồng bộ dữ liệu gốc từ Server vào danh sách hiển thị
   useEffect(() => {
-    setLocalUsers(users);
+    setLocalUsers(users.map(user => ({
+      ...user,
+      company_id: Array.isArray(user.company_ids) ? (user.company_ids[0] || null) : null
+    })));
   }, [users]);
 
   // States quản lý Form thêm nhân viên mới
@@ -29,36 +37,40 @@ export default function CompanyManagement() {
     loadUsers();
   }, []);
 
+  const toggleCompanySelection = (companyId) => {
+    setNewCompanyIds(prev => {
+      if (prev.includes(companyId)) {
+        return prev.filter(id => id !== companyId);
+      }
+      return [...prev, companyId];
+    });
+  };
+
   // Thay đổi đơn vị công tác trực tiếp trên bảng
   const handleAssign = async (userId, companyId) => {
     const targetCompanyId = companyId ? Number(companyId) : null;
     const targetUser = localUsers.find(u => u.id === userId);
 
-    // BẢO VỆ TÀI KHOẢN ROOT
     if (targetUser?.username === 'admin') {
       alert('Không thể cấu hình đơn vị công tác cho tài khoản Root!');
       return;
     }
-    
-    // 1. CẬP NHẬT GIAO DIỆN TỨC THÌ (Chống trượt giá trị select box)
-    setLocalUsers(prev => prev.map(u => 
+
+    setLocalUsers(prev => prev.map(u =>
       u.id === userId ? { ...u, company_id: targetCompanyId } : u
     ));
 
     try {
-      // 2. Gọi API chạy ngầm
       await api.post('/api/auth/assign-company', {
         userId,
         companyId: targetCompanyId,
         companyIds: targetCompanyId ? [targetCompanyId] : [],
         role: targetUser?.role || 'nv'
       });
-      
-      // 3. Khớp lại dữ liệu chuẩn từ server
-      await loadUsers(); 
-    } catch (err) { 
-      alert('Lỗi gán quyền đơn vị'); 
-      await loadUsers(); // Reset lại nếu lỗi
+      await loadUsers();
+    } catch (err) {
+      alert('Lỗi gán quyền đơn vị');
+      await loadUsers();
     }
   };
 
@@ -76,28 +88,24 @@ export default function CompanyManagement() {
       return;
     }
 
-    // 1. CẬP NHẬT GIAO DIỆN TỨC THÌ
-    setLocalUsers(prev => prev.map(u => 
-      u.id === userId ? { 
-        ...u, 
+    setLocalUsers(prev => prev.map(u =>
+      u.id === userId ? {
+        ...u,
         role: newRole,
-        company_id: newRole === 'admin' ? null : u.company_id // Admin thì gỡ company
+        company_id: newRole === 'admin' ? null : u.company_id
       } : u
     ));
 
     try {
-      // 2. Gọi API chạy ngầm
       await api.post('/api/auth/assign-company', {
         userId,
         companyId: newRole === 'admin' ? null : (targetUser?.company_id || null),
         companyIds: newRole === 'admin' ? [] : (targetUser?.company_id ? [targetUser.company_id] : []),
         role: newRole
       });
-      
-      // 3. Khớp lại dữ liệu chuẩn từ server
       await loadUsers();
-    } catch (err) { 
-      alert('Lỗi cập nhật vai trò'); 
+    } catch (err) {
+      alert('Lỗi cập nhật vai trò');
       await loadUsers();
     }
   };
@@ -233,22 +241,28 @@ export default function CompanyManagement() {
                   <option value="admin">Quản trị viên (admin)</option>
                 </select>
 
-                <select
-                  multiple
-                  value={newCompanyIds.map(String)}
-                  onChange={(e) => setNewCompanyIds(Array.from(e.target.selectedOptions, opt => opt.value))}
-                  disabled={newRole === 'admin'}
-                  className={`w-full text-xs border rounded-xl p-2.5 focus:outline-none font-bold ${
-                    newRole === 'admin'
-                      ? 'bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed'
-                      : 'bg-slate-50 border-slate-200 text-blue-600'
-                  }`}
-                  size={4}
-                >
-                  {companies.map(c => (
-                    <option key={c.id} value={Number(c.id)}>{c.name}</option>
-                  ))}
-                </select>
+                <div className="w-full text-xs border rounded-xl p-3 bg-slate-50 space-y-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                    Chọn một hoặc nhiều công ty
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                    {companies.map(c => (
+                      <label key={c.id} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={newCompanyIds.includes(c.id)}
+                          disabled={newRole === 'admin'}
+                          onChange={() => toggleCompanySelection(c.id)}
+                          className="h-4 w-4 text-emerald-600 border-slate-300 rounded"
+                        />
+                        <span className="text-[11px] font-medium">{c.name}</span>
+                      </label>
+                    ))}
+                    {companies.length === 0 && (
+                      <div className="text-[11px] text-slate-400">Chưa có công ty nào. Vui lòng thêm công ty trước.</div>
+                    )}
+                  </div>
+                </div>
               </div>
               {newRole === 'nv' && (
                 <div>
