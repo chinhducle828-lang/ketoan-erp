@@ -20,6 +20,4 @@ export default {
   transformIgnorePatterns: [
     'node_modules/(?!(zod|ioredis|jsonwebtoken|bcryptjs|pg)/)',
   ],
-  // Treat .js files as ESM
-  extensionsToTreatAsEsm: ['.js'],
 };
