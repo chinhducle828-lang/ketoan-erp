@@ -4,10 +4,24 @@ import pg from 'pg';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 const app = express();
-app.use(cors());
+// CORS configuration: allow explicit frontend origins via FRONTEND_URL env (comma-separated)
+const rawFrontend = process.env.FRONTEND_URL || '';
+const allowedOrigins = rawFrontend.split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow server-to-server or tools without origin
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS policy: origin not allowed'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 const pool = new pg.Pool({
@@ -796,4 +810,13 @@ app.get('/api/health', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+// Serve frontend static files when in production mode
+if (process.env.NODE_ENV === 'production') {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const clientDist = path.join(__dirname, '..', 'front-end', 'dist');
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+}
+
 app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
