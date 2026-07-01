@@ -1,6 +1,6 @@
 import express from 'express';
 import { pool } from '../server.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
 
