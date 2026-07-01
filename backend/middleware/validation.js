@@ -53,7 +53,7 @@ export const createCompanySchema = z.object({
 // Voucher validators (Đã cập nhật chuẩn khớp với Router)
 export const createVoucherSchema = z.object({
   companyId: z.number().positive('Công ty không hợp lệ'),
-  type: z.enum(['PT', 'PC', 'PKT'], { required_error: 'Loại chứng từ không hợp lệ' }), // Thêm các loại chứng từ bạn có
+  type: z.enum(['PT', 'PC', 'PKT'], { required_error: 'Loại chứng từ không hợp lệ' }), 
   voucherDate: z.string().min(1, 'Ngày chứng từ không được để trống'),
   description: z.string().min(1, 'Diễn giải không được để trống'),
   
@@ -64,7 +64,7 @@ export const createVoucherSchema = z.object({
       entryType: z.enum(['DR', 'CR'], { required_error: 'Loại phát sinh phải là Nợ (DR) hoặc Có (CR)' }),
       amount: z.number().positive('Số tiền định khoản phải lớn hơn 0'),
     })
-  ).min(2, 'Chứng từ phải có ít nhất 2 dòng hạch toán đối ứng!') // Yêu cầu tối thiểu 2 dòng (1 Nợ, 1 Có)
+  ).min(2, 'Chứng từ phải có ít nhất 2 dòng hạch toán đối ứng!') 
 });
 
 // Item validators
@@ -102,19 +102,20 @@ export const companyIdQuerySchema = z.object({
   year: z.string().transform((val) => Number(val)).optional(),
 });
 
-// Middleware kiểm tra dữ liệu bằng Zod
+// Middleware kiểm tra dữ liệu bằng Zod (Đã vá lỗi sập server chống crash)
 export const validate = (schema) => async (req, res, next) => {
   try {
-    // Kiểm tra dữ liệu được gửi lên trong body, query hoặc params
+    // Kiểm tra dữ liệu được gửi lên trong body
     await schema.parseAsync(req.body);
-    return next(); // Nếu dữ liệu chuẩn, cho phép request đi tiếp vào controller
+    return next(); 
   } catch (error) {
-    // Nếu dữ liệu vi phạm schema (thiếu trường, sai kiểu), trả về lỗi 400 và chi tiết
     if (error instanceof z.ZodError) {
+      // ĐÃ SỬA: Dùng toán tử ?. và cấp thông báo mặc định nếu mảng rỗng để không bao giờ bị sập app
+      const customMessage = error.errors?.[0]?.message || 'Dữ liệu đầu vào không hợp lệ';
       return res.status(400).json({
         success: false,
-        message: error.errors[0].message, // Lấy câu thông báo lỗi đầu tiên bằng tiếng Việt
-        errors: error.errors
+        message: customMessage, 
+        errors: error.errors || []
       });
     }
     return res.status(400).json({
