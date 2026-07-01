@@ -1,9 +1,10 @@
 import React from 'react';
+import { NavLink } from 'react-router-dom'; // 👈 Import NavLink để xử lý chuyển hướng URL
 import { useAuth } from '../context/AuthContext.jsx';
 import { MODULES_REGISTER } from '../views/index.js';
 import { Terminal } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequestClose }) {
+export default function Sidebar({ mobileOpen, onRequestClose }) {
   const { user } = useAuth();
 
   // Bộ lọc phân hệ hiển thị trên thanh Menu bên trái
@@ -17,7 +18,15 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequest
     return module.allowedRoles && module.allowedRoles.includes(user?.role);
   });
 
-  // hide sidebar on small screens, but allow overlay when `mobileOpen` is true
+  // Hàm helper để render class CSS động dựa trên trạng thái kích hoạt của URL
+  const getNavLinkClass = ({ isActive }) => {
+    return `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+      isActive 
+        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/20' 
+        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+    }`;
+  };
+
   return (
     <>
       {/* Desktop Sidebar */}
@@ -36,20 +45,22 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequest
           <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-3 mb-2">Phân hệ nghiệp vụ</div>
           {accessibleModules.map(mod => {
             const Icon = mod.icon;
-            const isActive = activeTab === mod.id;
+            // Giả định đường dẫn URL tương ứng với module.id (Ví dụ: id 'cash' -> path '/cash')
+            const targetPath = `/${mod.id}`;
+
             return (
-              <button
+              <NavLink
                 key={mod.id}
-                onClick={() => setActiveTab(mod.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
-                  isActive 
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/20' 
-                    : 'hover:bg-slate-800 hover:text-slate-200'
-                }`}
+                to={targetPath}
+                className={getNavLinkClass}
               >
-                <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
-                <span>{mod.name}</span>
-              </button>
+                {({ isActive }) => (
+                  <>
+                    <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
+                    <span>{mod.name}</span>
+                  </>
+                )}
+              </NavLink>
             );
           })}
         </div>
@@ -83,20 +94,22 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequest
               <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-3 mb-2">Phân hệ nghiệp vụ</div>
               {accessibleModules.map(mod => {
                 const Icon = mod.icon;
-                const isActive = activeTab === mod.id;
+                const targetPath = `/${mod.id}`;
+
                 return (
-                  <button
+                  <NavLink
                     key={mod.id}
-                    onClick={() => { setActiveTab(mod.id); onRequestClose && onRequestClose(); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
-                      isActive 
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/20' 
-                        : 'hover:bg-slate-800 hover:text-slate-200'
-                    }`}
+                    to={targetPath}
+                    onClick={onRequestClose} // Tự động đóng menu mobile sau khi bấm chọn
+                    className={getNavLinkClass}
                   >
-                    <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
-                    <span>{mod.name}</span>
-                  </button>
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
+                        <span>{mod.name}</span>
+                      </>
+                    )}
+                  </NavLink>
                 );
               })}
             </div>
@@ -110,3 +123,5 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onRequest
     </>
   );
 }
+
+//  

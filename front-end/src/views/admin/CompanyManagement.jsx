@@ -329,13 +329,16 @@ export default function CompanyManagement() {
             </div>
           </div>
 
+          {/* BLOCK KHAI BÁO NHÂN SỰ MỚI ĐÃ THÊM CHÚ THÍCH */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <UserPlus size={16} className="text-emerald-600" /> Khai báo nhân sự mới
             </h3>
             
             <form onSubmit={handleAddUser} className="space-y-3">
+              {/* Tên tài khoản */}
               <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Tên tài khoản</label>
                 <input
                   type="text"
                   placeholder="Tên tài khoản nhân viên..."
@@ -344,9 +347,12 @@ export default function CompanyManagement() {
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-emerald-500"
                   required
                 />
+                <p className="mt-1 text-[10px] text-slate-400 italic pl-0.5">Viết liền không dấu, từ 3 ký tự trở lên (dùng đăng nhập).</p>
               </div>
 
+              {/* Mật khẩu */}
               <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Mật khẩu ban đầu</label>
                 <input
                   type="password"
                   placeholder="Mật khẩu ban đầu..."
@@ -355,54 +361,66 @@ export default function CompanyManagement() {
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-emerald-500"
                   required
                 />
+                <p className="mt-1 text-[10px] text-slate-400 italic pl-0.5">Mật khẩu khởi tạo, tối thiểu từ 6 ký tự bảo mật.</p>
               </div>
 
+              {/* Phân quyền & Chọn đơn vị công tác */}
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={newRole}
-                  onChange={(e) => {
-                    const selectedRole = e.target.value;
-                    setNewRole(selectedRole);
-                    if (selectedRole === 'admin') {
-                      setNewCompanyIds([]);
-                      setNewManagerId('');
-                    }
-                    if (selectedRole === 'ktt') {
-                      setNewManagerId('');
-                    }
-                  }}
-                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
-                >
-                  <option value="nv">Nhân viên (nv)</option>
-                  <option value="ktt">Kế toán trưởng (ktt)</option>
-                  <option value="admin">Quản trị viên (admin)</option>
-                </select>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Vai trò</label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => {
+                      const selectedRole = e.target.value;
+                      setNewRole(selectedRole);
+                      if (selectedRole === 'admin') {
+                        setNewCompanyIds([]);
+                        setNewManagerId('');
+                      }
+                      if (selectedRole === 'ktt') {
+                        setNewManagerId('');
+                      }
+                    }}
+                    className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
+                  >
+                    <option value="nv">Nhân viên (nv)</option>
+                    <option value="ktt">Kế toán trưởng (ktt)</option>
+                    <option value="admin">Quản trị viên (admin)</option>
+                  </select>
+                  <p className="mt-1 text-[10px] text-slate-400 italic pl-0.5">Cấp hạn định chức năng hệ thống.</p>
+                </div>
 
-                <div className="w-full text-xs border rounded-xl p-3 bg-slate-50 space-y-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                    Chọn một hoặc nhiều công ty
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                    {companies.map(c => (
-                      <label key={c.id} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={newCompanyIds.includes(c.id)}
-                          disabled={newRole === 'admin'}
-                          onChange={() => toggleCompanySelection(c.id)}
-                          className="h-4 w-4 text-emerald-600 border-slate-300 rounded"
-                        />
-                        <span className="text-[11px] font-medium">{c.name}</span>
-                      </label>
-                    ))}
-                    {companies.length === 0 && (
-                      <div className="text-[11px] text-slate-400">Chưa có công ty nào. Vui lòng thêm công ty trước.</div>
-                    )}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Cơ sở trực thuộc</label>
+                  <div className="w-full text-xs border rounded-xl p-3 bg-slate-50 space-y-2">
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                      Chọn một hoặc nhiều công ty
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                      {companies.map(c => (
+                        <label key={c.id} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={newCompanyIds.includes(c.id)}
+                            disabled={newRole === 'admin'}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            className="h-4 w-4 text-emerald-600 border-slate-300 rounded"
+                          />
+                          <span className="text-[11px] font-medium">{c.name}</span>
+                        </label>
+                      ))}
+                      {companies.length === 0 && (
+                        <div className="text-[11px] text-slate-400 leading-tight">Chưa có công ty nào. Vui lòng thêm công ty trước.</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Người quản lý trực tiếp (Chỉ hiển thị khi vai trò là 'nv') */}
               {newRole === 'nv' && (
                 <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Cấp trên quản lý</label>
                   <select
                     value={newManagerId}
                     onChange={(e) => setNewManagerId(e.target.value)}
@@ -413,6 +431,7 @@ export default function CompanyManagement() {
                       <option key={ktt.id} value={ktt.id}>{ktt.username}</option>
                     ))}
                   </select>
+                  <p className="mt-1 text-[10px] text-slate-400 italic pl-0.5">Bắt buộc chỉ định KTT quản lý đối với Nhân viên.</p>
                 </div>
               )}
 
@@ -451,7 +470,6 @@ export default function CompanyManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {/* DÙNG localUsers THAY VÌ users Ở ĐÂY ĐỂ UI KHÔNG BỊ TRƯỢT */}
                 {localUsers.length > 0 ? (
                   localUsers.map(u => {
                     const isRoot = u.username === 'admin';
@@ -570,7 +588,6 @@ export default function CompanyManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {/* DÙNG localUsers THAY VÌ users Ở ĐÂY */}
                 {localUsers.map(user => {
                   const managerName = user.manager_id
                     ? localUsers.find(u => u.id === user.manager_id)?.username || 'N/A'

@@ -88,7 +88,8 @@ api.interceptors.response.use(
             console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
           }
           if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-            window.location.href = '/';
+            // ĐÃ SỬA: Tạm thời khóa dòng điều hướng này để tránh vòng lặp vô hạn ép tải lại trang
+            // window.location.href = '/';
           }
           return Promise.reject(refreshError);
         }
@@ -115,7 +116,8 @@ api.interceptors.response.use(
         console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
       }
       if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-        window.location.href = '/';
+        // ĐÃ SỬA: Tạm thời khóa dòng điều hướng này để tránh vòng lặp vô hạn ép tải lại trang
+        // window.location.href = '/';
       }
     } else if (!error.response) {
       console.error('Network or CORS error calling API:', error.message || error);
@@ -124,4 +126,6 @@ api.interceptors.response.use(
   }
 );
 
-export default api;   
+export default api;
+
+//
