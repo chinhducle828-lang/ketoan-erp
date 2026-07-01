@@ -3,13 +3,12 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
-import { Coins, Save, Loader2 } from 'lucide-react';
+import { Coins, Save, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function OpeningBalances() {
   const { activeCompany } = useAuth();
-  // Sử dụng key phân biệt theo từng doanh nghiệp để tránh ghi đè dữ liệu LocalStorage
   const companyIdStr = activeCompany?.id ?? activeCompany ?? 'default';
   const [balances, setBalances] = usePersistentState(`opening-balances-form-${companyIdStr}`, {});
   
@@ -17,7 +16,6 @@ export default function OpeningBalances() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const saveTimerRef = useRef(null);
   
-  // Dùng Ref để lưu dữ liệu balances mới nhất giúp Auto-save và Flush-unload đọc trực tiếp, tránh re-trigger useEffect lặp vô hạn
   const balancesRef = useRef(balances);
   useEffect(() => {
     balancesRef.current = balances;
@@ -38,9 +36,14 @@ export default function OpeningBalances() {
       const res = await api.get(`/api/opening-balances?company_id=${companyId}&year=2026`);
       const initial = {};
       res.data.forEach(b => {
-        initial[b.account_code] = { 
-          dr: parseFloat(b.debit_balance) || 0, 
-          cr: parseFloat(b.credit_balance) || 0 
+        // b.accountCode, b.debitBalance, b.creditBalance đã được Backend alias thành camelCase
+        const code = b.accountCode || b.account_code;
+        const dr = b.debitBalance || b.debit_balance;
+        const cr = b.creditBalance || b.credit_balance;
+        
+        initial[code] = { 
+          dr: parseFloat(dr) || 0, 
+          cr: parseFloat(cr) || 0 
         };
       });
       setBalances(initial);
@@ -49,7 +52,12 @@ export default function OpeningBalances() {
     }
   };
 
-  // 2. Xử lý thay đổi input: Ép kiểu dữ liệu về số hoặc giữ trống thông minh
+  // 2. Tính toán động Tổng Nợ / Tổng Có đầu kỳ thời gian thực (Real-time)
+  const totalDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.dr) || 0), 0);
+  const totalCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.cr) || 0), 0);
+  const isBalanced = Math.abs(totalDr - totalCr) < 0.5;
+
+  // 3. Xử lý thay đổi input: Ép kiểu dữ liệu về số hoặc giữ trống thông minh
   const handleInputChange = (code, field, val) => {
     const numericValue = val === '' ? 0 : parseFloat(val);
     setBalances(prev => ({
@@ -61,8 +69,13 @@ export default function OpeningBalances() {
     }));
   };
 
-  // 3. Hàm lưu thủ công
+  // 4. Hàm lưu thủ công kèm kiểm tra cân đối tài khoản
   const handleSave = async () => {
+    if (!isBalanced) {
+      alert(`❌ Không thể lưu số dư đầu kỳ!\nTổng Nợ (${totalDr.toLocaleString()} đ) đang lệch so với Tổng Có (${totalCr.toLocaleString()} đ).\nVui lòng kiểm tra và điều chỉnh lại bảng cân đối tài khoản.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const companyId = activeCompany?.id ?? activeCompany;
@@ -82,9 +95,10 @@ export default function OpeningBalances() {
     }
   };
 
-  // 4. Cơ chế Auto-save (Debounce 2.5 giây sạch sẽ không lo Loop mạng)
+  // 5. Cơ chế Auto-save (Chỉ lưu tự động khi hai vế đã thực sự cân bằng)
   useEffect(() => {
     if (!activeCompany || Object.keys(balances).length === 0) return;
+    if (!isBalanced) return; // Nếu đang lệch thì không kích hoạt auto-save tránh đẩy rác lên DB
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     
@@ -110,12 +124,18 @@ export default function OpeningBalances() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [balances, activeCompany]);
+  }, [balances, activeCompany, isBalanced]);
 
-  // 5. Đồng bộ cưỡng bức dữ liệu khi người dùng tắt hoặc F5 trình duyệt đột ngột
+  // 6. Đồng bộ cưỡng bức dữ liệu khi người dùng đóng tab đột ngột (Chỉ chạy khi cân đối)
   useEffect(() => {
     const handler = () => {
       if (!activeCompany || Object.keys(balancesRef.current).length === 0) return;
+      
+      // Tính lại kiểm tra cân đối tại thời điểm đóng tab
+      const currentDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.dr) || 0), 0);
+      const currentCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.cr) || 0), 0);
+      if (Math.abs(currentDr - currentCr) > 0.5) return; 
+
       try {
         const companyId = activeCompany?.id ?? activeCompany;
         const token = localStorage.getItem('token');
@@ -156,6 +176,27 @@ export default function OpeningBalances() {
             Lưu số dư đầu kỳ
           </button>
         </div>
+      </div>
+
+      {/* BANNER THÔNG BÁO TRẠNG THÁI CÂN ĐỐI TÀI KHOẢN */}
+      <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold shadow-sm transition-all duration-300 ${isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+        {isBalanced ? (
+          <>
+            <CheckCircle className="text-emerald-600 flex-shrink-0" size={20} />
+            <div>
+              <p className="uppercase text-[11px] tracking-wider">Trạng thái: Bảng cân đối hợp lệ</p>
+              <p className="text-slate-500 font-normal mt-0.5">Tổng vế Nợ và vế Có đầu kỳ hoàn toàn khớp nhau. Hệ thống đã mở quyền tự động sao lưu dữ liệu.</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <AlertTriangle className="text-rose-600 flex-shrink-0 animate-bounce" size={20} />
+            <div>
+              <p className="uppercase text-[11px] tracking-wider">Cảnh báo: Bảng số dư mất cân đối (Lệch: {Math.abs(totalDr - totalCr).toLocaleString()} đ)</p>
+              <p className="text-slate-500 font-normal mt-0.5">Tổng Nợ đang khác Tổng Có. Hệ thống tạm dừng tính năng Auto-save để bảo vệ tính chính xác của sổ sách kế toán.</p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
@@ -213,6 +254,21 @@ export default function OpeningBalances() {
                 </tr>
               ))}
             </tbody>
+
+            {/* CHÈN HÀNG TỔNG CÂN ĐỐI TÀI KHOẢN THEO THÔNG TƯ ĐÚNG TIÊU CHUẨN */}
+            <tfoot>
+              <tr className="bg-slate-100 font-black border-t-2 border-slate-300 text-slate-800 shadow-[inset_0_2px_0_rgba(0,0,0,0.05)]">
+                <td className="p-3.5 text-right font-black" colSpan={2}>
+                  TỔNG CỘNG CÂN ĐỐI SỐ DƯ ĐẦU KỲ:
+                </td>
+                <td className={`p-3.5 text-right font-mono text-sm tracking-wide ${isBalanced ? 'text-blue-700' : 'text-rose-600'}`}>
+                  {totalDr.toLocaleString()} đ
+                </td>
+                <td className={`p-3.5 text-right font-mono text-sm tracking-wide ${isBalanced ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {totalCr.toLocaleString()} đ
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
