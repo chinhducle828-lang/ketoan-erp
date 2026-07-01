@@ -50,15 +50,21 @@ export const createCompanySchema = z.object({
   address: z.string().optional(),
 });
 
-// Voucher validators
+// Voucher validators (Đã cập nhật chuẩn khớp với Router)
 export const createVoucherSchema = z.object({
+  companyId: z.number().positive('Công ty không hợp lệ'),
+  type: z.enum(['PT', 'PC', 'PKT'], { required_error: 'Loại chứng từ không hợp lệ' }), // Thêm các loại chứng từ bạn có
   voucherDate: z.string().min(1, 'Ngày chứng từ không được để trống'),
   description: z.string().min(1, 'Diễn giải không được để trống'),
-  accountDr: z.string().min(1, 'Tài khoản nợ không được để trống'),
-  accountCr: z.string().min(1, 'Tài khoản có không được để trống'),
-  amount: z.number().positive('Số tiền phải lớn hơn 0'),
-  type: z.string().min(1, 'Loại chứng từ không được để trống'),
-  companyId: z.number().positive('Công ty không hợp lệ'),
+  
+  // Mảng định khoản chi tiết
+  details: z.array(
+    z.object({
+      accountCode: z.string().min(1, 'Mã tài khoản không được để trống'),
+      entryType: z.enum(['DR', 'CR'], { required_error: 'Loại phát sinh phải là Nợ (DR) hoặc Có (CR)' }),
+      amount: z.number().positive('Số tiền định khoản phải lớn hơn 0'),
+    })
+  ).min(2, 'Chứng từ phải có ít nhất 2 dòng hạch toán đối ứng!') // Yêu cầu tối thiểu 2 dòng (1 Nợ, 1 Có)
 });
 
 // Item validators

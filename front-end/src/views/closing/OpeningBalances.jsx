@@ -3,30 +3,34 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
-import { Coins, Save, Loader2, AlertTriangle, CheckCircle, Trash2 } from 'lucide-react';
+import { Coins, Save, Loader2, AlertTriangle, CheckCircle, Trash2, Lock, Unlock } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function OpeningBalances() {
-  const { activeCompany } = useAuth();
+  const { activeCompany, user } = useAuth(); // Lấy thêm thông tin user hiện tại để check quyền UI
   const companyIdStr = activeCompany?.id ?? activeCompany ?? 'default';
   const [balances, setBalances] = usePersistentState(`opening-balances-form-${companyIdStr}`, {});
   
   const [saving, setSaving] = useState(false);
+  const [isLocked, setIsLocked] = useState(false); // 🔥 QUẢN LÝ TRẠNG THÁI KHÓA SỔ
+  const [togglingLock, setTogglingLock] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(null);
-  const saveTimerRef = useRef(null);
   
+  const saveTimerRef = useRef(null);
   const balancesRef = useRef(balances);
+  
   useEffect(() => {
     balancesRef.current = balances;
   }, [balances]);
 
-  // 1. Tải số dư đầu kỳ khi chuyển đổi doanh nghiệp
+  // 1. Tải số dư đầu kỳ kèm trạng thái khóa sổ khi chuyển đổi doanh nghiệp
   useEffect(() => {
     if (activeCompany) {
       loadOpeningBalances();
     } else {
       setBalances({});
+      setIsLocked(false);
     }
   }, [activeCompany]);
 
@@ -34,30 +38,41 @@ export default function OpeningBalances() {
     try {
       const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.get(`/api/opening-balances?company_id=${companyId}&year=2026`);
+      
       const initial = {};
-      res.data.forEach(b => {
-        const code = b.accountCode || b.account_code;
-        const dr = b.debitBalance || b.debit_balance;
-        const cr = b.creditBalance || b.credit_balance;
-        
-        initial[code] = { 
-          dr: parseFloat(dr) || 0, 
-          cr: parseFloat(cr) || 0 
-        };
-      });
+      let lockedStatus = false;
+
+      if (res.data && res.data.length > 0) {
+        // Đọc trạng thái khóa sổ từ dòng ghi nhận đầu tiên trả về
+        lockedStatus = res.data[0].isLocked || false;
+
+        res.data.forEach(b => {
+          const code = b.accountCode || b.account_code;
+          const dr = b.debitBalance || b.debit_balance;
+          const cr = b.creditBalance || b.credit_balance;
+          
+          initial[code] = { 
+            dr: parseFloat(dr) || 0, 
+            cr: parseFloat(cr) || 0 
+          };
+        });
+      }
+      
       setBalances(initial);
+      setIsLocked(lockedStatus);
     } catch (err) { 
       console.error('Không thể lấy số dư đầu kỳ:', err); 
     }
   };
 
-  // 2. Tính toán động Tổng Nợ / Tổng Có đầu kỳ thời gian thực (Real-time)
+  // 2. Tính toán động Tổng Nợ / Tổng Có
   const totalDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.dr) || 0), 0);
   const totalCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.cr) || 0), 0);
   const isBalanced = Math.abs(totalDr - totalCr) < 0.5;
 
-  // 3. Xử lý thay đổi input: Ép kiểu dữ liệu về số hoặc giữ trống thông minh
+  // 3. Xử lý thay đổi input
   const handleInputChange = (code, field, val) => {
+    if (isLocked) return; // Bảo vệ tầng UI chống can thiệp khi đã khóa
     const numericValue = val === '' ? 0 : parseFloat(val);
     setBalances(prev => ({
       ...prev,
@@ -68,8 +83,9 @@ export default function OpeningBalances() {
     }));
   };
 
-  // 4. Hàm lưu thủ công kèm kiểm tra cân đối tài khoản
+  // 4. Hàm lưu thủ công
   const handleSave = async () => {
+    if (isLocked) return;
     if (!isBalanced) {
       alert(`❌ Không thể lưu số dư đầu kỳ!\nTổng Nợ (${totalDr.toLocaleString()} đ) đang lệch so với Tổng Có (${totalCr.toLocaleString()} đ).\nVui lòng kiểm tra và điều chỉnh lại bảng cân đối tài khoản.`);
       return;
@@ -94,18 +110,52 @@ export default function OpeningBalances() {
     }
   };
 
-  // 5. Hàm xóa hết làm lại (Reset) dữ liệu tạm thời
+  // 5. Hàm xóa hết làm lại
   const handleResetBalances = () => {
+    if (isLocked) return;
     const confirmReset = window.confirm("⚠️ BẠN CÓ CHẮC CHẮN MUỐN XÓA SẠCH?\nHành động này sẽ đưa toàn bộ số dư đang nhập trên màn hình và LocalStorage về 0. Bạn sẽ phải nhập lại từ đầu.");
     if (confirmReset) {
       setBalances({});
     }
   };
 
-  // 6. Cơ chế Auto-save (Chỉ lưu tự động khi hai vế đã thực sự cân bằng)
+  // 🔥 5.2. Hàm xử lý Khóa / Mở khóa sổ đầu kỳ
+  const handleToggleLock = async () => {
+    if (!isLocked && !isBalanced) {
+      alert("❌ Bảng cân đối đang bị lệch vế Nợ/Có. Không thể khóa sổ dữ liệu rác!");
+      return;
+    }
+
+    const nextStatus = !isLocked;
+    const message = nextStatus 
+      ? "Bạn có chắc chắn muốn KHÓA SỔ đầu kỳ năm 2026?\nSau khi khóa, toàn bộ thao tác sửa đổi hoặc nhập liệu sẽ bị chặn cứng." 
+      : "Bạn có chắc chắn muốn MỞ KHÓA SỔ đầu kỳ năm 2026?";
+
+    if (!window.confirm(message)) return;
+
+    setTogglingLock(true);
+    try {
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.patch('/api/opening-balances/toggle-lock', {
+        companyId,
+        year: 2026,
+        lockStatus: nextStatus
+      });
+
+      if (res.data?.success) {
+        setIsLocked(nextStatus);
+        alert(res.data.message);
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Không thể thực hiện thay đổi trạng thái khóa sổ!');
+    } finally {
+      setTogglingLock(false);
+    }
+  };
+
+  // 6. Cơ chế Auto-save (Chỉ chạy khi chưa khóa và đã cân)
   useEffect(() => {
-    if (!activeCompany || Object.keys(balances).length === 0) return;
-    if (!isBalanced) return; // Nếu đang lệch thì không kích hoạt auto-save tránh đẩy rác lên DB
+    if (isLocked || !activeCompany || Object.keys(balances).length === 0 || !isBalanced) return;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     
@@ -131,12 +181,12 @@ export default function OpeningBalances() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [balances, activeCompany, isBalanced]);
+  }, [balances, activeCompany, isBalanced, isLocked]);
 
-  // 7. Đồng bộ cưỡng bức dữ liệu khi người dùng đóng tab đột ngột (Chỉ chạy khi cân đối)
+  // 7. Đồng bộ cưỡng bức dữ liệu khi đóng tab đột ngột
   useEffect(() => {
     const handler = () => {
-      if (!activeCompany || Object.keys(balancesRef.current).length === 0) return;
+      if (isLocked || !activeCompany || Object.keys(balancesRef.current).length === 0) return;
       
       const currentDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.dr) || 0), 0);
       const currentCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.cr) || 0), 0);
@@ -161,7 +211,7 @@ export default function OpeningBalances() {
 
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [activeCompany]);
+  }, [activeCompany, isLocked]);
 
   return (
     <div className="space-y-6">
@@ -169,24 +219,38 @@ export default function OpeningBalances() {
         <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
           <Coins className="text-amber-500" size={24} /> 
           KHAI BÁO SỐ DƯ ĐẦU KỲ HỆ THỐNG TÀI KHOẢN TT200
+          {isLocked && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md text-[10px] font-black border border-rose-200 ml-2 flex items-center gap-1"><Lock size={10}/> ĐÃ KHÓA SỔ</span>}
         </h1>
         <div className="flex items-center gap-2">
           <ExportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Xuất Excel" />
-          <ImportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Nhập Excel" />
+          {!isLocked && <ImportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Nhập Excel" />}
           
-          {/* NÚT XÓA HẾT LÀM LẠI MỚI THÊM */}
-          <button 
-            onClick={handleResetBalances}
-            type="button"
-            className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
-          >
-            <Trash2 size={14} />
-            Xóa hết làm lại
-          </button>
+          {!isLocked && (
+            <button 
+              onClick={handleResetBalances}
+              type="button"
+              className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+            >
+              <Trash2 size={14} />
+              Xóa hết làm lại
+            </button>
+          )}
+
+          {/* 🔥 NÚT KHÓA / MỞ KHÓA SỔ ĐẦU KỲ (Ưu tiên vai trò admin, accountant) */}
+          {['admin', 'accountant'].includes(user?.role) && (
+            <button
+              onClick={handleToggleLock}
+              disabled={togglingLock}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border shadow-sm ${isLocked ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' : 'bg-slate-800 hover:bg-slate-900 text-white'}`}
+            >
+              {togglingLock ? <Loader2 size={14} className="animate-spin" /> : isLocked ? <Unlock size={14} /> : <Lock size={14} />}
+              {isLocked ? 'Mở khóa số liệu' : 'Phê duyệt & Khóa sổ'}
+            </button>
+          )}
 
           <button 
             onClick={handleSave} 
-            disabled={saving}
+            disabled={saving || isLocked}
             className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
@@ -195,9 +259,17 @@ export default function OpeningBalances() {
         </div>
       </div>
 
-      {/* BANNER THÔNG BÁO TRẠNG THÁI CÂN ĐỐI TÀI KHOẢN */}
-      <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold shadow-sm transition-all duration-300 ${isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-        {isBalanced ? (
+      {/* BANNER THÔNG BÁO TRẠNG THÁI */}
+      <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold shadow-sm transition-all duration-300 ${isLocked ? 'bg-amber-50 border-amber-200 text-amber-800' : isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+        {isLocked ? (
+          <>
+            <Lock className="text-amber-600 flex-shrink-0 animate-pulse" size={20} />
+            <div>
+              <p className="uppercase text-[11px] tracking-wider">Hệ thống đã chốt sổ thành công</p>
+              <p className="text-slate-500 font-normal mt-0.5">Số liệu đang nằm ở trạng thái Đọc duy nhất (Read-only). Vui lòng liên hệ Kế toán trưởng nếu cần điều chỉnh.</p>
+            </div>
+          </>
+        ) : isBalanced ? (
           <>
             <CheckCircle className="text-emerald-600 flex-shrink-0" size={20} />
             <div>
@@ -228,7 +300,6 @@ export default function OpeningBalances() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {/* Trạng thái lưu dữ liệu */}
               <tr className="bg-slate-50/50">
                 <td colSpan={4} className="text-xs p-2.5 text-right font-medium text-slate-500">
                   {saving ? (
@@ -245,23 +316,23 @@ export default function OpeningBalances() {
                 </td>
               </tr>
 
-              {/* Danh sách tài khoản sinh từ danh mục từ điển kế toán */}
               {CHART_OF_ACCOUNTS.map(acc => {
-                // KIỂM TRA TÀI KHOẢN DOANH THU/CHI PHÍ ĐẦU 5 ĐẾN 9
-                const isReadOnly = ['5', '6', '7', '8', '9'].includes(acc.code[0]);
+                // Vô hiệu hóa input nếu thuộc nhóm đầu 5-9 HOẶC sổ đã bị khóa
+                const isInputDisabled = isLocked || ['5', '6', '7', '8', '9'].includes(acc.code[0]);
+                const isRowMuted = ['5', '6', '7', '8', '9'].includes(acc.code[0]);
 
                 return (
-                  <tr key={acc.code} className={`hover:bg-slate-50/40 transition ${isReadOnly ? 'bg-slate-100/60 opacity-60' : ''}`}>
+                  <tr key={acc.code} className={`hover:bg-slate-50/40 transition ${isRowMuted ? 'bg-slate-100/60 opacity-60' : ''} ${isLocked ? 'bg-slate-50/20' : ''}`}>
                     <td className="p-3 font-mono font-bold text-slate-600">{acc.code}</td>
                     <td className="p-3 text-slate-700 font-semibold">
-                      {acc.name} {isReadOnly && <span className="text-[10px] text-slate-400 font-normal italic ml-1">(Không có số dư)</span>}
+                      {acc.name} {isRowMuted && <span className="text-[10px] text-slate-400 font-normal italic ml-1">(Không có số dư)</span>}
                     </td>
                     <td className="p-3">
                       <input 
                         type="number" 
-                        placeholder={isReadOnly ? "X" : "0"} 
-                        disabled={isReadOnly}
-                        value={isReadOnly ? '' : (balances[acc.code]?.dr || '')} 
+                        placeholder={isRowMuted ? "X" : "0"} 
+                        disabled={isInputDisabled}
+                        value={isRowMuted ? '' : (balances[acc.code]?.dr || '')} 
                         onChange={e => handleInputChange(acc.code, 'dr', e.target.value)} 
                         className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
                       />
@@ -269,9 +340,9 @@ export default function OpeningBalances() {
                     <td className="p-3">
                       <input 
                         type="number" 
-                        placeholder={isReadOnly ? "X" : "0"} 
-                        disabled={isReadOnly}
-                        value={isReadOnly ? '' : (balances[acc.code]?.cr || '')} 
+                        placeholder={isRowMuted ? "X" : "0"} 
+                        disabled={isInputDisabled}
+                        value={isRowMuted ? '' : (balances[acc.code]?.cr || '')} 
                         onChange={e => handleInputChange(acc.code, 'cr', e.target.value)} 
                         className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
                       />
@@ -280,8 +351,6 @@ export default function OpeningBalances() {
                 );
               })}
             </tbody>
-
-            {/* CHÈN HÀNG TỔNG CÂN ĐỐI TÀI KHOẢN THEO THÔNG TƯ ĐÚNG TIÊU CHUẨN */}
             <tfoot>
               <tr className="bg-slate-100 font-black border-t-2 border-slate-300 text-slate-800 shadow-[inset_0_2px_0_rgba(0,0,0,0.05)]">
                 <td className="p-3.5 text-right font-black" colSpan={2}>

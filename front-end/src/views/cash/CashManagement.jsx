@@ -18,8 +18,8 @@ export default function CashManagement() {
     ]
   });
 
-  // Lọc chứng từ dựa trên thuộc tính "type" (đã được đổi tên từ voucher_type)
-  const cashVouchers = vouchers.filter(v => v.type === 'Thu' || v.type === 'Chi');
+  // Lọc chứng từ dựa trên thuộc tính "type"
+  const cashVouchers = vouchers.filter(v => v.type === 'PT' || v.type === 'PC');
 
   // Hàm xử lý thay đổi giá trị của từng dòng hạch toán chi tiết
   const handleDetailChange = (index, field, value) => {
@@ -29,7 +29,6 @@ export default function CashManagement() {
     setForm({ ...form, details: newDetails });
   };
 
-  // Thêm một dòng định khoản trống
   const addDetailRow = () => {
     setForm({
       ...form,
@@ -37,24 +36,22 @@ export default function CashManagement() {
     });
   };
 
-  // Xóa một dòng định khoản
   const removeDetailRow = (index) => {
     if (form.details.length <= 1) return; // Luôn giữ lại ít nhất 1 dòng
     const newDetails = form.details.filter((_, i) => i !== index);
     setForm({ ...form, details: newDetails });
   };
 
+  // --- XỬ LÝ LƯU PHIẾU ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Format lại dữ liệu detail để đảm bảo chuẩn số trước khi tính toán
     const formattedDetails = form.details.map(d => ({
       accountCode: d.accountCode.trim(),
       entryType: d.entryType,
       amount: parseFloat(d.amount) || 0
     }));
 
-    // Kiểm tra ràng buộc cân bằng Nợ = Có trước khi gọi API
     const drSum = formattedDetails.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + d.amount, 0);
     const crSum = formattedDetails.filter(d => d.entryType === 'CR').reduce((sum, d) => sum + d.amount, 0);
 
@@ -63,26 +60,42 @@ export default function CashManagement() {
       return;
     }
     
-    // Tự động phân loại Thu/Chi dựa vào việc có tài khoản tiền (1111, 1121...) ghi Nợ hay ghi Có
     const hasCashDr = formattedDetails.some(d => (d.accountCode.startsWith('111') || d.accountCode.startsWith('112')) && d.entryType === 'DR');
-    const type = hasCashDr ? 'Thu' : 'Chi';
+    const type = hasCashDr ? 'PT' : 'PC';
 
-    await createNewVoucher({
+    // ĐÃ SỬA: Bỏ companyId đi và hứng kết quả trả về từ Context
+    const result = await createNewVoucher({
       voucherDate: form.date,
       description: form.desc,
       type,
       details: formattedDetails
     });
 
-    // Reset Form về mặc định sạch sẽ
-    setForm({
-      date: '2026-01-01',
-      desc: '',
-      details: [
-        { accountCode: '1111', entryType: 'DR', amount: '' },
-        { accountCode: '131', entryType: 'CR', amount: '' }
-      ]
-    });
+    if (result.success) {
+      alert('✅ Lập phiếu ghi sổ thành công!');
+      // Chỉ reset Form về mặc định khi lưu thành công
+      setForm({
+        date: '2026-01-01',
+        desc: '',
+        details: [
+          { accountCode: '1111', entryType: 'DR', amount: '' },
+          { accountCode: '131', entryType: 'CR', amount: '' }
+        ]
+      });
+    } else {
+      // Hiển thị lỗi từ Backend hoặc từ check Opening Balance
+      alert(`❌ Lỗi: ${result.error}`);
+    }
+  };
+
+  // --- XỬ LÝ XÓA PHIẾU ---
+  const handleDeleteVoucher = async (id) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa chứng từ này không?')) {
+      const result = await removeVoucher(id);
+      if (!result.success) {
+        alert(`❌ Không thể xóa: ${result.error}`);
+      }
+    }
   };
 
   return (
@@ -153,17 +166,14 @@ export default function CashManagement() {
             </thead>
             <tbody>
               {cashVouchers.map(v => {
-                // Tính tổng tiền chứng từ (bằng tổng các dòng Nợ DR)
                 const totalAmount = v.details?.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0) || 0;
 
                 return (
                   <tr key={v.id} className="border-b hover:bg-slate-50/50 transition align-top">
-                    {/* Sửa trường hiển thị từ voucher_date thành voucherDate khớp với API */}
                     <td className="p-3 font-mono text-slate-600">{v.voucherDate?.slice(0, 10)}</td>
                     <td className="p-3">
-                      {/* Sửa trường hiển thị từ voucher_type thành type khớp với API */}
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${v.type === 'Thu' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                        {v.type}
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${v.type === 'PT' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {v.type === 'PT' ? 'Phiếu Thu' : 'Phiếu Chi'}
                       </span>
                     </td>
                     <td className="p-3 font-mono space-y-1">
@@ -179,7 +189,7 @@ export default function CashManagement() {
                     <td className="p-3 text-slate-600 max-w-xs break-words">{v.description}</td>
                     <td className="p-3 text-right font-black text-slate-800">{totalAmount.toLocaleString()} đ</td>
                     <td className="p-3 text-center">
-                      <button onClick={() => removeVoucher(v.id)} className="text-slate-400 hover:text-rose-600 p-1">
+                      <button onClick={() => handleDeleteVoucher(v.id)} className="text-slate-400 hover:text-rose-600 p-1">
                         <Trash2 size={14} />
                       </button>
                     </td>
