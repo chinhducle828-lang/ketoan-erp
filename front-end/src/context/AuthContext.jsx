@@ -35,9 +35,12 @@ export function AuthProvider({ children }) {
   const loadUsers = async () => {
     try {
       const res = await api.get('/api/users');
-      setUsers(res.data || []);
+      const data = res.data || [];
+      setUsers(data);
+      return data;
     } catch (err) {
       console.error('Lỗi tải danh sách nhân sự tại Context:', err);
+      return [];
     }
   };
 
