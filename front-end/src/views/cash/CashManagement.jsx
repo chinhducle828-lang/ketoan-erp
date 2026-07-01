@@ -3,6 +3,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Wallet, Plus, Trash2 } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -30,7 +31,7 @@ export default function CashManagement() {
         <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Wallet className="text-emerald-600" size={24} /> PHÂN HỆ QUỸ TIỀN MẶT & TIỀN GỬI NGÂN HÀNG</h1>
         <div className="flex items-center gap-2">
           <ExportExcelButton endpoint="cashbook" filename="So_Quy" label="Xuất sổ quỹ" />
-          <ExportExcelButton endpoint="vouchers" filename="So_Nhat_Ky" label="Xuất nhật ký" />
+          <ImportExcelButton endpoint="vouchers" filename="So_Nhat_Ky" label="Nhập chứng từ" />
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

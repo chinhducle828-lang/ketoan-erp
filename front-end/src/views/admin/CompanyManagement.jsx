@@ -5,6 +5,7 @@ import AddCompanyForm from './AddCompanyForm.jsx';
 import CompanyList from './CompanyList.jsx';
 import { ShieldAlert, Users, UserPlus, Trash2, KeyRound } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
@@ -433,6 +434,7 @@ export default function CompanyManagement() {
             </h3>
             <div className="flex items-center gap-2">
               <ExportExcelButton endpoint="users" filename="Nhan_Su_He_Thong" label="Xuất Excel" />
+              <ImportExcelButton endpoint="users" filename="Nhan_Su_He_Thong" label="Nhập Excel" />
               {loadingUsers && (
                 <span className="text-[11px] text-slate-500 uppercase tracking-wider">Đang tải dữ liệu...</span>
               )}

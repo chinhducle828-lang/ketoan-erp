@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function ItemManagement() {
   const { activeCompany } = useAuth(); // Theo dõi công ty đang làm việc từ Header
@@ -92,6 +93,7 @@ export default function ItemManagement() {
         </h1>
         <div className="flex items-center gap-2">
           <ExportExcelButton endpoint="items" filename="Danh_Muc_Vat_Tu" label="Xuất Excel" />
+          <ImportExcelButton endpoint="items" filename="Danh_Muc_Vat_Tu" label="Nhập Excel" />
           <button 
             onClick={fetchItems} 
             disabled={loading}
