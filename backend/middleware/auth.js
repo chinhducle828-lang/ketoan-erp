@@ -45,7 +45,7 @@ export const checkCompanyAccess = (req, res, next) => {
     return next();
   }
 
-  if (!req.user || String(req.user.company_id) !== String(targetCompanyId)) {
+  if (!req.user || !Array.isArray(req.user.company_ids) || !req.user.company_ids.some(id => String(id) === String(targetCompanyId))) {
     return res.status(403).json({ 
       error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.' 
     });

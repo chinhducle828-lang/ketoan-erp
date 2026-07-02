@@ -24,7 +24,7 @@ export const getFinancialSummary = async (req, res) => {
     // 2. Tính toán số dư tiền mặt hiện tại (Dư Nợ TK 111, 112)
     const cashQuery = `
       SELECT 
-        COALESCE(SUM(CASE WHEN entry_type = 'DR' THEN converted_amount ELSE -converted_amount END), 0) as "netCash"
+        COALESCE(SUM(CASE WHEN entry_type = 'DR' THEN amount ELSE -amount END), 0) as "netCash"
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
@@ -36,7 +36,7 @@ export const getFinancialSummary = async (req, res) => {
     // 3. Tính toán tổng Doanh thu bán hàng trong năm (Ghi Có phát sinh TK 511)
     const revenueQuery = `
       SELECT 
-        COALESCE(SUM(converted_amount), 0) as "totalRevenue"
+        COALESCE(SUM(amount), 0) as "totalRevenue"
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
@@ -49,12 +49,12 @@ export const getFinancialSummary = async (req, res) => {
 
     // 4. Tính toán Công nợ phải thu (Dư Nợ TK 131) & Phải trả (Dư Có TK 331)
     const receivablesQuery = `
-      SELECT COALESCE(SUM(CASE WHEN entry_type = 'DR' THEN converted_amount ELSE -converted_amount END), 0) as balance
+      SELECT COALESCE(SUM(CASE WHEN entry_type = 'DR' THEN amount ELSE -amount END), 0) as balance
       FROM voucher_details vd JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 AND vd.account_code LIKE '131%'
     `;
     const payablesQuery = `
-      SELECT COALESCE(SUM(CASE WHEN entry_type = 'CR' THEN converted_amount ELSE -converted_amount END), 0) as balance
+      SELECT COALESCE(SUM(CASE WHEN entry_type = 'CR' THEN amount ELSE -amount END), 0) as balance
       FROM voucher_details vd JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 AND vd.account_code LIKE '331%'
     `;

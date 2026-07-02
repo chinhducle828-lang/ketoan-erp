@@ -24,7 +24,7 @@ router.get(
 router.post(
   '/deduction',
   authenticate,
-  requireRole(['admin', 'accountant']),
+  requireRole(['admin', 'ktt']),
   checkCompanyAccess,
   performTaxDeduction
 );

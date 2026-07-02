@@ -53,7 +53,7 @@ export const createCompanySchema = z.object({
 // Voucher validators (Đã cập nhật chuẩn khớp với Router)
 export const createVoucherSchema = z.object({
   companyId: z.number().positive('Công ty không hợp lệ'),
-  type: z.enum(['PT', 'PC', 'PKT'], { required_error: 'Loại chứng từ không hợp lệ' }), 
+  type: z.string().min(1, 'Loại chứng từ không được để trống'), 
   voucherDate: z.string().min(1, 'Ngày chứng từ không được để trống'),
   description: z.string().min(1, 'Diễn giải không được để trống'),
   

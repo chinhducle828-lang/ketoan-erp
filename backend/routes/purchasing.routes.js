@@ -10,7 +10,7 @@ const BANNED_ACCOUNTS_TT99 = ['1562', '611', '621', '622', '627'];
  * @desc    Ghi nhận chứng từ mua vật tư, hàng hóa và kê khai thuế GTGT đầu vào (TT 99)
  * @access  Private (Admin, Accountant)
  */
-router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.post('/', authenticate, requireRole(['admin', 'ktt', 'nv']), checkCompanyAccess, async (req, res) => {
   const client = await pool.connect();
   try {
     const { companyId, voucherDate, description, details, currency = 'VND', exchangeRate = 1, supplierId } = req.body;
@@ -58,28 +58,25 @@ router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompan
     await client.query('BEGIN');
     
     const voucherQuery = `
-      INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount, partner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+      INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by) 
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const voucherRes = await client.query(voucherQuery, [
       companyId, 
       'MuaHang', 
       voucherDate, 
       description, 
-      currency, 
-      exchangeRate, 
-      drSum, 
-      supplierId
+      req.user.id
     ]);
     const voucherId = voucherRes.rows[0].id;
 
     const detailQuery = `
-      INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount) 
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+      VALUES ($1, $2, $3, $4)
     `;
     for (const d of details) {
       const converted = Math.round(parseFloat(d.amount) * exchangeRate);
-      await client.query(detailQuery, [voucherId, d.accountCode, d.entryType, d.amount, converted]);
+      await client.query(detailQuery, [voucherId, d.accountCode, d.entryType, converted]);
     }
     
     await client.query('COMMIT');

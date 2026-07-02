@@ -12,7 +12,7 @@ const router = express.Router();
 router.post(
   '/', 
   authenticate, 
-  requireRole(['admin', 'accountant']), 
+  requireRole(['admin', 'ktt']), 
   checkCompanyAccess, 
   createSalesInvoice // <-- Logic đã được chuyển hoàn toàn sang Controller
 );

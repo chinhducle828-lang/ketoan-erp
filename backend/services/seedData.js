@@ -100,22 +100,29 @@ export const seedDatabase = async () => {
     }
     console.log('✅ Created test opening balances');
 
-    // Create test vouchers for 2026
+    // Create test vouchers for 2026 (Master-Detail structure)
     const vouchers = [
-      ['2026-01-05', 'Thu tiền bán hàng', '1111', '331', 10000000, 'Thu', company1.rows[0].id],
-      ['2026-01-10', 'Chi trả tiền nhập hàng', '156', '1111', 5000000, 'Chi', company1.rows[0].id],
-      ['2026-01-15', 'Thu tiền bán dịch vụ', '1121', '331', 15000000, 'Thu', company1.rows[0].id],
-      ['2026-02-01', 'Mua vật tư', '156', '331', 8000000, 'Nhap', company1.rows[0].id],
-      ['2026-02-10', 'Bán sản phẩm', '131', '511', 20000000, 'Xuat', company1.rows[0].id],
-      ['2026-01-08', 'Thu tiền bán hàng', '1111', '331', 12000000, 'Thu', company2.rows[0].id],
-      ['2026-01-20', 'Chi lương nhân viên', '6422', '1111', 7000000, 'Chi', company2.rows[0].id],
+      { date: '2026-01-05', desc: 'Thu tiền bán hàng', details: [{ acc: '1111', type: 'DR', amt: 10000000 }, { acc: '331', type: 'CR', amt: 10000000 }], vType: 'Thu', companyId: company1.rows[0].id },
+      { date: '2026-01-10', desc: 'Chi trả tiền nhập hàng', details: [{ acc: '156', type: 'DR', amt: 5000000 }, { acc: '1111', type: 'CR', amt: 5000000 }], vType: 'Chi', companyId: company1.rows[0].id },
+      { date: '2026-01-15', desc: 'Thu tiền bán dịch vụ', details: [{ acc: '1121', type: 'DR', amt: 15000000 }, { acc: '331', type: 'CR', amt: 15000000 }], vType: 'Thu', companyId: company1.rows[0].id },
+      { date: '2026-02-01', desc: 'Mua vật tư', details: [{ acc: '156', type: 'DR', amt: 8000000 }, { acc: '331', type: 'CR', amt: 8000000 }], vType: 'Nhap', companyId: company1.rows[0].id },
+      { date: '2026-02-10', desc: 'Bán sản phẩm', details: [{ acc: '131', type: 'DR', amt: 20000000 }, { acc: '511', type: 'CR', amt: 20000000 }], vType: 'Xuat', companyId: company1.rows[0].id },
+      { date: '2026-01-08', desc: 'Thu tiền bán hàng', details: [{ acc: '1111', type: 'DR', amt: 12000000 }, { acc: '331', type: 'CR', amt: 12000000 }], vType: 'Thu', companyId: company2.rows[0].id },
+      { date: '2026-01-20', desc: 'Chi lương nhân viên', details: [{ acc: '6422', type: 'DR', amt: 7000000 }, { acc: '1111', type: 'CR', amt: 7000000 }], vType: 'Chi', companyId: company2.rows[0].id },
     ];
 
-    for (const [date, desc, dr, cr, amount, type, companyId] of vouchers) {
-      await pool.query(
-        'INSERT INTO vouchers (company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-        [companyId, date, desc, dr, cr, amount, type, adminId]
+    for (const v of vouchers) {
+      const voucherRes = await pool.query(
+        'INSERT INTO vouchers (company_id, voucher_date, description, voucher_type, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [v.companyId, v.date, v.desc, v.vType, adminId]
       );
+      const voucherId = voucherRes.rows[0].id;
+      for (const d of v.details) {
+        await pool.query(
+          'INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) VALUES ($1, $2, $3, $4)',
+          [voucherId, d.acc, d.type, d.amt]
+        );
+      }
     }
     console.log('✅ Created 7 test vouchers');
 
