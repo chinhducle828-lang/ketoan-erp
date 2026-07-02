@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-// Sửa đổi đường dẫn import không kèm đuôi mở rộng để trình biên dịch tự động phân giải cấu trúc
-import api, { setRAMToken } from '../utils/api'; 
+// ĐÃ SỬA: Import thêm hàm setRAMToken để nạp mã token trực tiếp vào bộ nhớ RAM
+import api, { setRAMToken } from '../utils/api.js'; 
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  // ĐÃ SỬA: State token chỉ quản lý trạng thái local, KHÔNG đọc từ localStorage nữa
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true); // Thêm trạng thái chờ khởi tạo token ban đầu
   
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; }
@@ -32,27 +32,20 @@ export function AuthProvider({ children }) {
   const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
   const [openingBalanceMessage, setOpeningBalanceMessage] = useState('');
 
-  // ✅ HÀM BỔ TRỢ: Tự động nhận diện và bóc tách dữ liệu Axios linh hoạt
-  const unpackResponse = (res) => {
-    if (!res) return null;
-    // Nếu đối tượng trả về chứa thuộc tính .data nguyên bản từ Axios, lấy .data, ngược lại lấy chính nó
-    return res.data !== undefined ? res.data : res;
-  };
-
   const savePreferencesToServer = useCallback(async (prefs) => {
-    if (!inMemoryTokenActive()) return; // Kiểm tra nhanh trạng thái token trước khi gọi
+    if (!token) return;
     try {
       await api.put('/api/auth/preferences', prefs);
     } catch (err) {
       console.warn('Không thể đồng bộ preferences lên server:', err.message);
     }
-  }, [token]); // Thêm token vào dependencies để đồng bộ trạng thái inMemoryTokenActive
+  }, [token]);
 
   const loadPreferencesFromServer = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await api.get('/api/auth/preferences');
-      const data = unpackResponse(res);
-      const prefs = data || {};
+      const prefs = res.data || {};
       if (prefs.fiscalYear) {
         setFiscalYearState(Number(prefs.fiscalYear));
         localStorage.setItem('fiscalYear', String(prefs.fiscalYear));
@@ -62,7 +55,7 @@ export function AuthProvider({ children }) {
       console.warn('Không thể tải preferences từ server:', err.message);
       return {};
     }
-  }, []);
+  }, [token]);
 
   const setFiscalYear = (year) => {
     setFiscalYearState(year);
@@ -73,19 +66,19 @@ export function AuthProvider({ children }) {
   const loadUsers = useCallback(async () => {
     try {
       const res = await api.get('/api/users');
-      const data = unpackResponse(res) || [];
+      const data = res.data || [];
       setUsers(data);
       return data;
     } catch (err) {
       console.error('Lỗi tải danh sách nhân sự tại Context:', err);
       return [];
     }
-  }, []);
+  }, [token]);
 
   const fetchCompanies = useCallback(async () => {
     try {
       const res = await api.get('/api/companies');
-      const listCompanies = unpackResponse(res) || [];
+      const listCompanies = res.data || [];
       setCompanies(listCompanies);
 
       setActiveCompany(prev => {
@@ -105,56 +98,47 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('Lỗi lấy danh sách công ty:', err);
     }
-  }, []);
+  }, [token]);
 
-  // Hàm tiện ích nội bộ để kiểm tra nhanh trạng thái
-  const inMemoryTokenActive = () => !!token;
-
-  // 🔄 EFFECT 1: Chạy DUY NHẤT 1 lần khi ứng dụng khởi chạy (F5/Reload) để nạp lại token từ Cookie ngầm
+  // Vòng lặp tự động làm mới phiên làm việc (Silent Refresh) bằng HttpOnly Cookie
   useEffect(() => {
-    const initSilentRefresh = async () => {
+    const silentRefresh = async () => {
       try {
         const res = await api.post('/api/auth/refresh', null, { withCredentials: true });
-        const data = unpackResponse(res);
-        
-        const accessToken = data?.accessToken || data?.data?.accessToken || data?.token;
-        
+        const accessToken = res.data.accessToken;
         if (accessToken) {
+          // ĐÃ SỬA: Nạp vào RAM của Axios interceptor và gán State
           setRAMToken(accessToken);
           setToken(accessToken);
-          
-          if (data.user) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
-          if (data.must_change_password !== undefined) {
-            setMustChangePassword(!!data.must_change_password);
-            localStorage.setItem('mustChangePassword', !!data.must_change_password ? 'true' : 'false');
-          }
         }
+        if (res.data.user) {
+          setUser(res.data.user);
+          localStorage.setItem('user', JSON.stringify(res.data.user));
+        }
+        if (res.data.must_change_password !== undefined) {
+          setMustChangePassword(!!res.data.must_change_password);
+          localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
+        }
+        await Promise.all([fetchCompanies(), loadUsers(), loadPreferencesFromServer()]);
       } catch (err) {
-        console.log('Chưa đăng nhập hoặc phiên làm việc cũ đã hết hạn.');
-      } finally {
-        setLoading(false); // Hoàn tất quá trình quét xác thực ban đầu
+        console.warn('Không thể làm mới phiên tự động:', err.message || err);
       }
     };
 
-    initSilentRefresh();
-  }, []);
-
-  // 📦 EFFECT 2: Tự động đồng bộ kéo dữ liệu danh mục khi Token hợp lệ được kích hoạt
-  useEffect(() => {
-    if (!token) return;
-
-    fetchCompanies();
-    loadUsers();
-    loadPreferencesFromServer();
+    // Khởi tạo chạy ngầm: Nếu chưa có Token trên RAM, ép chạy silentRefresh để lấy từ Cookie
+    if (token) {
+      fetchCompanies().catch(() => {});
+      loadUsers().catch(() => {});
+      loadPreferencesFromServer().catch(() => {});
+    } else {
+      silentRefresh();
+    }
   }, [token, fetchCompanies, loadUsers, loadPreferencesFromServer]);
 
   const registerAdmin = async (username, password) => {
     try {
       const res = await api.post('/api/auth/register-admin', { username, password });
-      return unpackResponse(res);
+      return res.data;
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đăng ký hệ thống gốc';
     }
@@ -163,22 +147,22 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      const data = unpackResponse(res);
-      
-      const accessToken = data?.accessToken || data?.token || data?.data?.accessToken;
+      const accessToken = res.data.accessToken || res.data.token;
       if (!accessToken) {
         throw new Error('Không nhận được access token từ server.');
       }
 
+      // ĐÃ SỬA: Đẩy token vào RAM, loại bỏ localStorage.setItem('token') bẩn
       setRAMToken(accessToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('mustChangePassword', !!data.must_change_password ? 'true' : 'false');
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
 
       setToken(accessToken);
-      setUser(data.user);
-      setMustChangePassword(!!data.must_change_password);
+      setUser(res.data.user);
+      setMustChangePassword(!!res.data.must_change_password);
 
-      return data;
+      await Promise.all([fetchCompanies(), loadUsers(), loadPreferencesFromServer()]);
+      return res.data;
     } catch (err) {
       throw err;
     }
@@ -188,8 +172,9 @@ export function AuthProvider({ children }) {
     try {
       await api.post('/api/auth/logout', null, { withCredentials: true });
     } catch (e) {
-      console.error('Lỗi gọi API logout:', e.message);
+      console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
     } finally {
+      // ĐÃ SỬA: Giải phóng RAM token, xóa triệt để session cũ
       setRAMToken(null);
       localStorage.removeItem('user');
       localStorage.removeItem('mustChangePassword');
@@ -209,7 +194,7 @@ export function AuthProvider({ children }) {
       const res = await api.post('/api/auth/change-password', { oldPassword, newPassword });
       setMustChangePassword(false);
       localStorage.setItem('mustChangePassword', 'false');
-      return unpackResponse(res);
+      return res.data;
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đổi mật khẩu';
     }
@@ -236,15 +221,14 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get(`/api/opening-balances/status?company_id=${companyId}`);
-      const data = unpackResponse(res);
-      setHasOpeningBalance(data?.hasOpeningBalance || false);
-      setOpeningBalanceMessage(data?.message || '');
+      setHasOpeningBalance(res.data.hasOpeningBalance || false);
+      setOpeningBalanceMessage(res.data.message || '');
     } catch (err) {
       console.error('Lỗi kiểm tra số dư đầu kỳ:', err);
       setHasOpeningBalance(false);
       setOpeningBalanceMessage('');
     }
-  }, []);
+  }, [token]);
 
   return (
     <AuthContext.Provider value={{ 
@@ -269,18 +253,19 @@ export function AuthProvider({ children }) {
       fetchCompanies,
       hasOpeningBalance,
       openingBalanceMessage,
-      checkOpeningBalanceStatus,
-      loading // Đưa biến loading ra ngoài để App.jsx xử lý màn hình chờ nếu muốn
+      checkOpeningBalanceStatus
     }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth phải được lồng bên trong cấu trúc của AuthProvider');
   }
   return context;
 }
+
+export { useAuth };

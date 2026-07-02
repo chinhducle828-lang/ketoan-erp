@@ -5,10 +5,7 @@ import { invalidateCache } from '../cache/redis.js';
 
 const router = express.Router();
 
-// Danh sách các tài khoản bị bãi bỏ theo Thông tư 99/2025/TT-BTC
-const BANNED_ACCOUNTS_TT99 = ['1562', '611', '621', '622', '627']; // Bổ sung thêm tùy đặc thù doanh nghiệp
-
-// 1. Lấy số dư đầu kỳ (Lấy thêm thông tin ngoại tệ TT 99)
+// 1. Lấy số dư đầu kỳ kèm trạng thái Khóa sổ (isLocked)
 router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
@@ -16,10 +13,13 @@ router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
 
     const queryStr = `
       SELECT 
-        id, company_id as "companyId", account_code as "accountCode",
-        debit_balance as "debitBalance", credit_balance as "creditBalance",
-        currency, exchange_rate as "exchangeRate", -- TT99: Bổ sung đa tiền tệ
-        fiscal_year as "fiscalYear", is_locked as "isLocked"
+        id,
+        company_id as "companyId",
+        account_code as "accountCode",
+        debit_balance as "debitBalance",
+        credit_balance as "creditBalance",
+        fiscal_year as "fiscalYear",
+        is_locked as "isLocked" -- Thêm trường kiểm tra trạng thái khóa sổ
       FROM opening_balances 
       WHERE company_id = $1 AND fiscal_year = $2 
       ORDER BY account_code ASC
@@ -32,11 +32,10 @@ router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
   }
 });
 
-// 2. Cập nhật số dư đầu kỳ (Ràng buộc TT 99 & Khóa sổ)
-router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
+// 2. Cập nhật số dư đầu kỳ (Bổ sung chốt chặn kiểm tra trạng thái Khóa sổ)
+router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
-    // Nhận thêm tiền tệ và tỷ giá từ Frontend gửi lên
-    const { balances, year, companyId, currency = 'VND', exchangeRate = 1 } = req.body;
+    const { balances, year, companyId } = req.body;
     const targetCompanyId = companyId;
     const finalYear = year ? Number(year) : 2026;
 
@@ -44,102 +43,84 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess
       return res.status(400).json({ error: 'Dữ liệu số dư trống!' });
     }
 
-    // 🔒 CHỐT CHẶN 1: Kiểm tra khóa sổ
+    // 🔥 CHỐT CHẶN BẢO MẬT: Kiểm tra xem năm tài chính này đã bị khóa sổ chưa
     const lockCheck = await pool.query(
       'SELECT is_locked FROM opening_balances WHERE company_id = $1 AND fiscal_year = $2 AND is_locked = true LIMIT 1',
       [targetCompanyId, finalYear]
     );
 
     if (lockCheck.rows.length > 0) {
-      return res.status(403).json({ error: `Năm tài chính ${finalYear} đã bị KHÓA SỔ!` });
+      return res.status(403).json({ 
+        error: `Tập dữ liệu năm ${finalYear} của doanh nghiệp đã bị KHÓA SỔ. Bạn không thể thay đổi dữ liệu hiện tại!` 
+      });
     }
 
     const entries = Object.entries(balances);
     const valueExpressions = [];
-    const queryArgs = [targetCompanyId, finalYear, currency, exchangeRate]; // Thêm currency & rate vào args cố định
-    
-    let totalDebit = 0;
-    let totalCredit = 0;
-    let paramIndex = 5; // Bắt đầu từ $5 do $1-$4 là biến dùng chung
+    const queryArgs = [targetCompanyId, finalYear];
 
-    for (const [code, val] of entries) {
-      // ⚖️ CHỐT CHẶN 2: Chặn tài khoản cũ theo TT 99
-      if (BANNED_ACCOUNTS_TT99.includes(code.substring(0, 4)) || BANNED_ACCOUNTS_TT99.includes(code.substring(0, 3))) {
-        return res.status(400).json({ 
-          error: `Tài khoản ${code} đã bị bãi bỏ theo Thông tư 99/2025/TT-BTC.` 
-        });
-      }
+    // Chuyển mảng Object thành cấu trúc Bulk Parameterized Query
+    entries.forEach(([code, val], index) => {
+      const offset = index * 3 + 3; // $1 và $2 dành cho company_id và finalYear
+      valueExpressions.push(`($1, $${offset}, $${offset + 1}, $${offset + 2}, $2, false)`); // Mặc định insert là false (chưa khóa)
+      queryArgs.push(code, parseFloat(val.dr || 0), parseFloat(val.cr || 0));
+    });
 
-      const dr = parseFloat(val.dr || 0);
-      const cr = parseFloat(val.cr || 0);
-      
-      totalDebit += Math.round(dr * exchangeRate);
-      totalCredit += Math.round(cr * exchangeRate);
-
-      valueExpressions.push(`($1, $${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $2, false, $3, $4)`); 
-      queryArgs.push(code, dr, cr);
-      paramIndex += 3;
-    }
-
-    // ⚖️ CHỐT CHẶN 3: Đảm bảo cân bằng Nợ - Có (Quy tắc bất di bất dịch)
-    if (totalDebit !== totalCredit) {
-      return res.status(400).json({ error: 'Tổng dư Nợ và dư Có không cân bằng!' });
-    }
-
-    // Cập nhật câu lệnh Bulk Query có thêm currency và exchange_rate
     const bulkQueryStr = `
-      INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year, is_locked, currency, exchange_rate)
+      INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year, is_locked)
       VALUES ${valueExpressions.join(', ')}
       ON CONFLICT (company_id, account_code, fiscal_year)
       DO UPDATE SET 
         debit_balance = EXCLUDED.debit_balance, 
-        credit_balance = EXCLUDED.credit_balance,
-        currency = EXCLUDED.currency,
-        exchange_rate = EXCLUDED.exchange_rate
+        credit_balance = EXCLUDED.credit_balance
     `;
 
     await pool.query(bulkQueryStr, queryArgs);
+    
+    // Xóa bộ nhớ đệm Cache dòng tiền của Dashboard cũ
     await invalidateCache(`dashboard:cashflow:${targetCompanyId}:*`);
     
-    res.json({ success: true, message: `Cập nhật số dư đầu kỳ năm ${finalYear} thành công!` });
+    res.json({ success: true, message: `Cập nhật số dư đầu kỳ cho năm ${finalYear} thành công!` });
   } catch (err) { 
     res.status(500).json({ error: err.message }); 
   }
 });
 
-// 3. Khóa/Mở khóa sổ (Giữ nguyên logic cực tốt của bạn)
-router.patch('/toggle-lock', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
-  // ... (Giữ nguyên đoạn code của bạn)
+// 3. API MỚI: Thực hiện hành động Khóa hoặc Mở khóa sổ số dư (Chỉ cho phép Kế toán trưởng/Admin)
+router.patch('/toggle-lock', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
-    const { companyId, year, lockStatus } = req.body;
+    const { companyId, year, lockStatus } = req.body; // lockStatus: true (khóa) hoặc false (mở khóa)
     const finalYear = year ? Number(year) : 2026;
 
     if (lockStatus === undefined) {
       return res.status(400).json({ error: 'Thiếu trạng thái thay đổi khóa (lockStatus)!' });
     }
 
+    // Cập nhật toàn bộ các dòng tài khoản của công ty trong năm đó sang trạng thái khóa/mở tương ứng
     const updateLockStr = `
       UPDATE opening_balances 
       SET is_locked = $1 
       WHERE company_id = $2 AND fiscal_year = $3
     `;
     
-    await pool.query(updateLockStr, [lockStatus, companyId, finalYear]);
+    const result = await pool.query(updateLockStr, [lockStatus, companyId, finalYear]);
 
     res.json({ 
       success: true, 
-      message: lockStatus ? `Đã khóa sổ số dư đầu kỳ năm ${finalYear}!` : `Đã mở khóa sổ số dư đầu kỳ năm ${finalYear}!` 
+      message: lockStatus 
+        ? `Đã khóa sổ số dư đầu kỳ năm ${finalYear} thành công!` 
+        : `Đã mở khóa sổ số dư đầu kỳ năm ${finalYear}!` 
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 4. Kiểm tra trạng thái (Giữ nguyên)
+// 4. Kiểm tra trạng thái số dư đầu kỳ
 router.get('/status', authenticate, checkCompanyAccess, async (req, res) => {
-  // ... (Giữ nguyên đoạn code của bạn)
   try {
     const targetCompanyId = req.query.company_id;
+
     const result = await pool.query(
       'SELECT COUNT(*)::int as count FROM opening_balances WHERE company_id = $1 AND (debit_balance > 0 OR credit_balance > 0)',
       [targetCompanyId]
@@ -148,12 +129,13 @@ router.get('/status', authenticate, checkCompanyAccess, async (req, res) => {
     const hasBalance = result.rows[0].count > 0;
     res.json({ 
       hasOpeningBalance: hasBalance,
-      message: hasBalance ? 'Đã nhập số dư đầu kỳ' : 'Chưa nhập số dư đầu kỳ.'
+      message: hasBalance 
+        ? 'Đã nhập số dư đầu kỳ' 
+        : 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.'
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Đổi cách Export cho đồng bộ với file index.js mới
-export default router;
+export { router as openingBalancesRouter };
