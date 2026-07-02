@@ -97,7 +97,6 @@ describe('Validators', () => {
         description: 'Chi tiền mặt nhập kho vật tư công ty - Đa dòng',
         type: 'Chi',
         companyId: 1,
-        // Dữ liệu chuẩn: Tổng Nợ (800k + 80k) === Tổng Có (880k)
         details: [
           { accountCode: '152', entryType: 'DR', amount: 800000 },
           { accountCode: '1331', entryType: 'DR', amount: 80000 },
@@ -105,6 +104,29 @@ describe('Validators', () => {
         ]
       };
       const result = createVoucherSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept voucher details with processed rounded integers from payroll module', () => {
+      const processedPayrollData = {
+        voucherDate: '2026-06-30',
+        description: 'Bảng lương tháng 6 sau khi chạy thuật toán Math.round gánh sai số',
+        type: 'Khac',
+        companyId: 1,
+        details: [
+          { accountCode: '6422', entryType: 'DR', amount: 15456789 }, // Lương gộp
+          { accountCode: '6422', entryType: 'DR', amount: 3323209 },  // 21.5% trích thêm công ty gánh
+          { accountCode: '3341', entryType: 'CR', amount: 13833827 }, // Lương Net thực trả (Đã triệt tiêu lệch 1đ)
+          { accountCode: '3383', entryType: 'CR', amount: 4946171 }   // Tổng nghĩa vụ bảo hiểm (32%)
+        ]
+      };
+
+      const drSum = processedPayrollData.details.filter(d => d.entryType === 'DR').reduce((s, d) => s + d.amount, 0);
+      const crSum = processedPayrollData.details.filter(d => d.entryType === 'CR').reduce((s, d) => s + d.amount, 0);
+      
+      expect(drSum).toEqual(crSum); // Đảm bảo test cân đối trước khi đẩy vào Validator
+
+      const result = createVoucherSchema.safeParse(processedPayrollData);
       expect(result.success).toBe(true);
     });
 
@@ -130,7 +152,7 @@ describe('Validators', () => {
         type: 'Thu',
         companyId: 1,
         details: [
-          { accountCode: '1111', entryType: 'DR', amount: 100000 } // Lỗi: Chỉ có 1 dòng
+          { accountCode: '1111', entryType: 'DR', amount: 100000 }
         ]
       };
       const result = createVoucherSchema.safeParse(invalidData);
@@ -144,8 +166,8 @@ describe('Validators', () => {
         type: 'Thu',
         companyId: 1,
         details: [
-          { accountCode: '152', entryType: 'DR', amount: 800000 }, // Nợ 800k
-          { accountCode: '1111', entryType: 'CR', amount: 700000 } // Có 700k (Lệch)
+          { accountCode: '152', entryType: 'DR', amount: 800000 },
+          { accountCode: '1111', entryType: 'CR', amount: 700000 }
         ]
       };
       const result = createVoucherSchema.safeParse(invalidData);

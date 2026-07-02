@@ -1,129 +1,83 @@
 import { pool } from '../config/db.js';
 
 /**
- * @desc    Tạo mới Phiếu Nhập / Xuất kho (Hạch toán đa dòng - Master Detail)
- * @route   POST /api/inventory/vouchers
- * @access  Private
+ * Lấy danh sách tồn kho hiện tại của doanh nghiệp
  */
-/**
- * Lấy danh sách Phiếu nhập / xuất kho (Có bộ lọc theo công ty, loại phiếu)
- * GET -> /api/inventory/vouchers
- */
-export const getInventoryVouchers = async (req, res) => {
+export const getInventorySummary = async (req, res) => {
   try {
-    // Trong thực tế, company_id nên lấy từ token bảo mật của user đã đăng nhập (req.user.company_id)
-    const { company_id, io_type } = req.query;
-
+    const { company_id } = req.query;
     if (!company_id) {
-      return res.status(400).json({ success: false, message: 'Thiếu thông tin ID công ty!' });
+      return res.status(400).json({ error: 'Yêu cầu truyền tham số company_id!' });
     }
 
-    let query = `
-      SELECT iv.*, p.partner_name, u.username as creator_name
-      FROM inventory_vouchers iv
-      LEFT JOIN partners p ON iv.partner_id = p.id
-      LEFT JOIN users u ON iv.created_by = u.id
-      WHERE iv.company_id = $1
+    // Truy vấn tổng lượng Nhập / Xuất chi tiết của từng vật tư hàng hóa trong kho
+    const queryStr = `
+      SELECT 
+        i.id,
+        i.code,
+        i.name,
+        i.unit,
+        COALESCE(SUM(CASE WHEN doc.type = 'import' THEN d.quantity ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN doc.type = 'export' THEN d.quantity ELSE 0 END), 0) as "onHand",
+        COALESCE(AVG(CASE WHEN doc.type = 'import' THEN d.price ELSE NULL END), 0) as "avgCost"
+      FROM items i
+      LEFT JOIN (
+        SELECT 'import' as type, item_id, quantity, price, company_id FROM warehouse_imports
+        UNION ALL
+        SELECT 'export' as type, item_id, quantity, price, company_id FROM warehouse_exports
+      ) d ON i.id = d.item_id AND d.company_id = $1
+      WHERE i.company_id = $1
+      GROUP BY i.id, i.code, i.name, i.unit
+      ORDER BY i.code ASC
     `;
-    
-    const values = [company_id];
 
-    // Lọc theo loại Nhập (IMPORT) hoặc Xuất (EXPORT) nếu có truyền lên
-    if (io_type) {
-      query += ` AND iv.io_type = $2`;
-      values.push(io_type);
-    }
-
-    query += ` ORDER BY iv.voucher_date DESC, iv.created_at DESC`;
-
-    const result = await pool.query(query, values);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Lỗi lấy danh sách phiếu kho:', error.message);
-    res.status(500).json({ success: false, message: 'Lỗi hệ thống: ' + error.message });
+    const result = await pool.query(queryStr, [company_id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
-export const createInventoryVoucher = async (req, res) => {
-  // Lấy kết nối client từ pool để chạy Transaction độc lập
-  const client = await pool.connect();
 
+/**
+ * Trích xuất Sổ chi tiết Vật tư (Thẻ kho)
+ */
+export const getStockCard = async (req, res) => {
   try {
-    const {
-      company_id,
-      voucher_number,
-      voucher_date,
-      io_type, // 'IMPORT' hoặc 'EXPORT'
-      partner_id,
-      description,
-      created_by,
-      details // Mảng chứa các dòng chi tiết vật tư
-    } = req.body;
+    const { company_id, item_id, from_date, to_date } = req.query;
 
-    // Kiểm tra tính hợp lệ cơ bản của dữ liệu chi tiết
-    if (!details || !Array.isArray(details) || details.length === 0) {
-      return res.status(400).json({ success: false, message: 'Phiếu kho phải có ít nhất một dòng chi tiết vật tư!' });
+    if (!company_id || !item_id) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp thông tin company_id và item_id!' });
     }
 
-    // 1. Khởi động Transaction
-    await client.query('BEGIN');
-
-    // 2. Chèn dữ liệu vào bảng MASTER (inventory_vouchers)
-    const masterQuery = `
-      INSERT INTO inventory_vouchers (company_id, voucher_number, voucher_date, io_type, partner_id, description, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id;
-    `;
-    const masterValues = [company_id, voucher_number, voucher_date, io_type, partner_id, description, created_by];
-    const masterResult = await client.query(masterQuery, masterValues);
-    const inventory_voucher_id = masterResult.rows[0].id;
-
-    // 3. Chèn đa dòng vào bảng DETAIL (inventory_voucher_details)
-    const detailQuery = `
-      INSERT INTO inventory_voucher_details (inventory_voucher_id, item_id, debit_account_code, credit_account_code, quantity, unit_price)
-      VALUES ($1, $2, $3, $4, $5, $6);
-    `;
-
-    // Duyệt qua từng dòng vật tư người dùng gửi lên để insert tuần tự
-    for (const row of details) {
-      const { item_id, debit_account_code, credit_account_code, quantity, unit_price } = row;
+    const queryStr = `
+      SELECT 
+        'import' as direction,
+        wi.import_date as "date",
+        wi.voucher_no as "voucherNo",
+        wi.quantity,
+        wi.price,
+        (wi.quantity * wi.price) as amount
+      FROM warehouse_imports wi
+      WHERE wi.company_id = $1 AND wi.item_id = $2 AND wi.import_date BETWEEN $3 AND $4
       
-      const detailValues = [
-        inventory_voucher_id,
-        item_id,
-        debit_account_code,
-        credit_account_code,
-        quantity,
-        unit_price || 0 // Nếu EXPORT chưa có giá thì mặc định là 0 để cuối kỳ tính sau
-      ];
+      UNION ALL
+      
+      SELECT 
+        'export' as direction,
+        we.export_date as "date",
+        we.voucher_no as "voucherNo",
+        we.quantity,
+        we.price,
+        (we.quantity * we.price) as amount
+      FROM warehouse_exports we
+      WHERE we.company_id = $1 AND we.item_id = $2 AND we.export_date BETWEEN $3 AND $4
+      
+      ORDER BY "date" ASC
+    `;
 
-      await client.query(detailQuery, detailValues);
-    }
-
-    // 4. Nếu mọi thứ trơn tru, tiến hành COMMIT ghi dữ liệu vĩnh viễn vào DB
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      success: true,
-      message: `Tạo phiếu ${io_type === 'IMPORT' ? 'nhập' : 'xuất'} kho thành công!`,
-      voucher_id: inventory_voucher_id
-    });
-
-  } catch (error) {
-    // 5. Nếu có BẤT KỲ lỗi nào xảy ra, lập tức ROLLBACK để khôi phục lại trạng thái ban đầu
-    await client.query('ROLLBACK');
-    console.error('LỖI TẠO PHIẾU KHO:', error);
-    
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi hệ thống khi tạo phiếu kho!',
-      error: error.message
-    });
-  } finally {
-    // Luôn giải phóng kết nối trả lại cho pool
-    client.release();
+    const result = await pool.query(queryStr, [company_id, item_id, from_date || '2026-01-01', to_date || '2026-12-31']);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
