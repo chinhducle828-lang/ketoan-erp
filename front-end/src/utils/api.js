@@ -19,6 +19,7 @@ export const setRAMToken = (token) => {
   inMemoryAccessToken = token;
 };
 
+// Khởi tạo cấu hình Axios mặc định kết nối đến Backend
 const api = axios.create({
   baseURL: baseURL,
   timeout: 10000,
@@ -72,7 +73,7 @@ api.interceptors.request.use(
 
 // Global response handler: Tự động chạy ngầm xin cấp lại Token mới khi RAM bị xóa/hết hạn
 api.interceptors.response.use(
-  (res) => res,
+  (res) => res.data, // Tự động bóc tách data từ response để UI dùng trực tiếp
   async (error) => {
     const status = error.response?.status;
     const originalRequest = error.config;
@@ -95,6 +96,9 @@ api.interceptors.response.use(
           try {
             localStorage.removeItem('user');
             localStorage.removeItem('activeCompany');
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth')) {
+               window.location.href = '/auth/login';
+            }
           } catch (e) {
             console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
           }
@@ -107,6 +111,7 @@ api.interceptors.response.use(
         subscribeTokenRefresh((token) => {
           if (token) {
             originalRequest.headers.Authorization = `Bearer ${token}`;
+            // Vì interceptor ở trên trả về res.data, nên khi retry ta cũng cần đảm bảo cấu trúc
             resolve(api(originalRequest));
           } else {
             reject(error);
@@ -122,9 +127,53 @@ api.interceptors.response.use(
       console.error('Network or CORS error calling API:', error.message || error);
     }
     
-    return Promise.reject(error);
+    return Promise.reject(error.response?.data || error);
   }
 );
+
+// ====================================================================
+// ĐỊNH NGHĨA CÁC HÀM GỌI API CHO TỪNG PHÂN HỆ VIEW FRONT-END
+// ====================================================================
+
+export const authAPI = {
+  login: (credentials) => api.post('/auth/login', credentials),
+  register: (data) => api.post('/auth/register', data),
+  logout: () => api.post('/auth/logout'),
+};
+
+export const cashAPI = {
+  createVoucher: (data) => api.post('/cash/voucher', data),
+};
+
+export const closingAPI = {
+  getPeriods: (companyId, year) => api.get(`/closing/periods?company_id=${companyId}&year=${year || new Date().getFullYear()}`),
+  togglePeriod: (data) => api.post('/closing/toggle', data),
+};
+
+export const costsAPI = {
+  calculateCosts: (data) => api.post('/costs', data),
+};
+
+export const dashboardAPI = {
+  getSummary: (companyId, year) => api.get(`/dashboard/summary?company_id=${companyId}&year=${year || new Date().getFullYear()}`),
+};
+
+export const hrAPI = {
+  createPayroll: (data) => api.post('/hr/payroll', data),
+};
+
+export const purchasingAPI = {
+  createInvoice: (data) => api.post('/purchasing/voucher', data),
+};
+
+export const salesAPI = {
+  createInvoice: (data) => api.post('/sales/voucher', data),
+};
+
+export const taxAPI = {
+  getVATReports: (companyId, period) => api.get(`/tax/reports?company_id=${companyId}&period=${period}`),
+  performDeduction: (data) => api.post('/tax/deduction', data),
+};
 
 // ✅ XUẤT BẢN INSTANCE MẶC ĐỊNH
 // Toàn bộ các phân hệ bao gồm cả VoucherContext.jsx sẽ sử dụng instance này 

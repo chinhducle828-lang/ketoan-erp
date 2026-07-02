@@ -5,23 +5,30 @@ import api from '../utils/api.js';
 // 1. Khởi tạo Context nội bộ (Không export trực tiếp dòng này)
 const VoucherContext = createContext(null);
 
-// 2. Định nghĩa Component Provider (Viết hoa chữ cái đầu)
+// 2. Định nghĩa Component Provider
 export function VoucherProvider({ children }) {
-  const { activeCompany, checkOpeningBalanceStatus, hasOpeningBalance, openingBalanceMessage } = useAuth();
+  const { activeCompany, checkOpeningBalanceStatus, hasOpeningBalance } = useAuth();
   const [vouchers, setVouchers] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [blockedByOpeningBalance, setBlockedByOpeningBalance] = useState(false);
 
-  // Kiểm tra số dư đầu kỳ khi chuyển công ty
+  // Trích xuất ID nguyên bản của doanh nghiệp an toàn (Luôn ép về kiểu Number)
+  const getCurrentCompanyId = () => {
+    if (!activeCompany) return null;
+    return typeof activeCompany === 'object' ? Number(activeCompany.id) : Number(activeCompany);
+  };
+
+  // Kiểm tra số dư đầu kỳ khi chuyển đổi doanh nghiệp
   useEffect(() => {
-    if (activeCompany?.id) {
-      checkOpeningBalanceStatus(activeCompany.id);
-      setBlockedByOpeningBalance(false);
+    const companyId = getCurrentCompanyId();
+    if (companyId) {
+      checkOpeningBalanceStatus(companyId);
     }
-  }, [activeCompany?.id, checkOpeningBalanceStatus]);
+  }, [activeCompany, checkOpeningBalanceStatus]);
 
+  // Tải lại toàn bộ danh sách chứng từ tương ứng khi đổi công ty
   useEffect(() => {
-    if (activeCompany) {
+    const companyId = getCurrentCompanyId();
+    if (companyId) {
       loadVouchers();
     } else {
       setVouchers([]);
@@ -29,9 +36,11 @@ export function VoucherProvider({ children }) {
   }, [activeCompany]);
 
   const loadVouchers = async () => {
+    const companyId = getCurrentCompanyId();
+    if (!companyId) return;
+
     setIsSyncing(true);
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.get(`/api/vouchers?company_id=${companyId}`);
       setVouchers(res.data);
     } catch (err) {
@@ -42,8 +51,10 @@ export function VoucherProvider({ children }) {
   };
 
   const createNewVoucher = async (data) => {
-    // Kiểm tra xem đã nhập số dư đầu kỳ chưa
-    if (hasOpeningBalance === false && activeCompany?.id) {
+    const companyId = getCurrentCompanyId();
+
+    // CHẶN NGHIỆP VỤ: Nếu doanh nghiệp chưa khai báo số dư đầu kỳ
+    if (hasOpeningBalance === false && companyId) {
       return { 
         success: false, 
         error: 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.' 
@@ -51,14 +62,24 @@ export function VoucherProvider({ children }) {
     }
 
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.post('/api/vouchers', { ...data, companyId });
+      // Đảm bảo dữ liệu companyId truyền lên Backend luôn luôn là kiểu Number nguyên bản
+      const payload = { 
+        ...data, 
+        companyId: data.companyId ? Number(data.companyId) : companyId 
+      };
+
+      const res = await api.post('/api/post/vouchers', payload);
+      
       if (res.data.success) {
-        setVouchers(prev => [res.data.voucher, ...prev]);
+        // Cập nhật State để UI hiển thị chứng từ mới ngay lập tức mà không cần F5
+        setVouchers(prev => [res.data.voucher || res.data, ...prev]);
         return { success: true };
       }
     } catch (err) {
-      return { success: false, error: err.response?.data?.error || err.message };
+      return { 
+        success: false, 
+        error: err.response?.data?.error || err.message || 'Lỗi không thể tạo chứng từ mới' 
+      };
     }
   };
 
@@ -71,7 +92,6 @@ export function VoucherProvider({ children }) {
       }
     } catch (err) {
       console.error('Lỗi xóa chứng từ:', err);
-      // Trả về thông báo lỗi chi tiết từ Backend (Ví dụ: "Bạn không có quyền thực hiện...")
       return { 
         success: false, 
         error: err.response?.data?.error || err.message || 'Lỗi không thể xóa chứng từ' 
@@ -99,4 +119,3 @@ function useVouchers() {
 // BẮT BUỘC CHO VITE: Export tập trung tất cả hook thuần ở cuối file
 // ==========================================
 export { useVouchers };
-// ========================================== 
