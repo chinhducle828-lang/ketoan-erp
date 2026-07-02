@@ -47,6 +47,14 @@ export const MODULES_REGISTER = [
     requiresActiveCompany: true
   },
   {
+    id: 'partners', // 👈 1. Đăng ký ID duy nhất đại diện cho URL: /partners
+    name: 'Danh mục Đối tác (KH & NCC)',
+    icon: Users,    // 👈 2. Tái sử dụng icon nhóm người dùng thích hợp cho đối tác
+    component: React.lazy(() => import('./sales/PartnerManagement.jsx')), // 👈 3. Lazy load chuẩn chỉ
+    allowedRoles: ['admin', 'ktt', 'nv'], // Cho phép cả ban quản trị, kế toán trưởng và nhân viên vào xem
+    requiresActiveCompany: true // Bắt buộc phải có một công ty đang active mới cho dùng dữ liệu
+  },
+  {
     id: 'sales_excel',
     name: 'Hóa đơn bán hàng Excel',
     icon: Layers,
