@@ -95,9 +95,6 @@ api.interceptors.response.use(
           try {
             localStorage.removeItem('user');
             localStorage.removeItem('activeCompany');
-            
-            // Tùy chọn: Tự động chuyển hướng về trang login nếu cần
-            // window.location.href = '/login';
           } catch (e) {
             console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
           }
@@ -130,4 +127,18 @@ api.interceptors.response.use(
   }
 );
 
-export default api; 
+// ====================================================================
+// ✅ CÁC HÀM API BỔ SUNG: PHÂN HỆ QUẢN LÝ KHO & VẬT TƯ (MASTER-DETAIL)
+// ====================================================================
+
+/**
+ * Gửi toàn bộ dữ liệu Phiếu Nhập / Xuất kho (Hạch toán đa dòng) lên Backend
+ * @param {Object} voucherData - Bao gồm thông tin phiếu và mảng details
+ */
+export const createInventoryVoucher = async (voucherData) => {
+  const response = await api.post('/api/inventory/vouchers', voucherData);
+  return response.data;
+};
+
+// Xuất bản instance làm mặc định cho các phân hệ cũ
+export default api;

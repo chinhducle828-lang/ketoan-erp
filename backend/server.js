@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs'; // Đọc file SQL hạch toán
 import { fileURLToPath } from 'url';
 
-// ✅ ĐÃ SỬA: Trỏ đúng vào thư mục con /config/ để Node.js tìm thấy file cấu hình PG Pool
+// ✅ Cấu hình PG Pool từ thư mục config
 import { pool } from './config/db.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
@@ -56,7 +56,9 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
   }
 })();
 
-// Import các routes cũ
+// ====================================================================
+// IMPORT CÁC ROUTES HỆ THỐNG
+// ====================================================================
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { companiesRouter } from './routes/companies.js';
@@ -66,25 +68,31 @@ import { openingBalancesRouter } from './routes/openingBalances.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js';
-
-// Import phân hệ Đối tác (Partners)
 import { partnerRouter } from './routes/partnerRoute.js'; 
 
-// Mount các routes cũ
+// ✅ Tích hợp phân hệ hạch toán đa dòng Nhập/Xuất kho mới
+import inventoryRoutes from './routes/inventoryRoutes.js'; 
+
+// ====================================================================
+// MOUNT CÁC ROUTES API (ĐÃ LỌC TRÙNG LẶP)
+// ====================================================================
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/vouchers', vouchersRouter);
-app.use('/api/items', itemsRouter);
+app.use('/api/items', itemsRouter); // Cổng danh mục vật tư gốc của bạn
 app.use('/api/opening-balances', openingBalancesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/import', importRouter);
-
-// Mount phân hệ Đối tác vào hệ thống
 app.use('/api/partners', partnerRouter); 
 
-// Health check
+// ✅ Kích hoạt API nghiệp vụ hạch toán đa dòng Kho vật tư
+app.use('/api/inventory', inventoryRoutes); 
+
+// ====================================================================
+// HEALTH CHECK & UTILITIES
+// ====================================================================
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
