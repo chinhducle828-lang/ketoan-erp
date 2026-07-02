@@ -10,70 +10,121 @@ export default function ClosingProcess() {
 
   const executeClosing = async () => {
     setLoading(true);
-    setLog('Đang bóc tách tổng doanh thu (511) và giá vốn (632) từ sổ chi tiết chi tiết...');
-    
+    setLog('Đang bóc tách, dọn dẹp số liệu và quét sâu sổ chi tiết...');
+
     let rev = 0;   // Tổng doanh thu phát sinh bên Có TK 511
     let cogs = 0;  // Tổng giá vốn phát sinh bên Nợ TK 632
+    let adminExp = 0; // Tổng chi phí quản lý phát sinh bên Nợ TK 642
 
-    // SỬA LOGIC DUYỆT SÂU: Quét sâu vào mảng details của từng chứng từ
-    vouchers.forEach(v => {
+    // CHỐT CHẶN BẢO MẬT: Chỉ quét các chứng từ phát sinh thực tế từ hoạt động Kinh doanh (Thu, Chi, Nhập, Xuất)
+    // Loại bỏ hoàn toàn các chứng từ kết chuyển 'Khac' đã chạy trước đó để tránh lỗi trùng số liệu (Double Counting).
+    const operationalVouchers = vouchers.filter(v => v.type !== 'Khac');
+
+    operationalVouchers.forEach(v => {
       v.details?.forEach(d => {
-        // Cộng dồn doanh thu phát sinh (Có 511)
+        // 1. Cộng dồn doanh thu thực tế (Có 511)
         if (d.accountCode?.startsWith('511') && d.entryType === 'CR') {
-          rev += parseFloat(d.amount) || 0;
+          rev += Math.round(parseFloat(d.amount) || 0);
         }
-        // Cộng dồn giá vốn phát sinh (Nợ 632)
+        // 2. Cộng dồn giá vốn thực tế (Nợ 632)
         if (d.accountCode?.startsWith('632') && d.entryType === 'DR') {
-          cogs += parseFloat(d.amount) || 0;
+          cogs += Math.round(parseFloat(d.amount) || 0);
+        }
+        // 3. Cộng dồn chi phí quản lý thực tế (Nợ 642)
+        if (d.accountCode?.startsWith('642') && d.entryType === 'DR') {
+          adminExp += Math.round(parseFloat(d.amount) || 0);
         }
       });
     });
 
-    if (rev === 0 && cogs === 0) {
-      setLog('⚠️ Không tìm thấy phát sinh doanh thu (511) hoặc giá vốn (632) hợp lệ trong kỳ để kết chuyển.');
+    if (rev === 0 && cogs === 0 && adminExp === 0) {
+      setLog('⚠️ Không tìm thấy phát sinh doanh thu hoặc chi phí hoạt động mới hợp lệ trong kỳ để kết chuyển.');
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Phát hành bút toán kết chuyển Doanh thu: Nợ 5111 / Có 911
+      // -------------------------------------------------------------
+      // BÚT TOÁN 1: Kết chuyển Doanh thu thuần (Nợ 5111 / Có 911)
+      // -------------------------------------------------------------
       if (rev > 0) {
-        const revDetails = [
-          { accountCode: '5111', entryType: 'DR', amount: rev },
-          { accountCode: '911', entryType: 'CR', amount: rev }
-        ];
-        
         await createNewVoucher({
           voucherDate: '2026-12-31',
           description: 'Kết chuyển doanh thu thuần xác định kết quả kinh doanh cuối kỳ',
           type: 'Khac',
-          details: revDetails
+          details: [
+            { accountCode: '5111', entryType: 'DR', amount: rev },
+            { accountCode: '911', entryType: 'CR', amount: rev }
+          ]
         });
       }
 
-      // 2. Phát hành bút toán kết chuyển Giá vốn: Nợ 911 / Có 632
+      // -------------------------------------------------------------
+      // BÚT TOÁN 2: Kết chuyển Giá vốn hàng bán (Nợ 911 / Có 632)
+      // -------------------------------------------------------------
       if (cogs > 0) {
-        const cogsDetails = [
-          { accountCode: '911', entryType: 'DR', amount: cogs },
-          { accountCode: '632', entryType: 'CR', amount: cogs }
-        ];
-
         await createNewVoucher({
           voucherDate: '2026-12-31',
           description: 'Kết chuyển chi phí giá vốn hàng bán cuối kỳ',
           type: 'Khac',
-          details: cogsDetails
+          details: [
+            { accountCode: '911', entryType: 'DR', amount: cogs },
+            { accountCode: '632', entryType: 'CR', amount: cogs }
+          ]
         });
       }
 
-      // Tính toán nhanh Lãi/Lỗ gộp để hiển thị lên log cho trực quan
-      const profitOrLoss = rev - cogs;
-      const statusText = profitOrLoss >= 0 ? `LÃI GỘP KINH DOANH: ${profitOrLoss.toLocaleString()} đ` : `LỖ GỘP KINH DOANH: ${Math.abs(profitOrLoss).toLocaleString()} đ`;
+      // -------------------------------------------------------------
+      // BÚT TOÁN 3: Kết chuyển Chi phí quản lý DN (Nợ 911 / Có 642)
+      // -------------------------------------------------------------
+      if (adminExp > 0) {
+        await createNewVoucher({
+          voucherDate: '2026-12-31',
+          description: 'Kết chuyển chi phí quản lý doanh nghiệp cuối kỳ',
+          type: 'Khac',
+          details: [
+            { accountCode: '911', entryType: 'DR', amount: adminExp },
+            { accountCode: '642', entryType: 'CR', amount: adminExp }
+          ]
+        });
+      }
+
+      // -------------------------------------------------------------
+      // BÚT TOÁN BỔ SUNG: Xác định Lợi nhuận sau thuế (Tài khoản 421)
+      // -------------------------------------------------------------
+      const netProfitOrLoss = rev - (cogs + adminExp);
+      
+      if (netProfitOrLoss !== 0) {
+        const isProfit = netProfitOrLoss > 0;
+        await createNewVoucher({
+          voucherDate: '2026-12-31',
+          description: isProfit 
+            ? 'Kết chuyển thặng dư lợi nhuận kinh doanh phát sinh trong kỳ (Lãi ròng)' 
+            : 'Kết chuyển thâm hụt kết quả kinh doanh phát sinh trong kỳ (Lỗ ròng)',
+          type: 'Khac',
+          details: isProfit 
+            ? [
+                { accountCode: '911', entryType: 'DR', amount: netProfitOrLoss },
+                { accountCode: '4212', entryType: 'CR', amount: netProfitOrLoss }
+              ]
+            : [
+                { accountCode: '4212', entryType: 'DR', amount: Math.abs(netProfitOrLoss) },
+                { accountCode: '911', entryType: 'CR', amount: Math.abs(netProfitOrLoss) }
+              ]
+        });
+      }
+
+      // Xuất log tổng kết chi tiết cho kế toán trưởng giám sát
+      const statusText = netProfitOrLoss >= 0 
+        ? `🎉 LÃI RÒNG SAU THUẾ TRONG KỲ: ${netProfitOrLoss.toLocaleString('vi-VN')} đ` 
+        : `📉 LỖ RÒNG KINH DOANH TRONG KỲ: ${Math.abs(netProfitOrLoss).toLocaleString('vi-VN')} đ`;
 
       setLog(`[HỆ THỐNG KẾT CHUYỂN HOÀN THÀNH]\n------------------------------------\n` +
-             `✓ Kết chuyển Doanh thu (Nợ 5111 / Có 911): ${rev.toLocaleString()} đ\n` +
-             `✓ Kết chuyển Giá vốn (Nợ 911 / Có 632): ${cogs.toLocaleString()} đ\n` +
-             `------------------------------------\n▶ ${statusText}`);
+             `✓ Kết chuyển Doanh thu (Nợ 5111 / Có 911): ${rev.toLocaleString('vi-VN')} đ\n` +
+             `✓ Kết chuyển Giá vốn  (Nợ 911 / Có 632): ${cogs.toLocaleString('vi-VN')} đ\n` +
+             `✓ Kết chuyển CP QLDN  (Nợ 911 / Có 642): ${adminExp.toLocaleString('vi-VN')} đ\n` +
+             `------------------------------------\n▶ ${statusText}\n` +
+             `👉 Sổ cái tài khoản kết quả (911) đã được làm sạch và đưa về số dư bằng 0.`);
 
     } catch (error) {
       console.error(error);
