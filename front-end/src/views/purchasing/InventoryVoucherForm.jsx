@@ -1,17 +1,10 @@
 import React, { useState, useEffect } from 'react';
-// ✅ Import trực tiếp hàm từ file api tổng để đính kèm RAM Token tự động
-import { createInventoryVoucher } from '../../utils/api.js';
+// ✅ ĐÃ SỬA: Tiêu thụ hook useVouchers từ Context thay vì gọi API rời rạc
+import { useVouchers } from '../../context/VoucherContext.jsx';
 
 export default function InventoryVoucherForm() {
-  // Tự động lấy thông tin phiên làm việc từ localStorage để tránh điền ID thủ công
-  const getActiveCompanyId = () => {
-    try {
-      const company = localStorage.getItem('activeCompany');
-      return company ? JSON.parse(company).id : 1;
-    } catch (e) {
-      return 1;
-    }
-  };
+  // Lấy hàm tạo chứng từ từ hệ thống quản lý Context chung
+  const { createNewVoucher } = useVouchers();
 
   const getActiveUserId = () => {
     try {
@@ -24,7 +17,6 @@ export default function InventoryVoucherForm() {
 
   // 1. State quản lý thông tin chung (Hiển thị Form)
   const [master, setMaster] = useState({
-    company_id: getActiveCompanyId(), 
     voucher_number: '',
     voucher_date: new Date().toISOString().split('T')[0],
     io_type: 'IMPORT', // IMPORT (Nhập kho) / EXPORT (Xuất kho)
@@ -42,7 +34,7 @@ export default function InventoryVoucherForm() {
   const [message, setMessage] = useState(null);
   const [totalAmount, setTotalAmount] = useState(0);
 
-  // ✅ Tự động tính tổng tiền của phiếu để hiển thị trên UI
+  // Tự động tính tổng tiền của phiếu để hiển thị trực quan trên UI
   useEffect(() => {
     const total = details.reduce((sum, d) => sum + (parseFloat(d.quantity || 0) * parseFloat(d.unit_price || 0)), 0);
     setTotalAmount(total);
@@ -72,63 +64,57 @@ export default function InventoryVoucherForm() {
     }
   };
 
-  // ✅ ĐÃ SỬA TOÀN BỘ LOGIC: Chuyển đổi dữ liệu ngang sang dọc chuẩn kế toán kép trước khi gọi API
+  // Xử lý gửi dữ liệu và mapping payload
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
-    try {
-      const mappedDetails = [];
+    const mappedDetails = [];
+    
+    // Duyệt qua lưới vật tư hàng ngang để bóc tách thành các cặp dòng DR/CR dọc chuẩn kế toán kép
+    details.forEach((d) => {
+      const lineAmount = parseFloat(d.quantity || 0) * parseFloat(d.unit_price || 0);
       
-      // Duyệt qua từng dòng vật tư hàng ngang của UI để bóc tách thành các cặp dòng DR/CR dọc
-      details.forEach((d) => {
-        const lineAmount = parseFloat(d.quantity || 0) * parseFloat(d.unit_price || 0);
-        
-        // 1. Tạo dòng ghi Nợ (DR) chuẩn Backend
-        mappedDetails.push({
-          accountCode: d.debit_account_code.trim(),
-          entryType: 'DR',
-          amount: lineAmount
-        });
-        
-        // 2. Tạo dòng ghi Có (CR) chuẩn Backend
-        mappedDetails.push({
-          accountCode: d.credit_account_code.trim(),
-          entryType: 'CR',
-          amount: lineAmount
-        });
+      // Tạo dòng ghi Nợ (DR)
+      mappedDetails.push({
+        accountCode: d.debit_account_code.trim(),
+        entryType: 'DR',
+        amount: lineAmount
       });
+      
+      // Tạo dòng ghi Có (CR)
+      mappedDetails.push({
+        accountCode: d.credit_account_code.trim(),
+        entryType: 'CR',
+        amount: lineAmount
+      });
+    });
 
-      // Tạo cấu trúc Payload khớp hoàn chỉnh với Zod Validation tại Backend
-      const payload = { 
-        voucherDate: master.voucher_date,
-        description: master.description || `Nhập kho vật tư theo số chứng từ ${master.voucher_number}`,
-        type: master.io_type === 'IMPORT' ? 'Thu' : 'Chi', 
-        companyId: Number(getActiveCompanyId()), 
-        details: mappedDetails 
-      };
+    // Tạo cấu trúc payload tương thích hoàn toàn với Backend Router & Zod validation
+    const payload = { 
+      voucherDate: master.voucher_date,
+      description: master.description || `Nhập kho vật tư theo số chứng từ ${master.voucher_number}`,
+      type: master.io_type === 'IMPORT' ? 'Thu' : 'Chi', 
+      details: mappedDetails 
+    };
 
-      // Gọi API thực tế gửi lên Backend
-      const result = await createInventoryVoucher(payload);
+    // ✅ ĐÃ SỬA: Đẩy qua hàm createNewVoucher của Context thay vì tự bắn API rời
+    const result = await createNewVoucher(payload);
 
-      if (result.success) {
-        setMessage({ type: 'success', text: 'Tạo phiếu và ghi sổ kế toán thành công!' });
-        // Reset form về trạng thái trống ban đầu
-        setDetails([{ item_id: '', debit_account_code: '152', credit_account_code: '331', quantity: 1, unit_price: 0 }]);
-        setMaster({ ...master, voucher_number: '', description: '', partner_id: '' });
-      }
-    } catch (err) {
-      // Đọc thông báo lỗi trả về từ Backend (Zod hoặc Database error)
-      const errorResponse = err.response?.data?.error || err.response?.data?.details?.[0]?.message || 'Có lỗi xảy ra khi lưu phiếu kho!';
-      setMessage({ type: 'error', text: errorResponse });
-    } finally {
-      setLoading(false);
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Tạo phiếu nhập kho và ghi sổ kế toán thành công!' });
+      // Reset form về trạng thái trống ban đầu
+      setDetails([{ item_id: '', debit_account_code: '152', credit_account_code: '331', quantity: 1, unit_price: 0 }]);
+      setMaster({ ...master, voucher_number: '', description: '', partner_id: '' });
+    } else {
+      // Đọc thông báo lỗi từ Context trả về (Bao gồm lỗi chặn số dư đầu kỳ hoặc lỗi Zod)
+      setMessage({ type: 'error', text: result.error || 'Có lỗi xảy ra khi lưu phiếu kho!' });
     }
+    setLoading(false);
   };
 
   return (
-    // ✅ GIAO DIỆN MÀU TRẮNG SÁNG: Phù hợp với Cấu hình hệ thống của bạn
     <div className="p-6 max-w-6xl mx-auto bg-white text-slate-800 rounded-lg shadow-md border border-slate-100">
       <h2 className="text-2xl font-semibold mb-6 border-b border-slate-200 pb-3 text-slate-900 flex items-center">
         <span className="w-2 h-6 bg-emerald-500 rounded-full mr-3"></span>
@@ -137,12 +123,12 @@ export default function InventoryVoucherForm() {
 
       {message && (
         <div className={`p-4 mb-5 rounded border ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-          <span className="font-semibold">{message.type === 'success' ? '✓ Thành công:' : '⚠ Lỗi:'}</span> {message.text}
+          <span className="font-semibold">{message.type === 'success' ? '✓ Thành công:' : '⚠ Từ chối hệ thống:'}</span> {message.text}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* THÔNG TIN CHUNG (MASTER) - Sử dụng tông màu xám nhẹ của giao diện bạn */}
+        {/* THÔNG TIN CHUNG (MASTER) */}
         <div className="bg-slate-50 p-5 rounded-lg border border-slate-100 space-y-4">
           <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Thông tin chung chứng từ PN</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -165,7 +151,7 @@ export default function InventoryVoucherForm() {
           </div>
         </div>
 
-        {/* LƯỚI CHI TIẾT (DETAIL) - Sử dụng bảng trắng với viền xám nhẹ */}
+        {/* LƯỚI CHI TIẾT (DETAIL) */}
         <div>
           <h3 className="text-lg font-semibold mb-3 text-slate-800">Chi tiết vật tư & hạch toán</h3>
           <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -210,7 +196,6 @@ export default function InventoryVoucherForm() {
                   </tr>
                 ))}
               </tbody>
-              {/* ✅ Hiển thị tổng tiền ở cuối bảng */}
               <tfoot>
                 <tr className="bg-slate-50/50 font-semibold border-t border-slate-200">
                   <td colSpan="5" className="p-3 text-right text-slate-600 uppercase text-xs tracking-wider">Tổng giá trị phiếu nhập kho:</td>
@@ -221,13 +206,12 @@ export default function InventoryVoucherForm() {
             </table>
           </div>
 
-          {/* ✅ Nút thêm dòng sử dụng màu xám nhẹ của giao diện bạn */}
           <button type="button" onClick={addDetailRow} className="mt-3 px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded font-medium border border-slate-200 transition-colors">
             + Thêm dòng vật tư hạch toán
           </button>
         </div>
 
-        {/* NÚT HOÀN TẤT - Sử dụng màu xanh lục (Emerald) làm điểm nhấn */}
+        {/* NÚT HOÀN TẤT */}
         <div className="flex justify-end pt-5 border-t border-slate-100">
           <button type="submit" disabled={loading} className="px-10 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold rounded-md shadow-sm transition-colors text-base">
             {loading ? 'Đang gửi dữ liệu...' : 'Lưu & Ghi Sổ Kế Toán'}

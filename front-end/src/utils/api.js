@@ -90,7 +90,7 @@ api.interceptors.response.use(
         } catch (refreshError) {
           isRefreshing = false;
           
-          // Khi cả HttpOnly Refresh Cookie cũng hết hạn (hoặc bị thu hồi) -> Lúc này mới ép đăng xuất
+          // When refresh token expires or is revoked, force clear local memory and logout
           setRAMToken(null);
           try {
             localStorage.removeItem('user');
@@ -115,8 +115,7 @@ api.interceptors.response.use(
       });
     }
 
-    // CHỈNH SỬA: Lỗi 403 (Forbidden) chỉ log ra hoặc để Component bắt lỗi render cảnh báo UI, 
-    // KHÔNG xóa phiên đăng xuất của user nữa.
+    // Lỗi 403 (Forbidden) chỉ log ra hoặc để Component bắt lỗi render cảnh báo UI
     if (status === 403) {
       console.warn('Tài khoản không có quyền truy cập tài nguyên hoặc chức năng này.');
     } else if (!error.response) {
@@ -127,18 +126,7 @@ api.interceptors.response.use(
   }
 );
 
-// ====================================================================
-// ✅ CÁC HÀM API BỔ SUNG: PHÂN HỆ QUẢN LÝ KHO & VẬT TƯ (MASTER-DETAIL)
-// ====================================================================
-
-/**
- * Gửi toàn bộ dữ liệu Phiếu Nhập / Xuất kho (Hạch toán đa dòng) lên Backend
- * @param {Object} voucherData - Bao gồm thông tin phiếu và mảng details
- */
-export const createInventoryVoucher = async (voucherData) => {
-  const response = await api.post('/api/inventory/vouchers', voucherData);
-  return response.data;
-};
-
-// Xuất bản instance làm mặc định cho các phân hệ cũ
+// ✅ XUẤT BẢN INSTANCE MẶC ĐỊNH
+// Toàn bộ các phân hệ bao gồm cả VoucherContext.jsx sẽ sử dụng instance này 
+// để tự động hưởng cơ chế Interceptor (Đính kèm token và Tự động refresh token ngầm)
 export default api;
