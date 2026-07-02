@@ -166,7 +166,7 @@ router.post('/logout', authenticate, async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(400).json({ error: 'Thiếu token.' });
     await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
-    res.clearCookie(REFRESH_COOKIE_NAME, { httpOnly: true });
+    res.clearCookie(REFRESH_COOKIE_NAME, cookieOptions);
     res.json({ success: true, message: 'Đăng xuất thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
