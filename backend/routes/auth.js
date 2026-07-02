@@ -1,7 +1,23 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { pool, REFRESH_TOKEN_EXPIRE_DAYS, REFRESH_COOKIE_NAME, cookieOptions, parseCookies, hashToken, createRefreshToken } from '../server.js';
+
+// ✅ CHỈNH SỬA: Tách biệt và lấy kết nối database gốc từ file config
+import { pool } from '../config/db.js';
+
+// ✅ CHỈNH SỬA: Chỉ lấy các hằng số phân phối cookie từ server.js
+import { REFRESH_TOKEN_EXPIRE_DAYS, REFRESH_COOKIE_NAME } from '../server.js';
+
+// ✅ CHỈNH SỬA: Gom các hàm băm token và cấu hình cookie về đúng file helpers chuyên dụng
+import { 
+  normalizeCompanyIds, 
+  syncUserCompanyLinks, 
+  cookieOptions, 
+  parseCookies, 
+  hashToken, 
+  createRefreshToken 
+} from '../services/helpers.js';
+
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
 import {
@@ -12,7 +28,6 @@ import {
   assignStaffSchema,
   assignCompanySchema,
 } from '../validators/index.js';
-import { normalizeCompanyIds, syncUserCompanyLinks } from '../services/helpers.js';
 
 const router = express.Router();
 
@@ -100,6 +115,7 @@ router.put('/preferences', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Làm mới Access Token thông qua HttpOnly Cookie Refresh Token
 router.post('/refresh', async (req, res) => {
   try {
     const cookies = parseCookies(req.headers.cookie || '');

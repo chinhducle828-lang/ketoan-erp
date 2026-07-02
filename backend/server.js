@@ -1,12 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser'; // Đã gài thêm để xử lý Refresh Token cookie bảo mật cao
+import cookieParser from 'cookie-parser'; // Xử lý Refresh Token cookie bảo mật cao
 import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs'; // Thêm để đọc file SQL hạch toán
+import fs from 'fs'; // Đọc file SQL hạch toán
 import { fileURLToPath } from 'url';
-// CHỈNH LẠI DÒNG NÀY (Đổi từ './config/db.js' sang './db.js')
-import { pool } from './db.js';
+
+// ✅ ĐÃ SỬA: Trỏ đúng vào thư mục con /config/ để Node.js tìm thấy file cấu hình PG Pool
+import { pool } from './config/db.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -41,7 +42,7 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
-    // ĐỌC VÀ THỰC THI SCRIPT TỪ SCHEMA.SQL (Sạch sẽ, xuôi chiều)
+    // ĐỌC VÀ THỰC THI SCRIPT TỪ SCHEMA.SQL
     const schemaPath = path.join(__dirname, 'schema.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
@@ -55,7 +56,7 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
   }
 })();
 
-// Import các routes cũ của bạn
+// Import các routes cũ
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { companiesRouter } from './routes/companies.js';
@@ -66,7 +67,7 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js';
 
-// --- ĐOẠN THÊM MỚI: Import phân hệ Đối tác (Partners) ---
+// Import phân hệ Đối tác (Partners)
 import { partnerRouter } from './routes/partnerRoute.js'; 
 
 // Mount các routes cũ
@@ -80,7 +81,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/import', importRouter);
 
-// --- ĐOẠN THÊM MỚI: Mount phân hệ Đối tác vào hệ thống ---
+// Mount phân hệ Đối tác vào hệ thống
 app.use('/api/partners', partnerRouter); 
 
 // Health check

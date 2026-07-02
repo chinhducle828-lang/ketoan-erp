@@ -1,5 +1,5 @@
 import express from 'express';
-import { pool } from '../server.js';
+import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate, createVoucherSchema } from '../middleware/validation.js';
 import { canAccessCompany } from '../services/helpers.js';

@@ -1,5 +1,5 @@
 import express from 'express';
-import { pool } from '../server.js';
+import { pool } from '../config/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { cacheMiddleware } from '../cache/redis.js';

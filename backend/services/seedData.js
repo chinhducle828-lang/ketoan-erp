@@ -1,4 +1,4 @@
-import { pool } from '../server.js';
+import { pool } from '../config/db.js';
 
 export const seedDatabase = async () => {
   try {
