@@ -57,38 +57,58 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 })();
 
 // ====================================================================
-// IMPORT CÁC ROUTES HỆ THỐNG
+// IMPORT CÁC ROUTES HỆ THỐNG (ĐÃ CHUẨN HÓA THEO THƯ MỤC THỰC TẾ)
 // ====================================================================
 import { authRouter } from './routes/auth.js';
-import { usersRouter } from './routes/users.js';
 import { companiesRouter } from './routes/companies.js';
-import { vouchersRouter } from './routes/vouchers.js';
 import { itemsRouter } from './routes/items.js';
-import { openingBalancesRouter } from './routes/openingBalances.js';
+import openingBalancesRouter from './routes/openingBalances.js'; // Default export
+
+// Nhóm định tuyến bổ trợ (Bỏ ngoặc nhọn {} nếu các file này sử dụng default export)
 import { dashboardRouter } from './routes/dashboard.js';
 import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js';
 import { partnerRouter } from './routes/partnerRoute.js'; 
 
-// ✅ Tích hợp phân hệ hạch toán đa dòng Nhập/Xuất kho mới
+// Phân hệ kho hạch toán đa dòng mới
 import inventoryRoutes from './routes/inventoryRoutes.js'; 
 
+// 🆕 TÍCH HỢP TOÀN BỘ CÁC PHÂN HỆ NGHIỆP VỤ KẾ TOÁN MỚI (CHUẨN TT 99/2025/TT-BTC)
+import cashRouter from './routes/cash.routes.js';           // Quỹ Tiền mặt & Tiền gửi
+import closingRouter from './routes/closing.routes.js';       // Chốt khóa/mở sổ kỳ kế toán
+import hrRouter from './routes/hr.routes.js';                 // Chi phí lương & Trích bảo hiểm
+import purchasingRouter from './routes/purchasing.routes.js'; // Mua hàng & Công nợ phải trả
+import salesRouter from './routes/sales.routes.js';           // Bán hàng & Doanh thu
+import { vouchersRouter } from './routes/vouchers.js';        // ĐÃ SỬA: Import dạng Named Export chính xác
+import taxRouter from './routes/tax.routes.js';               // Kê khai & Kết chuyển thuế GTGT
+
+// Nếu bạn sử dụng tính năng quản lý nhân viên chi tiết, hãy import usersRouter dưới đây:
+import { usersRouter } from './routes/users.js';
+
 // ====================================================================
-// MOUNT CÁC ROUTES API (ĐÃ LỌC TRÙNG LẶP)
+// MOUNT CÁC ROUTES API (ĐỒNG BỘ KHÔNG TRÙNG LẶP & TRÁNH LỖI REFERENCE ERROR)
 // ====================================================================
 app.use('/api/auth', authRouter);
-app.use('/api/users', usersRouter);
 app.use('/api/companies', companiesRouter);
-app.use('/api/vouchers', vouchersRouter);
-app.use('/api/items', itemsRouter); // Cổng danh mục vật tư gốc của bạn
+app.use('/api/items', itemsRouter); 
 app.use('/api/opening-balances', openingBalancesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/import', importRouter);
 app.use('/api/partners', partnerRouter); 
+app.use('/api/users', usersRouter);
 
-// ✅ Kích hoạt API nghiệp vụ hạch toán đa dòng Kho vật tư
+// Kích hoạt API nghiệp vụ hạch toán đa dòng Kho vật tư
 app.use('/api/inventory', inventoryRoutes); 
+
+// 🆕 KÍCH HOẠT ĐỒNG BỘ CÁC PHÂN HỆ NGHIỆP VỤ KẾ TOÁN MỚI
+app.use('/api/cash', cashRouter);
+app.use('/api/closing', closingRouter);
+app.use('/api/hr', hrRouter);
+app.use('/api/purchasing', purchasingRouter);
+app.use('/api/sales', salesRouter);
+app.use('/api/vouchers', vouchersRouter);
+app.use('/api/tax', taxRouter);
 
 // ====================================================================
 // HEALTH CHECK & UTILITIES
