@@ -32,7 +32,6 @@ const subscribeTokenRefresh = (cb) => {
   refreshSubscribers.push(cb);
 };
 
-// Sửa lỗi chính tả từ onRrefreshed thành onRefreshed
 const onRefreshed = (token) => {
   refreshSubscribers.forEach((cb) => cb(token));
   refreshSubscribers = [];
@@ -44,9 +43,10 @@ const refreshAccessToken = async () => {
     headers: { Accept: 'application/json' }
   });
   
-  const newToken = refreshRes.data?.accessToken;
+  // Hỗ trợ cả 2 định dạng trả về phổ biến của Backend (Phẳng hoặc bọc trong data)
+  const newToken = refreshRes.data?.accessToken || refreshRes.data?.data?.accessToken;
+  
   if (newToken) {
-    // ĐÃ SỬA: Nạp vào RAM, tuyệt đối KHÔNG đưa vào localStorage nữa
     setRAMToken(newToken);
   }
   return newToken;
@@ -55,7 +55,6 @@ const refreshAccessToken = async () => {
 // Global request handler: Tự động đính kèm token bảo mật từ RAM vào Header
 api.interceptors.request.use(
   (config) => {
-    // ĐÃ SỬA: Lấy từ RAM (Biến tạm) thay vì localStorage
     const token = inMemoryAccessToken;
     if (token) {
       config.headers = config.headers || {};
@@ -78,7 +77,7 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const originalRequest = error.config;
 
-    // Chặn mã lỗi 401 (hoặc 419 tùy Backend của bạn) khi Token trên RAM hết hạn
+    // Chặn mã lỗi 401 hoặc 419 khi Access Token trên RAM hết hạn hoặc bị hủy do F5 reload trang
     if ((status === 401 || status === 419) && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -91,11 +90,14 @@ api.interceptors.response.use(
         } catch (refreshError) {
           isRefreshing = false;
           
-          // Nếu Cookie 7 ngày cũng hết hạn -> Xóa RAM và dọn sạch session cũ
+          // Khi cả HttpOnly Refresh Cookie cũng hết hạn (hoặc bị thu hồi) -> Lúc này mới ép đăng xuất
           setRAMToken(null);
           try {
             localStorage.removeItem('user');
             localStorage.removeItem('activeCompany');
+            
+            // Tùy chọn: Tự động chuyển hướng về trang login nếu cần
+            // window.location.href = '/login';
           } catch (e) {
             console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
           }
@@ -116,20 +118,16 @@ api.interceptors.response.use(
       });
     }
 
-    // Xử lý khi lỗi phân quyền chéo 403
+    // CHỈNH SỬA: Lỗi 403 (Forbidden) chỉ log ra hoặc để Component bắt lỗi render cảnh báo UI, 
+    // KHÔNG xóa phiên đăng xuất của user nữa.
     if (status === 403) {
-      try {
-        setRAMToken(null); // Xóa sạch Token khỏi RAM ngay lập tức để bảo vệ hệ thống
-        localStorage.removeItem('user');
-        localStorage.removeItem('activeCompany');
-      } catch (e) {
-        console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
-      }
+      console.warn('Tài khoản không có quyền truy cập tài nguyên hoặc chức năng này.');
     } else if (!error.response) {
       console.error('Network or CORS error calling API:', error.message || error);
     }
+    
     return Promise.reject(error);
   }
 );
 
-export default api;
+export default api; 
