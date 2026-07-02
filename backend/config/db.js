@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Cấu hình đường dẫn tuyệt đối cho file .env để đảm bảo đọc đúng các biến DB_*
+// ✅ ĐÃ SỬA: Dùng path.resolve và '../.env' để đi ra ngoài thư mục config/, tìm đúng file .env ở gốc backend/
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Khởi tạo database Pool linh hoạt gộp/rời (Giữ nguyên logic gốc của bạn)
 export const pool = process.env.DATABASE_URL
