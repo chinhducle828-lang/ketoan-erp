@@ -1,370 +1,410 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useVouchers } from '../../context/VoucherContext.jsx';
+import { calculateBalances } from '../../utils/accountingEngine'; 
+import { Save, Plus, Trash2, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { CHART_OF_ACCOUNTS } from '../../utils/constants.js';
-import api from '../../utils/api.js';
-import { usePersistentState } from '../../utils/persistence.js';
-import { Coins, Save, Loader2, AlertTriangle, CheckCircle, Trash2, Lock, Unlock } from 'lucide-react';
-import ExportExcelButton from '../../components/ExportExcelButton.jsx';
-import ImportExcelButton from '../../components/ImportExcelButton.jsx';
+
+// Từ điển danh mục tài khoản chuẩn phục vụ hiển thị tên gọi
+const ACCOUNT_DICTIONARY = {
+  '111': 'Tiền mặt',
+  '112': 'Tiền gửi Ngân hàng',
+  '131': 'Phải thu của khách hàng (Lưỡng tính)',
+  '138': 'Phải thu khác (Lưỡng tính)',
+  '152': 'Nguyên liệu, vật liệu',
+  '153': 'Công cụ, dụng cụ',
+  '156': 'Hàng hóa',
+  '211': 'Tài sản cố định hữu hình',
+  '214': 'Hao mòn tài sản cố định (Ghi âm)',
+  '215': 'Tài sản sinh học',
+  '331': 'Phải trả cho người bán (Lưỡng tính)',
+  '333': 'Thuế và các khoản phải nộp Nhà nước',
+  '334': 'Phải trả người lao động (Lưỡng tính)',
+  '338': 'Phải trả, phải nộp khác (Lưỡng tính)',
+  '411': 'Vốn đầu tư của chủ sở hữu',
+  '421': 'Lợi nhuận sau thuế chưa phân phối'
+};
+
+// Định nghĩa danh sách các tài khoản có tính chất lưỡng tính
+const DUAL_NATURE_ACCOUNTS = ['131', '138', '331', '334', '338'];
 
 export default function OpeningBalances() {
-  const { activeCompany, user } = useAuth(); // Lấy thêm thông tin user hiện tại để check quyền UI
-  const companyIdStr = activeCompany?.id ?? activeCompany ?? 'default';
-  const [balances, setBalances] = usePersistentState(`opening-balances-form-${companyIdStr}`, {});
+  const { vouchers, fetchVouchers } = useVouchers();
+  const { fiscalYear } = useAuth(); 
   
-  const [saving, setSaving] = useState(false);
-  const [isLocked, setIsLocked] = useState(false); // 🔥 QUẢN LÝ TRẠNG THÁI KHÓA SỔ
-  const [togglingLock, setTogglingLock] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const currentCompanyId = vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
+  const defaultCodes = ['111', '112', '131', '152', '156', '211', '214', '215', '331', '333', '334', '411', '421'];
   
-  const saveTimerRef = useRef(null);
-  const balancesRef = useRef(balances);
-  
-  useEffect(() => {
-    balancesRef.current = balances;
-  }, [balances]);
+  const [activeAccountCodes, setActiveAccountCodes] = useState(defaultCodes);
+  const [balances, setBalances] = useState({});
+  const [selectedNewCode, setSelectedNewCode] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // 1. Tải số dư đầu kỳ kèm trạng thái khóa sổ khi chuyển đổi doanh nghiệp
-  useEffect(() => {
-    if (activeCompany) {
-      loadOpeningBalances();
-    } else {
-      setBalances({});
-      setIsLocked(false);
+  // Hàm format hiển thị số tài chính: Số âm hoặc giảm trừ dạng (Số tiền)
+  const formatFinancialNumber = (num) => {
+    if (!num && num !== 0) return '0 đ';
+    const roundedNum = Math.round(num);
+    if (roundedNum < 0) {
+      return `(${Math.abs(roundedNum).toLocaleString('vi-VN')}) đ`;
     }
-  }, [activeCompany]);
-
-  const loadOpeningBalances = async () => {
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.get(`/api/opening-balances?company_id=${companyId}&year=2026`);
-      
-      const initial = {};
-      let lockedStatus = false;
-
-      if (res.data && res.data.length > 0) {
-        // Đọc trạng thái khóa sổ từ dòng ghi nhận đầu tiên trả về
-        lockedStatus = res.data[0].isLocked || false;
-
-        res.data.forEach(b => {
-          const code = b.accountCode || b.account_code;
-          const dr = b.debitBalance || b.debit_balance;
-          const cr = b.creditBalance || b.credit_balance;
-          
-          initial[code] = { 
-            dr: parseFloat(dr) || 0, 
-            cr: parseFloat(cr) || 0 
-          };
-        });
-      }
-      
-      setBalances(initial);
-      setIsLocked(lockedStatus);
-    } catch (err) { 
-      console.error('Không thể lấy số dư đầu kỳ:', err); 
-    }
+    return `${roundedNum.toLocaleString('vi-VN')} đ`;
   };
 
-  // 2. Tính toán động Tổng Nợ / Tổng Có
-  const totalDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.dr) || 0), 0);
-  const totalCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balances[acc.code]?.cr) || 0), 0);
-  const isBalanced = Math.abs(totalDr - totalCr) < 0.5;
+  // Đồng bộ số liệu từ database thông qua Accounting Engine
+  useEffect(() => {
+    if (vouchers && vouchers.length > 0) {
+      const ledger = calculateBalances(vouchers);
+      const initialBalances = {};
+      const foundCodes = [...defaultCodes];
 
-  // 3. Xử lý thay đổi input
-  const handleInputChange = (code, field, val) => {
-    if (isLocked) return; // Bảo vệ tầng UI chống can thiệp khi đã khóa
-    const numericValue = val === '' ? 0 : parseFloat(val);
+      Object.keys(ledger).forEach(code => {
+        if (ledger[code]?.openingDr > 0 || ledger[code]?.openingCr > 0) {
+          if (!foundCodes.includes(code)) foundCodes.push(code);
+        }
+      });
+
+      setActiveAccountCodes(foundCodes);
+
+      foundCodes.forEach(code => {
+        initialBalances[code] = {
+          dr: ledger[code]?.openingDr > 0 ? ledger[code].openingDr.toString() : '',
+          cr: ledger[code]?.openingCr > 0 ? ledger[code].openingCr.toString() : ''
+        };
+      });
+      setBalances(initialBalances);
+    } else {
+      const emptyBalances = {};
+      defaultCodes.forEach(code => {
+        emptyBalances[code] = { dr: '', cr: '' };
+      });
+      setBalances(emptyBalances);
+    }
+  }, [vouchers]);
+
+  const handleInputChange = (code, side, value) => {
     setBalances(prev => ({
       ...prev,
-      [code]: { 
-        ...(prev[code] || { dr: 0, cr: 0 }), 
-        [field]: numericValue 
+      [code]: {
+        ...prev[code],
+        [side]: value
       }
     }));
   };
 
-  // 4. Hàm lưu thủ công
-  const handleSave = async () => {
-    if (isLocked) return;
-    if (!isBalanced) {
-      alert(`❌ Không thể lưu số dư đầu kỳ!\nTổng Nợ (${totalDr.toLocaleString()} đ) đang lệch so với Tổng Có (${totalCr.toLocaleString()} đ).\nVui lòng kiểm tra và điều chỉnh lại bảng cân đối tài khoản.`);
+  const handleAddAccount = () => {
+    if (!selectedNewCode) return;
+    if (activeAccountCodes.includes(selectedNewCode)) {
+      setMessage('⚠️ Tài khoản này đã tồn tại trong danh sách nhập liệu!');
       return;
     }
+    setActiveAccountCodes(prev => [...prev, selectedNewCode]);
+    setBalances(prev => ({ ...prev, [selectedNewCode]: { dr: '', cr: '' } }));
+    setSelectedNewCode('');
+    setMessage('✓ Đã thêm tài khoản mới vào cấu trúc thành công.');
+  };
 
-    setSaving(true);
+  const handleRemoveAccount = (code) => {
+    if (defaultCodes.includes(code)) {
+      alert('Không thể xóa tài khoản mặc định thuộc cấu trúc báo cáo!');
+      return;
+    }
+    setActiveAccountCodes(prev => prev.filter(c => c !== code));
+    setBalances(prev => {
+      const updated = { ...prev };
+      delete updated[code];
+      return updated;
+    });
+  };
+
+  // PHÂN CHIA TÀI KHOẢN THEO ĐÚNG CẤU TRÚC 2 MẢNG LỚN - 4 NHÓM DANH MỤC CON
+  const financialStructure = useMemo(() => {
+    const assetShort = []; // Tài sản ngắn hạn (Đầu 1)
+    const assetLong = [];  // Tài sản dài hạn (Đầu 2)
+    const liabilities = []; // Nợ phải trả (Đầu 3)
+    const equity = [];      // Vốn chủ sở hữu (Đầu 4)
+
+    activeAccountCodes.forEach(code => {
+      const isDual = DUAL_NATURE_ACCOUNTS.includes(code);
+      const accountData = {
+        code,
+        name: ACCOUNT_DICTIONARY[code] || 'Tài khoản bổ sung',
+        isDual,
+        defaultSide: ['214', '331', '333', '334', '338', '411', '421'].includes(code) ? 'Có (CR)' : 'Nợ (DR)'
+      };
+
+      if (code.startsWith('1')) assetShort.push(accountData);
+      else if (code.startsWith('2')) assetLong.push(accountData);
+      else if (code.startsWith('3')) liabilities.push(accountData);
+      else if (code.startsWith('4')) equity.push(accountData);
+    });
+
+    const sortFn = (a, b) => a.code.localeCompare(b.code);
+    return {
+      assetShort: assetShort.sort(sortFn),
+      assetLong: assetLong.sort(sortFn),
+      liabilities: liabilities.sort(sortFn),
+      equity: equity.sort(sortFn),
+    };
+  }, [activeAccountCodes]);
+
+  // Kiểm tra tính cân đối tổng lực (Tổng Số dư Nợ = Tổng Số dư Có đầu kỳ)
+  const checkBalanceTotals = useMemo(() => {
+    let totalDr = 0;
+    let totalCr = 0;
+    Object.keys(balances).forEach(code => {
+      totalDr += parseFloat(balances[code]?.dr) || 0;
+      totalCr += parseFloat(balances[code]?.cr) || 0;
+    });
+    return {
+      totalDr,
+      totalCr,
+      isBalanced: Math.round(totalDr) === Math.round(totalCr)
+    };
+  }, [balances]);
+
+  const saveOpeningBalances = async () => {
+    if (!checkBalanceTotals.isBalanced) {
+      return setMessage('❌ Hệ thống từ chối lưu! Tổng số dư bên Nợ phải bằng Tổng số dư bên Có.');
+    }
+    setLoading(true);
+    setMessage('');
+
+    const flattenedBalances = {};
+    Object.keys(balances).forEach(code => {
+      const dr = Math.round(parseFloat(balances[code]?.dr) || 0);
+      const cr = Math.round(parseFloat(balances[code]?.cr) || 0);
+      
+      if (DUAL_NATURE_ACCOUNTS.includes(code)) {
+        if (dr > 0) flattenedBalances[`${code}_DR`] = dr;
+        if (cr > 0) flattenedBalances[`${code}_CR`] = cr;
+      } else {
+        const val = dr > 0 ? dr : cr;
+        if (val > 0) flattenedBalances[code] = val;
+      }
+    });
+
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.post('/api/opening-balances', { 
-        companyId, 
-        balances: balancesRef.current,
-        year: 2026
+      const response = await fetch('/api/vouchers/opening', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          companyId: currentCompanyId, 
+          year: fiscalYear || 2026, 
+          balances: flattenedBalances,
+          isAdvancedStructure: true 
+        })
       });
-      if (res.data?.success) {
-        setLastSavedAt(new Date().toISOString());
-        alert('Lưu bảng cân đối số dư đầu kỳ thành công!');
+      const result = await response.json();
+      if (result.success) {
+        setMessage('🎉 Đã cập nhật và lưu trữ số dư đầu kỳ thành công!');
+        if (fetchVouchers) fetchVouchers();
+      } else {
+        setMessage(`❌ Lỗi: ${result.error}`);
       }
     } catch (err) { 
-      alert(err.response?.data?.error || 'Lỗi hệ thống khi lưu số dư!'); 
-    } finally {
-      setSaving(false);
+      setMessage('⚠️ Lỗi kết nối máy chủ dữ liệu.'); 
+    } finally { 
+      setLoading(false); 
     }
   };
 
-  // 5. Hàm xóa hết làm lại
-  const handleResetBalances = () => {
-    if (isLocked) return;
-    const confirmReset = window.confirm("⚠️ BẠN CÓ CHẮC CHẮN MUỐN XÓA SẠCH?\nHành động này sẽ đưa toàn bộ số dư đang nhập trên màn hình và LocalStorage về 0. Bạn sẽ phải nhập lại từ đầu.");
-    if (confirmReset) {
-      setBalances({});
-    }
-  };
+  // Hàm render dùng chung cho từng tiểu mục bảng
+  const renderSubsectionTable = (accounts, title, codeColor) => (
+    <div className="mb-4 last:mb-0">
+      <div className="bg-slate-50/60 px-3 py-1.5 border-b border-slate-100 flex items-center gap-1.5">
+        <Folder size={12} className="text-slate-400" />
+        <span className="font-bold text-[11px] uppercase tracking-wider text-slate-500">{title}</span>
+      </div>
+      <table className="w-full text-left border-collapse text-xs">
+        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+          {accounts.map(acc => {
+            const hasCrValue = parseFloat(balances[acc.code]?.cr) > 0;
+            // Áp dụng định dạng ngoặc đơn (hao mòn) cho TK 214 hoặc tài khoản phát sinh Có thuộc mảng Tài sản
+            const useParenthesesForCr = acc.code === '214' || (acc.code.startsWith('1') || acc.code.startsWith('2') ? hasCrValue : false);
 
-  // 🔥 5.2. Hàm xử lý Khóa / Mở khóa sổ đầu kỳ
-  const handleToggleLock = async () => {
-    if (!isLocked && !isBalanced) {
-      alert("❌ Bảng cân đối đang bị lệch vế Nợ/Có. Không thể khóa sổ dữ liệu rác!");
-      return;
-    }
+            return (
+              <tr key={acc.code} className="hover:bg-slate-50/30 transition">
+                <td className={`p-3 w-16 font-mono font-bold ${codeColor}`}>{acc.code}</td>
+                <td className="p-3 text-slate-600 font-semibold truncate max-w-[140px] md:max-w-none" title={acc.name}>{acc.name}</td>
+                
+                {/* Dư Nợ */}
+                <td className="p-2 w-32">
+                  {(acc.isDual || acc.defaultSide === 'Có (CR)' === false) ? (
+                    <input 
+                      type="number" 
+                      placeholder="0"
+                      value={balances[acc.code]?.dr || ''}
+                      onChange={e => handleInputChange(acc.code, 'dr', e.target.value)}
+                      className="w-full p-1.5 text-right bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:border-sky-500 font-mono font-bold text-blue-700 text-xs"
+                    />
+                  ) : (
+                    <div className="text-right text-slate-300 pr-4 font-mono select-none">-</div>
+                  )}
+                </td>
 
-    const nextStatus = !isLocked;
-    const message = nextStatus 
-      ? "Bạn có chắc chắn muốn KHÓA SỔ đầu kỳ năm 2026?\nSau khi khóa, toàn bộ thao tác sửa đổi hoặc nhập liệu sẽ bị chặn cứng." 
-      : "Bạn có chắc chắn muốn MỞ KHÓA SỔ đầu kỳ năm 2026?";
+                {/* Dư Có */}
+                <td className="p-2 w-32">
+                  {(acc.isDual || acc.defaultSide === 'Có (CR)' || acc.code === '214') ? (
+                    <input 
+                      type="number" 
+                      placeholder={useParenthesesForCr ? "(0)" : "0"}
+                      value={balances[acc.code]?.cr || ''}
+                      onChange={e => handleInputChange(acc.code, 'cr', e.target.value)}
+                      className={`w-full p-1.5 text-right bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:border-amber-500 font-mono font-bold text-xs ${
+                        useParenthesesForCr ? 'text-rose-600 border-rose-100 bg-rose-50/20' : 'text-amber-700'
+                      }`}
+                    />
+                  ) : (
+                    <div className="text-right text-slate-300 pr-4 font-mono select-none">-</div>
+                  )}
+                </td>
 
-    if (!window.confirm(message)) return;
-
-    setTogglingLock(true);
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.patch('/api/opening-balances/toggle-lock', {
-        companyId,
-        year: 2026,
-        lockStatus: nextStatus
-      });
-
-      if (res.data?.success) {
-        setIsLocked(nextStatus);
-        alert(res.data.message);
-      }
-    } catch (err) {
-      alert(err.response?.data?.error || 'Không thể thực hiện thay đổi trạng thái khóa sổ!');
-    } finally {
-      setTogglingLock(false);
-    }
-  };
-
-  // 6. Cơ chế Auto-save (Chỉ chạy khi chưa khóa và đã cân)
-  useEffect(() => {
-    if (isLocked || !activeCompany || Object.keys(balances).length === 0 || !isBalanced) return;
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        setSaving(true);
-        const companyId = activeCompany?.id ?? activeCompany;
-        const res = await api.post('/api/opening-balances', { 
-          companyId, 
-          balances: balancesRef.current,
-          year: 2026
-        });
-        if (res.data?.success) {
-          setLastSavedAt(new Date().toISOString());
-        }
-      } catch (err) {
-        console.error('Auto-save số dư đầu kỳ thất bại:', err);
-      } finally {
-        setSaving(false);
-      }
-    }, 2500);
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [balances, activeCompany, isBalanced, isLocked]);
-
-  // 7. Đồng bộ cưỡng bức dữ liệu khi đóng tab đột ngột
-  useEffect(() => {
-    const handler = () => {
-      if (isLocked || !activeCompany || Object.keys(balancesRef.current).length === 0) return;
-      
-      const currentDr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.dr) || 0), 0);
-      const currentCr = CHART_OF_ACCOUNTS.reduce((sum, acc) => sum + (parseFloat(balancesRef.current[acc.code]?.cr) || 0), 0);
-      if (Math.abs(currentDr - currentCr) > 0.5) return; 
-
-      try {
-        const companyId = activeCompany?.id ?? activeCompany;
-        const token = localStorage.getItem('token');
-        fetch('/api/opening-balances', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : ''
-          },
-          body: JSON.stringify({ companyId, balances: balancesRef.current, year: 2026 }),
-          keepalive: true
-        });
-      } catch (e) {
-        console.error('Failed to flush opening balances on unload', e);
-      }
-    };
-
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [activeCompany, isLocked]);
+                {/* Xóa TK thủ công */}
+                <td className="p-3 w-8 text-center">
+                  {!defaultCodes.includes(acc.code) && (
+                    <button onClick={() => handleRemoveAccount(acc.code)} className="text-slate-300 hover:text-rose-600 transition">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between border-b pb-4">
-        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-          <Coins className="text-amber-500" size={24} /> 
-          KHAI BÁO SỐ DƯ ĐẦU KỲ HỆ THỐNG TÀI KHOẢN TT200
-          {isLocked && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md text-[10px] font-black border border-rose-200 ml-2 flex items-center gap-1"><Lock size={10}/> ĐÃ KHÓA SỔ</span>}
-        </h1>
-        <div className="flex items-center gap-2">
-          <ExportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Xuất Excel" />
-          {!isLocked && <ImportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Nhập Excel" />}
-          
-          {!isLocked && (
-            <button 
-              onClick={handleResetBalances}
-              type="button"
-              className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
-            >
-              <Trash2 size={14} />
-              Xóa hết làm lại
-            </button>
-          )}
-
-          {/* 🔥 NÚT KHÓA / MỞ KHÓA SỔ ĐẦU KỲ (Ưu tiên vai trò admin, accountant) */}
-          {['admin', 'accountant'].includes(user?.role) && (
-            <button
-              onClick={handleToggleLock}
-              disabled={togglingLock}
-              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border shadow-sm ${isLocked ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' : 'bg-slate-800 hover:bg-slate-900 text-white'}`}
-            >
-              {togglingLock ? <Loader2 size={14} className="animate-spin" /> : isLocked ? <Unlock size={14} /> : <Lock size={14} />}
-              {isLocked ? 'Mở khóa số liệu' : 'Phê duyệt & Khóa sổ'}
-            </button>
-          )}
-
-          <button 
-            onClick={handleSave} 
-            disabled={saving || isLocked}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition"
+    <div className="space-y-6 pb-12 max-w-7xl mx-auto p-4">
+      {/* Tiêu đề điều hướng */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-4">
+        <div>
+          <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+            <Layers className="text-sky-600" size={20} />
+            Khai báo Số dư đầu kỳ — Năm {fiscalYear || 2026}
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">Sắp xếp phân nhóm Báo cáo tài chính (Tài sản ngắn/dài hạn & Nợ phải trả/Vốn chủ sở hữu)</p>
+        </div>
+        
+        {/* Chọn thêm tài khoản thủ công */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <select 
+            value={selectedNewCode}
+            onChange={e => setSelectedNewCode(e.target.value)}
+            className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:border-sky-500 flex-1 md:w-64"
           >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
-            Lưu số dư đầu kỳ
+            <option value="">-- Thêm tài khoản thủ công --</option>
+            <option value="138">138 - Phải thu khác (Tài sản ngắn hạn)</option>
+            <option value="153">153 - Công cụ, dụng cụ (Tài sản ngắn hạn)</option>
+            <option value="338">338 - Phải trả khác (Nợ phải trả)</option>
+          </select>
+          <button
+            onClick={handleAddAccount}
+            className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1 transition shadow-sm"
+          >
+            <Plus size={14} /> Thêm
           </button>
         </div>
       </div>
 
-      {/* BANNER THÔNG BÁO TRẠNG THÁI */}
-      <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold shadow-sm transition-all duration-300 ${isLocked ? 'bg-amber-50 border-amber-200 text-amber-800' : isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-        {isLocked ? (
-          <>
-            <Lock className="text-amber-600 flex-shrink-0 animate-pulse" size={20} />
-            <div>
-              <p className="uppercase text-[11px] tracking-wider">Hệ thống đã chốt sổ thành công</p>
-              <p className="text-slate-500 font-normal mt-0.5">Số liệu đang nằm ở trạng thái Đọc duy nhất (Read-only). Vui lòng liên hệ Kế toán trưởng nếu cần điều chỉnh.</p>
-            </div>
-          </>
-        ) : isBalanced ? (
-          <>
-            <CheckCircle className="text-emerald-600 flex-shrink-0" size={20} />
-            <div>
-              <p className="uppercase text-[11px] tracking-wider">Trạng thái: Bảng cân đối hợp lệ</p>
-              <p className="text-slate-500 font-normal mt-0.5">Tổng vế Nợ và vế Có đầu kỳ hoàn toàn khớp nhau. Hệ thống đã mở quyền tự động sao lưu dữ liệu.</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <AlertTriangle className="text-rose-600 flex-shrink-0 animate-bounce" size={20} />
-            <div>
-              <p className="uppercase text-[11px] tracking-wider">Cảnh báo: Bảng số dư mất cân đối (Lệch: {Math.abs(totalDr - totalCr).toLocaleString()} đ)</p>
-              <p className="text-slate-500 font-normal mt-0.5">Tổng Nợ đang khác Tổng Có. Hệ thống tạm dừng tính năng Auto-save để bảo vệ tính chính xác của sổ sách kế toán.</p>
-            </div>
-          </>
-        )}
+      {message && (
+        <div className={`p-4 rounded-xl text-xs font-semibold border ${
+          message.startsWith('🎉') || message.startsWith('✓')
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+            : 'bg-rose-50 text-rose-700 border-rose-100'
+        }`}>
+          {message}
+        </div>
+      )}
+
+      {/* BẢNG CHIA THEO HAI MẢNG LỚN: TÀI SẢN & VỐN (NGUỒN VỐN) */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        
+        {/* MẢNG 1: TÀI SẢN */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-slate-800 text-white px-4 py-3 flex justify-between items-center">
+            <span className="font-black text-xs uppercase tracking-wider">A. TÀI SẢN</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-white/20 rounded">Mã đầu 1 & 2</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs border-b border-slate-100">
+              <thead>
+                <tr className="bg-slate-100 text-slate-500 uppercase font-bold text-[10px]">
+                  <th className="p-3 w-16">Mã TK</th>
+                  <th className="p-3">Tên tài khoản kế toán</th>
+                  <th className="p-3 w-32 text-right">Số dư Nợ (DR)</th>
+                  <th className="p-3 w-32 text-right">Số dư Có (CR)</th>
+                  <th className="p-3 w-8 text-center"></th>
+                </tr>
+              </thead>
+            </table>
+            {renderSubsectionTable(financialStructure.assetShort, "I. Tài sản ngắn hạn", "text-blue-600")}
+            {renderSubsectionTable(financialStructure.assetLong, "II. Tài sản dài hạn", "text-indigo-600")}
+          </div>
+        </div>
+
+        {/* MẢNG 2: VỐN (NGUỒN VỐN) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-slate-800 text-white px-4 py-3 flex justify-between items-center">
+            <span className="font-black text-xs uppercase tracking-wider">B. NGUỒN VỐN</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-white/20 rounded">Mã đầu 3 & 4</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs border-b border-slate-100">
+              <thead>
+                <tr className="bg-slate-100 text-slate-500 uppercase font-bold text-[10px]">
+                  <th className="p-3 w-16">Mã TK</th>
+                  <th className="p-3">Tên tài khoản kế toán</th>
+                  <th className="p-3 w-32 text-right">Số dư Nợ (DR)</th>
+                  <th className="p-3 w-32 text-right">Số dư Có (CR)</th>
+                  <th className="p-3 w-8 text-center"></th>
+                </tr>
+              </thead>
+            </table>
+            {renderSubsectionTable(financialStructure.liabilities, "I. Nợ phải trả", "text-amber-600")}
+            {renderSubsectionTable(financialStructure.equity, "II. Vốn chủ sở hữu", "text-emerald-600")}
+          </div>
+        </div>
+
       </div>
 
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 font-bold border-b text-slate-500">
-                <th className="p-3 w-32">Mã tài khoản</th>
-                <th className="p-3">Tên tài khoản thông tư</th>
-                <th className="p-3 text-center w-48">Dư Nợ đầu kỳ (VND)</th>
-                <th className="p-3 text-center w-48">Dư Có đầu kỳ (VND)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              <tr className="bg-slate-50/50">
-                <td colSpan={4} className="text-xs p-2.5 text-right font-medium text-slate-500">
-                  {saving ? (
-                    <span className="text-amber-600 flex items-center justify-end gap-1 font-bold animate-pulse">
-                      <Loader2 size={12} className="animate-spin" /> Hệ thống đang tự động đồng bộ số dư...
-                    </span>
-                  ) : lastSavedAt ? (
-                    <span className="text-emerald-600 font-bold">
-                      ✓ Đã đồng bộ lên Cloud lúc: {new Date(lastSavedAt).toLocaleTimeString()}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">Chưa có thay đổi mới</span>
-                  )}
-                </td>
-              </tr>
-
-              {CHART_OF_ACCOUNTS.map(acc => {
-                // Vô hiệu hóa input nếu thuộc nhóm đầu 5-9 HOẶC sổ đã bị khóa
-                const isInputDisabled = isLocked || ['5', '6', '7', '8', '9'].includes(acc.code[0]);
-                const isRowMuted = ['5', '6', '7', '8', '9'].includes(acc.code[0]);
-
-                return (
-                  <tr key={acc.code} className={`hover:bg-slate-50/40 transition ${isRowMuted ? 'bg-slate-100/60 opacity-60' : ''} ${isLocked ? 'bg-slate-50/20' : ''}`}>
-                    <td className="p-3 font-mono font-bold text-slate-600">{acc.code}</td>
-                    <td className="p-3 text-slate-700 font-semibold">
-                      {acc.name} {isRowMuted && <span className="text-[10px] text-slate-400 font-normal italic ml-1">(Không có số dư)</span>}
-                    </td>
-                    <td className="p-3">
-                      <input 
-                        type="number" 
-                        placeholder={isRowMuted ? "X" : "0"} 
-                        disabled={isInputDisabled}
-                        value={isRowMuted ? '' : (balances[acc.code]?.dr || '')} 
-                        onChange={e => handleInputChange(acc.code, 'dr', e.target.value)} 
-                        className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input 
-                        type="number" 
-                        placeholder={isRowMuted ? "X" : "0"} 
-                        disabled={isInputDisabled}
-                        value={isRowMuted ? '' : (balances[acc.code]?.cr || '')} 
-                        onChange={e => handleInputChange(acc.code, 'cr', e.target.value)} 
-                        className="w-full p-2 bg-slate-50/80 border rounded-lg font-mono text-right font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition disabled:bg-slate-200/60 disabled:cursor-not-allowed" 
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-100 font-black border-t-2 border-slate-300 text-slate-800 shadow-[inset_0_2px_0_rgba(0,0,0,0.05)]">
-                <td className="p-3.5 text-right font-black" colSpan={2}>
-                  TỔNG CỘNG CÂN ĐỐI SỐ DƯ ĐẦU KỲ:
-                </td>
-                <td className={`p-3.5 text-right font-mono text-sm tracking-wide ${isBalanced ? 'text-blue-700' : 'text-rose-600'}`}>
-                  {totalDr.toLocaleString()} đ
-                </td>
-                <td className={`p-3.5 text-right font-mono text-sm tracking-wide ${isBalanced ? 'text-emerald-700' : 'text-rose-600'}`}>
-                  {totalCr.toLocaleString()} đ
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+      {/* ĐỐI CHIẾU CÂN ĐỐI TỔNG LỰC */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tổng số dư Nợ (Tổng DR)</span>
+          <h3 className="text-base font-black text-blue-700 mt-0.5">{formatFinancialNumber(checkBalanceTotals.totalDr)}</h3>
+        </div>
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tổng số dư Có (Tổng CR)</span>
+          <h3 className="text-base font-black text-amber-700 mt-0.5">{formatFinancialNumber(checkBalanceTotals.totalCr)}</h3>
+        </div>
+        <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+          checkBalanceTotals.isBalanced 
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
+            : 'bg-rose-50 border-rose-100 text-rose-800'
+        }`}>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider block opacity-70">Đối chiếu cân đối hạch toán</span>
+            <span className="text-xs font-black flex items-center gap-1 mt-0.5 font-mono">
+              {checkBalanceTotals.isBalanced ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+              {checkBalanceTotals.isBalanced 
+                ? 'CÂN ĐỐI HOÀN HẢO' 
+                : `LỆCH: ${formatFinancialNumber(Math.abs(checkBalanceTotals.totalDr - checkBalanceTotals.totalCr))}`
+              }
+            </span>
+          </div>
+          <button
+            onClick={saveOpeningBalances}
+            disabled={loading || !checkBalanceTotals.isBalanced}
+            className={`font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition shadow-sm ${
+              checkBalanceTotals.isBalanced 
+                ? 'bg-sky-600 hover:bg-sky-700 text-white' 
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Save size={14} /> {loading ? 'Đang lưu...' : 'Lưu số dư'}
+          </button>
         </div>
       </div>
     </div>

@@ -4,13 +4,15 @@ import { usePersistentState } from '../../utils/persistence.js';
 import { Plus } from 'lucide-react';
 
 export default function AddCompanyForm({ onRefresh }) {
-  const [form, setForm] = usePersistentState('add-company-form', { name: '', taxCode: '', address: '' });
+  // Đã sửa 'taxCode' thành 'tax_code' để đồng bộ dữ liệu chuẩn với backend và CompanyList
+  const [form, setForm] = usePersistentState('add-company-form', { name: '', tax_code: '', address: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await api.post('/api/companies', form);
-      setForm({ name: '', taxCode: '', address: '' });
+      // Đặt lại state form về rỗng sau khi thêm thành công
+      setForm({ name: '', tax_code: '', address: '' });
       onRefresh();
     } catch (err) {
       alert('Không thể thêm pháp nhân mới.');
@@ -33,8 +35,9 @@ export default function AddCompanyForm({ onRefresh }) {
           type="text" 
           required 
           placeholder="Mã số thuế pháp nhân..." 
-          value={form.taxCode}
-          onChange={e => setForm({...form, taxCode: e.target.value})}
+          // Cập nhật trường value và hàm onChange theo 'tax_code'
+          value={form.tax_code}
+          onChange={e => setForm({...form, tax_code: e.target.value})}
           className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none" 
         />
         <input 
@@ -51,5 +54,3 @@ export default function AddCompanyForm({ onRefresh }) {
     </form>
   );
 }
-
-// AddCompanyForm.jsx 
