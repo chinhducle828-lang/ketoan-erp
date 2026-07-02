@@ -72,7 +72,8 @@ export default function App() {
                           element={
                             <CompanyRouteWrapper 
                               component={mod.component} 
-                              requiresActiveCompany={mod.requiresActiveCompany} 
+                              requiresActiveCompany={mod.requiresActiveCompany}
+                              moduleId={mod.id}
                             />
                           }
                         />
