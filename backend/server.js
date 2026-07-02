@@ -1,21 +1,21 @@
 import express from 'express';
 import cors from 'cors';
-import pg from 'pg';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+import cookieParser from 'cookie-parser'; // Đã gài thêm để xử lý Refresh Token cookie bảo mật cao
 import dotenv from 'dotenv';
-import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs'; // Thêm để đọc file SQL hạch toán
 import { fileURLToPath } from 'url';
+// CHỈNH LẠI DÒNG NÀY (Đổi từ './config/db.js' sang './db.js')
+import { pool } from './db.js';
 
-// Cấu hình đường dẫn tuyệt đối cho file .env (Để chạy local không lỗi thư mục)
+// Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
-// CORS configuration
+// CORS Configuration
 const rawFrontend = process.env.FRONTEND_URL || '';
 const allowedOrigins = rawFrontend.split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
@@ -25,159 +25,37 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('CORS policy: origin not allowed'));
   },
-  credentials: true,
+  credentials: true, // Cho phép trao đổi Token lai / Cookie bảo mật
 }));
+
 app.use(express.json());
+app.use(cookieParser()); // Bật cookie-parser để giải mã HttpOnly Cookie
 
 // Constants
 export const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30;
 export const REFRESH_COOKIE_NAME = 'refresh_token';
-export const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path: '/',
-  maxAge: REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000,
-};
 
-// --- ĐOẠN ĐÃ SỬA: Khởi tạo database Pool linh hoạt gộp/rời ---
-export const pool = process.env.DATABASE_URL
-  ? new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    })
-  : new pg.Pool({
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      database: process.env.DB_NAME,
-      ssl: false
-    });
-
-// --- ĐOẠN ĐÃ SỬA: Check cấu hình môi trường an toàn (Đã gộp & xoá đoạn cũ thừa) ---
-if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
-  console.error('ERROR: Chưa cấu hình Database! Vui lòng điền DATABASE_URL (Online) hoặc các biến DB_* (Local) vào file .env.');
-  process.exit(1);
-}
-
-// Utility functions
-export const parseCookies = (cookieHeader = '') => {
-  return cookieHeader.split(';').reduce((acc, cookie) => {
-    const [name, ...rest] = cookie.trim().split('=');
-    if (!name) return acc;
-    acc[name] = rest.join('=');
-    return acc;
-  }, {});
-};
-
-export const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
-};
-
-export const createRefreshToken = () => {
-  return crypto.randomBytes(64).toString('hex');
-};
-
-// Initialize database schema
+// Khởi tạo Database thông qua đọc file schema.sql bên ngoài
 (async () => {
   try {
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
-    // Create tables
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS companies (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        tax_code VARCHAR(50),
-        address TEXT
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role VARCHAR(50) NOT NULL,
-        must_change_password BOOLEAN DEFAULT false
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS user_companies (
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
-        PRIMARY KEY (user_id, company_id)
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL,
-        device_info TEXT,
-        ip_address TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-        expires_at TIMESTAMP WITH TIME ZONE
-      );
-    `);
-    
-    // Add columns if they don't exist
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false`);
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS company_ids INTEGER[] DEFAULT '{}'`);
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_ids INTEGER[] DEFAULT '{}'`);
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb`);
-    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS refresh_token TEXT`);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS items (
-        code VARCHAR(50) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        unit VARCHAR(50) NOT NULL,
-        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (code, company_id)
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS vouchers (
-        id SERIAL PRIMARY KEY,
-        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        voucher_date DATE NOT NULL,
-        description TEXT NOT NULL,
-        account_dr VARCHAR(50) NOT NULL,
-        account_cr VARCHAR(50) NOT NULL,
-        amount DECIMAL(18, 2) NOT NULL,
-        voucher_type VARCHAR(50) NOT NULL,
-        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS opening_balances (
-        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        account_code VARCHAR(50) NOT NULL,
-        debit_balance DECIMAL(18, 2) DEFAULT 0.00,
-        credit_balance DECIMAL(18, 2) DEFAULT 0.00,
-        fiscal_year INTEGER NOT NULL,
-        PRIMARY KEY (company_id, account_code, fiscal_year)
-      );
-    `);
-    
-    console.log('Đồng bộ cấu trúc bảng cơ sở dữ liệu hoàn tất.');
+    // ĐỌC VÀ THỰC THI SCRIPT TỪ SCHEMA.SQL (Sạch sẽ, xuôi chiều)
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+      await pool.query(schemaSql);
+      console.log('Đồng bộ cấu trúc bảng từ schema.sql hoàn tất.');
+    } else {
+      console.warn('⚠️ Cảnh báo: Không tìm thấy file schema.sql tại thư mục backend.');
+    }
   } catch (error) {
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);
   }
 })();
 
-// Import routes
+// Import các routes cũ của bạn
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { companiesRouter } from './routes/companies.js';
@@ -188,7 +66,10 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js';
 
-// Mount routes
+// --- ĐOẠN THÊM MỚI: Import phân hệ Đối tác (Partners) ---
+import { partnerRouter } from './routes/partnerRoute.js'; 
+
+// Mount các routes cũ
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/companies', companiesRouter);
@@ -198,6 +79,9 @@ app.use('/api/opening-balances', openingBalancesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/import', importRouter);
+
+// --- ĐOẠN THÊM MỚI: Mount phân hệ Đối tác vào hệ thống ---
+app.use('/api/partners', partnerRouter); 
 
 // Health check
 app.get('/api/health', async (req, res) => {

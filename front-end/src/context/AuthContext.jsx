@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../utils/api.js';
+// ĐÃ SỬA: Import thêm hàm setRAMToken để nạp mã token trực tiếp vào bộ nhớ RAM
+import api, { setRAMToken } from '../utils/api.js'; 
 
-// 1. Khởi tạo Context nội bộ
 const AuthContext = createContext(null);
 
-// 2. Định nghĩa Component Provider
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  // ĐÃ SỬA: State token chỉ quản lý trạng thái local, KHÔNG đọc từ localStorage nữa
+  const [token, setToken] = useState(null);
+  
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; }
   });
@@ -14,9 +15,8 @@ export function AuthProvider({ children }) {
     return localStorage.getItem('mustChangePassword') === 'true';
   });
   const [companies, setCompanies] = useState([]);
-  const [users, setUsers] = useState([]); // <--- Thêm state quản lý danh sách nhân sự toàn cục
+  const [users, setUsers] = useState([]); 
 
-  // ĐỒNG BỘ CÔNG TY ACTIVE: Lưu trữ dưới dạng Object để Header hiển thị mượt mà, tránh lỗi đơ nút bấm
   const [activeCompany, setActiveCompany] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('activeCompany')) || null;
@@ -25,16 +25,13 @@ export function AuthProvider({ children }) {
     }
   });
   
-  // ĐỒNG BỘ NIÊN ĐỘ: Tự động lấy từ localStorage, mặc định lấy 2026
   const [fiscalYear, setFiscalYearState] = useState(
     Number(localStorage.getItem('fiscalYear')) || 2026
   );
   
-  // Trạng thái kiểm tra số dư đầu kỳ
   const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
   const [openingBalanceMessage, setOpeningBalanceMessage] = useState('');
 
-  // Hàm lưu preferences lên server (activeCompany, fiscalYear)
   const savePreferencesToServer = useCallback(async (prefs) => {
     if (!token) return;
     try {
@@ -44,7 +41,6 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  // Hàm tải preferences từ server sau khi đăng nhập
   const loadPreferencesFromServer = useCallback(async () => {
     if (!token) return;
     try {
@@ -64,11 +60,9 @@ export function AuthProvider({ children }) {
   const setFiscalYear = (year) => {
     setFiscalYearState(year);
     localStorage.setItem('fiscalYear', year);
-    // Đồng bộ lên server để dùng được ở máy khác
     savePreferencesToServer({ fiscalYear: year });
   };
 
-  // Hàm quét danh sách nhân sự dùng chung cho mọi cấu trúc màn hình
   const loadUsers = useCallback(async () => {
     try {
       const res = await api.get('/api/users');
@@ -87,7 +81,6 @@ export function AuthProvider({ children }) {
       const listCompanies = res.data || [];
       setCompanies(listCompanies);
 
-      // Use functional update to avoid creating a changing dependency on `activeCompany`
       setActiveCompany(prev => {
         if (!Array.isArray(listCompanies) || listCompanies.length === 0) {
           localStorage.removeItem('activeCompany');
@@ -107,13 +100,15 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  // Vòng lặp tự động làm mới phiên làm việc (Silent Refresh) bằng HttpOnly Cookie
   useEffect(() => {
     const silentRefresh = async () => {
       try {
         const res = await api.post('/api/auth/refresh', null, { withCredentials: true });
         const accessToken = res.data.accessToken;
         if (accessToken) {
-          localStorage.setItem('token', accessToken);
+          // ĐÃ SỬA: Nạp vào RAM của Axios interceptor và gán State
+          setRAMToken(accessToken);
           setToken(accessToken);
         }
         if (res.data.user) {
@@ -130,6 +125,7 @@ export function AuthProvider({ children }) {
       }
     };
 
+    // Khởi tạo chạy ngầm: Nếu chưa có Token trên RAM, ép chạy silentRefresh để lấy từ Cookie
     if (token) {
       fetchCompanies().catch(() => {});
       loadUsers().catch(() => {});
@@ -156,7 +152,8 @@ export function AuthProvider({ children }) {
         throw new Error('Không nhận được access token từ server.');
       }
 
-      localStorage.setItem('token', accessToken);
+      // ĐÃ SỬA: Đẩy token vào RAM, loại bỏ localStorage.setItem('token') bẩn
+      setRAMToken(accessToken);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
 
@@ -177,15 +174,16 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('Lỗi gọi API logout hoặc token hết hạn trước đó:', e.message);
     } finally {
-      localStorage.removeItem('token');
+      // ĐÃ SỬA: Giải phóng RAM token, xóa triệt để session cũ
+      setRAMToken(null);
       localStorage.removeItem('user');
       localStorage.removeItem('mustChangePassword');
-      localStorage.removeItem('activeCompany'); // Dọn dẹp cache công ty khi thoát
+      localStorage.removeItem('activeCompany'); 
       setToken(null);
       setUser(null);
       setMustChangePassword(false);
       setCompanies([]);
-      setUsers([]); // Clear danh sách nhân sự
+      setUsers([]); 
       setActiveCompany(null);
       setFiscalYearState(2026);
     }
@@ -202,13 +200,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Thay đổi công ty active bằng Object (Khớp hoàn toàn với cơ chế của Header)
   const changeCompany = (companyObj) => {
     setActiveCompany(companyObj);
     localStorage.setItem('activeCompany', JSON.stringify(companyObj));
   };
 
-  // HÀM ĐỒNG BỘ NÓNG: Cập nhật trực tiếp danh sách quyền mà không cần đăng xuất
   const updateUserCompanies = (newCompanyIds) => {
     if (user) {
       const updatedUser = { ...user, company_ids: newCompanyIds };
@@ -217,7 +213,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Kiểm tra trạng thái số dư đầu kỳ của công ty đang chọn
   const checkOpeningBalanceStatus = useCallback(async (companyId) => {
     if (!companyId) {
       setHasOpeningBalance(false);
@@ -241,7 +236,7 @@ export function AuthProvider({ children }) {
       user, 
       setUser,
       users,             
-      setUsers,          // <--- THÊM DÒNG NÀY VÀO ĐỂ CÁC COMPONENT CÓ QUYỀN SỬA STATE NGAY LẬP TỨC
+      setUsers,          
       loadUsers,         
       updateUserCompanies,
       companies, 
@@ -265,7 +260,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-// 3. Khởi tạo Custom Hook nội bộ
 function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

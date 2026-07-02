@@ -20,6 +20,22 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- --- Bảng Quản lý Đối tác (Khách hàng / Nhà cung cấp) ---
+CREATE TABLE IF NOT EXISTS partners (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE, -- Đồng bộ kiểu dữ liệu INT với SERIAL
+    partner_code VARCHAR(50) NOT NULL,
+    partner_name VARCHAR(255) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('customer', 'supplier', 'both')),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    address TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Đảm bảo trong cùng 1 công ty không bị trùng Mã đối tác
+    CONSTRAINT unique_partner_code_per_company UNIQUE (company_id, partner_code)
+);
+
 CREATE TABLE IF NOT EXISTS accounts (
     code VARCHAR(20) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -43,21 +59,23 @@ CREATE TABLE IF NOT EXISTS vouchers (
     voucher_date DATE NOT NULL,
     description TEXT NOT NULL,
     voucher_type VARCHAR(50) NOT NULL, -- Thu, Chi, Nhap, Xuan, Khac
-    created_by INT REFERENCES users(id),
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- BẢNG 2 (DETAIL): Cho phép 1 chứng từ có nhiều dòng Nợ/Có (Xử lý lỗi hạch toán kèm Thuế GTGT)
+-- BẢNG 2 (DETAIL): Theo dõi công nợ chi tiết (131, 331, 141,...)
 CREATE TABLE IF NOT EXISTS voucher_details (
     id SERIAL PRIMARY KEY,
-    voucher_id INT REFERENCES vouchers(id) ON DELETE CASCADE,
-    account_code VARCHAR(20) REFERENCES accounts(code) ON DELETE RESTRICT,
+    voucher_id INT NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
+    account_code VARCHAR(20) NOT NULL REFERENCES accounts(code) ON DELETE RESTRICT,
     entry_type VARCHAR(2) NOT NULL CHECK (entry_type IN ('DR', 'CR')), -- DR: Ghi Nợ, CR: Ghi Có
-    amount NUMERIC(15,2) NOT NULL CHECK (amount > 0)
+    amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+    -- Ràng buộc dòng hạch toán công nợ theo đối tác cụ thể
+    partner_id INT REFERENCES partners(id) ON DELETE SET NULL 
 );
 
 -- ====================================================================
--- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG (Gánh tải khi nghiệp vụ lũy thừa lên hàng triệu dòng)
+-- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG
 -- ====================================================================
 CREATE INDEX IF NOT EXISTS idx_vouchers_date_company 
 ON vouchers(company_id, voucher_date);
@@ -67,6 +85,10 @@ ON voucher_details(voucher_id, account_code, entry_type);
 
 CREATE INDEX IF NOT EXISTS idx_opening_balances_lookup 
 ON opening_balances(company_id, fiscal_year, account_code);
+
+-- Tối ưu hoá tìm kiếm đối tác theo mã, tên và lọc theo chi nhánh công ty cùng lúc
+CREATE INDEX IF NOT EXISTS idx_partners_company_search 
+ON partners(company_id, partner_code, partner_name);
 
 
 -- ====================================================================
@@ -167,7 +189,3 @@ INSERT INTO accounts (code, name, type) VALUES
 ('911', 'Xác định kết quả kinh doanh', 'Trung Gian')
 
 ON CONFLICT (code) DO NOTHING;
-
--- ====================================================================
--- KẾT THÚC CẤU TRÚC VÀ DANH MỤC TÀI KHOẢN CHI TIẾT THEO THÔNG TƯ 200
--- ====================================================================
