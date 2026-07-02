@@ -1,5 +1,5 @@
-const { describe, it, expect } = require('@jest/globals');
-const { normalizeCompanyIds, syncUserCompanyLinks, canAccessCompany, getCompanyIdsForUser } = require('../services/helpers.js');
+import { describe, it, expect } from '@jest/globals';
+import { normalizeCompanyIds, canAccessCompany, getCompanyIdsForUser } from '../services/helpers.js';
 
 describe('Helper Services', () => {
   describe('normalizeCompanyIds', () => {
@@ -38,7 +38,7 @@ describe('Helper Services', () => {
       expect(result).toBe(false);
     });
 
-    it('should return false for non-admin without companyId', async () => {
+    it('should return false for non-admin with invalid companyId', async () => {
       const user = { id: 2, role: 'nv' };
       const result = await canAccessCompany(user, 0);
       expect(result).toBe(false);

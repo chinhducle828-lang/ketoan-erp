@@ -1,25 +1,25 @@
-const { beforeAll, afterAll, beforeEach } = require('@jest/globals');
+import { beforeAll, afterAll, beforeEach, jest } from '@jest/globals';
 
 // Mock the database pool
 const mockPool = {
   query: jest.fn(),
   connect: jest.fn(),
+  on: jest.fn(),
   end: jest.fn(),
 };
 
-// Setup before all tests
-beforeAll(async () => {
-  // Setup test database connection if needed
-});
-
-// Cleanup after all tests
-afterAll(async () => {
-  await mockPool.end();
-});
-
-// Clear all mocks before each test
+// Reset mocks before each test
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-module.exports = { mockPool };
+beforeAll(() => {
+  // Any global setup
+});
+
+afterAll(() => {
+  // Any global teardown
+});
+
+// ✅ Xuất bằng cú pháp ES Modules chuẩn
+export { mockPool };
