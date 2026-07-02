@@ -1,11 +1,11 @@
-const { describe, it, expect } = require('@jest/globals');
-const {
+import { describe, it, expect } from '@jest/globals';
+import {
   registerAdminSchema,
   loginSchema,
   createUserSchema,
   createVoucherSchema,
   createItemSchema,
-} = require('../validators/index.js');
+} from '../validators/index.js';
 
 describe('Validators', () => {
   describe('registerAdminSchema', () => {
@@ -91,29 +91,62 @@ describe('Validators', () => {
   });
 
   describe('createVoucherSchema', () => {
-    it('should accept valid voucher data', () => {
+    it('should accept valid multi-row voucher data with balanced DR/CR', () => {
       const validData = {
         voucherDate: '2026-01-15',
-        description: 'Test voucher',
-        accountDr: '1111',
-        accountCr: '331',
-        amount: 1000000,
-        type: 'Thu',
+        description: 'Chi tiền mặt nhập kho vật tư công ty - Đa dòng',
+        type: 'Chi',
         companyId: 1,
+        // Dữ liệu chuẩn: Tổng Nợ (800k + 80k) === Tổng Có (880k)
+        details: [
+          { accountCode: '152', entryType: 'DR', amount: 800000 },
+          { accountCode: '1331', entryType: 'DR', amount: 80000 },
+          { accountCode: '1111', entryType: 'CR', amount: 880000 }
+        ]
       };
       const result = createVoucherSchema.safeParse(validData);
       expect(result.success).toBe(true);
     });
 
-    it('should reject negative amount', () => {
+    it('should reject negative amount inside details', () => {
       const invalidData = {
         voucherDate: '2026-01-15',
-        description: 'Test voucher',
-        accountDr: '1111',
-        accountCr: '331',
-        amount: -1000,
+        description: 'Phiếu lỗi số tiền âm',
         type: 'Thu',
         companyId: 1,
+        details: [
+          { accountCode: '1111', entryType: 'DR', amount: -500000 },
+          { accountCode: '131', entryType: 'CR', amount: -500000 }
+        ]
+      };
+      const result = createVoucherSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject if details array has less than 2 rows', () => {
+      const invalidData = {
+        voucherDate: '2026-01-15',
+        description: 'Phiếu thiếu dòng hạch toán đối ứng',
+        type: 'Thu',
+        companyId: 1,
+        details: [
+          { accountCode: '1111', entryType: 'DR', amount: 100000 } // Lỗi: Chỉ có 1 dòng
+        ]
+      };
+      const result = createVoucherSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject if DR and CR are not balanced', () => {
+      const invalidData = {
+        voucherDate: '2026-01-15',
+        description: 'Phiếu lỗi: Tổng Nợ không bằng Tổng Có',
+        type: 'Thu',
+        companyId: 1,
+        details: [
+          { accountCode: '152', entryType: 'DR', amount: 800000 }, // Nợ 800k
+          { accountCode: '1111', entryType: 'CR', amount: 700000 } // Có 700k (Lệch)
+        ]
       };
       const result = createVoucherSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
