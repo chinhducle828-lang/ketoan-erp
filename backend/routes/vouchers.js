@@ -56,7 +56,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // ==========================================
-// 2. TẠO CHỨNG TỪ MỚI
+// 2. TẠO CHỨNG TỪ MỚI (Hỗ trợ định khoản đa dòng gồm VAT)
 // ==========================================
 router.post('/', authenticate, validate(createVoucherSchema), async (req, res) => {
   const client = await pool.connect();
@@ -71,11 +71,21 @@ router.post('/', authenticate, validate(createVoucherSchema), async (req, res) =
       }
     }
 
-    const drSum = details.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
-    const crSum = details.filter(d => d.entryType === 'CR').reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    // Làm tròn số tiền hạch toán về số nguyên (VND) để triệt tiêu sai số dấu phẩy động
+    const processedDetails = details.map(d => ({
+      ...d,
+      amount: Math.round(parseFloat(d.amount || 0))
+    }));
+
+    // Tính toán tổng phát sinh Nợ và Có sau khi đã làm tròn
+    const drSum = processedDetails.filter(d => d.entryType === 'DR').reduce((sum, d) => sum + d.amount, 0);
+    const crSum = processedDetails.filter(d => d.entryType === 'CR').reduce((sum, d) => sum + d.amount, 0);
     
-    if (Math.abs(drSum - crSum) > 0.5) {
-      return res.status(400).json({ error: `Hạch toán không cân! Tổng Nợ (${drSum.toLocaleString()}) phải bằng Tổng Có (${crSum.toLocaleString()})` });
+    // Kiểm tra cân đối kế toán tuyệt đối (Tổng Nợ === Tổng Có)
+    if (drSum !== crSum) {
+      return res.status(400).json({ 
+        error: `Hạch toán không cân đối! Tổng Nợ (${drSum.toLocaleString('vi-VN')}) phải bằng Tổng Có (${crSum.toLocaleString('vi-VN')})` 
+      });
     }
 
     await client.query('BEGIN');
@@ -91,7 +101,7 @@ router.post('/', authenticate, validate(createVoucherSchema), async (req, res) =
     const valuesArr = [];
     const queryArgs = [];
     
-    details.forEach((item, index) => {
+    processedDetails.forEach((item, index) => {
       const offset = index * 4;
       valuesArr.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
       queryArgs.push(newVoucher.id, item.accountCode, item.entryType, item.amount);
@@ -107,9 +117,9 @@ router.post('/', authenticate, validate(createVoucherSchema), async (req, res) =
 
     await client.query('COMMIT');
 
+    // Đồng bộ dọn dẹp cache báo cáo tổng hợp liên quan
     await invalidateCache(`dashboard:cashflow:${targetCompanyId}:*`);
     
-    // ĐÃ SỬA: Đóng gói Response vào object success: true và voucher để Context đọc được
     res.json({ 
       success: true, 
       voucher: { ...newVoucher, details: detailRes.rows } 
@@ -130,7 +140,6 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
   try {
     const voucherId = parseInt(req.params.id, 10);
 
-    // ĐÃ SỬA: Tự động tìm company_id của chứng từ này trong CSDL trước để kiểm tra quyền
     const voucherCheck = await pool.query('SELECT company_id FROM vouchers WHERE id = $1', [voucherId]);
     
     if (voucherCheck.rowCount === 0) {
