@@ -11,10 +11,8 @@ if (!baseURL) {
   }
 }
 
-// 2. BIẾN TOÀN CỤC LƯU TRÊN RAM (In-Memory Token) - Bảo mật cấp độ cao nhất
 let inMemoryAccessToken = null;
 
-// Hàm tiện ích để file Login.jsx hoặc App.jsx nạp token vào RAM khi đăng nhập thành công
 export const setRAMToken = (token) => {
   inMemoryAccessToken = token;
 };
@@ -22,7 +20,7 @@ export const setRAMToken = (token) => {
 const api = axios.create({
   baseURL: baseURL,
   timeout: 10000,
-  withCredentials: true // THẦN CHÚ: Bắt buộc để tự động trao đổi HttpOnly Cookie với Backend
+  withCredentials: true // Trao đổi HttpOnly Cookie
 });
 
 let isRefreshing = false;
@@ -37,13 +35,17 @@ const onRefreshed = (token) => {
   refreshSubscribers = [];
 };
 
+// SỬA ĐỔI: Dùng trực tiếp instance `api` để gọi refresh hoặc cấu hình bọc an toàn
 const refreshAccessToken = async () => {
+  // Dùng axios gốc nhưng phải đảm bảo đồng bộ hóa cấu hình nhận diện cookie nhận về
   const refreshRes = await axios.post(`${baseURL}/api/auth/refresh`, null, {
     withCredentials: true,
-    headers: { Accept: 'application/json' }
+    headers: { 
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
   });
   
-  // Hỗ trợ cả 2 định dạng trả về phổ biến của Backend (Phẳng hoặc bọc trong data)
   const newToken = refreshRes.data?.accessToken || refreshRes.data?.data?.accessToken;
   
   if (newToken) {
@@ -52,33 +54,28 @@ const refreshAccessToken = async () => {
   return newToken;
 };
 
-// Global request handler: Tự động đính kèm token bảo mật từ RAM vào Header
 api.interceptors.request.use(
   (config) => {
     const token = inMemoryAccessToken;
     if (token) {
       config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     
-    config.headers = config.headers || {};
-    if (!config.headers.Accept) config.headers.Accept = 'application/json';
+    if (!config.headers['Accept']) config.headers['Accept'] = 'application/json';
     return config;
   }, 
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Global response handler: Tự động chạy ngầm xin cấp lại Token mới khi RAM bị xóa/hết hạn
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const status = error.response?.status;
     const originalRequest = error.config;
 
-    // Chặn mã lỗi 401 hoặc 419 khi Access Token trên RAM hết hạn hoặc bị hủy do F5 reload trang
-    if ((status === 401 || status === 419) && !originalRequest._retry) {
+    // SỬA ĐỔI: Kiểm tra cả lỗi 401 lẫn kiểm tra nếu không phải request gọi API refresh bị lỗi
+    if ((status === 401 || status === 419) && !originalRequest._retry && !originalRequest.url.includes('/auth/refresh')) {
       originalRequest._retry = true;
 
       if (!isRefreshing) {
@@ -89,12 +86,12 @@ api.interceptors.response.use(
           onRefreshed(newToken);
         } catch (refreshError) {
           isRefreshing = false;
-          
-          // When refresh token expires or is revoked, force clear local memory and logout
           setRAMToken(null);
           try {
             localStorage.removeItem('user');
             localStorage.removeItem('activeCompany');
+            // Nếu refresh lỗi (hết hạn hoàn toàn), đá người dùng về trang login
+            window.location.href = '/login';
           } catch (e) {
             console.error('Không thể dọn dẹp bộ nhớ phiên làm việc:', e);
           }
@@ -102,31 +99,19 @@ api.interceptors.response.use(
         }
       }
 
-      // Đưa các request bị kẹt vào hàng đợi, chờ khi có Token trên RAM mới sẽ tự động kích hoạt chạy tiếp
-      return new Promise((resolve, reject) => {
+      // SỬA ĐỔI: Tạo Promise bao bọc chuẩn để gọi lại một instance API mới tinh với config cũ
+      return new Promise((resolve) => {
         subscribeTokenRefresh((token) => {
-          if (token) {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          } else {
-            reject(error);
-          }
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers['Authorization'] = `Bearer ${token}`;
+          // Gọi lại bằng thực thể `api` để đi xuyên suốt lại toàn bộ quy trình request mới
+          resolve(api(originalRequest));
         });
       });
-    }
-
-    // Lỗi 403 (Forbidden) chỉ log ra hoặc để Component bắt lỗi render cảnh báo UI
-    if (status === 403) {
-      console.warn('Tài khoản không có quyền truy cập tài nguyên hoặc chức năng này.');
-    } else if (!error.response) {
-      console.error('Network or CORS error calling API:', error.message || error);
     }
     
     return Promise.reject(error);
   }
 );
 
-// ✅ XUẤT BẢN INSTANCE MẶC ĐỊNH
-// Toàn bộ các phân hệ bao gồm cả VoucherContext.jsx sẽ sử dụng instance này 
-// để tự động hưởng cơ chế Interceptor (Đính kèm token và Tự động refresh token ngầm)
 export default api;
