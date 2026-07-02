@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-// Import thêm hàm setRAMToken và đối tượng api cấu hình tập trung
-import api, { setRAMToken } from '../utils/api.js'; 
+// Sửa đổi đường dẫn import không kèm đuôi mở rộng để trình biên dịch tự động phân giải cấu trúc
+import api, { setRAMToken } from '../utils/api'; 
 
 const AuthContext = createContext(null);
 
@@ -32,6 +32,13 @@ export function AuthProvider({ children }) {
   const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
   const [openingBalanceMessage, setOpeningBalanceMessage] = useState('');
 
+  // ✅ HÀM BỔ TRỢ: Tự động nhận diện và bóc tách dữ liệu Axios linh hoạt
+  const unpackResponse = (res) => {
+    if (!res) return null;
+    // Nếu đối tượng trả về chứa thuộc tính .data nguyên bản từ Axios, lấy .data, ngược lại lấy chính nó
+    return res.data !== undefined ? res.data : res;
+  };
+
   const savePreferencesToServer = useCallback(async (prefs) => {
     if (!inMemoryTokenActive()) return; // Kiểm tra nhanh trạng thái token trước khi gọi
     try {
@@ -39,12 +46,13 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.warn('Không thể đồng bộ preferences lên server:', err.message);
     }
-  }, []);
+  }, [token]); // Thêm token vào dependencies để đồng bộ trạng thái inMemoryTokenActive
 
   const loadPreferencesFromServer = useCallback(async () => {
     try {
       const res = await api.get('/api/auth/preferences');
-      const prefs = res.data || {};
+      const data = unpackResponse(res);
+      const prefs = data || {};
       if (prefs.fiscalYear) {
         setFiscalYearState(Number(prefs.fiscalYear));
         localStorage.setItem('fiscalYear', String(prefs.fiscalYear));
@@ -65,7 +73,7 @@ export function AuthProvider({ children }) {
   const loadUsers = useCallback(async () => {
     try {
       const res = await api.get('/api/users');
-      const data = res.data || [];
+      const data = unpackResponse(res) || [];
       setUsers(data);
       return data;
     } catch (err) {
@@ -77,7 +85,7 @@ export function AuthProvider({ children }) {
   const fetchCompanies = useCallback(async () => {
     try {
       const res = await api.get('/api/companies');
-      const listCompanies = res.data || [];
+      const listCompanies = unpackResponse(res) || [];
       setCompanies(listCompanies);
 
       setActiveCompany(prev => {
@@ -107,19 +115,21 @@ export function AuthProvider({ children }) {
     const initSilentRefresh = async () => {
       try {
         const res = await api.post('/api/auth/refresh', null, { withCredentials: true });
-        const accessToken = res.data?.accessToken || res.data?.data?.accessToken;
+        const data = unpackResponse(res);
+        
+        const accessToken = data?.accessToken || data?.data?.accessToken || data?.token;
         
         if (accessToken) {
           setRAMToken(accessToken);
           setToken(accessToken);
           
-          if (res.data.user) {
-            setUser(res.data.user);
-            localStorage.setItem('user', JSON.stringify(res.data.user));
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
           }
-          if (res.data.must_change_password !== undefined) {
-            setMustChangePassword(!!res.data.must_change_password);
-            localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
+          if (data.must_change_password !== undefined) {
+            setMustChangePassword(!!data.must_change_password);
+            localStorage.setItem('mustChangePassword', !!data.must_change_password ? 'true' : 'false');
           }
         }
       } catch (err) {
@@ -144,7 +154,7 @@ export function AuthProvider({ children }) {
   const registerAdmin = async (username, password) => {
     try {
       const res = await api.post('/api/auth/register-admin', { username, password });
-      return res.data;
+      return unpackResponse(res);
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đăng ký hệ thống gốc';
     }
@@ -153,20 +163,22 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      const accessToken = res.data?.accessToken || res.data?.token || res.data?.data?.accessToken;
+      const data = unpackResponse(res);
+      
+      const accessToken = data?.accessToken || data?.token || data?.data?.accessToken;
       if (!accessToken) {
         throw new Error('Không nhận được access token từ server.');
       }
 
       setRAMToken(accessToken);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      localStorage.setItem('mustChangePassword', !!res.data.must_change_password ? 'true' : 'false');
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('mustChangePassword', !!data.must_change_password ? 'true' : 'false');
 
       setToken(accessToken);
-      setUser(res.data.user);
-      setMustChangePassword(!!res.data.must_change_password);
+      setUser(data.user);
+      setMustChangePassword(!!data.must_change_password);
 
-      return res.data;
+      return data;
     } catch (err) {
       throw err;
     }
@@ -197,7 +209,7 @@ export function AuthProvider({ children }) {
       const res = await api.post('/api/auth/change-password', { oldPassword, newPassword });
       setMustChangePassword(false);
       localStorage.setItem('mustChangePassword', 'false');
-      return res.data;
+      return unpackResponse(res);
     } catch (err) {
       throw err.response?.data?.error || err.message || 'Lỗi đổi mật khẩu';
     }
@@ -224,8 +236,9 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get(`/api/opening-balances/status?company_id=${companyId}`);
-      setHasOpeningBalance(res.data?.hasOpeningBalance || false);
-      setOpeningBalanceMessage(res.data?.message || '');
+      const data = unpackResponse(res);
+      setHasOpeningBalance(data?.hasOpeningBalance || false);
+      setOpeningBalanceMessage(data?.message || '');
     } catch (err) {
       console.error('Lỗi kiểm tra số dư đầu kỳ:', err);
       setHasOpeningBalance(false);

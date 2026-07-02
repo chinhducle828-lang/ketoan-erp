@@ -16,7 +16,17 @@ export default function Login({ onFirstRun }) {
     try {
       await login(form.username, form.password);
     } catch (err) {
-      setError(err.response?.data?.error || 'Không thể kết nối đến máy chủ.');
+      console.error("Chi tiết lỗi Login nhận được:", err);
+
+      // BÓC TÁCH LỖI THÔNG MINH: Đảm bảo quét sạch mọi ngóc ngách cấu trúc dữ liệu trả về từ Server
+      const serverErrorMessage = 
+        err.response?.data?.error ||                            // Lỗi phẳng tự định nghĩa (Ví dụ: "Mật khẩu không đúng!")
+        err.response?.data?.message ||                          // Lỗi hệ thống tự sinh
+        (err.response?.data?.errors && err.response.data.errors[0]?.msg) || // Lỗi mảng từ Validator
+        err.message ||                                           // Lỗi text từ Axios
+        'Không thể kết nối đến máy chủ.';
+
+      setError(serverErrorMessage);
     } finally {
       setLoading(false);
     }
@@ -41,7 +51,7 @@ export default function Login({ onFirstRun }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
-            {/* Ô nhập Tên người dùng - Đã thêm id, name và label ẩn */}
+            {/* Ô nhập Tên người dùng */}
             <div className="relative">
               <label htmlFor="username" className="sr-only">Tên người dùng</label>
               <User className="absolute left-3 top-3 text-slate-400" size={16} />
@@ -58,7 +68,7 @@ export default function Login({ onFirstRun }) {
               />
             </div>
 
-            {/* Ô nhập Mật khẩu - Đã thêm id, name và label ẩn */}
+            {/* Ô nhập Mật khẩu */}
             <div className="relative">
               <label htmlFor="password" className="sr-only">Mật khẩu bảo mật</label>
               <Lock className="absolute left-3 top-3 text-slate-400" size={16} />

@@ -12,3 +12,5 @@ router.post('/vouchers', createInventoryVoucher);
 router.get('/vouchers', getInventoryVouchers);
 
 export default router;
+
+//
