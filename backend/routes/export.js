@@ -1,6 +1,6 @@
 import express from 'express';
 import ExcelJS from 'exceljs';
-import { pool } from '../server.js';
+import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
 
