@@ -33,7 +33,7 @@ router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
 });
 
 // 2. Cập nhật số dư đầu kỳ (Ràng buộc TT 99 & Khóa sổ)
-router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
     // Nhận thêm tiền tệ và tỷ giá từ Frontend gửi lên
     const { balances, year, companyId, currency = 'VND', exchangeRate = 1 } = req.body;
@@ -108,7 +108,7 @@ router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompan
 });
 
 // 3. Khóa/Mở khóa sổ (Giữ nguyên logic cực tốt của bạn)
-router.patch('/toggle-lock', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.patch('/toggle-lock', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   // ... (Giữ nguyên đoạn code của bạn)
   try {
     const { companyId, year, lockStatus } = req.body;

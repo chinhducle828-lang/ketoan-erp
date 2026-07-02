@@ -10,7 +10,7 @@ const BANNED_ACCOUNTS_TT99 = ['1562', '611', '621', '622', '627'];
  * @desc    Hạch toán bảng lương chi tiết và trích đóng quỹ bảo hiểm xã hội 32% (TT 99)
  * @access  Private (Admin, Accountant)
  */
-router.post('/payroll', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.post('/payroll', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   const client = await pool.connect();
   try {
     const { companyId, voucherDate, description, details } = req.body;
@@ -60,18 +60,18 @@ router.post('/payroll', authenticate, requireRole(['admin', 'accountant']), chec
     
     // Ghi nhận chứng từ tổng hợp
     const voucherRes = await client.query(
-      'INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [companyId, 'Luong', voucherDate, description, 'VND', 1, Math.round(drSum)]
+      'INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [companyId, 'Luong', voucherDate, description, req.user.id]
     );
     const voucherId = voucherRes.rows[0].id;
 
     // Hạch toán chi tiết
     const insertDetailQuery = `
-      INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount) 
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+      VALUES ($1, $2, $3, $4)
     `;
     for (const d of details) {
-      await client.query(insertDetailQuery, [voucherId, d.accountCode, d.entryType, d.amount, d.amount]);
+      await client.query(insertDetailQuery, [voucherId, d.accountCode, d.entryType, d.amount]);
     }
     
     await client.query('COMMIT');

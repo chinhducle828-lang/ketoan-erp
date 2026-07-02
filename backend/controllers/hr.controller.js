@@ -47,15 +47,15 @@ export const createPayrollVoucher = async (req, res) => {
     await client.query('BEGIN');
     
     const voucherRes = await client.query(
-      'INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [companyId, 'Luong', voucherDate, description, 'VND', 1, Math.round(drSum)]
+      'INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [companyId, 'Luong', voucherDate, description, req.user.id]
     );
     const voucherId = voucherRes.rows[0].id;
 
     for (const d of details) {
       await client.query(
-        'INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount) VALUES ($1, $2, $3, $4, $5)', 
-        [voucherId, d.accountCode, d.entryType, d.amount, d.amount]
+        'INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) VALUES ($1, $2, $3, $4)', 
+        [voucherId, d.accountCode, d.entryType, d.amount]
       );
     }
     

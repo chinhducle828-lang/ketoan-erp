@@ -136,17 +136,15 @@ export const createInventoryVoucher = async (req, res) => {
     // Bước A: Ghi nhận chứng từ kế toán tổng hợp gốc
     const voucherType = type === 'import' ? 'NhapKho' : 'XuatKho';
     const insertVoucherQuery = `
-      INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+      INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by)
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const voucherRes = await client.query(insertVoucherQuery, [
       companyId,
       voucherType,
       voucherDate,
       description || `${type === 'import' ? 'Nhập kho' : 'Xuất kho'} vật tư hàng hóa - Số phiếu: ${voucherNo}`,
-      'VND',
-      1,
-      totalAmount
+      req.user.id
     ]);
     const voucherId = voucherRes.rows[0].id;
 
@@ -161,13 +159,13 @@ export const createInventoryVoucher = async (req, res) => {
       const creditAcc = type === 'import' ? d.offsetAccountCode : d.accountCode;
 
       const insertDetailQuery = `
-        INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
+        VALUES ($1, $2, $3, $4)
       `;
       // Bút toán Ghi Nợ
-      await client.query(insertDetailQuery, [voucherId, debitAcc, 'DR', itemAmount, itemAmount]);
+      await client.query(insertDetailQuery, [voucherId, debitAcc, 'DR', itemAmount]);
       // Bút toán Ghi Có
-      await client.query(insertDetailQuery, [voucherId, creditAcc, 'CR', itemAmount, itemAmount]);
+      await client.query(insertDetailQuery, [voucherId, creditAcc, 'CR', itemAmount]);
 
       // Ghi thẻ kho vật lý vào bảng tương ứng để theo dõi lượng OnHand
       if (type === 'import') {
@@ -213,17 +211,16 @@ export const getInventoryVouchers = async (req, res) => {
     let queryStr = `
       SELECT 
         id, 
-        type, 
+        voucher_type as "type", 
         voucher_date as "voucherDate", 
-        description, 
-        total_amount as "totalAmount"
+        description
       FROM vouchers
-      WHERE company_id = $1 AND type IN ('NhapKho', 'XuatKho')
+      WHERE company_id = $1 AND voucher_type IN ('NhapKho', 'XuatKho')
     `;
     const params = [company_id];
 
     if (type) {
-      queryStr += ` AND type = $2`;
+      queryStr += ` AND voucher_type = $2`;
       params.push(type === 'import' ? 'NhapKho' : 'XuatKho');
     }
 

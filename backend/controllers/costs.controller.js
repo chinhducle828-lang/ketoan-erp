@@ -21,7 +21,7 @@ export const calculateProductCosts = async (req, res) => {
     // 2. Thu thập tổng chi phí dở dang đã tập hợp trực tiếp trên TK 154 trong kỳ
     const costGatherQuery = `
       SELECT 
-        COALESCE(SUM(converted_amount), 0)::double precision as "totalGathered"
+        COALESCE(SUM(vd.amount), 0)::double precision as "totalGathered"
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
@@ -40,27 +40,25 @@ export const calculateProductCosts = async (req, res) => {
     await client.query('BEGIN');
 
     const voucherQuery = `
-      INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+      INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by)
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const voucherRes = await client.query(voucherQuery, [
       companyId,
       'PhieuKeToan',
       voucherDate || `${period}-28`, // Mặc định hạch toán cuối tháng
       description || `Bút toán kết chuyển tính giá thành phẩm hoàn thành kỳ tháng ${period}`,
-      'VND',
-      1,
-      totalGathered
+      req.user.id
     ]);
     const voucherId = voucherRes.rows[0].id;
 
     // Ghi Nợ TK 155 (Tăng kho thành phẩm) / Ghi Có TK 154 (Giảm chi phí dở dang)
     const detailQuery = `
-      INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
+      VALUES ($1, $2, $3, $4)
     `;
-    await client.query(detailQuery, [voucherId, '155', 'DR', totalGathered, totalGathered]);
-    await client.query(detailQuery, [voucherId, '154', 'CR', totalGathered, totalGathered]);
+    await client.query(detailQuery, [voucherId, '155', 'DR', totalGathered]);
+    await client.query(detailQuery, [voucherId, '154', 'CR', totalGathered]);
 
     await client.query('COMMIT');
 

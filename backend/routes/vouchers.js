@@ -1,7 +1,8 @@
 import express from 'express';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import { validate, createVoucherSchema } from '../middleware/validation.js';
+import { validate } from '../middleware/validation.js';
+import { createVoucherSchema } from '../validators/index.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
 

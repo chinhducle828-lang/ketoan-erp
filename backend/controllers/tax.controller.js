@@ -18,7 +18,7 @@ export const getVATReports = async (req, res) => {
         v.description,
         vd.account_code as "accountCode",
         vd.entry_type as "entryType",
-        vd.converted_amount as amount
+        vd.amount as amount
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
@@ -54,12 +54,12 @@ export const performTaxDeduction = async (req, res) => {
 
     // 2. Tìm số dư tích lũy bên Nợ TK 133 (Thuế đầu vào) và bên Có TK 33311 (Thuế đầu ra) trong kỳ tháng đó
     const inputTaxQuery = `
-      SELECT COALESCE(SUM(vd.converted_amount), 0)::double precision as amount 
+      SELECT COALESCE(SUM(vd.amount), 0)::double precision as amount 
       FROM voucher_details vd JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 AND v.voucher_date LIKE $2 AND vd.account_code LIKE '133%' AND vd.entry_type = 'DR'
     `;
     const outputTaxQuery = `
-      SELECT COALESCE(SUM(vd.converted_amount), 0)::double precision as amount 
+      SELECT COALESCE(SUM(vd.amount), 0)::double precision as amount 
       FROM voucher_details vd JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 AND v.voucher_date LIKE $2 AND vd.account_code = '33311' AND vd.entry_type = 'CR'
     `;
@@ -83,26 +83,24 @@ export const performTaxDeduction = async (req, res) => {
     await client.query('BEGIN');
 
     const voucherQuery = `
-      INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+      INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by)
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const voucherRes = await client.query(voucherQuery, [
       companyId,
       'PhieuKeToan',
       voucherDate || `${period}-30`,
       `Khấu trừ thuế GTGT tự động kỳ tính thuế tháng ${period}`,
-      'VND',
-      1,
-      deductionAmount
+      req.user.id
     ]);
     const voucherId = voucherRes.rows[0].id;
 
     const detailQuery = `
-      INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
+      VALUES ($1, $2, $3, $4)
     `;
-    await client.query(detailQuery, [voucherId, '33311', 'DR', deductionAmount, deductionAmount]);
-    await client.query(detailQuery, [voucherId, '133', 'CR', deductionAmount, deductionAmount]);
+    await client.query(detailQuery, [voucherId, '33311', 'DR', deductionAmount]);
+    await client.query(detailQuery, [voucherId, '133', 'CR', deductionAmount]);
 
     await client.query('COMMIT');
 

@@ -51,28 +51,25 @@ export const createSalesInvoice = async (req, res) => {
     await client.query('BEGIN');
     
     const voucherQuery = `
-      INSERT INTO vouchers (company_id, type, voucher_date, description, currency, exchange_rate, total_amount, partner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+      INSERT INTO vouchers (company_id, voucher_type, voucher_date, description, created_by) 
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const voucherRes = await client.query(voucherQuery, [
       companyId, 
       'BanHang', 
       voucherDate, 
       description, 
-      currency, 
-      exchangeRate, 
-      drSum, 
-      customerId
+      req.user.id
     ]);
     const voucherId = voucherRes.rows[0].id;
 
     const detailQuery = `
-      INSERT INTO voucher_details (voucher_id, account_code, entry_type, original_amount, converted_amount) 
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+      VALUES ($1, $2, $3, $4)
     `;
     for (const d of details) {
       const converted = Math.round(parseFloat(d.amount) * exchangeRate);
-      await client.query(detailQuery, [voucherId, d.accountCode, d.entryType, d.amount, converted]);
+      await client.query(detailQuery, [voucherId, d.accountCode, d.entryType, converted]);
     }
     
     await client.query('COMMIT');

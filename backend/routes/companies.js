@@ -63,7 +63,7 @@ router.get('/:id/export', authenticate, requireRole(['admin']), async (req, res)
     if (comp.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy công ty.' });
 
     const items = await pool.query('SELECT code, name, unit, company_id FROM items WHERE company_id = $1 ORDER BY code', [companyId]);
-    const vouchers = await pool.query('SELECT id, company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by, created_at FROM vouchers WHERE company_id = $1 ORDER BY id', [companyId]);
+    const vouchers = await pool.query('SELECT v.id, v.company_id, v.voucher_date, v.description, v.voucher_type as voucher_type, v.created_by, v.created_at, COALESCE(json_agg(json_build_object(\'accountCode\', vd.account_code, \'entryType\', vd.entry_type, \'amount\', vd.amount)) FILTER (WHERE vd.id IS NOT NULL), \'[]\') as details FROM vouchers v LEFT JOIN voucher_details vd ON v.id = vd.voucher_id WHERE v.company_id = $1 GROUP BY v.id ORDER BY v.id', [companyId]);
     const opening = await pool.query('SELECT account_code, debit_balance, credit_balance, fiscal_year FROM opening_balances WHERE company_id = $1 ORDER BY account_code', [companyId]);
 
     res.json({
@@ -100,13 +100,24 @@ router.post('/:id/import', authenticate, requireRole(['admin']), async (req, res
       );
     }
 
-    // Insert vouchers
+    // Insert vouchers (Master-Detail structure)
     for (const v of vouchers) {
-      await pool.query(
-        `INSERT INTO vouchers (company_id, voucher_date, description, account_dr, account_cr, amount, voucher_type, created_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, COALESCE($8, now()))`,
-        [companyId, v.voucher_date, v.description, v.account_dr, v.account_cr, v.amount, v.voucher_type, v.created_at || null]
+      const voucherRes = await pool.query(
+        `INSERT INTO vouchers (company_id, voucher_date, description, voucher_type, created_by, created_at)
+         VALUES ($1, $2, $3, $4, NULL, COALESCE($5, now())) RETURNING id`,
+        [companyId, v.voucher_date, v.description, v.voucher_type || v.type, v.created_at || null]
       );
+      const vid = voucherRes.rows[0].id;
+      // Insert voucher details from the nested details array or convert flat fields
+      const details = v.details || [];
+      if (details.length > 0) {
+        for (const d of details) {
+          await pool.query(
+            'INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) VALUES ($1, $2, $3, $4)',
+            [vid, d.accountCode || d.account_code, d.entryType || d.entry_type, d.amount]
+          );
+        }
+      }
     }
 
     await pool.query('COMMIT');

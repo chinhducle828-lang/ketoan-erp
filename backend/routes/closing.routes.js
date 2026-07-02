@@ -34,7 +34,7 @@ router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
  * @desc    Thực hiện hành động Khóa sổ hoặc Mở khóa sổ một tháng làm việc
  * @access  Private (Admin, Accountant)
  */
-router.post('/toggle', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.post('/toggle', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
     const { companyId, period, action } = req.body; // action: 'lock' | 'unlock'
     
