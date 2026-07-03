@@ -19,17 +19,46 @@ const app = express();
 // KÍCH HOẠT TRUST PROXY: Bắt buộc cấu hình để lấy Real IP của Client qua Proxy bảo mật
 app.set('trust proxy', true);
 
-// CORS Configuration
+// ====================================================================
+// 🛠️ ĐÃ SỬA: CẤU HÌNH CORS LINH HOẠT CHỐNG LỖI ORIGIN TRÊN PRODUCTION
+// ====================================================================
 const rawFrontend = process.env.FRONTEND_URL || '';
+// Tách chuỗi và loại bỏ khoảng trắng dư thừa
 const allowedOrigins = rawFrontend.split(',').map(s => s.trim()).filter(Boolean);
+
+// Xử lý thông minh: Tự động thêm cả bản có dấu '/' ở cuối và bản không có để tránh lỗi cấu hình sai trên Railway
+if (allowedOrigins.length > 0) {
+  const dynamicOrigins = [];
+  allowedOrigins.forEach(origin => {
+    if (origin.endsWith('/')) {
+      dynamicOrigins.push(origin.slice(0, -1));
+    } else {
+      dynamicOrigins.push(origin + '/');
+    }
+  });
+  allowedOrigins.push(...dynamicOrigins);
+}
+
 app.use(cors({
   origin: (origin, callback) => {
+    // 1. Cho phép các request không có origin (Ví dụ: Postman, Mobile App, hoặc server internal check)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    // 2. Chế độ an toàn: Nếu chạy local (Development) hoặc quên chưa cấu hình biến môi trường, tự động cho phép
+    if (allowedOrigins.length === 0 || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // 3. Khớp chính xác danh sách domain được cấu hình
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log ra terminal lỗi chi tiết để khi debug trên Railway có thể nhìn thấy domain nào đang bị từ chối
+    console.error(`🔴 [CORS BLOCKED]: Cửa ngõ bảo mật từ chối kết nối từ tên miền: ${origin}. Danh sách cho phép hiện tại:`, allowedOrigins);
     return callback(new Error('CORS policy: origin not allowed'));
   },
-  credentials: true, 
+  credentials: true, // Bắt buộc: Giữ true để truyền tải cookie bảo mật HttpOnly (refresh_token)
 }));
 
 app.use(express.json());
@@ -78,9 +107,8 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 })();
 
 // ====================================================================
-// ✅ SỬA CHUẨN XÁC TOÀN DIỆN: ĐỒNG BỘ SANG NAMED IMPORT CHO TOÀN BỘ ROUTES
+// ✅ ĐỒNG BỘ SANG NAMED IMPORT CHO TOÀN BỘ ROUTES
 // ====================================================================
-
 import { authRouter } from './routes/auth.js'; 
 import { companiesRouter } from './routes/companies.js'; 
 import { itemsRouter } from './routes/items.js'; 
@@ -90,9 +118,8 @@ import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js'; 
 import { partnerRouter } from './routes/partnerRoute.js'; 
 import { usersRouter } from './routes/users.js'; 
-
-// Riêng tệp inventoryRoutes.js của bạn có sẵn lệnh `export default router` ở cuối
 import inventoryRoutes from './routes/inventoryRoutes.js';
+
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
 // ====================================================================
@@ -105,8 +132,6 @@ app.use('/api/export', exportRouter);
 app.use('/api/import', importRouter);
 app.use('/api/partners', partnerRouter); 
 app.use('/api/users', usersRouter); 
-
-// Kích hoạt API lõi: Thuật toán kho O(N) & Sổ cái tổng hợp động dồn tích
 app.use('/api/inventory', inventoryRoutes);
 
 // ====================================================================
@@ -130,7 +155,6 @@ if (process.env.SEED_DATABASE === 'true') {
 }
 
 if (process.env.NODE_ENV === 'production') {
-  // Try multiple possible locations for frontend dist
   const possiblePaths = [
     path.join(__dirname, '..', 'front-end', 'dist'),
     path.join(__dirname, '..', 'dist'),
@@ -165,3 +189,6 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
+export default app;
+
+//
