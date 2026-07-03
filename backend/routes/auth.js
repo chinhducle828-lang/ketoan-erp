@@ -31,8 +31,19 @@ import {
 } from '../validators/index.js';
 
 const router = express.Router();
+
+// ====================================================================
+// 🛠️ HÀM TRỢ GIÚP: Bỏ qua kiểm định Zod nếu là yêu cầu tiền trạm OPTIONS
+// ====================================================================
+const safeValidate = (schema) => (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  return validate(schema)(req, res, next);
+};
+
 // Đăng ký tài khoản Admin hệ thống gốc
-router.post('/register-admin', validate(registerAdminSchema), async (req, res) => {
+router.post('/register-admin', safeValidate(registerAdminSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -50,8 +61,8 @@ router.post('/register-admin', validate(registerAdminSchema), async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Đăng nhập hệ thống
-router.post('/login', validate(loginSchema), async (req, res) => {
+// Đăng nhập hệ thống - ✅ ĐÃ SỬA: Không chặn các Preflight Request của trình duyệt
+router.post('/login', safeValidate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
@@ -212,7 +223,7 @@ router.post('/logout', authenticate, async (req, res) => {
 });
 
 // Thay đổi mật khẩu
-router.post('/change-password', authenticate, validate(changePasswordSchema), async (req, res) => {
+router.post('/change-password', authenticate, safeValidate(changePasswordSchema), async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
     
@@ -232,7 +243,7 @@ router.post('/change-password', authenticate, validate(changePasswordSchema), as
 });
 
 // Admin Reset Mật khẩu
-router.post('/admin-reset-password', authenticate, requireRole(['admin']), validate(adminResetPasswordSchema), async (req, res) => {
+router.post('/admin-reset-password', authenticate, requireRole(['admin']), safeValidate(adminResetPasswordSchema), async (req, res) => {
   try {
     const { userId } = req.body;
     
@@ -252,7 +263,7 @@ router.post('/admin-reset-password', authenticate, requireRole(['admin']), valid
 });
 
 // Kế toán trưởng tích chọn quản lý nhiều nhân viên
-router.post('/assign-staff', authenticate, requireRole(['admin']), validate(assignStaffSchema), async (req, res) => {
+router.post('/assign-staff', authenticate, requireRole(['admin']), safeValidate(assignStaffSchema), async (req, res) => {
   try {
     const { managerId, staffIds } = req.body; 
 
@@ -283,7 +294,7 @@ router.post('/assign-staff', authenticate, requireRole(['admin']), validate(assi
 });
 
 // Chỉ định nhân viên vào nhiều công ty
-router.post('/assign-company', authenticate, requireRole(['admin']), validate(assignCompanySchema), async (req, res) => {
+router.post('/assign-company', authenticate, requireRole(['admin']), safeValidate(assignCompanySchema), async (req, res) => {
   try {
     const { userId, companyIds, companyId, role, managerId } = req.body;
 
@@ -335,7 +346,7 @@ router.post('/assign-company', authenticate, requireRole(['admin']), validate(as
   }
 });
 
-// ✅ THÀNH PHẦN THIẾU ĐÃ ĐƯỢC BỔ SUNG: API LẤY DANH SÁCH TOÀN BỘ NGƯỜI DÙNG
+// ✅ API LẤY DANH SÁCH TOÀN BỘ NGƯỜI DÙNG
 router.get('/users', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
