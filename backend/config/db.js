@@ -35,4 +35,3 @@ pool.on('error', (err) => {
 });
 
 export { pool };
-export default pool;
