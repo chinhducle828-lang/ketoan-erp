@@ -1,9 +1,19 @@
 // FILE_PATH: front-end/src/utils/api.js
 import axios from 'axios';
 
+// ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
+const getBaseURL = () => {
+  // Nếu đang chạy local (localhost:3000, 127.0.0.1,...) thì dùng '/api' để proxy của Vite xử lý
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return '/api';
+  }
+  // 🔴 KHI LÊN RAILWAY PRODUCTION: Ép cứng trỏ thẳng về endpoint /api của Backend Railway
+  return 'https://dazzling-grace-production-03a5.up.railway.app/api';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  withCredentials: true, // Cho phép truyền Cookie / Refresh Token tự động mã hóa
+  baseURL: getBaseURL(), // Sử dụng hàm tự động nhận diện ở trên
+  withCredentials: true,  // Bắt buộc: Để nhận/gửi cookie HttpOnly (refresh_token) giữa 2 domain
   headers: {
     'Content-Type': 'application/json'
   }
