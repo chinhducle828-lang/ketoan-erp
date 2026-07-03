@@ -111,9 +111,37 @@ if (process.env.SEED_DATABASE === 'true') {
 }
 
 if (process.env.NODE_ENV === 'production') {
-  const clientDist = path.join(__dirname, '..', 'front-end', 'dist');
-  app.use(express.static(clientDist));
-  app.get('*', (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  // Try multiple possible locations for frontend dist
+  const possiblePaths = [
+    path.join(__dirname, '..', 'front-end', 'dist'),
+    path.join(__dirname, '..', 'dist'),
+    path.join(__dirname, 'dist'),
+    '/front-end/dist',
+    '/app/front-end/dist'
+  ];
+  
+  let clientDist = null;
+  for (const distPath of possiblePaths) {
+    if (fs.existsSync(distPath)) {
+      clientDist = distPath;
+      console.log(`✅ Found frontend dist at: ${clientDist}`);
+      break;
+    }
+  }
+  
+  if (clientDist) {
+    app.use(express.static(clientDist));
+    app.get('*', (req, res) => {
+      try {
+        res.sendFile(path.join(clientDist, 'index.html'));
+      } catch (err) {
+        console.error('Error serving index.html:', err);
+        res.status(500).json({ error: 'Failed to serve frontend' });
+      }
+    });
+  } else {
+    console.warn('⚠️ Frontend dist not found in any expected location. API-only mode.');
+  }
 }
 
 const PORT = process.env.PORT || 5000;
