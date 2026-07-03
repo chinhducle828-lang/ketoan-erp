@@ -3,17 +3,19 @@ import axios from 'axios';
 
 // ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
 const getBaseURL = () => {
-  // Nếu đang chạy local (localhost:3000, 127.0.0.1,...) thì dùng '/api' để proxy của Vite xử lý
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return '/api';
+  if (typeof window !== 'undefined') {
+    // 🌟 ĐÃ SỬA: Gom nhóm ngoặc đơn chuẩn xác để tránh lỗi logic thứ tự ưu tiên toán tử
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost:3000') {
+      return '/api'; // Dùng proxy Vite cấu hình sẵn ở local
+    }
   }
   // 🔴 KHI LÊN RAILWAY PRODUCTION: Ép cứng trỏ thẳng về endpoint /api của Backend Railway
   return 'https://dazzling-grace-production-03a5.up.railway.app/api';
 };
 
 const api = axios.create({
-  baseURL: getBaseURL(), // Sử dụng hàm tự động nhận diện ở trên
-  withCredentials: true,  // Bắt buộc: Để nhận/gửi cookie HttpOnly (refresh_token) giữa 2 domain
+  baseURL: getBaseURL(), 
+  withCredentials: true,  // Giữ nguyên để nhận/gửi cookie HttpOnly an toàn giữa 2 domain
   headers: {
     'Content-Type': 'application/json'
   }
@@ -50,3 +52,5 @@ api.interceptors.request.use(
 );
 
 export default api;
+
+//
