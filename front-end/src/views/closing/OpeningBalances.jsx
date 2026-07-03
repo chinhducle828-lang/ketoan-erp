@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Building2 } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../../utils/api.js';
 
 // Danh mục tài khoản chuẩn hóa theo đúng tên hiển thị và tính chất trong ảnh
@@ -44,9 +44,8 @@ const PAGE_STRUCTURE = [
 
 export default function OpeningBalances() {
   const { vouchers } = useVouchers();
-  const { companies, activeCompany, changeCompany } = useAuth();
+  const { activeCompany, fiscalYear } = useAuth();
   
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [balances, setBalances] = useState([]);
   const [customAccounts, setCustomAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -59,27 +58,14 @@ export default function OpeningBalances() {
   const [inlineName, setInlineName] = useState('');
   const inlineCodeRef = useRef(null);
 
+  // Tự động tải lại số dư khi người dùng đổi công ty hoặc đổi năm trên Header
   useEffect(() => {
     if (activeCompany?.id) {
-      setSelectedCompanyId(activeCompany.id);
+      fetchAndInitializeBalances();
     } else {
-      const stored = vouchers[0]?.companyId || localStorage.getItem('selectedCompanyId');
-      if (stored) setSelectedCompanyId(stored);
+      initEmptyBalances();
     }
-  }, [activeCompany, vouchers]);
-  
-  const handleCompanyChange = (e) => {
-    const id = Number(e.target.value);
-    const company = companies.find(c => c.id === id);
-    if (company) {
-      changeCompany(company);
-    }
-    setSelectedCompanyId(id);
-  };
-
-  useEffect(() => {
-    if (selectedCompanyId) fetchAndInitializeBalances();
-  }, [selectedCompanyId]);
+  }, [activeCompany?.id, fiscalYear]);
 
   const allBalances = useMemo(() => {
     const sorted = Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => {
@@ -92,7 +78,8 @@ export default function OpeningBalances() {
   const fetchAndInitializeBalances = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/opening-balances?company_id=${selectedCompanyId}&year=2026`);
+      const currentYear = fiscalYear || 2026;
+      const res = await api.get(`/opening-balances?company_id=${activeCompany.id}&year=${currentYear}`);
 
       if (res.data && res.data.length > 0) {
         const dbMap = new Map(res.data.map(item => [item.account_code || item.accountCode, item]));
@@ -203,17 +190,23 @@ export default function OpeningBalances() {
   }, [allBalances]);
 
   const saveOpeningBalances = async () => {
+    if (!activeCompany?.id) {
+      setMessage('Vui lòng chọn doanh nghiệp trước khi lưu.');
+      setMessageType('error');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
     try {
       const items = allBalances.filter(b => b.account_code && b.account_code.trim() !== '');
       await Promise.all(items.map(item =>
         api.post('/opening-balances', {
-          companyId: selectedCompanyId,
+          companyId: activeCompany.id,
           accountCode: item.account_code,
           debitBalance: item.debit_balance || 0,
           creditBalance: item.credit_balance || 0,
-          fiscalYear: 2026,
+          fiscalYear: fiscalYear || 2026,
         })
       ));
       setMessage('Lưu dữ liệu số dư đầu kỳ thành công!');
@@ -227,40 +220,27 @@ export default function OpeningBalances() {
   };
 
   return (
-    <div className="w-full bg-slate-50 p-4 font-sans text-sm antialiased text-slate-800">
+    <div className="w-full bg-slate-50 p-1 font-sans text-sm antialiased text-slate-800 space-y-4">
       
-      {/* 1. HEADER BAR CHỌN DOANH NGHIỆP CHUẨN THEO ẢNH THỰC TẾ */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-300">
-            <Building2 size={16} className="text-emerald-600" />
-            <select
-              value={selectedCompanyId || ''}
-              onChange={handleCompanyChange}
-              className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none min-w-[240px]"
-            >
-              <option value="">-- Chọn doanh nghiệp hạch toán --</option>
-              {companies.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-            <span className="text-xs text-slate-500">Niên độ kế toán:</span>
-            <span className="text-xs font-bold text-slate-800">Năm 2026</span>
-          </div>
+      {/* 1. TIÊU ĐỀ TRANG TINH GỌN */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+        <div>
+          <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+            Số Dư Đầu Kỳ Tài Khoản
+          </h1>
+          <p className="text-xs text-slate-500 font-medium">
+            Thiết lập số dư cho doanh nghiệp: <span className="text-emerald-700 font-bold">{activeCompany?.name || 'Chưa chọn'}</span>
+          </p>
         </div>
-        
         <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
           <RefreshCw size={13} className={loading ? 'animate-spin text-indigo-500' : ''} />
-          {selectedCompanyId ? `Đang kết nối cơ sở dữ liệu` : 'Vui lòng chọn doanh nghiệp'}
+          {activeCompany?.id ? `Đang kết nối cơ sở dữ liệu năm ${fiscalYear}` : 'Vui lòng chọn doanh nghiệp ở thanh Header'}
         </div>
       </div>
 
-      {/* Alert Message */}
+      {/* Alert Message - ĐÃ ĐƯỢC FIX LỖI CÚ PHÁP TẠI ĐÂY */}
       {message && (
-        <div className={`mb-4 px-4 py-3 rounded-xl border flex items-center gap-2 text-xs font-medium shadow-sm transition-all ${
+        <div className={`px-4 py-3 rounded-xl border flex items-center gap-2 text-xs font-medium shadow-sm transition-all tracking-wide ${
           messageType === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
         }`}>
           {messageType === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
@@ -268,8 +248,8 @@ export default function OpeningBalances() {
         </div>
       )}
 
-      {/* BẢNG SỐ DƯ 2 CỘT TÀI SẢN & NGUỒN VỐN */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5 items-start">
+      {/* 2. BẢNG SỐ DƯ 2 CỘT TÀI SẢN & NGUỒN VỐN */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
         {PAGE_STRUCTURE.map((block) => (
           <div key={block.key} className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
             <div className="bg-[#1e293b] px-4 py-3 flex justify-between items-center text-white">
@@ -343,9 +323,8 @@ export default function OpeningBalances() {
                             );
                           })}
 
-                          {/* DÒNG NHẬP LIỆU ĐỘNG THEO TRẠNG THÁI TRONG ẢNH */}
+                          {/* DÒNG NHẬP LIỆU ĐỘNG THÊM TÀI KHOẢN MỚI */}
                           {activeGroupId === sub.id ? (
-                            /* TRẠNG THÁI KÍCH HOẠT (ẢNH 3): CÓ VIỀN BAO QUANH INPUT */
                             <tr className="bg-slate-50/50 border-2 border-dashed border-indigo-200 rounded">
                               <td className="py-1.5 px-1">
                                 <input
@@ -363,16 +342,19 @@ export default function OpeningBalances() {
                                   className="w-full border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:border-indigo-500"
                                   value={inlineName}
                                   onChange={(e) => setInlineName(e.target.value)}
-                                  placeholder="Nhập tên tài khoản hoặc tự động định nghĩa"
+                                  placeholder="Nhập tên tài khoản..."
                                   onKeyDown={(e) => e.key === 'Enter' && handleSaveInlineAccount(sub)}
                                 />
                               </td>
                               <td colSpan={2} className="py-1.5 pr-2 text-right text-[11px] text-slate-400 italic">
-                                Nhấn Enter hoặc nút (+) để áp dụng
+                                Nhấn Enter hoặc nút (+) để thêm
                               </td>
                               <td className="py-1.5 text-center">
                                 <button
-                                  onClick={() => handleSaveInlineAccount(sub)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSaveInlineAccount(sub);
+                                  }}
                                   className="w-5 h-5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all shadow"
                                 >
                                   <Plus size={12} className="stroke-[3px]" />
@@ -380,7 +362,6 @@ export default function OpeningBalances() {
                               </td>
                             </tr>
                           ) : (
-                            /* TRẠNG THÁI TĨNH (ẢNH 2): CHỮ NGHIÊNG, PHẲNG HOÀN TOÀN KHÔNG VIỀN */
                             <tr 
                               onClick={() => handleActivateInlineInput(sub)}
                               className="bg-transparent text-slate-400/80 cursor-pointer hover:bg-slate-50 transition-colors group"
@@ -395,7 +376,7 @@ export default function OpeningBalances() {
                               <td className="py-2.5 text-center">
                                 <button
                                   onClick={(e) => {
-                                    e.stopPropagation();
+                                    e.stopPropagation(); // Ngăn chặn kích hoạt lại hàm cha trỏ nhầm trạng thái
                                     handleActivateInlineInput(sub);
                                   }}
                                   className="w-5 h-5 rounded-md border border-slate-200 bg-white hover:border-indigo-400 text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all shadow-sm"
@@ -417,7 +398,7 @@ export default function OpeningBalances() {
         ))}
       </div>
 
-      {/* FOOTER ĐỐI CHIẾU CÂN ĐỐI */}
+      {/* 3. FOOTER ĐỐI CHIẾU CÂN ĐỐI */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
         <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-4 flex flex-col justify-center shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng số dư Nợ (Tổng DR)</span>
