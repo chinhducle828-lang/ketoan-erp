@@ -11,7 +11,8 @@ import {
   Coins, 
   Layers, 
   BarChart3,
-  ShieldAlert
+  ShieldAlert,
+  TrendingUp
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -126,5 +127,13 @@ export const MODULES_REGISTER = [
     component: React.lazy(() => import('./admin/AuditLogs.jsx')),
     allowedRoles: ['admin'],
     requiresActiveCompany: false
+  },
+  {
+    id: 'income-statement',
+    name: 'Báo Cáo Kết Quả Hoạt Động Kinh Doanh',
+    icon: TrendingUp,
+    component: React.lazy(() => import('./financial/IncomeStatement.jsx')),
+    allowedRoles: ['admin', 'ktt'],
+    requiresActiveCompany: true
   }
 ];
