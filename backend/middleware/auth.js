@@ -46,10 +46,11 @@ export const requireRootAdmin = async (req, res, next) => {
       return res.status(403).json({ error: 'Tài khoản không tồn tại!' });
     }
     
-    const { username, is_root_admin } = userResult.rows[0];
+    const { username, role, is_root_admin } = userResult.rows[0];
     
-    // Chỉ cho phép tài khoản có flag is_root_admin = true
-    if (!is_root_admin) {
+    // Cho phép cả role='admin' HOẶC is_root_admin=true
+    // Điều này đảm bảo admin luôn có quyền truy cập audit logs
+    if (role !== 'admin' && !is_root_admin) {
       return res.status(403).json({ 
         error: `Chỉ tài khoản Root Admin mới có quyền truy cập! Tài khoản hiện tại: ${username}` 
       });
