@@ -10,12 +10,16 @@ export default function AddCompanyForm({ onRefresh }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/companies', form);
+      await api.post('/companies', form);
       // Đặt lại state form về rỗng sau khi thêm thành công
       setForm({ name: '', tax_code: '', address: '' });
       onRefresh();
+      alert('Thêm pháp nhân thành công!');
     } catch (err) {
-      alert('Không thể thêm pháp nhân mới.');
+      // Hiển thị chi tiết lỗi từ backend
+      const errorMsg = err.response?.data?.error || err.message || 'Lỗi không xác định';
+      alert('Lỗi: ' + errorMsg);
+      console.error('Chi tiết lỗi thêm pháp nhân:', err.response?.data || err);
     }
   };
 

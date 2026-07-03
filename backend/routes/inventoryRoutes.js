@@ -1,14 +1,29 @@
 import express from 'express';
-import { createInventoryVoucher, getInventoryVouchers } from '../controllers/inventoryController.js';
+// Nạp 2 hàm từ controller xử lý thuật toán dồn tích và giá vốn kho
+import { runInventoryCosting, getLedgerBalances, getAuditLogs } from '../controllers/erpController.js';
+import { authenticate, checkCompanyAccess, requireRootAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Tuyến đường xử lý Tạo mới Phiếu Nhập / Xuất kho (Đa dòng)
-// POST -> /api/inventory/vouchers
-router.post('/vouchers', createInventoryVoucher);
+/**
+ * @route   POST /api/inventory/costing
+ * @desc    Kích hoạt máy chủ chạy tính toán áp giá xuất kho bình quân cuối kỳ O(N)
+ * @access  Private (Đăng nhập & Thuộc về Doanh nghiệp đó)
+ */
+router.post('/costing', authenticate, checkCompanyAccess, runInventoryCosting);
 
-// ✅ BỔ SUNG: Tuyến đường lấy danh sách Phiếu nhập / xuất kho (Có bộ lọc)
-// GET -> /api/inventory/vouchers
-router.get('/vouchers', getInventoryVouchers);
+/**
+ * @route   GET /api/inventory/balances
+ * @desc    Lấy bảng cân đối số dư tài khoản tổng hợp động (RAM Cache < 2ms cho 13 phân hệ)
+ * @access  Private (Đăng nhập & Thuộc về Doanh nghiệp đó)
+ */
+router.get('/balances', authenticate, checkCompanyAccess, getLedgerBalances);
+
+/**
+ * @route   GET /api/inventory/audit-logs
+ * @desc    Lấy danh sách nhật ký hệ thống (CHỈ ROOT ADMIN - username='admin')
+ * @access  Private (Root Admin only)
+ */
+router.get('/audit-logs', authenticate, requireRootAdmin, getAuditLogs);
 
 export default router;

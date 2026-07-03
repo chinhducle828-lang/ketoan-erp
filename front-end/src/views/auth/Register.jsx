@@ -10,7 +10,7 @@ export default function Register({ onSwitch }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/api/auth/register-admin', form);
+      const res = await api.post('/auth/register-admin', form);
       if (res.data.success) {
         setSuccess(true);
         setTimeout(() => onSwitch(), 2000);

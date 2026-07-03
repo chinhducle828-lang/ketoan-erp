@@ -33,7 +33,7 @@ export function VoucherProvider({ children }) {
       const companyId = activeCompany?.id ?? activeCompany;
       if (!companyId) return;
       
-      const res = await api.get(`/api/vouchers?company_id=${companyId}`);
+      const res = await api.get(`/vouchers?company_id=${companyId}`);
       // Bảo vệ State: Đảm bảo dữ liệu nhận về luôn là mảng để không lỗi hàm render (.map)
       setVouchers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -105,9 +105,9 @@ export function VoucherProvider({ children }) {
       const companyId = activeCompany?.id ?? activeCompany;
       
       // Đóng gói JSON an toàn, thay thế toàn bộ tham số null tiềm ẩn bằng object rỗng {}
-      const res = await api.post('/api/vouchers', { 
+      const res = await api.post('/vouchers', { 
         ...voucherData, 
-        companyId,
+        company_id: companyId,
         details: voucherData.details || [] 
       });
 
@@ -124,7 +124,7 @@ export function VoucherProvider({ children }) {
   const removeVoucher = async (id) => {
     if (!id) return { success: false, error: 'Mã định danh chứng từ không hợp lệ.' };
     try {
-      const res = await api.delete(`/api/vouchers/${id}`);
+      const res = await api.delete(`/vouchers/${id}`);
       if (res.data?.success) {
         setVouchers(prev => prev.filter(v => v.id !== id));
         return { success: true, message: res.data.message };
@@ -140,7 +140,7 @@ export function VoucherProvider({ children }) {
   };
 
   return (
-    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, reloadVouchers: loadVouchers }}>
+    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers }}>
       {children}
     </VoucherContext.Provider>
   );

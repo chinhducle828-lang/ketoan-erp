@@ -1,23 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Wallet, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Wallet, Trash2, Loader2 } from 'lucide-react';
+import api from '../../utils/api.js';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
   const { activeCompany } = useAuth();
   
+  const [partners, setPartners] = useState([]); 
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     desc: '',
+    partnerId: '',
+    currency: 'VND',     
+    exchangeRate: 1,     
     details: [
       { accountCode: '1111', entryType: 'DR', amount: '' },
       { accountCode: '131', entryType: 'CR', amount: '' }
     ]
   });
-  const [loading, setLoading] = useState(false);
 
-  const cashVouchers = vouchers.filter(v => v.type === 'PT' || v.type === 'PC');
+  useEffect(() => {
+    if (activeCompany) {
+      const companyId = activeCompany?.id ?? activeCompany;
+      api.get(`/api/partners?company_id=${companyId}`)
+         .then(res => setPartners(res.data))
+         .catch(() => {});
+    }
+  }, [activeCompany]);
 
   const handleDetailChange = (index, field, value) => {
     const newDetails = [...form.details];
@@ -27,56 +39,120 @@ export default function CashManagement() {
 
   const handleAddVoucher = async (e, type) => {
     e.preventDefault();
-    
-    // Validate Cân đối Nợ / Có
-    const processedDetails = form.details.map(d => ({ ...d, amount: Math.round(parseFloat(d.amount) || 0) }));
-    const totalDr = processedDetails.filter(d => d.entryType === 'DR').reduce((s, d) => s + d.amount, 0);
-    const totalCr = processedDetails.filter(d => d.entryType === 'CR').reduce((s, d) => s + d.amount, 0);
-
-    if (totalDr !== totalCr || totalDr === 0) return alert('Hạch toán mất cân đối hoặc bằng 0!');
-
     setLoading(true);
     try {
+      const companyId = activeCompany?.id ?? activeCompany;
+      const rate = parseFloat(form.exchangeRate) || 1;
+      
+      // Quy đổi giá trị ngoại tệ sang VND theo tỷ giá hạch toán
+      const processedDetails = form.details.map(d => ({
+        ...d,
+        amount: Math.round(parseFloat(d.amount || 0) * rate),
+        partnerId: form.partnerId || null
+      }));
+
+      // Kiểm tra cân đối Nợ - Có cơ bản trước khi đẩy lên API
+      const totalDr = processedDetails.filter(d => d.entryType === 'DR').reduce((a, b) => a + b.amount, 0);
+      const totalCr = processedDetails.filter(d => d.entryType === 'CR').reduce((a, b) => a + b.amount, 0);
+      if (totalDr !== totalCr) {
+        alert('Lỗi định khoản: Tổng số tiền bên NỢ phải bằng tổng số tiền bên CÓ!');
+        setLoading(false);
+        return;
+      }
+
       await createNewVoucher({
-        companyId: activeCompany?.id || activeCompany || 1,
-        voucherDate: form.date,
-        type: type,
+        company_id: companyId,
+        voucher_number: `${type}-${Date.now().toString().slice(-6)}`,
+        voucher_date: form.date,
+        voucher_type: type,
         description: form.desc,
+        currency: form.currency,
+        exchange_rate: rate,
         details: processedDetails
       });
-      setForm({ date: new Date().toISOString().split('T')[0], desc: '', details: [{ accountCode: '1111', entryType: 'DR', amount: '' }, { accountCode: '', entryType: 'CR', amount: '' }]});
-    } catch (err) { alert('Lỗi tạo chứng từ!'); }
-    finally { setLoading(false); }
+      
+      alert('Tạo phiếu thu/chi dòng tiền thành công!');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ dòng tiền!');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const cashVouchers = vouchers.filter(v => v.type === 'PT' || v.type === 'PC');
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2"><Wallet className="text-emerald-600" size={24} /> PHIẾU THU / CHI TIỀN</h1>
-      
-      <div className="bg-white p-6 rounded-2xl border shadow-sm max-w-2xl space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-          <input type="text" placeholder="Nội dung thu/chi..." value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-        </div>
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <h2 className="text-base font-black flex items-center gap-2 text-slate-800 mb-4"><Wallet size={18}/> Quản Lý Thu - Chi Đa Tiền Tệ</h2>
+        <form className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="border p-2 rounded-lg text-sm" />
+            <select value={form.partnerId} onChange={e => setForm({...form, partnerId: e.target.value})} className="border p-2 rounded-lg text-sm">
+              <option value="">-- Chọn Đối tác công nợ --</option>
+              {partners.map(p => <option key={p.id} value={p.id}>{p.partner_name}</option>)}
+            </select>
+            <select value={form.currency} onChange={e => setForm({...form, currency: e.target.value, exchangeRate: e.target.value==='VND'?1:form.exchangeRate})} className="border p-2 rounded-lg text-sm">
+              <option value="VND">VND (Việt Nam Đồng)</option>
+              <option value="USD">USD (Đô la Mỹ)</option>
+              <option value="EUR">EUR (Đồng Euro)</option>
+            </select>
+            <input type="number" placeholder="Tỷ giá hạch toán" value={form.exchangeRate} onChange={e => setForm({...form, exchangeRate: e.target.value})} disabled={form.currency==='VND'} className="border p-2 rounded-lg text-sm" />
+          </div>
+          <input type="text" placeholder="Lý do nộp / nội dung chi..." value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} className="w-full border p-2 rounded-lg text-sm" />
+          
+          <div className="space-y-2">
+            {form.details.map((dt, idx) => (
+              <div key={idx} className="flex gap-2">
+                <select value={dt.entryType} onChange={e => handleDetailChange(idx, 'entryType', e.target.value)} className="border p-2 rounded-lg text-sm font-bold">
+                  <option value="DR">NỢ</option>
+                  <option value="CR">CÓ</option>
+                </select>
+                <input type="text" placeholder="Mã TK" value={dt.accountCode} onChange={e => handleDetailChange(idx, 'accountCode', e.target.value)} className="border p-2 rounded-lg text-sm font-mono w-28" required />
+                <input type="number" placeholder="Số tiền nguyên tệ" value={dt.amount} onChange={e => handleDetailChange(idx, 'amount', e.target.value)} className="border p-2 rounded-lg text-sm flex-1 text-right" required />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={e => handleAddVoucher(e, 'PT')} disabled={loading} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold">Tạo Phiếu Thu (PT)</button>
+            <button type="button" onClick={e => handleAddVoucher(e, 'PC')} disabled={loading} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold">Tạo Phiếu Chi (PC)</button>
+          </div>
+        </form>
+      </div>
 
-        <div className="space-y-2 border rounded-xl p-4 bg-slate-50">
-          {form.details.map((dt, idx) => (
-            <div key={idx} className="flex gap-2">
-              <select value={dt.entryType} onChange={e => handleDetailChange(idx, 'entryType', e.target.value)} className="p-2 border rounded-lg text-xs font-bold text-slate-700 outline-none">
-                <option value="DR">NỢ</option>
-                <option value="CR">CÓ</option>
-              </select>
-              <input type="text" placeholder="TK (1111, 112)" value={dt.accountCode} onChange={e => handleDetailChange(idx, 'accountCode', e.target.value)} className="w-24 p-2 border rounded-lg text-xs font-mono outline-none" required />
-              <input type="number" placeholder="Số tiền..." value={dt.amount} onChange={e => handleDetailChange(idx, 'amount', e.target.value)} className="flex-1 p-2 border rounded-lg text-xs outline-none text-right font-mono" required />
-            </div>
-          ))}
-          <button type="button" onClick={() => setForm({...form, details: [...form.details, { accountCode: '', entryType: 'DR', amount: '' }]})} className="text-[10px] font-bold text-slate-500 hover:text-emerald-600">+ Thêm dòng hạch toán</button>
-        </div>
-
-        <div className="flex gap-3">
-          <button onClick={e => handleAddVoucher(e, 'PT')} disabled={loading} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl flex justify-center items-center">Phiếu Thu (PT)</button>
-          <button onClick={e => handleAddVoucher(e, 'PC')} disabled={loading} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl flex justify-center items-center">Phiếu Chi (PC)</button>
-        </div>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-500 font-bold">
+            <tr>
+              <th className="p-3">Ngày</th>
+              <th className="p-3">Loại</th>
+              <th className="p-3">Tiền tệ / Tỷ giá</th>
+              <th className="p-3">Diễn giải</th>
+              <th className="p-3 text-right">Hạch toán (VND)</th>
+              <th className="p-3 text-center">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cashVouchers.map(v => (
+              <tr key={v.id} className="border-b hover:bg-slate-50/50 transition">
+                <td className="p-3 font-mono">{v.voucherDate?.split('T')[0]}</td>
+                <td className="p-3"><span className={`px-2 py-0.5 rounded text-[10px] font-black ${v.type === 'PT' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{v.type}</span></td>
+                <td className="p-3 font-mono">{v.currency} / {parseFloat(v.exchangeRate || 1).toLocaleString('vi-VN')}</td>
+                <td className="p-3 text-slate-600 max-w-xs truncate">{v.description}</td>
+                <td className="p-3 text-right space-y-1">
+                  {v.details?.map((d, i) => (
+                    <div key={i} className="font-mono text-[10px]">
+                      <span>{d.entryType}:</span> <span className="font-bold text-blue-600">{d.accountCode}</span> → {Math.round(d.amount)?.toLocaleString('vi-VN')}
+                    </div>
+                  ))}
+                </td>
+                <td className="p-3 text-center">
+                  <button onClick={() => removeVoucher(v.id).catch(e => alert(e.response?.data?.error || 'Lỗi khóa sổ!'))} className="text-rose-600 font-bold hover:underline">Xóa</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

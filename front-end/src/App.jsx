@@ -16,9 +16,22 @@ import Header from './components/Header.jsx';
 import CompanyRouteWrapper from './components/CompanyRouteWrapper.jsx';
 
 export default function App() {
-  const { token, mustChangePassword } = useAuth();
+  // ✅ ĐÃ HOÀN THIỆN: Lấy loading từ useAuth để kiểm soát render bảo vệ tuyến đường
+  const { token, mustChangePassword, loading } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(false);
+
+  // ✅ ĐÃ HOÀN THIỆN: Màn hình chờ đồng bộ an toàn khi F5 ứng dụng
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 gap-3">
+        <div className="w-9 h-9 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400 font-semibold tracking-wide animate-pulse">
+          Đang đồng bộ chuỗi phiên an toàn...
+        </span>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

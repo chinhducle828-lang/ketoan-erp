@@ -12,7 +12,7 @@ export default function CompanyList({ companies, onRefresh }) {
 
     setLoading(true);
     try {
-      await api.delete(`/api/companies/${companyId}`);
+      await api.delete(`/companies/${companyId}`);
       alert('Đã xóa công ty thành công!');
       onRefresh();
     } catch (err) {

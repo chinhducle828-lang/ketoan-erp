@@ -2,23 +2,37 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Lock, User, Terminal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // ✅ ĐÃ BỔ SUNG: Import công cụ điều hướng chuyển trang
 
 export default function Login({ onFirstRun }) {
   const { login } = useAuth();
+  const navigate = useNavigate(); // ✅ ĐÃ BỔ SUNG: Khởi tạo thực thể điều hướng tuyến đường
+  
   const [form, setForm] = usePersistentState('login-form', { username: '', password: '' });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  
+  // ✅ ĐÃ ĐỔI TÊN: Dùng localLoading để quản lý riêng trạng thái nút bấm, chống xung đột State toàn cục
+  const [localLoading, setLocalLoading] = useState(false); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setLocalLoading(true);
     try {
-      await login(form.username, form.password);
+      // 1. Gửi yêu cầu đăng nhập lên AuthContext và nhận kết quả trả về
+      const response = await login(form.username, form.password);
+      
+      // 2. ✅ ĐÃ SỬA ĐỔI: Kiểm tra linh hoạt, nếu có cờ success HOẶC có accessToken trả về thì coi như thành công
+      if (response && (response.success || response.accessToken)) {
+        navigate('/', { replace: true }); // Tự động chuyển giao diện vào thẳng hệ thống ERP không cần F5
+      } else {
+        setError(response?.message || 'Tên người dùng hoặc mật khẩu không chính xác.');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Không thể kết nối đến máy chủ.');
+      // Đọc thông báo lỗi chi tiết từ server trả về nếu có
+      setError(err.response?.data?.error || err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -41,7 +55,6 @@ export default function Login({ onFirstRun }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
-            {/* Ô nhập Tên người dùng - Đã thêm id, name và label ẩn */}
             <div className="relative">
               <label htmlFor="username" className="sr-only">Tên người dùng</label>
               <User className="absolute left-3 top-3 text-slate-400" size={16} />
@@ -50,7 +63,7 @@ export default function Login({ onFirstRun }) {
                 name="username"
                 type="text" 
                 required 
-                disabled={loading}
+                disabled={localLoading}
                 placeholder="Tên người dùng..." 
                 value={form.username}
                 onChange={e => setForm({...form, username: e.target.value})}
@@ -58,7 +71,6 @@ export default function Login({ onFirstRun }) {
               />
             </div>
 
-            {/* Ô nhập Mật khẩu - Đã thêm id, name và label ẩn */}
             <div className="relative">
               <label htmlFor="password" className="sr-only">Mật khẩu bảo mật</label>
               <Lock className="absolute left-3 top-3 text-slate-400" size={16} />
@@ -67,7 +79,7 @@ export default function Login({ onFirstRun }) {
                 name="password"
                 type="password" 
                 required 
-                disabled={loading}
+                disabled={localLoading}
                 placeholder="Mật khẩu bảo mật..." 
                 value={form.password}
                 onChange={e => setForm({...form, password: e.target.value})}
@@ -78,10 +90,10 @@ export default function Login({ onFirstRun }) {
 
           <button 
             type="submit" 
-            disabled={loading}
+            disabled={localLoading}
             className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition-all disabled:opacity-60"
           >
-            {loading ? 'Đang xác thực thông tin...' : 'Xác thực & Vào hệ thống'}
+            {localLoading ? 'Đang xác thực thông tin...' : 'Xác thực & Vào hệ thống'}
           </button>
         </form>
 

@@ -1,5 +1,5 @@
 import crypto from 'crypto'; // ✅ BẮT BUỘC: Thêm thư viện mã hóa gốc của Node.js
-import { pool } from '../config/db.js';
+import pool  from '../config/db.js';
 
 // --- CÁC HÀM XỬ LÝ DOANH NGHIỆP CỦA BẠN (GIỮ NGUYÊN TỐT) ---
 
