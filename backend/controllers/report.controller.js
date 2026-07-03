@@ -3,7 +3,8 @@ import { calculateBalances } from '../utils/accountingEngine.js';
 import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
 import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
 import { runClosingEntries, getClosingData } from '../services/closing.service.js';
-import { allocateLogisticCosts } from '../services/inventory.service.js';
+import { allocateLogisticCosts, calculateFifoCostForPeriod } from '../services/inventory.service.js';
+import { invalidateCache } from '../cache/redis.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ
 const localCache = new Map();
@@ -105,6 +106,28 @@ export const getAdvanceCustomerBalances = async (req, res) => {
 };
 
 /**
+ * API Lấy số dư phải trả người bán (TK 331)
+ */
+export const getSupplierBalances = async (req, res) => {
+  try {
+    const companyId = req.companyId || req.query.company_id || req.query.companyId;
+    
+    if (!companyId) {
+      return res.status(400).json({ error: 'Thiếu tham số bắt buộc companyId!' });
+    }
+    
+    const supplierBalances = await getCustomerAccountBalances(Number(companyId), '331');
+    
+    return res.json({ 
+      success: true, 
+      data: supplierBalances 
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+/**
  * API Lấy số dư thuế
  */
 export const getTaxBalances = async (req, res) => {
@@ -128,6 +151,7 @@ export const getTaxBalances = async (req, res) => {
 
 /**
  * API Kích hoạt kết chuyển sổ
+ * Trình tự thực thi: allocateLogisticCosts() → calculateFifoCost() → runClosingEntries()
  */
 export const executeClosing = async (req, res) => {
   try {
@@ -139,18 +163,22 @@ export const executeClosing = async (req, res) => {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
     
-    // Bước 1: Phân bổ chi phí logistics
+    // Bước 1: Phân bổ chi phí logistics (nạp phí vào nguyên giá)
     await allocateLogisticCosts(Number(companyId), month, year);
     
-    // Bước 2: Tính giá vốn kho
-    await calculateWeightedAverageCost(Number(companyId), month, year);
+    // Bước 2: Tính giá vốn kho bằng FIFO
+    await calculateFifoCostForPeriod(Number(companyId), month, year);
     
-    // Bước 3: Chạy kết chuyển sổ
+    // Bước 3: Chạy kết chuyển sổ (kết chuyển lỗ ròng cuối cùng)
     const result = await runClosingEntries(Number(companyId), month, year);
     
-    // Xóa cache
+    // Xóa cache toàn bộ hệ thống
     const cacheKey = `balance-sheet:${companyId}:${month}:${year}`;
     localCache.delete(cacheKey);
+    
+    // Xóa Redis cache
+    await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+    await invalidateCache(`balance-sheet:${companyId}:*`);
     
     return res.json(result);
   } catch (error) {

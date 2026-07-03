@@ -5,6 +5,7 @@ import {
   getBalanceSheet, 
   getCustomerBalances, 
   getAdvanceCustomerBalances,
+  getSupplierBalances,
   getTaxBalances,
   executeClosing,
   invalidateReportCache
@@ -41,6 +42,9 @@ router.get('/customer-balances', authenticate, checkCompanyAccess, getCustomerBa
 
 // API: Lấy số dư người mua trả tiền trước (TK 312)
 router.get('/advance-balances', authenticate, checkCompanyAccess, getAdvanceCustomerBalances);
+
+// API: Lấy số dư phải trả người bán (TK 331)
+router.get('/supplier-balances', authenticate, checkCompanyAccess, getSupplierBalances);
 
 // API: Lấy số dư thuế
 router.get('/tax-balances', authenticate, checkCompanyAccess, getTaxBalances);

@@ -81,8 +81,10 @@ CREATE TABLE IF NOT EXISTS opening_balances (
     account_code VARCHAR(20) NOT NULL,
     opening_debit NUMERIC(15,2) DEFAULT 0,
     opening_credit NUMERIC(15,2) DEFAULT 0,
+    partner_id INT REFERENCES partners(id) ON DELETE SET NULL, -- Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
     is_locked BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_opening_balance UNIQUE (company_id, account_code, fiscal_year, partner_id)
 );
 
 -- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG TRUY VẤN VÀ DỒN TÍCH SỐ DƯ

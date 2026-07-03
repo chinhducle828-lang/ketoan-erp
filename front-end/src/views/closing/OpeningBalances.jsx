@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Users } from 'lucide-react';
 import api from '../../utils/api.js';
 
 // Danh mục tài khoản chuẩn hóa theo đúng tên hiển thị và tính chất trong ảnh
@@ -20,6 +20,9 @@ const ACCOUNT_DICTIONARY = {
   '411': { name: 'Vốn đầu tư của chủ sở hữu', type: 'CR' },
   '421': { name: 'Lợi nhuận sau thuế chưa phân phối', type: 'CR' },
 };
+
+// Tài khoản lưỡng tính cần chọn đối tác
+const HERMAPHRODITIC_ACCOUNTS = ['131', '331'];
 
 const PAGE_STRUCTURE = [
   {
@@ -48,6 +51,7 @@ export default function OpeningBalances() {
   
   const [balances, setBalances] = useState([]);
   const [customAccounts, setCustomAccounts] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info');
@@ -56,16 +60,29 @@ export default function OpeningBalances() {
   const [activeGroupId, setActiveGroupId] = useState(null); 
   const [inlineCode, setInlineCode] = useState('');
   const [inlineName, setInlineName] = useState('');
+  const [selectedPartner, setSelectedPartner] = useState({}); // Lưu partner_id theo account_code
   const inlineCodeRef = useRef(null);
 
   // Tự động tải lại số dư khi người dùng đổi công ty hoặc đổi năm trên Header
   useEffect(() => {
     if (activeCompany?.id) {
       fetchAndInitializeBalances();
+      fetchPartners();
     } else {
       initEmptyBalances();
+      setPartners([]);
     }
   }, [activeCompany?.id, fiscalYear]);
+
+  // Lấy danh sách đối tác
+  const fetchPartners = async () => {
+    try {
+      const res = await api.get(`/partners?company_id=${activeCompany.id}`);
+      setPartners(res.data || []);
+    } catch (error) {
+      console.error('Lỗi tải danh sách đối tác:', error);
+    }
+  };
 
   const allBalances = useMemo(() => {
     const sorted = Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => {
@@ -88,14 +105,24 @@ export default function OpeningBalances() {
           return {
             account_code: code,
             account_name: config.name,
-            debit_balance: Number(dbItem?.debit_balance || dbItem?.debitBalance || 0),
-            credit_balance: Number(dbItem?.credit_balance || dbItem?.creditBalance || 0),
+            debit_balance: Number(dbItem?.opening_debit || dbItem?.debit_balance || dbItem?.debitBalance || 0),
+            credit_balance: Number(dbItem?.opening_credit || dbItem?.credit_balance || dbItem?.creditBalance || 0),
           };
         });
 
         const customs = [];
+        // Khôi phục partner_id từ server cho tài khoản lưỡng tính
+        const restoredPartners = {};
+        
         res.data.forEach(item => {
           const code = item.account_code || item.accountCode;
+          const partnerId = item.partner_id || item.partnerId || null;
+          
+          // Lưu partner_id cho tài khoản lưỡng tính
+          if (HERMAPHRODITIC_ACCOUNTS.includes(code) && partnerId) {
+            restoredPartners[code] = partnerId;
+          }
+          
           if (!ACCOUNT_DICTIONARY[code]) {
             let groupId = '1xx';
             if (code.startsWith('2')) groupId = '2xx';
@@ -105,14 +132,17 @@ export default function OpeningBalances() {
             customs.push({
               account_code: code,
               account_name: item.account_name || `TK ${code}`,
-              debit_balance: Number(item.debit_balance || item.debitBalance || 0),
-              credit_balance: Number(item.credit_balance || item.creditBalance || 0),
+              debit_balance: Number(item.opening_debit || item.debit_balance || item.debitBalance || 0),
+              credit_balance: Number(item.opening_credit || item.credit_balance || item.creditBalance || 0),
               groupId,
               isCustom: true,
             });
           }
         });
 
+        // Khôi phục partner_id đã lưu
+        setSelectedPartner(prev => ({ ...prev, ...restoredPartners }));
+        
         setBalances(merged);
         setCustomAccounts(customs);
       } else {
@@ -200,15 +230,19 @@ export default function OpeningBalances() {
     setMessage('');
     try {
       const items = allBalances.filter(b => b.account_code && b.account_code.trim() !== '');
-      await Promise.all(items.map(item =>
-        api.post('/opening-balances', {
+      await Promise.all(items.map(item => {
+        const partnerId = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code) 
+          ? selectedPartner[item.account_code] || null 
+          : null;
+        return api.post('/opening-balances', {
           companyId: activeCompany.id,
           accountCode: item.account_code,
           debitBalance: item.debit_balance || 0,
           creditBalance: item.credit_balance || 0,
           fiscalYear: fiscalYear || 2026,
-        })
-      ));
+          partnerId: partnerId,
+        });
+      }));
       setMessage('Lưu dữ liệu số dư đầu kỳ thành công!');
       setMessageType('success');
     } catch (error) {
@@ -278,6 +312,9 @@ export default function OpeningBalances() {
                           <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             <th className="py-2 pl-1 w-[75px]">Mã TK</th>
                             <th className="py-2">Tên tài khoản kế toán</th>
+                            {HERMAPHRODITIC_ACCOUNTS.some(c => sub.codes.includes(c)) && (
+                              <th className="py-2 w-[140px]">Đối tác</th>
+                            )}
                             <th className="py-2 text-center w-[120px]">Số dư Nợ (DR)</th>
                             <th className="py-2 text-center w-[120px]">Số dư Có (CR)</th>
                             {customItems.length > 0 && <th className="py-2 w-[35px]"></th>}
@@ -289,11 +326,34 @@ export default function OpeningBalances() {
                             const isDrDisabled = config.type === 'CR';
                             const isCrDisabled = config.type === 'DR';
                             const isCrNegative = config.type === 'CR_NEG';
+                            const isHermaphroditic = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code);
 
                             return (
                               <tr key={item.account_code} className="hover:bg-slate-50/50 transition-colors group">
                                 <td className="py-2 font-semibold text-blue-600 font-mono">{item.account_code}</td>
                                 <td className="py-2 text-slate-600 font-medium pr-2">{item.account_name}</td>
+                                {isHermaphroditic && (
+                                  <td className="py-1 px-1">
+                                    <select
+                                      value={selectedPartner[item.account_code] || ''}
+                                      onChange={(e) => {
+                                        const partnerId = e.target.value ? Number(e.target.value) : null;
+                                        setSelectedPartner(prev => ({
+                                          ...prev,
+                                          [item.account_code]: e.target.value
+                                        }));
+                                      }}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-400"
+                                    >
+                                      <option value="">-- Chọn đối tác --</option>
+                                      {partners.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                          {p.partner_name} ({p.partner_code})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                )}
                                 <td className="py-1 px-1">
                                   {isDrDisabled ? (
                                     <div className="text-center text-slate-300 font-medium">-</div>

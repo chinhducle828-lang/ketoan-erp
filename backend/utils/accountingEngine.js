@@ -73,21 +73,38 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
 
 /**
  * Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản)
+ * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Nạp số dư đầu kỳ dồn tích, sửa lỗi dùng toán tử "=" gây ghi đè dữ liệu đối tác
+  // Nạp số dư đầu kỳ dồn tích, hỗ trợ partner_id cho tài khoản lưỡng tính
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.account_code || ob.accountCode;
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      const partnerId = ob.partner_id || ob.partnerId || null;
+      
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+      
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: partnerId
+        };
       }
-      ledger[accCode].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[accCode].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
-      ledger[accCode].closingDr = ledger[accCode].patsinhDr;
-      ledger[accCode].closingCr = ledger[accCode].patsinhCr;
+      ledger[ledgerKey].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[ledgerKey].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      ledger[ledgerKey].closingDr = ledger[ledgerKey].patsinhDr;
+      ledger[ledgerKey].closingCr = ledger[ledgerKey].patsinhCr;
     });
   }
 
@@ -99,17 +116,32 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const accCode = detail.accountCode || detail.account_code;
       const entryType = detail.entryType || detail.entry_type;
       const amount = parseFloat(detail.amount) || 0;
+      const partnerId = detail.partnerId || detail.partner_id || null;
 
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: isHermaphroditic ? partnerId : null
+        };
       }
 
       if (entryType === 'DR') {
-        ledger[accCode].patsinhDr += amount;
-        ledger[accCode].closingDr += amount;
+        ledger[ledgerKey].patsinhDr += amount;
+        ledger[ledgerKey].closingDr += amount;
       } else if (entryType === 'CR') {
-        ledger[accCode].patsinhCr += amount;
-        ledger[accCode].closingCr += amount;
+        ledger[ledgerKey].patsinhCr += amount;
+        ledger[ledgerKey].closingCr += amount;
       }
     });
   });
@@ -117,12 +149,20 @@ export function calculateBalances(vouchers, openingBalances = []) {
   return ledger;
 }
 
-export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
-  if (!ledger[accountCode]) return 0;
-  
-  const { patsinhDr, patsinhCr } = ledger[accountCode];
+export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
+  // Xây dựng key tìm kiếm cho tài khoản lưỡng tính theo đối tác
   const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  
+  // Tìm key phù hợp trong ledger
+  let ledgerKey = accountCode;
+  if (isHermaphroditic && partnerId) {
+    ledgerKey = `${accountCode}_${partnerId}`;
+  }
+  
+  if (!ledger[ledgerKey]) return 0;
+  
+  const { patsinhDr, patsinhCr } = ledger[ledgerKey];
   
   if (isHermaphroditic) {
     return {

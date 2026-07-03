@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { invalidateCache } from '../cache/redis.js';
 
 /**
  * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
@@ -125,12 +126,71 @@ export async function runClosingEntries(companyId, month, year) {
       }
     }
     
-    // 4. Tính thuế TNDN tự động
-    // Lợi nhuận trước thuế = Tổng phát sinh Có 911 - Tổng phát sinh Nợ 911
-    const profitBeforeTax = account911Balance;
+    // 4. Tính thuế TNDN tự động - CẬP NHẬT: Thêm tài khoản 711, 811, 821
+    // Công thức: Lãi = Doanh thu (511) + Thu nhập khác (711) - Chi phí (632, 641, 642) - Chi phí khác (811) - Thuế (821)
     
-    if (profitBeforeTax > 0) {
-      const taxAmount = profitBeforeTax * 0.2; // Thuế suất 20%
+    // Lấy thu nhập khác (711) - Có
+    const account711Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '711'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account711Rows } = await client.query(account711Query, [companyId, month, year]);
+    const account711Credit = parseFloat(account711Rows[0]?.total_credit) || 0;
+    
+    // Lấy chi phí khác (811) - Nợ
+    const account811Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '811'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account811Rows } = await client.query(account811Query, [companyId, month, year]);
+    const account811Debit = parseFloat(account811Rows[0]?.total_debit) || 0;
+    
+    // Lấy chi phí thuế (821) - Nợ
+    const account821Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '821'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account821Rows } = await client.query(account821Query, [companyId, month, year]);
+    const account821Debit = parseFloat(account821Rows[0]?.total_debit) || 0;
+    
+    // Tính lợi nhuận trước thuế: Doanh thu + Thu nhập khác - Chi phí - Chi phí khác - Thuế
+    const revenueCredit = account511Credit;
+    const otherIncome = account711Credit;
+    const otherExpenses = account811Debit;
+    const taxExpense = account821Debit;
+    
+    const netProfit = revenueCredit + otherIncome - totalCostDebit - otherExpenses - taxExpense;
+    
+    // Chỉ hạch toán thuế TNDN khi có lợi nhuận (netProfit > 0)
+    // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
+    let taxAmount = 0;
+    
+    if (netProfit > 0) {
+      taxAmount = netProfit * 0.2; // Thuế suất 20%
       
       // Tạo bút toán thuế TNDN: Nợ TK 8211, Có TK 3334
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
@@ -148,10 +208,10 @@ export async function runClosingEntries(companyId, month, year) {
         [voucherId, taxAmount, voucherId, taxAmount]
       );
       
-      // Kết chuyển Nợ TK 911, Có TK 8211
+      // Bút toán kết chuyển TK 8211 về TK 911: Nợ TK 911, Có TK 8211
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển lợi nhuận chưa tính thuế')`,
+         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN từ 8211 về 911')`,
         [companyId, closingDate]
       );
       
@@ -159,8 +219,8 @@ export async function runClosingEntries(companyId, month, year) {
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '911', 'CR', $2), ($3, '8211', 'DR', $4)`,
-        [voucherId2, profitBeforeTax, voucherId2, profitBeforeTax]
+         VALUES ($1, '911', 'DR', $2), ($3, '8211', 'CR', $4)`,
+        [voucherId2, taxAmount, voucherId2, taxAmount]
       );
     }
     
@@ -218,14 +278,22 @@ export async function runClosingEntries(companyId, month, year) {
     
     await client.query('COMMIT');
     
+    // Xóa cache toàn bộ hệ thống sau khi hoàn thành kết chuyển
+    try {
+      await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+      await invalidateCache(`balance-sheet:${companyId}:*`);
+    } catch (cacheError) {
+      console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+    }
+    
     return {
       success: true,
       message: 'Kết chuyển sổ tháng ' + month + '/' + year + ' thành công',
       details: {
         revenue_closing: account511Credit,
         cost_closing: totalCostDebit,
-        profit_before_tax: profitBeforeTax,
-        income_tax: profitBeforeTax > 0 ? profitBeforeTax * 0.2 : 0,
+        profit_before_tax: netProfit,
+        income_tax: taxAmount,
         final_balance_911: final911Balance
       }
     };

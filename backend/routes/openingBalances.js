@@ -11,24 +11,25 @@ const router = express.Router();
 router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id || req.body.companyId;
-    const { accountCode, debitBalance, creditBalance, fiscalYear } = req.body;
+    const { accountCode, debitBalance, creditBalance, fiscalYear, partnerId } = req.body;
     const finalYear = fiscalYear ? Number(fiscalYear) : 2026;
 
     // Kiểm tra chốt chặn an toàn dữ liệu khóa sổ
     const checkLock = await pool.query(
-      'SELECT is_locked FROM opening_balances WHERE company_id = $1 AND account_code = $2 AND fiscal_year = $3',
-      [targetCompanyId, accountCode, finalYear]
+      'SELECT is_locked FROM opening_balances WHERE company_id = $1 AND account_code = $2 AND fiscal_year = $3 AND (partner_id = $4 OR (partner_id IS NULL AND $4 IS NULL))',
+      [targetCompanyId, accountCode, finalYear, partnerId || null]
     );
     if (checkLock.rows.length > 0 && checkLock.rows[0].is_locked) {
       return res.status(400).json({ error: `Số liệu năm ${finalYear} đã khóa sổ, cấm sửa đổi!` });
     }
 
+    // Cập nhật câu lệnh INSERT để hỗ trợ partner_id
     await pool.query(
-      `INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (company_id, account_code, fiscal_year) 
-       DO UPDATE SET debit_balance = EXCLUDED.debit_balance, credit_balance = EXCLUDED.credit_balance`,
-      [targetCompanyId, accountCode, debitBalance || 0, creditBalance || 0, finalYear]
+      `INSERT INTO opening_balances (company_id, account_code, opening_debit, opening_credit, fiscal_year, partner_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (company_id, account_code, fiscal_year, partner_id) 
+       DO UPDATE SET opening_debit = EXCLUDED.opening_debit, opening_credit = EXCLUDED.opening_credit`,
+      [targetCompanyId, accountCode, debitBalance || 0, creditBalance || 0, finalYear, partnerId || null]
     );
 
     // ĐỒNG BỘ HOÀN TOÀN: Hủy cache dòng tiền và cache báo cáo động
