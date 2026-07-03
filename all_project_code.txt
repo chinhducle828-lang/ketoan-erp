@@ -156,8 +156,10 @@ CREATE TABLE IF NOT EXISTS opening_balances (
     account_code VARCHAR(20) NOT NULL,
     opening_debit NUMERIC(15,2) DEFAULT 0,
     opening_credit NUMERIC(15,2) DEFAULT 0,
+    partner_id INT REFERENCES partners(id) ON DELETE SET NULL, -- Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
     is_locked BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_opening_balance UNIQUE (company_id, account_code, fiscal_year, partner_id)
 );
 
 -- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG TRUY VẤN VÀ DỒN TÍCH SỐ DƯ
@@ -1157,7 +1159,8 @@ import { calculateBalances } from '../utils/accountingEngine.js';
 import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
 import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
 import { runClosingEntries, getClosingData } from '../services/closing.service.js';
-import { allocateLogisticCosts } from '../services/inventory.service.js';
+import { allocateLogisticCosts, calculateFifoCostForPeriod } from '../services/inventory.service.js';
+import { invalidateCache } from '../cache/redis.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ
 const localCache = new Map();
@@ -1259,6 +1262,28 @@ export const getAdvanceCustomerBalances = async (req, res) => {
 };
 
 /**
+ * API Lấy số dư phải trả người bán (TK 331)
+ */
+export const getSupplierBalances = async (req, res) => {
+  try {
+    const companyId = req.companyId || req.query.company_id || req.query.companyId;
+    
+    if (!companyId) {
+      return res.status(400).json({ error: 'Thiếu tham số bắt buộc companyId!' });
+    }
+    
+    const supplierBalances = await getCustomerAccountBalances(Number(companyId), '331');
+    
+    return res.json({ 
+      success: true, 
+      data: supplierBalances 
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+/**
  * API Lấy số dư thuế
  */
 export const getTaxBalances = async (req, res) => {
@@ -1282,6 +1307,7 @@ export const getTaxBalances = async (req, res) => {
 
 /**
  * API Kích hoạt kết chuyển sổ
+ * Trình tự thực thi: allocateLogisticCosts() → calculateFifoCost() → runClosingEntries()
  */
 export const executeClosing = async (req, res) => {
   try {
@@ -1293,18 +1319,22 @@ export const executeClosing = async (req, res) => {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
     
-    // Bước 1: Phân bổ chi phí logistics
+    // Bước 1: Phân bổ chi phí logistics (nạp phí vào nguyên giá)
     await allocateLogisticCosts(Number(companyId), month, year);
     
-    // Bước 2: Tính giá vốn kho
-    await calculateWeightedAverageCost(Number(companyId), month, year);
+    // Bước 2: Tính giá vốn kho bằng FIFO
+    await calculateFifoCostForPeriod(Number(companyId), month, year);
     
-    // Bước 3: Chạy kết chuyển sổ
+    // Bước 3: Chạy kết chuyển sổ (kết chuyển lỗ ròng cuối cùng)
     const result = await runClosingEntries(Number(companyId), month, year);
     
-    // Xóa cache
+    // Xóa cache toàn bộ hệ thống
     const cacheKey = `balance-sheet:${companyId}:${month}:${year}`;
     localCache.delete(cacheKey);
+    
+    // Xóa Redis cache
+    await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+    await invalidateCache(`balance-sheet:${companyId}:*`);
     
     return res.json(result);
   } catch (error) {
@@ -1573,6 +1603,19 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
 -- Create index for better performance
 CREATE INDEX IF NOT EXISTS idx_users_company_ids ON users USING GIN(company_ids);
 CREATE INDEX IF NOT EXISTS idx_users_staff_ids ON users USING GIN(staff_ids);
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/migrations/002_add_partner_id_to_opening_balances.sql
+// START_OF_FILE
+ALTER TABLE opening_balances
+ADD COLUMN partner_id INT REFERENCES partners(id) ON DELETE SET NULL;
+
+-- Cập nhật constraint để đảm bảo tính duy nhất cho mỗi đối tác
+ALTER TABLE opening_balances
+DROP CONSTRAINT IF EXISTS unique_opening_balance,
+ADD CONSTRAINT unique_opening_balance UNIQUE (company_id, account_code, fiscal_year, partner_id);
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -2743,24 +2786,25 @@ const router = express.Router();
 router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id || req.body.companyId;
-    const { accountCode, debitBalance, creditBalance, fiscalYear } = req.body;
+    const { accountCode, debitBalance, creditBalance, fiscalYear, partnerId } = req.body;
     const finalYear = fiscalYear ? Number(fiscalYear) : 2026;
 
     // Kiểm tra chốt chặn an toàn dữ liệu khóa sổ
     const checkLock = await pool.query(
-      'SELECT is_locked FROM opening_balances WHERE company_id = $1 AND account_code = $2 AND fiscal_year = $3',
-      [targetCompanyId, accountCode, finalYear]
+      'SELECT is_locked FROM opening_balances WHERE company_id = $1 AND account_code = $2 AND fiscal_year = $3 AND (partner_id = $4 OR (partner_id IS NULL AND $4 IS NULL))',
+      [targetCompanyId, accountCode, finalYear, partnerId || null]
     );
     if (checkLock.rows.length > 0 && checkLock.rows[0].is_locked) {
       return res.status(400).json({ error: `Số liệu năm ${finalYear} đã khóa sổ, cấm sửa đổi!` });
     }
 
+    // Cập nhật câu lệnh INSERT để hỗ trợ partner_id
     await pool.query(
-      `INSERT INTO opening_balances (company_id, account_code, debit_balance, credit_balance, fiscal_year)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (company_id, account_code, fiscal_year) 
-       DO UPDATE SET debit_balance = EXCLUDED.debit_balance, credit_balance = EXCLUDED.credit_balance`,
-      [targetCompanyId, accountCode, debitBalance || 0, creditBalance || 0, finalYear]
+      `INSERT INTO opening_balances (company_id, account_code, opening_debit, opening_credit, fiscal_year, partner_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (company_id, account_code, fiscal_year, partner_id) 
+       DO UPDATE SET opening_debit = EXCLUDED.opening_debit, opening_credit = EXCLUDED.opening_credit`,
+      [targetCompanyId, accountCode, debitBalance || 0, creditBalance || 0, finalYear, partnerId || null]
     );
 
     // ĐỒNG BỘ HOÀN TOÀN: Hủy cache dòng tiền và cache báo cáo động
@@ -2822,6 +2866,7 @@ import {
   getBalanceSheet, 
   getCustomerBalances, 
   getAdvanceCustomerBalances,
+  getSupplierBalances,
   getTaxBalances,
   executeClosing,
   invalidateReportCache
@@ -2858,6 +2903,9 @@ router.get('/customer-balances', authenticate, checkCompanyAccess, getCustomerBa
 
 // API: Lấy số dư người mua trả tiền trước (TK 312)
 router.get('/advance-balances', authenticate, checkCompanyAccess, getAdvanceCustomerBalances);
+
+// API: Lấy số dư phải trả người bán (TK 331)
+router.get('/supplier-balances', authenticate, checkCompanyAccess, getSupplierBalances);
 
 // API: Lấy số dư thuế
 router.get('/tax-balances', authenticate, checkCompanyAccess, getTaxBalances);
@@ -3281,6 +3329,7 @@ export default router;
 // FILE_PATH: backend/services/closing.service.js
 // START_OF_FILE
 import { pool } from '../config/db.js';
+import { invalidateCache } from '../cache/redis.js';
 
 /**
  * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
@@ -3407,12 +3456,71 @@ export async function runClosingEntries(companyId, month, year) {
       }
     }
     
-    // 4. Tính thuế TNDN tự động
-    // Lợi nhuận trước thuế = Tổng phát sinh Có 911 - Tổng phát sinh Nợ 911
-    const profitBeforeTax = account911Balance;
+    // 4. Tính thuế TNDN tự động - CẬP NHẬT: Thêm tài khoản 711, 811, 821
+    // Công thức: Lãi = Doanh thu (511) + Thu nhập khác (711) - Chi phí (632, 641, 642) - Chi phí khác (811) - Thuế (821)
     
-    if (profitBeforeTax > 0) {
-      const taxAmount = profitBeforeTax * 0.2; // Thuế suất 20%
+    // Lấy thu nhập khác (711) - Có
+    const account711Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '711'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account711Rows } = await client.query(account711Query, [companyId, month, year]);
+    const account711Credit = parseFloat(account711Rows[0]?.total_credit) || 0;
+    
+    // Lấy chi phí khác (811) - Nợ
+    const account811Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '811'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account811Rows } = await client.query(account811Query, [companyId, month, year]);
+    const account811Debit = parseFloat(account811Rows[0]?.total_debit) || 0;
+    
+    // Lấy chi phí thuế (821) - Nợ
+    const account821Query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '821'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: account821Rows } = await client.query(account821Query, [companyId, month, year]);
+    const account821Debit = parseFloat(account821Rows[0]?.total_debit) || 0;
+    
+    // Tính lợi nhuận trước thuế: Doanh thu + Thu nhập khác - Chi phí - Chi phí khác - Thuế
+    const revenueCredit = account511Credit;
+    const otherIncome = account711Credit;
+    const otherExpenses = account811Debit;
+    const taxExpense = account821Debit;
+    
+    const netProfit = revenueCredit + otherIncome - totalCostDebit - otherExpenses - taxExpense;
+    
+    // Chỉ hạch toán thuế TNDN khi có lợi nhuận (netProfit > 0)
+    // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
+    let taxAmount = 0;
+    
+    if (netProfit > 0) {
+      taxAmount = netProfit * 0.2; // Thuế suất 20%
       
       // Tạo bút toán thuế TNDN: Nợ TK 8211, Có TK 3334
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
@@ -3430,10 +3538,10 @@ export async function runClosingEntries(companyId, month, year) {
         [voucherId, taxAmount, voucherId, taxAmount]
       );
       
-      // Kết chuyển Nợ TK 911, Có TK 8211
+      // Bút toán kết chuyển TK 8211 về TK 911: Nợ TK 911, Có TK 8211
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển lợi nhuận chưa tính thuế')`,
+         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN từ 8211 về 911')`,
         [companyId, closingDate]
       );
       
@@ -3441,8 +3549,8 @@ export async function runClosingEntries(companyId, month, year) {
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '911', 'CR', $2), ($3, '8211', 'DR', $4)`,
-        [voucherId2, profitBeforeTax, voucherId2, profitBeforeTax]
+         VALUES ($1, '911', 'DR', $2), ($3, '8211', 'CR', $4)`,
+        [voucherId2, taxAmount, voucherId2, taxAmount]
       );
     }
     
@@ -3500,14 +3608,22 @@ export async function runClosingEntries(companyId, month, year) {
     
     await client.query('COMMIT');
     
+    // Xóa cache toàn bộ hệ thống sau khi hoàn thành kết chuyển
+    try {
+      await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+      await invalidateCache(`balance-sheet:${companyId}:*`);
+    } catch (cacheError) {
+      console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+    }
+    
     return {
       success: true,
       message: 'Kết chuyển sổ tháng ' + month + '/' + year + ' thành công',
       details: {
         revenue_closing: account511Credit,
         cost_closing: totalCostDebit,
-        profit_before_tax: profitBeforeTax,
-        income_tax: profitBeforeTax > 0 ? profitBeforeTax * 0.2 : 0,
+        profit_before_tax: netProfit,
+        income_tax: taxAmount,
         final_balance_911: final911Balance
       }
     };
@@ -3841,6 +3957,127 @@ export async function calculateWeightedAverageCostForPeriod(companyId, month, ye
 }
 
 /**
+ * Tính giá vốn xuất kho bằng phương pháp FIFO cho kỳ
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function calculateFifoCostForPeriod(companyId, month, year) {
+  // Xây dựng điều kiện WHERE cho tháng/năm
+  let whereClause = 'WHERE v.company_id = $1';
+  const params = [companyId];
+  let paramIndex = 2;
+  
+  if (month) {
+    whereClause += ` AND EXTRACT(MONTH FROM v.voucher_date) = $${paramIndex}`;
+    params.push(month);
+    paramIndex++;
+  }
+  
+  if (year) {
+    whereClause += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`;
+    params.push(year);
+    paramIndex++;
+  }
+  
+  // Lấy tất cả chứng từ nhập/xuất kho kèm thông tin vật tư
+  const query = `
+    SELECT v.id as voucher_id, v.voucher_date, v.voucher_type,
+           vd.id as detail_id, vd.item_id, vd.quantity, vd.amount, vd.account_code, vd.entry_type
+    FROM vouchers v
+    JOIN voucher_details vd ON v.id = vd.voucher_id
+    ${whereClause}
+    ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
+  `;
+  
+  const { rows } = await pool.query(query, params);
+  
+  // Tính giá vốn FIFO cho từng vật tư
+  const itemCosts = {};
+  
+  for (const row of rows) {
+    const itemId = row.item_id;
+    const quantity = parseFloat(row.quantity) || 0;
+    const amount = parseFloat(row.amount) || 0;
+    
+    if (!itemCosts[itemId]) {
+      itemCosts[itemId] = {
+        totalQty: 0,
+        totalCostValue: 0,
+        lots: [] // FIFO lots
+      };
+    }
+    
+    if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && quantity > 0)) {
+      // Nhập kho - tạo lô mới theo FIFO
+      const unitCost = quantity > 0 ? amount / quantity : 0;
+      itemCosts[itemId].lots.push({
+        date: row.voucher_date,
+        quantity: quantity,
+        unit_cost: unitCost,
+        remaining_qty: quantity,
+        total_value: amount
+      });
+      itemCosts[itemId].totalQty += quantity;
+      itemCosts[itemId].totalCostValue += amount;
+    } else if (row.voucher_type === 'XK' || (row.entry_type === 'CR' && quantity > 0)) {
+      // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
+      let qtyToDeduct = quantity;
+      let costValueToDeduct = 0;
+      
+      for (const lot of itemCosts[itemId].lots) {
+        if (qtyToDeduct <= 0) break;
+        
+        if (lot.remaining_qty > 0) {
+          const deductQty = Math.min(lot.remaining_qty, qtyToDeduct);
+          costValueToDeduct += deductQty * lot.unit_cost;
+          lot.remaining_qty -= deductQty;
+          qtyToDeduct -= deductQty;
+        }
+      }
+      
+      itemCosts[itemId].totalQty -= quantity;
+      itemCosts[itemId].totalCostValue -= costValueToDeduct;
+      
+      // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho
+      // Vế CR: Tài khoản 632 (Giá vốn) - cập nhật số tiền
+      // Vế DR: Tài khoản 156 (Hàng tồn kho) - cập nhật số tiền giảm
+      await pool.query(
+        'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+        [costValueToDeduct, row.detail_id]
+      );
+      
+      // Cập nhật vế đối ứng (DR) - giảm số tiền tương ứng
+      if (row.account_code === '632' || row.account_code === '156') {
+        // Tìm chi tiết đối ứng trong cùng phiếu
+        const counterQuery = `
+          SELECT id, account_code, entry_type, amount 
+          FROM voucher_details 
+          WHERE voucher_id = $1 AND entry_type != $2
+        `;
+        const counterResult = await pool.query(counterQuery, [row.voucher_id, row.entry_type]);
+        
+        for (const counterRow of counterResult.rows) {
+          if (counterRow.entry_type === 'DR') {
+            // Cập nhật vế DR (giảm kho)
+            await pool.query(
+              'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+              [costValueToDeduct, counterRow.id]
+            );
+          }
+        }
+      }
+    }
+  }
+  
+  return {
+    success: true,
+    message: `Đã tính toán giá vốn FIFO cho ${Object.keys(itemCosts).length} vật tư`,
+    itemCosts
+  };
+}
+
+/**
  * Kiểm tra chi phí logistic đã được phân bổ chưa
  * @param {number} companyId - ID công ty
  * @param {number} voucherId - ID phiếu nhập kho
@@ -3896,15 +4133,39 @@ export async function allocateLogisticCosts(companyId, month, year) {
              SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as cost_allocated
       FROM vouchers v
       JOIN voucher_details vd ON v.id = vd.voucher_id
-    WHERE v.company_id = $1 
-      AND v.voucher_type = 'NK'
-      AND EXTRACT(MONTH FROM v.voucher_date) = $2
-      AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    GROUP BY v.id, v.voucher_date
-    HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
+      WHERE v.company_id = $1 
+        AND v.voucher_type = 'NK'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+      GROUP BY v.id, v.voucher_date
+      HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
     `;
     
     const { rows } = await client.query(query, [companyId, month, year]);
+    
+    // Tính tổng giá trị nhập kho
+    let totalInputValue = 0;
+    for (const voucher of rows) {
+      totalInputValue += parseFloat(voucher.input_value) || 0;
+    }
+    
+    // Truy vấn SUM(amount) từ voucher_details cho tài khoản 1562 (totalLogisticFee)
+    const logisticsQuery = `
+      SELECT SUM(vd.amount) as total_logistics
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '1562'
+        AND vd.entry_type = 'DR'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: logisticsRows } = await client.query(logisticsQuery, [companyId, month, year]);
+    const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
+    
+    // Tính tỷ lệ phân bổ thực tế: totalLogistics / totalInputValue
+    const allocationRate = totalInputValue > 0 ? totalLogistics / totalInputValue : 0;
     
     for (const row of rows) {
       const inputValue = parseFloat(row.input_value) || 0;
@@ -3920,8 +4181,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
         
-        // Phân bổ 10% chi phí logistics vào TK 156
-        const logisticCost = inputValue * 0.1;
+        // Phân bổ theo tỷ lệ thực tế: inputValue * allocationRate
+        const logisticCost = inputValue * allocationRate;
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
@@ -3936,7 +4197,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
     return {
       success: true,
       message: `Đã phân bổ chi phí cho ${rows.length} phiếu nhập kho`,
-      vouchers_processed: rows.length
+      vouchers_processed: rows.length,
+      allocation_rate: allocationRate
     };
     
   } catch (error) {
@@ -3946,6 +4208,7 @@ export async function allocateLogisticCosts(companyId, month, year) {
     client.release();
   }
 }
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -4011,7 +4274,7 @@ import { pool } from '../config/db.js';
 /**
  * LỖI 1: Tính chỉ tiêu Phải thu khách hàng (131) & Người mua trả tiền trước (312)
  * GROUP BY account_code, customer_id thay vì chỉ account_code
- * Tách khách hàng có số dư Nợ → Tài sản, số dư Có → Nguồn vốn
+ * Tách khách hàng có số dư Nợ → Tài sản, số dư Có → TK 312 (Người mua trả tiền trước)
  */
 export async function getCustomerAccountBalances(companyId, accountCode) {
   // Lấy số dư theo từng khách hàng
@@ -4038,28 +4301,76 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
   for (const row of rows) {
     const balance = row.debit_total - row.credit_total;
     
-    // Tài khoản 131 (Phải thu khách hàng) - Tài sản
-    // Số dư Nợ → Tài sản, Số dư Có → Nguồn vốn (hiển thị âm)
-    // Tài khoản 312 (Người mua trả tiền trước) - Tài sản
-    // Số dư Nợ → Tài sản, Số dư Có → Nguồn vốn (hiển thị âm)
-    if (accountCode === '131' || accountCode === '312') {
+    // Tài khoản 131 (Phải thu khách hàng) - Tài sản lưỡng tính
+    // Số dư Nợ → Tài sản (131), Số dư Có → TK 312 (Người mua trả tiền trước)
+    if (accountCode === '131') {
       if (balance > 0) {
-        // Số dư Nợ - Tài sản
+        // Số dư Nợ - Tài sản (Phải thu khách hàng)
         results.push({
           customer_id: row.customer_id,
           partner_name: row.partner_name,
           partner_code: row.partner_code,
           amount: balance,
-          balance_type: 'asset' // Tài sản
+          balance_type: 'asset', // Tài sản
+          account_code: '131'
         });
       } else if (balance < 0) {
-        // Số dư Có - Nguồn vốn (hiển thị âm)
+        // Số dư Có - Gán vào TK 312 (Người mua trả tiền trước)
         results.push({
           customer_id: row.customer_id,
           partner_name: row.partner_name,
           partner_code: row.partner_code,
           amount: Math.abs(balance),
-          balance_type: 'liability' // Nguồn vốn
+          balance_type: 'advance', // Người mua trả tiền trước
+          account_code: '312'
+        });
+      }
+    }
+    // Tài khoản 312 (Người mua trả tiền trước) - Tài sản lưỡng tính
+    else if (accountCode === '312') {
+      if (balance > 0) {
+        // Số dư Nợ - Tài sản (Người mua trả tiền trước)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: balance,
+          balance_type: 'asset', // Tài sản
+          account_code: '312'
+        });
+      } else if (balance < 0) {
+        // Số dư Có - Nguồn vốn
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: Math.abs(balance),
+          balance_type: 'liability', // Nguồn vốn
+          account_code: '312'
+        });
+      }
+    }
+    // Tài khoản 331 (Phải trả người bán) - Nợ phải trả lưỡng tính
+    else if (accountCode === '331') {
+      if (balance > 0) {
+        // Số dư Nợ - Nợ phải trả (Phải trả người bán)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: balance,
+          balance_type: 'liability', // Nợ phải trả
+          account_code: '331'
+        });
+      } else if (balance < 0) {
+        // Số dư Có - Có phải thu (Khách hàng trả tiền trước)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: Math.abs(balance),
+          balance_type: 'asset', // Tài sản
+          account_code: '331'
         });
       }
     }
@@ -4227,6 +4538,39 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
     tax_balances: await getTaxAccountBalances(companyId)
   };
 }
+
+/**
+ * Lấy số dư đầu kỳ theo đối tác (Hỗ trợ tài khoản lưỡng tính 131, 331)
+ */
+export async function getOpeningBalancesByPartner(companyId, fiscalYear, accountCode) {
+  const query = `
+    SELECT 
+      ob.account_code,
+      ob.opening_debit,
+      ob.opening_credit,
+      p.id as partner_id,
+      p.partner_name,
+      p.partner_code
+    FROM opening_balances ob
+    LEFT JOIN partners p ON ob.partner_id = p.id
+    WHERE ob.company_id = $1 
+      AND ob.fiscal_year = $2
+      AND ob.account_code = $3
+    ORDER BY p.partner_name
+  `;
+  
+  const { rows } = await pool.query(query, [companyId, fiscalYear, accountCode]);
+  
+  return rows.map(row => ({
+    account_code: row.account_code,
+    opening_debit: parseFloat(row.opening_debit) || 0,
+    opening_credit: parseFloat(row.opening_credit) || 0,
+    partner_id: row.partner_id,
+    partner_name: row.partner_name,
+    partner_code: row.partner_code
+  }));
+}
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -4816,21 +5160,38 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
 
 /**
  * Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản)
+ * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Nạp số dư đầu kỳ dồn tích, sửa lỗi dùng toán tử "=" gây ghi đè dữ liệu đối tác
+  // Nạp số dư đầu kỳ dồn tích, hỗ trợ partner_id cho tài khoản lưỡng tính
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.account_code || ob.accountCode;
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      const partnerId = ob.partner_id || ob.partnerId || null;
+      
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+      
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: partnerId
+        };
       }
-      ledger[accCode].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[accCode].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
-      ledger[accCode].closingDr = ledger[accCode].patsinhDr;
-      ledger[accCode].closingCr = ledger[accCode].patsinhCr;
+      ledger[ledgerKey].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[ledgerKey].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      ledger[ledgerKey].closingDr = ledger[ledgerKey].patsinhDr;
+      ledger[ledgerKey].closingCr = ledger[ledgerKey].patsinhCr;
     });
   }
 
@@ -4842,17 +5203,32 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const accCode = detail.accountCode || detail.account_code;
       const entryType = detail.entryType || detail.entry_type;
       const amount = parseFloat(detail.amount) || 0;
+      const partnerId = detail.partnerId || detail.partner_id || null;
 
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: isHermaphroditic ? partnerId : null
+        };
       }
 
       if (entryType === 'DR') {
-        ledger[accCode].patsinhDr += amount;
-        ledger[accCode].closingDr += amount;
+        ledger[ledgerKey].patsinhDr += amount;
+        ledger[ledgerKey].closingDr += amount;
       } else if (entryType === 'CR') {
-        ledger[accCode].patsinhCr += amount;
-        ledger[accCode].closingCr += amount;
+        ledger[ledgerKey].patsinhCr += amount;
+        ledger[ledgerKey].closingCr += amount;
       }
     });
   });
@@ -4860,12 +5236,20 @@ export function calculateBalances(vouchers, openingBalances = []) {
   return ledger;
 }
 
-export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
-  if (!ledger[accountCode]) return 0;
-  
-  const { patsinhDr, patsinhCr } = ledger[accountCode];
+export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
+  // Xây dựng key tìm kiếm cho tài khoản lưỡng tính theo đối tác
   const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  
+  // Tìm key phù hợp trong ledger
+  let ledgerKey = accountCode;
+  if (isHermaphroditic && partnerId) {
+    ledgerKey = `${accountCode}_${partnerId}`;
+  }
+  
+  if (!ledger[ledgerKey]) return 0;
+  
+  const { patsinhDr, patsinhCr } = ledger[ledgerKey];
   
   if (isHermaphroditic) {
     return {
@@ -4982,11 +5366,41 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
   
   const { rows: vouchersToAllocate } = await pool.query(allocationQuery, allocParams);
   
-  // Thực hiện phân bổ chi phí logistics (10% giá trị nhập)
+  // Thực hiện phân bổ chi phí logistics
+  // Tính tổng giá trị nhập kho để phân bổ theo tỷ lệ
+  let totalInputValue = 0;
+  for (const voucher of vouchersToAllocate) {
+    totalInputValue += parseFloat(voucher.input_value) || 0;
+  }
+  
+  // Tổng chi phí logistics cần phân bổ (lấy từ tài khoản 1562)
+  // Truy vấn SUM(amount) từ voucher_details cho tài khoản 1562
+  const logisticsQuery = `
+    SELECT SUM(vd.amount) as total_logistics
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code = '1562'
+      AND vd.entry_type = 'DR'
+      ${month ? `AND EXTRACT(MONTH FROM v.voucher_date) = $${allocParams.length + 1}` : ''}
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $${allocParams.length + 2}` : ''}
+  `;
+  
+  const logisticsParams = [...allocParams];
+  if (month) logisticsParams.push(month);
+  if (year) logisticsParams.push(year);
+  
+  const { rows: logisticsRows } = await pool.query(logisticsQuery, logisticsParams);
+  const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
+  
+  // Phân bổ theo tỷ lệ thực tế: totalLogistics / totalInputValue
+  const allocationRate = totalInputValue > 0 ? totalLogistics / totalInputValue : 0;
+  
   for (const voucher of vouchersToAllocate) {
     const inputValue = parseFloat(voucher.input_value) || 0;
     if (inputValue > 0) {
-      const logisticCost = inputValue * 0.1; // 10% chi phí logistics
+      // Tính chi phí logistics theo tỷ lệ thực tế
+      const logisticCost = inputValue * allocationRate;
       
       // Tạo bút toán phân bổ: Nợ TK 156, Có TK 632
       const closingDate = year && month ? `${year}-${String(month).padStart(2, '0')}-31` : new Date().toISOString().split('T')[0];
@@ -6573,23 +6987,40 @@ export { useVouchers };
 
 /**
  * Tính toán số dư tài khoản tổng hợp phục vụ hiển thị UI Bảng cân đối hạch toán
+ * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Nạp số dư đầu kỳ dồn tích
+  // Nạp số dư đầu kỳ dồn tích, hỗ trợ partner_id cho tài khoản lưỡng tính
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.accountCode || ob.account_code;
+      const partnerId = ob.partner_id || ob.partnerId || null;
+      
       if (!accCode) return;
 
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: partnerId
+        };
       }
-      ledger[accCode].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[accCode].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
-      ledger[accCode].closingDr = ledger[accCode].patsinhDr;
-      ledger[accCode].closingCr = ledger[accCode].patsinhCr;
+      ledger[ledgerKey].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[ledgerKey].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      ledger[ledgerKey].closingDr = ledger[ledgerKey].patsinhDr;
+      ledger[ledgerKey].closingCr = ledger[ledgerKey].patsinhCr;
     });
   }
 
@@ -6601,19 +7032,34 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const accCode = detail.accountCode || detail.account_code;
       const entryType = detail.entryType || detail.entry_type;
       const amount = parseFloat(detail.amount) || 0;
+      const partnerId = detail.partnerId || detail.partner_id || null;
 
       if (!accCode) return;
 
-      if (!ledger[accCode]) {
-        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      // Kiểm tra tài khoản lưỡng tính
+      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+
+      // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
+      const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
+
+      if (!ledger[ledgerKey]) {
+        ledger[ledgerKey] = { 
+          patsinhDr: 0, 
+          patsinhCr: 0, 
+          closingDr: 0, 
+          closingCr: 0,
+          accountCode: accCode,
+          partnerId: isHermaphroditic ? partnerId : null
+        };
       }
 
       if (entryType === 'DR') {
-        ledger[accCode].patsinhDr += amount;
-        ledger[accCode].closingDr += amount;
+        ledger[ledgerKey].patsinhDr += amount;
+        ledger[ledgerKey].closingDr += amount;
       } else if (entryType === 'CR') {
-        ledger[accCode].patsinhCr += amount;
-        ledger[accCode].closingCr += amount;
+        ledger[ledgerKey].patsinhCr += amount;
+        ledger[ledgerKey].closingCr += amount;
       }
     });
   });
@@ -6623,14 +7069,22 @@ export function calculateBalances(vouchers, openingBalances = []) {
 
 /**
  * Lấy số dư cuối kỳ theo tính chất tài khoản và cấu trúc lưỡng tính đặc biệt TT99
+ * Hỗ trợ truy vấn theo partnerId cho tài khoản lưỡng tính
  */
-export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
-  if (!ledger[accountCode]) return 0;
-  
-  const { patsinhDr, patsinhCr } = ledger[accountCode];
-  
+export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
+  // Xây dựng key tìm kiếm cho tài khoản lưỡng tính theo đối tác
   const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  
+  // Tìm key phù hợp trong ledger
+  let ledgerKey = accountCode;
+  if (isHermaphroditic && partnerId) {
+    ledgerKey = `${accountCode}_${partnerId}`;
+  }
+  
+  if (!ledger[ledgerKey]) return 0;
+  
+  const { patsinhDr, patsinhCr } = ledger[ledgerKey];
   
   if (isHermaphroditic) {
     return {
@@ -6661,6 +7115,7 @@ export function getTotalCredit(ledger, accountCode) {
   if (!ledger[accountCode]) return 0;
   return ledger[accountCode].patsinhCr || 0;
 }
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -9078,7 +9533,7 @@ export default function ClosingProcess() {
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Users } from 'lucide-react';
 import api from '../../utils/api.js';
 
 // Danh mục tài khoản chuẩn hóa theo đúng tên hiển thị và tính chất trong ảnh
@@ -9097,6 +9552,9 @@ const ACCOUNT_DICTIONARY = {
   '411': { name: 'Vốn đầu tư của chủ sở hữu', type: 'CR' },
   '421': { name: 'Lợi nhuận sau thuế chưa phân phối', type: 'CR' },
 };
+
+// Tài khoản lưỡng tính cần chọn đối tác
+const HERMAPHRODITIC_ACCOUNTS = ['131', '331'];
 
 const PAGE_STRUCTURE = [
   {
@@ -9125,6 +9583,7 @@ export default function OpeningBalances() {
   
   const [balances, setBalances] = useState([]);
   const [customAccounts, setCustomAccounts] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info');
@@ -9133,16 +9592,29 @@ export default function OpeningBalances() {
   const [activeGroupId, setActiveGroupId] = useState(null); 
   const [inlineCode, setInlineCode] = useState('');
   const [inlineName, setInlineName] = useState('');
+  const [selectedPartner, setSelectedPartner] = useState({}); // Lưu partner_id theo account_code
   const inlineCodeRef = useRef(null);
 
   // Tự động tải lại số dư khi người dùng đổi công ty hoặc đổi năm trên Header
   useEffect(() => {
     if (activeCompany?.id) {
       fetchAndInitializeBalances();
+      fetchPartners();
     } else {
       initEmptyBalances();
+      setPartners([]);
     }
   }, [activeCompany?.id, fiscalYear]);
+
+  // Lấy danh sách đối tác
+  const fetchPartners = async () => {
+    try {
+      const res = await api.get(`/partners?company_id=${activeCompany.id}`);
+      setPartners(res.data || []);
+    } catch (error) {
+      console.error('Lỗi tải danh sách đối tác:', error);
+    }
+  };
 
   const allBalances = useMemo(() => {
     const sorted = Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => {
@@ -9165,14 +9637,24 @@ export default function OpeningBalances() {
           return {
             account_code: code,
             account_name: config.name,
-            debit_balance: Number(dbItem?.debit_balance || dbItem?.debitBalance || 0),
-            credit_balance: Number(dbItem?.credit_balance || dbItem?.creditBalance || 0),
+            debit_balance: Number(dbItem?.opening_debit || dbItem?.debit_balance || dbItem?.debitBalance || 0),
+            credit_balance: Number(dbItem?.opening_credit || dbItem?.credit_balance || dbItem?.creditBalance || 0),
           };
         });
 
         const customs = [];
+        // Khôi phục partner_id từ server cho tài khoản lưỡng tính
+        const restoredPartners = {};
+        
         res.data.forEach(item => {
           const code = item.account_code || item.accountCode;
+          const partnerId = item.partner_id || item.partnerId || null;
+          
+          // Lưu partner_id cho tài khoản lưỡng tính
+          if (HERMAPHRODITIC_ACCOUNTS.includes(code) && partnerId) {
+            restoredPartners[code] = partnerId;
+          }
+          
           if (!ACCOUNT_DICTIONARY[code]) {
             let groupId = '1xx';
             if (code.startsWith('2')) groupId = '2xx';
@@ -9182,14 +9664,17 @@ export default function OpeningBalances() {
             customs.push({
               account_code: code,
               account_name: item.account_name || `TK ${code}`,
-              debit_balance: Number(item.debit_balance || item.debitBalance || 0),
-              credit_balance: Number(item.credit_balance || item.creditBalance || 0),
+              debit_balance: Number(item.opening_debit || item.debit_balance || item.debitBalance || 0),
+              credit_balance: Number(item.opening_credit || item.credit_balance || item.creditBalance || 0),
               groupId,
               isCustom: true,
             });
           }
         });
 
+        // Khôi phục partner_id đã lưu
+        setSelectedPartner(prev => ({ ...prev, ...restoredPartners }));
+        
         setBalances(merged);
         setCustomAccounts(customs);
       } else {
@@ -9277,15 +9762,19 @@ export default function OpeningBalances() {
     setMessage('');
     try {
       const items = allBalances.filter(b => b.account_code && b.account_code.trim() !== '');
-      await Promise.all(items.map(item =>
-        api.post('/opening-balances', {
+      await Promise.all(items.map(item => {
+        const partnerId = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code) 
+          ? selectedPartner[item.account_code] || null 
+          : null;
+        return api.post('/opening-balances', {
           companyId: activeCompany.id,
           accountCode: item.account_code,
           debitBalance: item.debit_balance || 0,
           creditBalance: item.credit_balance || 0,
           fiscalYear: fiscalYear || 2026,
-        })
-      ));
+          partnerId: partnerId,
+        });
+      }));
       setMessage('Lưu dữ liệu số dư đầu kỳ thành công!');
       setMessageType('success');
     } catch (error) {
@@ -9355,6 +9844,9 @@ export default function OpeningBalances() {
                           <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             <th className="py-2 pl-1 w-[75px]">Mã TK</th>
                             <th className="py-2">Tên tài khoản kế toán</th>
+                            {HERMAPHRODITIC_ACCOUNTS.some(c => sub.codes.includes(c)) && (
+                              <th className="py-2 w-[140px]">Đối tác</th>
+                            )}
                             <th className="py-2 text-center w-[120px]">Số dư Nợ (DR)</th>
                             <th className="py-2 text-center w-[120px]">Số dư Có (CR)</th>
                             {customItems.length > 0 && <th className="py-2 w-[35px]"></th>}
@@ -9366,11 +9858,34 @@ export default function OpeningBalances() {
                             const isDrDisabled = config.type === 'CR';
                             const isCrDisabled = config.type === 'DR';
                             const isCrNegative = config.type === 'CR_NEG';
+                            const isHermaphroditic = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code);
 
                             return (
                               <tr key={item.account_code} className="hover:bg-slate-50/50 transition-colors group">
                                 <td className="py-2 font-semibold text-blue-600 font-mono">{item.account_code}</td>
                                 <td className="py-2 text-slate-600 font-medium pr-2">{item.account_name}</td>
+                                {isHermaphroditic && (
+                                  <td className="py-1 px-1">
+                                    <select
+                                      value={selectedPartner[item.account_code] || ''}
+                                      onChange={(e) => {
+                                        const partnerId = e.target.value ? Number(e.target.value) : null;
+                                        setSelectedPartner(prev => ({
+                                          ...prev,
+                                          [item.account_code]: e.target.value
+                                        }));
+                                      }}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-400"
+                                    >
+                                      <option value="">-- Chọn đối tác --</option>
+                                      {partners.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                          {p.partner_name} ({p.partner_code})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                )}
                                 <td className="py-1 px-1">
                                   {isDrDisabled ? (
                                     <div className="text-center text-slate-300 font-medium">-</div>

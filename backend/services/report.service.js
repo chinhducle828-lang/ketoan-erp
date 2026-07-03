@@ -8,7 +8,7 @@ import { pool } from '../config/db.js';
 /**
  * LỖI 1: Tính chỉ tiêu Phải thu khách hàng (131) & Người mua trả tiền trước (312)
  * GROUP BY account_code, customer_id thay vì chỉ account_code
- * Tách khách hàng có số dư Nợ → Tài sản, số dư Có → Nguồn vốn
+ * Tách khách hàng có số dư Nợ → Tài sản, số dư Có → TK 312 (Người mua trả tiền trước)
  */
 export async function getCustomerAccountBalances(companyId, accountCode) {
   // Lấy số dư theo từng khách hàng
@@ -35,28 +35,76 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
   for (const row of rows) {
     const balance = row.debit_total - row.credit_total;
     
-    // Tài khoản 131 (Phải thu khách hàng) - Tài sản
-    // Số dư Nợ → Tài sản, Số dư Có → Nguồn vốn (hiển thị âm)
-    // Tài khoản 312 (Người mua trả tiền trước) - Tài sản
-    // Số dư Nợ → Tài sản, Số dư Có → Nguồn vốn (hiển thị âm)
-    if (accountCode === '131' || accountCode === '312') {
+    // Tài khoản 131 (Phải thu khách hàng) - Tài sản lưỡng tính
+    // Số dư Nợ → Tài sản (131), Số dư Có → TK 312 (Người mua trả tiền trước)
+    if (accountCode === '131') {
       if (balance > 0) {
-        // Số dư Nợ - Tài sản
+        // Số dư Nợ - Tài sản (Phải thu khách hàng)
         results.push({
           customer_id: row.customer_id,
           partner_name: row.partner_name,
           partner_code: row.partner_code,
           amount: balance,
-          balance_type: 'asset' // Tài sản
+          balance_type: 'asset', // Tài sản
+          account_code: '131'
         });
       } else if (balance < 0) {
-        // Số dư Có - Nguồn vốn (hiển thị âm)
+        // Số dư Có - Gán vào TK 312 (Người mua trả tiền trước)
         results.push({
           customer_id: row.customer_id,
           partner_name: row.partner_name,
           partner_code: row.partner_code,
           amount: Math.abs(balance),
-          balance_type: 'liability' // Nguồn vốn
+          balance_type: 'advance', // Người mua trả tiền trước
+          account_code: '312'
+        });
+      }
+    }
+    // Tài khoản 312 (Người mua trả tiền trước) - Tài sản lưỡng tính
+    else if (accountCode === '312') {
+      if (balance > 0) {
+        // Số dư Nợ - Tài sản (Người mua trả tiền trước)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: balance,
+          balance_type: 'asset', // Tài sản
+          account_code: '312'
+        });
+      } else if (balance < 0) {
+        // Số dư Có - Nguồn vốn
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: Math.abs(balance),
+          balance_type: 'liability', // Nguồn vốn
+          account_code: '312'
+        });
+      }
+    }
+    // Tài khoản 331 (Phải trả người bán) - Nợ phải trả lưỡng tính
+    else if (accountCode === '331') {
+      if (balance > 0) {
+        // Số dư Nợ - Nợ phải trả (Phải trả người bán)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: balance,
+          balance_type: 'liability', // Nợ phải trả
+          account_code: '331'
+        });
+      } else if (balance < 0) {
+        // Số dư Có - Có phải thu (Khách hàng trả tiền trước)
+        results.push({
+          customer_id: row.customer_id,
+          partner_name: row.partner_name,
+          partner_code: row.partner_code,
+          amount: Math.abs(balance),
+          balance_type: 'asset', // Tài sản
+          account_code: '331'
         });
       }
     }
@@ -223,4 +271,36 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
     depreciation: await getDepreciationBalance(companyId),
     tax_balances: await getTaxAccountBalances(companyId)
   };
+}
+
+/**
+ * Lấy số dư đầu kỳ theo đối tác (Hỗ trợ tài khoản lưỡng tính 131, 331)
+ */
+export async function getOpeningBalancesByPartner(companyId, fiscalYear, accountCode) {
+  const query = `
+    SELECT 
+      ob.account_code,
+      ob.opening_debit,
+      ob.opening_credit,
+      p.id as partner_id,
+      p.partner_name,
+      p.partner_code
+    FROM opening_balances ob
+    LEFT JOIN partners p ON ob.partner_id = p.id
+    WHERE ob.company_id = $1 
+      AND ob.fiscal_year = $2
+      AND ob.account_code = $3
+    ORDER BY p.partner_name
+  `;
+  
+  const { rows } = await pool.query(query, [companyId, fiscalYear, accountCode]);
+  
+  return rows.map(row => ({
+    account_code: row.account_code,
+    opening_debit: parseFloat(row.opening_debit) || 0,
+    opening_credit: parseFloat(row.opening_credit) || 0,
+    partner_id: row.partner_id,
+    partner_name: row.partner_name,
+    partner_code: row.partner_code
+  }));
 }

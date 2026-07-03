@@ -155,6 +155,127 @@ export async function calculateWeightedAverageCostForPeriod(companyId, month, ye
 }
 
 /**
+ * Tính giá vốn xuất kho bằng phương pháp FIFO cho kỳ
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function calculateFifoCostForPeriod(companyId, month, year) {
+  // Xây dựng điều kiện WHERE cho tháng/năm
+  let whereClause = 'WHERE v.company_id = $1';
+  const params = [companyId];
+  let paramIndex = 2;
+  
+  if (month) {
+    whereClause += ` AND EXTRACT(MONTH FROM v.voucher_date) = $${paramIndex}`;
+    params.push(month);
+    paramIndex++;
+  }
+  
+  if (year) {
+    whereClause += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`;
+    params.push(year);
+    paramIndex++;
+  }
+  
+  // Lấy tất cả chứng từ nhập/xuất kho kèm thông tin vật tư
+  const query = `
+    SELECT v.id as voucher_id, v.voucher_date, v.voucher_type,
+           vd.id as detail_id, vd.item_id, vd.quantity, vd.amount, vd.account_code, vd.entry_type
+    FROM vouchers v
+    JOIN voucher_details vd ON v.id = vd.voucher_id
+    ${whereClause}
+    ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
+  `;
+  
+  const { rows } = await pool.query(query, params);
+  
+  // Tính giá vốn FIFO cho từng vật tư
+  const itemCosts = {};
+  
+  for (const row of rows) {
+    const itemId = row.item_id;
+    const quantity = parseFloat(row.quantity) || 0;
+    const amount = parseFloat(row.amount) || 0;
+    
+    if (!itemCosts[itemId]) {
+      itemCosts[itemId] = {
+        totalQty: 0,
+        totalCostValue: 0,
+        lots: [] // FIFO lots
+      };
+    }
+    
+    if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && quantity > 0)) {
+      // Nhập kho - tạo lô mới theo FIFO
+      const unitCost = quantity > 0 ? amount / quantity : 0;
+      itemCosts[itemId].lots.push({
+        date: row.voucher_date,
+        quantity: quantity,
+        unit_cost: unitCost,
+        remaining_qty: quantity,
+        total_value: amount
+      });
+      itemCosts[itemId].totalQty += quantity;
+      itemCosts[itemId].totalCostValue += amount;
+    } else if (row.voucher_type === 'XK' || (row.entry_type === 'CR' && quantity > 0)) {
+      // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
+      let qtyToDeduct = quantity;
+      let costValueToDeduct = 0;
+      
+      for (const lot of itemCosts[itemId].lots) {
+        if (qtyToDeduct <= 0) break;
+        
+        if (lot.remaining_qty > 0) {
+          const deductQty = Math.min(lot.remaining_qty, qtyToDeduct);
+          costValueToDeduct += deductQty * lot.unit_cost;
+          lot.remaining_qty -= deductQty;
+          qtyToDeduct -= deductQty;
+        }
+      }
+      
+      itemCosts[itemId].totalQty -= quantity;
+      itemCosts[itemId].totalCostValue -= costValueToDeduct;
+      
+      // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho
+      // Vế CR: Tài khoản 632 (Giá vốn) - cập nhật số tiền
+      // Vế DR: Tài khoản 156 (Hàng tồn kho) - cập nhật số tiền giảm
+      await pool.query(
+        'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+        [costValueToDeduct, row.detail_id]
+      );
+      
+      // Cập nhật vế đối ứng (DR) - giảm số tiền tương ứng
+      if (row.account_code === '632' || row.account_code === '156') {
+        // Tìm chi tiết đối ứng trong cùng phiếu
+        const counterQuery = `
+          SELECT id, account_code, entry_type, amount 
+          FROM voucher_details 
+          WHERE voucher_id = $1 AND entry_type != $2
+        `;
+        const counterResult = await pool.query(counterQuery, [row.voucher_id, row.entry_type]);
+        
+        for (const counterRow of counterResult.rows) {
+          if (counterRow.entry_type === 'DR') {
+            // Cập nhật vế DR (giảm kho)
+            await pool.query(
+              'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+              [costValueToDeduct, counterRow.id]
+            );
+          }
+        }
+      }
+    }
+  }
+  
+  return {
+    success: true,
+    message: `Đã tính toán giá vốn FIFO cho ${Object.keys(itemCosts).length} vật tư`,
+    itemCosts
+  };
+}
+
+/**
  * Kiểm tra chi phí logistic đã được phân bổ chưa
  * @param {number} companyId - ID công ty
  * @param {number} voucherId - ID phiếu nhập kho
@@ -210,15 +331,39 @@ export async function allocateLogisticCosts(companyId, month, year) {
              SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as cost_allocated
       FROM vouchers v
       JOIN voucher_details vd ON v.id = vd.voucher_id
-    WHERE v.company_id = $1 
-      AND v.voucher_type = 'NK'
-      AND EXTRACT(MONTH FROM v.voucher_date) = $2
-      AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    GROUP BY v.id, v.voucher_date
-    HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
+      WHERE v.company_id = $1 
+        AND v.voucher_type = 'NK'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+      GROUP BY v.id, v.voucher_date
+      HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
     `;
     
     const { rows } = await client.query(query, [companyId, month, year]);
+    
+    // Tính tổng giá trị nhập kho
+    let totalInputValue = 0;
+    for (const voucher of rows) {
+      totalInputValue += parseFloat(voucher.input_value) || 0;
+    }
+    
+    // Truy vấn SUM(amount) từ voucher_details cho tài khoản 1562 (totalLogisticFee)
+    const logisticsQuery = `
+      SELECT SUM(vd.amount) as total_logistics
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code = '1562'
+        AND vd.entry_type = 'DR'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: logisticsRows } = await client.query(logisticsQuery, [companyId, month, year]);
+    const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
+    
+    // Tính tỷ lệ phân bổ thực tế: totalLogistics / totalInputValue
+    const allocationRate = totalInputValue > 0 ? totalLogistics / totalInputValue : 0;
     
     for (const row of rows) {
       const inputValue = parseFloat(row.input_value) || 0;
@@ -234,8 +379,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
         
-        // Phân bổ 10% chi phí logistics vào TK 156
-        const logisticCost = inputValue * 0.1;
+        // Phân bổ theo tỷ lệ thực tế: inputValue * allocationRate
+        const logisticCost = inputValue * allocationRate;
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
@@ -250,7 +395,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
     return {
       success: true,
       message: `Đã phân bổ chi phí cho ${rows.length} phiếu nhập kho`,
-      vouchers_processed: rows.length
+      vouchers_processed: rows.length,
+      allocation_rate: allocationRate
     };
     
   } catch (error) {
