@@ -45,6 +45,7 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
+    // Run schema.sql first
     const schemaPath = path.join(__dirname, 'schema.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
@@ -52,6 +53,24 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
       console.log('Đồng bộ cấu trúc bảng từ schema.sql hoàn tất.');
     } else {
       console.warn('⚠️ Cảnh báo: Không tìm thấy file schema.sql tại thư mục backend.');
+    }
+    
+    // Run migrations if they exist
+    const migrationsPath = path.join(__dirname, 'migrations');
+    if (fs.existsSync(migrationsPath)) {
+      const migrationFiles = fs.readdirSync(migrationsPath)
+        .filter(file => file.endsWith('.sql'))
+        .sort();
+      
+      for (const migrationFile of migrationFiles) {
+        try {
+          const migrationSql = fs.readFileSync(path.join(migrationsPath, migrationFile), 'utf8');
+          await pool.query(migrationSql);
+          console.log(`✅ Đã chạy migration: ${migrationFile}`);
+        } catch (err) {
+          console.error(`❌ Lỗi migration ${migrationFile}:`, err.message);
+        }
+      }
     }
   } catch (error) {
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);
