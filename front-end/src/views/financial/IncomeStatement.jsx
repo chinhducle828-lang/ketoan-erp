@@ -1,7 +1,9 @@
+// FILE_PATH: front-end/src/views/financial-statements/IncomeStatement.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { calculateBalances, getClosingBalance } from '../../utils/accountingEngine.js';
+// ĐÃ ĐỔI: Sử dụng getTotalDebit và getTotalCredit thay vì getClosingBalance cho TK doanh thu/chi phí
+import { calculateBalances, getTotalDebit, getTotalCredit } from '../../utils/accountingEngine.js';
 import { TrendingUp, TrendingDown, DollarSign, FileText } from 'lucide-react';
 
 export default function IncomeStatement() {
@@ -22,7 +24,8 @@ export default function IncomeStatement() {
     setLoading(true);
     try {
       const companyId = activeCompany.id || activeCompany;
-      const response = await api.get(`/inventory/balances?company_id=${companyId}`);
+      // Gọi đúng API lấy danh sách chứng từ hạch toán của niên độ được chọn
+      const response = await api.get(`/inventory/balances?company_id=${companyId}&year=${fiscalYear}`);
       
       if (response.data?.success && response.data.data?.accountLedger) {
         setLedger(response.data.data.accountLedger);
@@ -34,87 +37,59 @@ export default function IncomeStatement() {
     }
   };
 
-  // Tính toán các chỉ tiêu Báo cáo KQKD
+  // Tính toán các chỉ tiêu Báo cáo KQKD chuẩn theo nghiệp vụ kết chuyển
   const calculateMetrics = () => {
-    // Doanh thu bán hàng (511)
-    const revenue = getClosingBalance(ledger, '511', 'revenue');
+    // 1. Doanh thu bán hàng và cung cấp dịch vụ (Phát sinh CÓ TK 511)
+    const revenue = getTotalCredit(ledger, '511');
     
-    // Giá vốn hàng bán (632)
-    const cogs = getClosingBalance(ledger, '632', 'expense');
+    // 2. Giá vốn hàng bán (Phát sinh NỢ TK 632)
+    const cogs = getTotalDebit(ledger, '632');
     
-    // Lợi nhuận gộp
+    // 3. Lợi nhuận gộp về bán hàng và cung cấp dịch vụ
     const grossProfit = revenue - cogs;
 
-    // Chi phí hoạt động (các tài khoản 6xx)
+    // 4. Doanh thu hoạt động tài chính (Phát sinh CÓ TK 515)
+    const financialRevenue = getTotalCredit(ledger, '515');
+
+    // 5. Chi phí hoạt động sản xuất kinh doanh trong kỳ
     const operatingExpenses = {
-      '641': getClosingBalance(ledger, '641', 'expense'), // Chi phí bán hàng
-      '642': getClosingBalance(ledger, '642', 'expense'), // Chi phí quản lý doanh nghiệp
-      '643': getClosingBalance(ledger, '643', 'expense'), // Chi phí tài chính
-      '644': getClosingBalance(ledger, '644', 'expense'), // Chi phí bán hàng (chi tiết)
-      '650': getClosingBalance(ledger, '650', 'expense'), // Chi phí quản lý (chi tiết)
-      '651': getClosingBalance(ledger, '651', 'expense'), // Chi phí bán hàng (chi tiết)
-      '652': getClosingBalance(ledger, '652', 'expense'), // Chi phí nghiên cứu
-      '653': getClosingBalance(ledger, '653', 'expense'), // Chi phí thuế
-      '654': getClosingBalance(ledger, '654', 'expense'), // Chi phí khác
-      '655': getClosingBalance(ledger, '655', 'expense'), // Chi phí tài chính (chi tiết)
-      '656': getClosingBalance(ledger, '656', 'expense'), // Chi phí bán hàng (chi tiết)
-      '657': getClosingBalance(ledger, '657', 'expense'), // Chi phí quản lý (chi tiết)
-      '658': getClosingBalance(ledger, '658', 'expense'), // Chi phí khác (chi tiết)
+      '635': getTotalDebit(ledger, '635'), // Chi phí tài chính
+      '641': getTotalDebit(ledger, '641'), // Chi phí bán hàng
+      '642': getTotalDebit(ledger, '642'), // Chi phí quản lý doanh nghiệp
     };
 
-    const totalOperatingExpenses = Object.values(operatingExpenses).reduce((sum, val) => sum + Math.abs(val), 0);
+    const totalOperatingExpenses = Object.values(operatingExpenses).reduce((sum, val) => sum + val, 0);
 
-    // Lợi nhuận thuần từ HĐKD
-    const operatingProfit = grossProfit - totalOperatingExpenses;
+    // 6. Lợi nhuận thuần từ HĐKD (Doanh thu + Tài chính - Chi phí)
+    const operatingProfit = grossProfit + financialRevenue - totalOperatingExpenses;
 
-    // Thu nhập khác (711, 712, 713, 714, 715, 716, 717, 718, 719)
-    const otherIncome = {
-      '711': getClosingBalance(ledger, '711', 'revenue'),
-      '712': getClosingBalance(ledger, '712', 'revenue'),
-      '713': getClosingBalance(ledger, '713', 'revenue'),
-      '714': getClosingBalance(ledger, '714', 'revenue'),
-      '715': getClosingBalance(ledger, '715', 'revenue'),
-      '716': getClosingBalance(ledger, '716', 'revenue'),
-      '717': getClosingBalance(ledger, '717', 'revenue'),
-      '718': getClosingBalance(ledger, '718', 'revenue'),
-      '719': getClosingBalance(ledger, '719', 'revenue'),
-    };
-    const totalOtherIncome = Object.values(otherIncome).reduce((sum, val) => sum + val, 0);
+    // 7. Thu nhập khác (Phát sinh CÓ TK 711)
+    const totalOtherIncome = getTotalCredit(ledger, '711');
 
-    // Chi phí khác (635, 641, 642, 643, 644, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659)
-    const otherExpenses = {
-      '635': getClosingBalance(ledger, '635', 'expense'),
-      '641': getClosingBalance(ledger, '641', 'expense'),
-      '642': getClosingBalance(ledger, '642', 'expense'),
-      '643': getClosingBalance(ledger, '643', 'expense'),
-      '644': getClosingBalance(ledger, '644', 'expense'),
-      '650': getClosingBalance(ledger, '650', 'expense'),
-      '651': getClosingBalance(ledger, '651', 'expense'),
-      '652': getClosingBalance(ledger, '652', 'expense'),
-      '653': getClosingBalance(ledger, '653', 'expense'),
-      '654': getClosingBalance(ledger, '654', 'expense'),
-      '655': getClosingBalance(ledger, '655', 'expense'),
-      '656': getClosingBalance(ledger, '656', 'expense'),
-      '657': getClosingBalance(ledger, '657', 'expense'),
-      '658': getClosingBalance(ledger, '658', 'expense'),
-      '659': getClosingBalance(ledger, '659', 'expense'),
-    };
-    const totalOtherExpenses = Object.values(otherExpenses).reduce((sum, val) => sum + Math.abs(val), 0);
+    // 8. Chi phí khác (Phát sinh NỢ TK 811)
+    const totalOtherExpenses = getTotalDebit(ledger, '811');
 
-    // LNSTCPP (421)
-    const netProfit = getClosingBalance(ledger, '421', 'expense');
+    // 9. Tổng lợi nhuận kế toán trước thuế
+    const profitBeforeTax = operatingProfit + (totalOtherIncome - totalOtherExpenses);
+
+    // 10. Chi phí thuế TNDN hiện hành (Phát sinh NỢ TK 821)
+    const incomeTaxExpense = getTotalDebit(ledger, '821');
+
+    // 11. Lợi nhuận sau thuế thu nhập doanh nghiệp (Chỉ tiêu thực tế của kỳ)
+    const netProfit = profitBeforeTax - incomeTaxExpense;
 
     return {
       revenue,
       cogs,
       grossProfit,
+      financialRevenue,
       operatingExpenses,
       totalOperatingExpenses,
       operatingProfit,
-      otherIncome,
       totalOtherIncome,
-      otherExpenses,
       totalOtherExpenses,
+      profitBeforeTax,
+      incomeTaxExpense,
       netProfit
     };
   };
@@ -134,7 +109,7 @@ export default function IncomeStatement() {
     const valueClass = displayValue < 0 ? 'text-rose-600' : (isTotal ? 'text-slate-900' : 'text-slate-700');
     
     return (
-      <div className={`flex justify-between items-center py-2 ${isTotal ? 'border-t-2 border-slate-300 mt-2 pt-3' : ''} ${isBold ? 'font-bold' : 'font-medium'}`}>
+      <div className={`flex justify-between items-center py-2 ${isTotal ? 'border-t border-slate-200 mt-2 pt-3' : ''} ${isBold ? 'font-bold' : 'font-medium'}`}>
         <span className={`text-xs ${isBold ? 'text-slate-900' : 'text-slate-600'}`}>
           {label}
         </span>
@@ -187,16 +162,16 @@ export default function IncomeStatement() {
       {/* Income Statement */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 space-y-6">
-          {/* I. Doanh thu thuần về bán hàng và cung cấp dịch vụ */}
+          {/* I. Doanh thu */}
           <div>
             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px]">I</span>
               DOANH THU THUẦN VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
             </h3>
-            {renderRow('Doanh thu bán hàng (511)', metrics.revenue, false, false, false)}
+            {renderRow('Doanh thu bán hàng và cung cấp dịch vụ (511)', metrics.revenue, false, false, false)}
           </div>
 
-          {/* II. Giá vốn hàng bán */}
+          {/* II. Giá vốn */}
           <div>
             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px]">II</span>
@@ -206,123 +181,78 @@ export default function IncomeStatement() {
           </div>
 
           {/* III. Lợi nhuận gộp */}
-          <div className="bg-emerald-50 p-4 rounded-xl">
+          <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-100">
             <h3 className="text-sm font-bold text-emerald-900 mb-2 flex items-center gap-2">
               <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px]">III</span>
               LỢI NHUẬN GỘP VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
             </h3>
-            {renderRow('Lợi nhuận gộp (III = I - II)', metrics.grossProfit, true, true)}
+            {renderRow('Lợi nhuận gộp (III = I - II)', metrics.grossProfit, true, false)}
           </div>
 
-          {/* IV. Chi phí hoạt động */}
+          {/* IV. Chi phí & Doanh thu tài chính */}
           <div>
             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px]">IV</span>
-              CHI PHÍ HOẠT ĐỘNG
+              HOẠT ĐỘNG KINH DOANH VÀ CHI PHÍ
             </h3>
             <div className="ml-4 space-y-1">
-              {Object.entries(metrics.operatingExpenses).map(([code, value]) => {
-                if (value !== 0) {
-                  return renderRow(`Chi phí (${code})`, value, false, false, true);
-                }
-                return null;
-              })}
+              {renderRow('Doanh thu hoạt động tài chính (515)', metrics.financialRevenue, false, false, false)}
+              {renderRow('Chi phí tài chính (635)', metrics.operatingExpenses['635'], false, false, true)}
+              {renderRow('Chi phí bán hàng (641)', metrics.operatingExpenses['641'], false, false, true)}
+              {renderRow('Chi phí quản lý doanh nghiệp (642)', metrics.operatingExpenses['642'], false, false, true)}
             </div>
-            {renderRow('Tổng chi phí hoạt động', metrics.totalOperatingExpenses, false, false, true)}
           </div>
 
-          {/* V. Lợi nhuận thuần từ HĐKD */}
-          <div className="bg-blue-50 p-4 rounded-xl">
+          {/* V. Lợi nhuận thuần */}
+          <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-100">
             <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
               <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px]">V</span>
               LỢI NHUẬN THUẦN TỪ HOẠT ĐỘNG KINH DOANH
             </h3>
-            {renderRow('Lợi nhuận thuần từ HĐKD (V = III - IV)', metrics.operatingProfit, true, true)}
+            {renderRow('Lợi nhuận thuần từ HĐKD', metrics.operatingProfit, true, false)}
           </div>
 
-          {/* VI. Thu nhập khác */}
+          {/* VI & VII. Khác */}
           <div>
             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px]">VI</span>
-              THU NHẬP KHÁC
+              THU NHẬP KHÁC VÀ CHI PHÍ KHÁC
             </h3>
             <div className="ml-4 space-y-1">
-              {Object.entries(metrics.otherIncome).map(([code, value]) => {
-                if (value !== 0) {
-                  return renderRow(`Thu nhập (${code})`, value, false, false, false);
-                }
-                return null;
-              })}
+              {renderRow('Thu nhập khác (711)', metrics.totalOtherIncome, false, false, false)}
+              {renderRow('Chi phí khác (811)', metrics.totalOtherExpenses, false, false, true)}
             </div>
-            {renderRow('Tổng thu nhập khác', metrics.totalOtherIncome, false, false, false)}
           </div>
 
-          {/* VII. Chi phí khác */}
+          {/* Thuế TNDN bổ sung */}
           <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px]">VII</span>
-              CHI PHÍ KHÁC
-            </h3>
-            <div className="ml-4 space-y-1">
-              {Object.entries(metrics.otherExpenses).map(([code, value]) => {
-                if (value !== 0) {
-                  return renderRow(`Chi phí (${code})`, value, false, false, true);
-                }
-                return null;
-              })}
-            </div>
-            {renderRow('Tổng chi phí khác', metrics.totalOtherExpenses, false, false, true)}
+            {renderRow('Tổng lợi nhuận kế toán trước thuế', metrics.profitBeforeTax, false, false)}
+            {renderRow('Chi phí thuế TNDN hiện hành (821)', metrics.incomeTaxExpense, false, false, true)}
           </div>
 
-          {/* VIII. LNSTCPP */}
-          <div className={`p-4 rounded-xl ${metrics.netProfit >= 0 ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+          {/* VIII. Kết quả cuối cùng */}
+          <div className={`p-4 rounded-xl text-white shadow-md ${metrics.netProfit >= 0 ? 'bg-slate-900' : 'bg-rose-600'}`}>
+            <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
               <span className="bg-white/20 text-white px-2 py-0.5 rounded text-[10px]">VIII</span>
               LỢI NHUẬN SAU THUẾ THU NHẬP DOANH NGHIỆP
             </h3>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-white/90">
-                LNSTCPP (421)
-              </span>
-              <span className="text-lg font-black text-white">
-                {formatCurrency(metrics.netProfit)}
-              </span>
+              <span className="text-xs font-bold text-white/90">LNST dòng của kỳ này:</span>
+              <span className="text-lg font-black">{formatCurrency(metrics.netProfit)}</span>
             </div>
-            <div className="mt-2 flex items-center gap-2 text-xs text-white/80">
+            <div className="mt-2 flex items-center gap-2 text-xs text-white/80 border-t border-white/10 pt-2">
               {metrics.netProfit >= 0 ? (
                 <>
                   <TrendingUp size={14} />
-                  <span>Công ty có lãi</span>
+                  <span>Doanh nghiệp hoạt động có lãi trong năm {fiscalYear}</span>
                 </>
               ) : (
                 <>
                   <TrendingDown size={14} />
-                  <span>Công ty lỗ</span>
+                  <span>Doanh nghiệp lâm vào tình trạng lỗ ròng trong năm {fiscalYear}</span>
                 </>
               )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doanh thu</div>
-          <div className="text-lg font-black text-slate-800">{formatCurrency(metrics.revenue)}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Lợi nhuận gộp</div>
-          <div className="text-lg font-black text-emerald-600">{formatCurrency(metrics.grossProfit)}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Lợi nhuận HĐKD</div>
-          <div className="text-lg font-black text-blue-600">{formatCurrency(metrics.operatingProfit)}</div>
-        </div>
-        <div className={`p-4 rounded-xl border shadow-sm ${metrics.netProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">LNSTCPP</div>
-          <div className={`text-lg font-black ${metrics.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {formatCurrency(metrics.netProfit)}
           </div>
         </div>
       </div>
