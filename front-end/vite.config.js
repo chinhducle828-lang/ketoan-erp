@@ -3,14 +3,16 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // 1. Ép Vite tự động bù đuôi file .js/.jsx để sửa hoàn toàn lỗi build trên Railway
+    extensions: ['.js', '.jsx', '.json', '.ts', '.tsx']
+  },
   server: {
     port: 3000,
     proxy: {
-      // Chỉ cần thấy request có /api là tóm lại ngay
       '/api': {
-        target: 'http://127.0.0.1:5000', // Ném thẳng sang Backend
+        target: 'http://127.0.0.1:8080', // Đồng bộ về cổng 8080 của backend kế toán
         changeOrigin: true,
-        // Không cần rewrite nữa vì Backend của bạn đang nhận chuẩn /api/auth/login rồi
       }
     }
   }
