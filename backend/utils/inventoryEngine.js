@@ -80,11 +80,40 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
   
   const { rows: vouchersToAllocate } = await pool.query(allocationQuery, allocParams);
   
-  // Thực hiện phân bổ chi phí logistics (10% giá trị nhập)
+  // Thực hiện phân bổ chi phí logistics
+  // Tính tổng giá trị nhập kho để phân bổ theo tỷ lệ
+  let totalInputValue = 0;
+  for (const voucher of vouchersToAllocate) {
+    totalInputValue += parseFloat(voucher.input_value) || 0;
+  }
+  
+  // Tổng chi phí logistics cần phân bổ (lấy từ chứng từ logistics)
+  // Tìm chứng từ logistics trong cùng tháng/năm
+  const logisticsQuery = `
+    SELECT SUM(vd.amount) as total_logistics
+    FROM vouchers v
+    JOIN voucher_details vd ON v.id = vd.voucher_id
+    WHERE v.company_id = $1 
+      AND v.voucher_type = 'CHIPHI'
+      AND vd.account_code = '632'
+      AND vd.entry_type = 'DR'
+      ${month ? `AND EXTRACT(MONTH FROM v.voucher_date) = $${allocParams.length + 1}` : ''}
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $${allocParams.length + 2}` : ''}
+  `;
+  
+  const logisticsParams = [...allocParams];
+  if (month) logisticsParams.push(month);
+  if (year) logisticsParams.push(year);
+  
+  const { rows: logisticsRows } = await pool.query(logisticsQuery, logisticsParams);
+  const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
+  
+  // Phân bổ theo tỷ lệ giá trị nhập
   for (const voucher of vouchersToAllocate) {
     const inputValue = parseFloat(voucher.input_value) || 0;
-    if (inputValue > 0) {
-      const logisticCost = inputValue * 0.1; // 10% chi phí logistics
+    if (inputValue > 0 && totalLogistics > 0) {
+      // Tính chi phí logistics theo tỷ lệ: (giá trị nhập / tổng giá trị) * tổng logistics
+      const logisticCost = (inputValue / totalInputValue) * totalLogistics;
       
       // Tạo bút toán phân bổ: Nợ TK 156, Có TK 632
       const closingDate = year && month ? `${year}-${String(month).padStart(2, '0')}-31` : new Date().toISOString().split('T')[0];
