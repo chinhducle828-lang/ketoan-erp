@@ -80,17 +80,41 @@ export function getTotalCredit(ledger, accountCode) {
 
 /**
  * Tính số dư cuối kỳ của tài khoản
- * Tài khoản Tài sản/Chi phí: Nợ - Có
- * Tài khoản Nguồn vốn/Doanh thu: Có - Nợ
+ * Xử lý đặc biệt cho tài khoản lưỡng tính và tài khoản lỗ
+ * 
+ * @param {Object} ledger - Kết quả từ calculateBalances
+ * @param {String} accountCode - Mã tài khoản
+ * @param {String} accountType - Loại tài khoản (asset, liability, equity, revenue, expense)
+ * @returns {Number|Object} Số dư cuối kỳ (có thể âm) hoặc object cho tài khoản lưỡng tính
  */
 export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
   if (!ledger[accountCode]) return 0;
   
   const { patsinhDr, patsinhCr } = ledger[accountCode];
   
-  if (accountType === 'asset' || accountType === 'expense') {
+  // Tài khoản lưỡng tính: trả về cả hai chiều để frontend xử lý
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '333', '3381'];
+  const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  
+  if (isHermaphroditic) {
+    // Trả về object với cả Dr và Cr để frontend biết cách hiển thị
+    return {
+      type: 'hermaphroditic',
+      debit: patsinhDr,
+      credit: patsinhCr,
+      // Số dư thuần: Dr - Cr (nếu âm thì là bên Có)
+      net: patsinhDr - patsinhCr
+    };
+  }
+  
+  // Tài khoản 421 (LNSTCPP) có thể có số dư Nợ khi lỗ
+  const isProfitLoss = accountCode.startsWith('421');
+  
+  if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
+    // Tài sản/Chi phí/LNSTCPP: Nợ - Có (có thể âm khi lỗ)
     return patsinhDr - patsinhCr;
   } else {
+    // Nguồn vốn/Doanh thu: Có - Nợ (có thể âm)
     return patsinhCr - patsinhDr;
   }
 }

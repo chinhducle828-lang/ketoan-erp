@@ -17,9 +17,14 @@ export async function checkLockDate(companyId, voucherDate) {
 
 /**
  * Tính toán số dư tài khoản thông thường và tài khoản lưỡng tính công nợ
+ * 
+ * Tài khoản lưỡng tính:
+ * - 131, 331, 138, 338: Công nợ phải thu/phải trả (đã có)
+ * - 333: Thuế GTGT đầu ra (nộp thừa sẽ có số dư Nợ)
+ * - 3381: Thuế TNDN (nộp thừa sẽ có số dư Nợ)
  */
 export async function getAccountBalance(companyId, accountCode, partnerId = null) {
-  const hermaphroditicAccounts = ['131', '331', '138', '338'];
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '333', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
 
   let query = `
@@ -54,14 +59,25 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
   // Xác định tính chất số dư mặc định của loại tài khoản để trả về giá trị thuần túy phù hợp
   const isAsset = accountCode.startsWith('1') || accountCode.startsWith('131') || accountCode.startsWith('2') || accountCode.startsWith('6') || accountCode.startsWith('8');
   
+  // Tài khoản 421 (LNSTCPP) có thể có số dư Nợ khi lỗ
+  const isProfitLoss = accountCode.startsWith('421');
+  
   if (isHermaphroditic) {
     // Trả về cả hai chiều chi tiết của đối tác, chống bù trừ chéo vô lý giữa các khách hàng/nhà cung cấp
-    return { debit_balance: debitSum, credit_balance: creditSum };
+    // Đồng thời cho phép cả hai chiều (Dr/Cr) vì có thể nộp thừa thuế
+    return { 
+      debit_balance: debitSum, 
+      credit_balance: creditSum,
+      is_hermaphroditic: true 
+    };
   }
 
-  if (isAsset) {
+  if (isAsset || isProfitLoss) {
+    // Tài khoản Tài sản: Nợ - Có
+    // Tài khoản 421 (LNSTCPP): Có thể có số dư Nợ khi lỗ
     return { balance: debitSum - creditSum };
   } else {
+    // Tài khoản Nguồn vốn/Doanh thu: Có - Nợ
     return { balance: creditSum - debitSum };
   }
 }
@@ -113,6 +129,8 @@ export function calculateBalances(vouchers, openingBalances = []) {
         };
       }
 
+      // Hỗ trợ số âm cho phép điều chỉnh lỗi
+      // Khi ghi chứng từ điều chỉnh, có thể dùng số âm để trừ ngược
       if (entryType === 'DR') {
         ledger[accCode].patsinhDr += amount;
         ledger[accCode].closingDr += amount;
@@ -124,4 +142,45 @@ export function calculateBalances(vouchers, openingBalances = []) {
   });
 
   return ledger;
+}
+
+/**
+ * Tính số dư cuối kỳ của tài khoản
+ * Xử lý đặc biệt cho tài khoản lưỡng tính và tài khoản lỗ
+ * 
+ * @param {Object} ledger - Kết quả từ calculateBalances
+ * @param {String} accountCode - Mã tài khoản
+ * @param {String} accountType - Loại tài khoản (asset, liability, equity, revenue, expense)
+ * @returns {Number} Số dư cuối kỳ (có thể âm)
+ */
+export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
+  if (!ledger[accountCode]) return 0;
+  
+  const { patsinhDr, patsinhCr } = ledger[accountCode];
+  
+  // Tài khoản lưỡng tính: trả về cả hai chiều để frontend xử lý
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '333', '3381'];
+  const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  
+  if (isHermaphroditic) {
+    // Trả về object với cả Dr và Cr để frontend biết cách hiển thị
+    return {
+      type: 'hermaphroditic',
+      debit: patsinhDr,
+      credit: patsinhCr,
+      // Số dư thuần: Dr - Cr (nếu âm thì là bên Có)
+      net: patsinhDr - patsinhCr
+    };
+  }
+  
+  // Tài khoản 421 (LNSTCPP) có thể có số dư Nợ khi lỗ
+  const isProfitLoss = accountCode.startsWith('421');
+  
+  if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
+    // Tài sản/Chi phí/LNSTCPP: Nợ - Có (có thể âm)
+    return patsinhDr - patsinhCr;
+  } else {
+    // Nguồn vốn/Doanh thu: Có - Nợ (có thể âm)
+    return patsinhCr - patsinhDr;
+  }
 }
