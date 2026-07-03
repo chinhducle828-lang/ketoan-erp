@@ -115,6 +115,28 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ✅ Lấy thông tin người dùng hiện tại từ token
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const q = await pool.query('SELECT id, username, role, company_ids, must_change_password FROM users WHERE id = $1', [req.user.id]);
+    if (q.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
+    
+    const user = q.rows[0];
+    res.json({ 
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        company_ids: user.company_ids,
+        must_change_password: user.must_change_password
+      },
+      fiscal_year: new Date().getFullYear()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API lưu/lấy tùy chỉnh người dùng
 router.get('/preferences', authenticate, async (req, res) => {
   try {
