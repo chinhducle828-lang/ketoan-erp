@@ -17,8 +17,12 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) UNIQUE NOT NULL,
     password TEXT NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'nv', -- admin, ktt, nv
-    company_id INT REFERENCES companies(id) ON DELETE SET NULL,
+    company_ids INT[] DEFAULT '{}', -- Mảng ID các công ty user có quyền truy cập
+    staff_ids INT[] DEFAULT '{}', -- Mảng ID nhân viên phụ trách (chỉ cho KTT)
+    manager_id INT REFERENCES users(id) ON DELETE SET NULL, -- Kế toán trưởng quản lý
+    must_change_password BOOLEAN DEFAULT FALSE, -- Bắt buộc đổi mật khẩu lần đầu
     is_root_admin BOOLEAN DEFAULT FALSE, -- Chỉ tài khoản root admin mới xem được audit logs
+    preferences JSONB DEFAULT '{}', -- Lưu trữ tùy chỉnh giao diện
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
