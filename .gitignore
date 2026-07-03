@@ -72,7 +72,7 @@ temp/
 uploads/
 
 # Temporary/utility files
-all_project_code.txt
-pack_project.py
+
+
 *.tmp
 *.temp
