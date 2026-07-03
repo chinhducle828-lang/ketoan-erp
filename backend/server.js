@@ -119,6 +119,7 @@ import { importRouter } from './routes/import.js';
 import { partnerRouter } from './routes/partnerRoute.js'; 
 import { usersRouter } from './routes/users.js'; 
 import inventoryRoutes from './routes/inventoryRoutes.js';
+import { reportRouter } from './routes/report.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -133,6 +134,7 @@ app.use('/api/import', importRouter);
 app.use('/api/partners', partnerRouter); 
 app.use('/api/users', usersRouter); 
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/report', reportRouter);
 
 // ====================================================================
 // HEALTH CHECK & UTILITIES

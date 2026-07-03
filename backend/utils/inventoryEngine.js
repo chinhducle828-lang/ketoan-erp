@@ -1,5 +1,5 @@
 // FILE_PATH: backend/utils/inventoryEngine.js
-import pool from '../config/db.js';
+import { pool } from '../config/db.js';
 
 /**
  * Tính toán giá vốn và lượng tồn kho tức thời của vật tư hàng hóa
@@ -58,6 +58,52 @@ export async function calculateInventoryCost(companyId, itemId, targetDate) {
  * @returns {Object} - Kết quả tính toán
  */
 export async function calculateWeightedAverageCost(companyId, month, year) {
+  // BƯỚC 1: Phân bổ chi phí logistics cho phiếu nhập kho chưa có phân bổ
+  // Lấy tất cả phiếu nhập kho (NK) chưa có phân bổ chi phí 632/641/642
+  const allocationQuery = `
+    SELECT v.id as voucher_id,
+           SUM(CASE WHEN vd.account_code = '156' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as input_value,
+           SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as cost_allocated
+    FROM vouchers v
+    JOIN voucher_details vd ON v.id = vd.voucher_id
+    WHERE v.company_id = $1 
+      AND v.voucher_type = 'NK'
+      ${month ? `AND EXTRACT(MONTH FROM v.voucher_date) = $2` : ''}
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $${month ? 3 : 2}` : ''}
+    GROUP BY v.id
+    HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
+  `;
+  
+  const allocParams = [companyId];
+  if (month) allocParams.push(month);
+  if (year) allocParams.push(year);
+  
+  const { rows: vouchersToAllocate } = await pool.query(allocationQuery, allocParams);
+  
+  // Thực hiện phân bổ chi phí logistics (10% giá trị nhập)
+  for (const voucher of vouchersToAllocate) {
+    const inputValue = parseFloat(voucher.input_value) || 0;
+    if (inputValue > 0) {
+      const logisticCost = inputValue * 0.1; // 10% chi phí logistics
+      
+      // Tạo bút toán phân bổ: Nợ TK 156, Có TK 632
+      const closingDate = year && month ? `${year}-${String(month).padStart(2, '0')}-31` : new Date().toISOString().split('T')[0];
+      await pool.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Tự động phân bổ chi phí logistics')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await pool.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await pool.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '156', 'DR', $2), ($3, '632', 'CR', $4)`,
+        [voucherId, logisticCost, voucherId, logisticCost]
+      );
+    }
+  }
+  
   // Xây dựng điều kiện WHERE cho tháng/năm
   let whereClause = 'WHERE v.company_id = $1';
   const params = [companyId];
@@ -105,6 +151,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
     
     if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && quantity > 0)) {
       // Nhập kho - cập nhật giá trung bình
+      // Đã bao gồm chi phí logistics đã phân bổ
       itemCosts[itemId].totalQty += quantity;
       itemCosts[itemId].totalCostValue += amount;
       if (itemCosts[itemId].totalQty > 0) {

@@ -1,7 +1,9 @@
-// FILE_PATH: backend/src/controllers/erpController.js
+// FILE_PATH: backend/controllers/erpController.js
 import { calculateBalances } from '../utils/accountingEngine.js';
 import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
 import { pool } from '../config/db.js';
+import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
+import { runClosingEntries } from '../services/closing.service.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ tốc độ cao cho ứng dụng
 const localCache = new Map();

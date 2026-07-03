@@ -1,5 +1,5 @@
 // FILE_PATH: backend/utils/accountingEngine.js
-import pool from '../config/db.js';
+import { pool } from '../config/db.js';
 
 /**
  * Kiểm tra xem ngày chứng từ có nằm trong vùng đã bị khóa sổ kế toán hay không
@@ -135,7 +135,7 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
   
   const isProfitLoss = accountCode.startsWith('421');
   if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
-    return patsinhDr - patsinkCr;
+    return patsinhDr - patsinhCr;
   } else {
     return patsinhCr - patsinhDr;
   }
