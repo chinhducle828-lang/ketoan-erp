@@ -3,7 +3,6 @@ import pool from '../config/db.js';
 
 /**
  * Kiểm tra xem ngày chứng từ có nằm trong vùng đã bị khóa sổ kế toán hay không
- * Thao tác Sửa/Xóa chứng từ nằm trong vùng khóa sổ sẽ bị chặn triệt để
  */
 export async function checkLockDate(companyId, voucherDate) {
   const query = 'SELECT lock_date FROM companies WHERE id = $1';
@@ -16,15 +15,15 @@ export async function checkLockDate(companyId, voucherDate) {
 }
 
 /**
- * Tính toán số dư tài khoản thông thường và tài khoản lưỡng tính công nợ
- * 
- * Tài khoản lưỡng tính:
- * - 131, 331, 138, 338: Công nợ phải thu/phải trả (đã có)
- * - 333: Thuế GTGT đầu ra (nộp thừa sẽ có số dư Nợ)
- * - 3381: Thuế TNDN (nộp thừa sẽ có số dư Nợ)
+ * Tính toán số dư tài khoản thông thường và tài khoản lưỡng tính theo TT 99/2025/TT-BTC
+ * Danh sách tài khoản lưỡng tính quản lý chi tiết theo đối tượng:
+ * - 131, 331, 138, 338: Nhóm công nợ khách hàng, nhà cung cấp, phải thu/phải trả khác
+ * - 3334, 3335: Thuế TNDN và Thuế TNCN (Dư Nợ khi tạm nộp thừa vào NSNN)
+ * - 3381: Tài sản thừa chờ giải quyết
  */
 export async function getAccountBalance(companyId, accountCode, partnerId = null) {
-  const hermaphroditicAccounts = ['131', '331', '138', '338', '333', '3381'];
+  // Cập nhật danh sách tài khoản đặc biệt chuẩn Thông tư 99
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
 
   let query = `
@@ -36,12 +35,10 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
   
   const params = [companyId, `${accountCode}%`];
 
-  // Nếu là tài khoản lưỡng tính, bắt buộc phải lọc nghiêm ngặt theo đối tác cụ thể
-  if (isHermaphroditic) {
-    if (partnerId) {
-      query += ` AND vd.partner_id = $3`;
-      params.push(partnerId);
-    }
+  // Nếu là tài khoản lưỡng tính đặc biệt, bắt buộc phải lọc nghiêm ngặt theo đối tác cụ thể
+  if (isHermaphroditic && partnerId) {
+    query += ` AND vd.partner_id = $3`;
+    params.push(partnerId);
   }
 
   query += ` GROUP BY vd.entry_type`;
@@ -56,15 +53,10 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
     if (row.entry_type === 'CR') creditSum += parseFloat(row.total_amount) || 0;
   });
 
-  // Xác định tính chất số dư mặc định của loại tài khoản để trả về giá trị thuần túy phù hợp
-  const isAsset = accountCode.startsWith('1') || accountCode.startsWith('131') || accountCode.startsWith('2') || accountCode.startsWith('6') || accountCode.startsWith('8');
-  
-  // Tài khoản 421 (LNSTCPP) có thể có số dư Nợ khi lỗ
-  const isProfitLoss = accountCode.startsWith('421');
+  const isAsset = accountCode.startsWith('1') || accountCode.startsWith('2') || accountCode.startsWith('6') || accountCode.startsWith('8');
+  const isProfitLoss = accountCode.startsWith('421'); // Hỗ trợ tài khoản 421 lãi/lỗ
   
   if (isHermaphroditic) {
-    // Trả về cả hai chiều chi tiết của đối tác, chống bù trừ chéo vô lý giữa các khách hàng/nhà cung cấp
-    // Đồng thời cho phép cả hai chiều (Dr/Cr) vì có thể nộp thừa thuế
     return { 
       debit_balance: debitSum, 
       credit_balance: creditSum,
@@ -73,45 +65,33 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
   }
 
   if (isAsset || isProfitLoss) {
-    // Tài khoản Tài sản: Nợ - Có
-    // Tài khoản 421 (LNSTCPP): Có thể có số dư Nợ khi lỗ
-    return { balance: debitSum - creditSum };
+    return { balance: debitSum - creditSum }; // Số dư Nợ (hoặc âm nếu dư Có)
   } else {
-    // Tài khoản Nguồn vốn/Doanh thu: Có - Nợ
-    return { balance: creditSum - debitSum };
+    return { balance: creditSum - debitSum }; // Số dư Có (hoặc âm nếu dư Nợ)
   }
 }
 
 /**
- * Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ
- * Hàm này được gọi từ test-erp-core.js và erpController.js
- * @param {Array} vouchers - Danh sách chứng từ từ database
- * @param {Array} openingBalances - Số dư đầu kỳ (tùy chọn)
- * @returns {Object} - Đối tượng chứa số dư từng tài khoản
+ * Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản)
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Khởi tạo số dư đầu kỳ nếu có
+  // Nạp số dư đầu kỳ dồn tích, sửa lỗi dùng toán tử "=" gây ghi đè dữ liệu đối tác
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.account_code || ob.accountCode;
       if (!ledger[accCode]) {
-        ledger[accCode] = {
-          patsinhDr: 0,
-          patsinhCr: 0,
-          closingDr: 0,
-          closingCr: 0
-        };
+        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
       }
-      ledger[accCode].patsinhDr = parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[accCode].patsinhCr = parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      ledger[accCode].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[accCode].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
       ledger[accCode].closingDr = ledger[accCode].patsinhDr;
       ledger[accCode].closingCr = ledger[accCode].patsinhCr;
     });
   }
 
-  // Duyệt qua từng chứng từ và tính dồn tích
+  // Lũy kế phát sinh trong kỳ từ chứng từ (Chấp nhận amount âm cho hạch toán điều chỉnh đỏ)
   vouchers.forEach(voucher => {
     if (!voucher.details || !Array.isArray(voucher.details)) return;
     
@@ -121,16 +101,9 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const amount = parseFloat(detail.amount) || 0;
 
       if (!ledger[accCode]) {
-        ledger[accCode] = {
-          patsinhDr: 0,
-          patsinhCr: 0,
-          closingDr: 0,
-          closingCr: 0
-        };
+        ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
       }
 
-      // Hỗ trợ số âm cho phép điều chỉnh lỗi
-      // Khi ghi chứng từ điều chỉnh, có thể dùng số âm để trừ ngược
       if (entryType === 'DR') {
         ledger[accCode].patsinhDr += amount;
         ledger[accCode].closingDr += amount;
@@ -144,43 +117,38 @@ export function calculateBalances(vouchers, openingBalances = []) {
   return ledger;
 }
 
-/**
- * Tính số dư cuối kỳ của tài khoản
- * Xử lý đặc biệt cho tài khoản lưỡng tính và tài khoản lỗ
- * 
- * @param {Object} ledger - Kết quả từ calculateBalances
- * @param {String} accountCode - Mã tài khoản
- * @param {String} accountType - Loại tài khoản (asset, liability, equity, revenue, expense)
- * @returns {Number} Số dư cuối kỳ (có thể âm)
- */
 export function getClosingBalance(ledger, accountCode, accountType = 'asset') {
   if (!ledger[accountCode]) return 0;
   
   const { patsinhDr, patsinhCr } = ledger[accountCode];
-  
-  // Tài khoản lưỡng tính: trả về cả hai chiều để frontend xử lý
-  const hermaphroditicAccounts = ['131', '331', '138', '338', '333', '3381'];
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
   
   if (isHermaphroditic) {
-    // Trả về object với cả Dr và Cr để frontend biết cách hiển thị
     return {
       type: 'hermaphroditic',
       debit: patsinhDr,
       credit: patsinhCr,
-      // Số dư thuần: Dr - Cr (nếu âm thì là bên Có)
       net: patsinhDr - patsinhCr
     };
   }
   
-  // Tài khoản 421 (LNSTCPP) có thể có số dư Nợ khi lỗ
   const isProfitLoss = accountCode.startsWith('421');
-  
   if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
-    // Tài sản/Chi phí/LNSTCPP: Nợ - Có (có thể âm)
-    return patsinhDr - patsinhCr;
+    return patsinhDr - patsinkCr;
   } else {
-    // Nguồn vốn/Doanh thu: Có - Nợ (có thể âm)
     return patsinhCr - patsinhDr;
   }
+}
+
+// BỔ SUNG: Lấy tổng phát sinh Nợ phục vụ báo cáo KQKD Thông tư 99
+export function getTotalDebit(ledger, accountCode) {
+  if (!ledger[accountCode]) return 0;
+  return ledger[accountCode].patsinhDr || 0;
+}
+
+// BỔ SUNG: Lấy tổng phát sinh Có phục vụ báo cáo KQKD Thông tư 99
+export function getTotalCredit(ledger, accountCode) {
+  if (!ledger[accountCode]) return 0;
+  return ledger[accountCode].patsinhCr || 0;
 }
