@@ -2,13 +2,14 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// ✅ CHỈNH SỬA: Tách biệt và lấy kết nối database gốc từ file config
+// ✅ Lấy kết nối database gốc từ file config
 import { pool } from '../config/db.js';
 
-// ✅ CHỈNH SỬA: Chỉ lấy các hằng số phân phối cookie từ server.js
-import { REFRESH_TOKEN_EXPIRE_DAYS, REFRESH_COOKIE_NAME } from '../server.js';
+// ❌ XÓA HOẶC SỬA DÒNG IMPORT TỪ SERVER.JS THÀNH GÁN TRỰC TIẾP DƯỚI ĐÂY:
+const REFRESH_TOKEN_EXPIRE_DAYS = 30; 
+const REFRESH_COOKIE_NAME = 'jid'; // Tên cookie Refresh Token chuẩn hệ thống của bạn
 
-// ✅ CHỈNH SỬA: Gom các hàm băm token và cấu hình cookie về đúng file helpers chuyên dụng
+// ✅ Lấy các hàm băm token và cấu hình cookie từ helpers.js
 import { 
   normalizeCompanyIds, 
   syncUserCompanyLinks, 
@@ -30,7 +31,6 @@ import {
 } from '../validators/index.js';
 
 const router = express.Router();
-
 // Đăng ký tài khoản Admin hệ thống gốc
 router.post('/register-admin', validate(registerAdminSchema), async (req, res) => {
   try {
@@ -86,6 +86,24 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       );
     } catch (err) {
       console.error('Không thể lưu session:', err.message);
+    }
+
+    // GHI AUDIT LOG: Theo dõi lịch sử đăng nhập hệ thống
+    try {
+      await pool.query(
+        `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address) 
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          user.id, 
+          'LOGIN', 
+          'USERS', 
+          null, 
+          JSON.stringify({ username: user.username, role: user.role, company_ids: companyIds }), 
+          req.ip
+        ]
+      );
+    } catch (err) {
+      console.error('Không thể ghi audit log:', err.message);
     }
 
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
@@ -291,6 +309,19 @@ router.post('/assign-company', authenticate, requireRole(['admin']), validate(as
     res.json({ success: true, message: 'Cấu hình danh sách chuỗi công ty làm việc thành công!' });
   } catch (err) {
     await pool.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ THÀNH PHẦN THIẾU ĐÃ ĐƯỢC BỔ SUNG: API LẤY DANH SÁCH TOÀN BỘ NGƯỜI DÙNG
+router.get('/users', authenticate, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, username, role, company_ids, manager_id, staff_ids FROM users ORDER BY id DESC'
+    );
+    res.json({ users: result.rows });
+  } catch (err) {
+    console.error("Lỗi API GET /api/auth/users:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

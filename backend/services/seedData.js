@@ -16,11 +16,11 @@ export const seedDatabase = async () => {
     const hashedPassword = await bcrypt.hash('admin123', 10);
     
     const adminResult = await pool.query(
-      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids) VALUES ($1, $2, $3, $4, '{}', '{}') RETURNING id",
-      ['admin', hashedPassword, 'admin', false]
+      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids, is_root_admin) VALUES ($1, $2, $3, $4, '{}', '{}', $5) RETURNING id",
+      ['admin', hashedPassword, 'admin', false, true]
     );
     const adminId = adminResult.rows[0].id;
-    console.log('✅ Created admin user: admin / admin123');
+    console.log('✅ Created admin user: admin / admin123 (Root Admin)');
 
     // Create test companies
     const company1 = await pool.query(

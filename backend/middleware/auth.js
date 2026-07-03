@@ -33,6 +33,35 @@ export const requireRole = (roles) => {
   };
 };
 
+// 2.1 Middleware Kiểm tra Root Admin (Dựa trên flag is_root_admin trong DB)
+export const requireRootAdmin = async (req, res, next) => {
+  try {
+    // Lấy thông tin đầy đủ của user từ database để kiểm tra flag is_root_admin
+    const userResult = await pool.query(
+      'SELECT username, role, is_root_admin FROM users WHERE id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Tài khoản không tồn tại!' });
+    }
+    
+    const { username, is_root_admin } = userResult.rows[0];
+    
+    // Chỉ cho phép tài khoản có flag is_root_admin = true
+    if (!is_root_admin) {
+      return res.status(403).json({ 
+        error: `Chỉ tài khoản Root Admin mới có quyền truy cập! Tài khoản hiện tại: ${username}` 
+      });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Lỗi kiểm tra root admin:', error);
+    res.status(500).json({ error: 'Lỗi xác thực quyền truy cập' });
+  }
+};
+
 // 3. Middleware Cách ly dữ liệu giữa các Công ty (Row-Level Security)
 export const checkCompanyAccess = (req, res, next) => {
   const targetCompanyId = req.body.companyId || req.query.company_id || req.params.company_id;

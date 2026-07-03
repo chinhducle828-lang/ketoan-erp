@@ -22,7 +22,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
 # Testing
 coverage/
@@ -32,6 +31,7 @@ coverage/
 .eslintcache
 .cache/
 .parcel-cache/
+.vite/
 
 # IDE
 .vscode/
@@ -52,27 +52,22 @@ coverage/
 ehthumbs.db
 Thumbs.db
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
 # Temporary files
 tmp/
 temp/
 *.tmp
 *.temp
 
-# Package manager files (optional - uncomment if you want to ignore lock files)
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
+# Frontend-specific: Build directories
+front-end/dist/
+front-end/build/
 
-# Uploads (shared across frontend/backend)
-uploads/
+# Frontend-specific: Source maps (optional - uncomment if you want to ignore)
+# *.map
 
-# Temporary/utility files
-all_project_code.txt
-pack_project.py
-*.tmp
-*.temp
+# Frontend-specific: Vite cache
+front-end/node_modules/.vite/
+
+# Frontend-specific: Local config files
+front-end/.env.local
+front-end/.env.*.local

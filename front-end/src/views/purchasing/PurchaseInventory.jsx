@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { ShoppingBag, Plus, Loader2 } from 'lucide-react';
+import { ShoppingBag, Loader2 } from 'lucide-react';
 
 export default function PurchaseInventory() {
   const { createNewVoucher } = useVouchers();
@@ -11,16 +11,16 @@ export default function PurchaseInventory() {
 
   const handlePurchase = async (e) => {
     e.preventDefault();
+    const companyId = activeCompany?.id ?? activeCompany;
     const baseAmount = Math.round(parseFloat(form.amount) || 0);
     const taxRate = parseFloat(form.tax) || 0;
     const taxAmount = Math.round(baseAmount * (taxRate / 100));
     const totalPay = baseAmount + taxAmount;
 
-    if (baseAmount <= 0 || !form.item.trim()) {
-      alert('Vui lòng nhập tên hàng hóa và giá trị hợp lệ!');
-      return;
-    }
+    if (baseAmount <= 0 || !form.item.trim()) return alert('Vui lòng nhập tên hàng hóa và giá trị hợp lệ!');
+    if (!companyId) return alert('Vui lòng chọn doanh nghiệp!');
 
+    setLoading(true);
     const details = [
       { accountCode: '156', entryType: 'DR', amount: baseAmount }
     ];
@@ -29,49 +29,52 @@ export default function PurchaseInventory() {
     }
     details.push({ accountCode: '331', entryType: 'CR', amount: totalPay });
 
-    setLoading(true);
+    const payload = {
+      companyId: parseInt(companyId, 10),
+      voucherDate: new Date().toISOString().split('T')[0],
+      type: 'NK',
+      description: `Mua vật tư / hàng hóa: ${form.item}`,
+      currency: 'VND',
+      exchangeRate: 1,
+      details: details
+    };
+
     try {
-      await createNewVoucher({
-        companyId: activeCompany?.id || activeCompany || 1,
-        voucherDate: new Date().toISOString().split('T')[0],
-        type: 'MuaHang',
-        description: `Mua hàng hóa/vật tư: ${form.item}`,
-        details
-      });
+      await createNewVoucher(payload);
+      alert('Đã ghi sổ nhập kho hàng hóa thành công!');
       setForm({ item: '', amount: '', tax: '10' });
-      alert('Ghi sổ mua hàng thành công!');
     } catch (err) {
-      alert('Lỗi hệ thống!');
+      alert(err.response?.data?.error || 'Lỗi hệ thống!');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-xl">
-      <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-        <ShoppingBag className="text-indigo-600" size={24} /> KẾ TOÁN MUA HÀNG
-      </h1>
-      
-      <form onSubmit={handlePurchase} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+    <div className="max-w-xl p-6 bg-white rounded-3xl border border-slate-100 shadow-sm mx-auto mt-6">
+      <div className="flex items-center gap-3 mb-6">
+        <ShoppingBag className="text-indigo-600" size={24} />
+        <h2 className="font-black text-slate-800 text-lg uppercase">Nhập Kho Mua Hàng Nhanh</h2>
+      </div>
+      <form onSubmit={handlePurchase} className="space-y-4">
         <div>
           <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Mô tả vật tư / Hàng hóa</label>
-          <input type="text" value={form.item} onChange={e => setForm({...form, item: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+          <input type="text" value={form.item} onChange={e => setForm({...form, item: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl outline-none" required />
         </div>
-        <div>
-          <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Giá trị mua trước thuế</label>
-          <input type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Giá trị trước thuế (VND)</label>
+            <input type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl outline-none" required />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Thuế suất GTGT</label>
+            <select value={form.tax} onChange={e => setForm({...form, tax: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl outline-none">
+              <option value="0">0%</option><option value="5">5%</option><option value="10">10%</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Thuế suất GTGT đầu vào</label>
-          <select value={form.tax} onChange={e => setForm({...form, tax: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl">
-            <option value="0">0%</option>
-            <option value="5">5%</option>
-            <option value="10">10%</option>
-          </select>
-        </div>
-        <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl flex justify-center items-center gap-1.5 transition">
-          {loading ? <Loader2 size={16} className="animate-spin"/> : <Plus size={16} />} Ghi Nợ 156, 1331 / Có 331
+        <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex justify-center items-center mt-2 transition">
+          {loading ? <Loader2 size={16} className="animate-spin" /> : 'Ghi sổ Phiếu Nhập Kho'}
         </button>
       </form>
     </div>

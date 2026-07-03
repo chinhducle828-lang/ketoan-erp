@@ -125,7 +125,7 @@ export default function CompanyManagement() {
     ));
 
     try {
-      await api.post('/api/auth/assign-company', {
+      await api.post('/auth/assign-company', {
         userId,
         companyId: targetCompanyId,
         companyIds: targetCompanyId ? [targetCompanyId] : [],
@@ -163,7 +163,7 @@ export default function CompanyManagement() {
     ));
 
     try {
-      await api.post('/api/auth/assign-company', {
+      await api.post('/auth/assign-company', {
         userId,
         companyId: newRole === 'admin' ? null : (targetUser?.company_id || null),
         companyIds: newRole === 'admin' ? [] : (targetUser?.company_id ? [targetUser.company_id] : []),
@@ -178,6 +178,7 @@ export default function CompanyManagement() {
     }
   };
 
+
   // Xử lý Thêm nhân sự mới
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -187,7 +188,7 @@ export default function CompanyManagement() {
     }
     try {
       const companyIdsPayload = newRole === 'admin' ? [] : newCompanyIds.map(Number).filter(id => id > 0);
-      const res = await api.post('/api/users', {
+      const res = await api.post('/users', {
         username: newUsername,
         password: newPassword,
         role: newRole,
@@ -233,7 +234,7 @@ export default function CompanyManagement() {
     try {
       const id = exportCompanyId || (companies[0] && companies[0].id);
       if (!id) return alert('Vui lòng chọn công ty để xuất dữ liệu.');
-      const res = await api.get(`/api/companies/${id}/export`);
+      const res = await api.get(`/companies/${id}/export`);
       const dataStr = JSON.stringify(res.data, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -255,7 +256,7 @@ export default function CompanyManagement() {
     try {
       const text = await file.text();
       const payload = JSON.parse(text);
-      const res = await api.post(`/api/companies/${id}/import`, payload);
+      const res = await api.post(`/companies/${id}/import`, payload);
       if (res.data && res.data.success) {
         alert('Nhập dữ liệu thành công.');
         fetchCompanies();
@@ -280,7 +281,7 @@ export default function CompanyManagement() {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${username}" khỏi hệ thống?`)) return;
     
     try {
-      await api.delete(`/api/users/${userId}`);
+      await api.delete(`/users/${userId}`);
       alert('Đã xóa nhân sự thành công!');
       const refreshedUsers = await fetchUsersFromApi();
       syncLocalUsers(refreshedUsers);
@@ -539,40 +540,40 @@ export default function CompanyManagement() {
                               ))}
                             </select>
                           </td>
-                          {/* Khối nút Hành động */}
-                          <td className="p-3.5">
-                            <div className="flex items-center justify-center gap-1.5 min-h-[28px]">
-                              {!isRoot && !isSelf && (
-                                <>
-                                  <button
-                                    onClick={() => handleDeleteUser(u.id, u.username)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                                    title="Xóa nhân sự khỏi hệ thống"
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
+                           {/* Khối nút Hành động */}
+                           <td className="p-3.5">
+                             <div className="flex items-center justify-center gap-1.5 min-h-[28px]">
+                               {!isRoot && !isSelf && (
+                                 <>
+                                   <button
+                                     onClick={() => handleDeleteUser(u.id, u.username)}
+                                     className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                                     title="Xóa nhân sự khỏi hệ thống"
+                                   >
+                                     <Trash2 size={15} />
+                                   </button>
 
-                                  {currentUser?.role === 'admin' && (
-                                    <button
-                                      onClick={async () => {
-                                        if (!window.confirm(`Reset mật khẩu cho ${u.username}? Mật khẩu tạm thời sẽ được hiển thị cho Admin.`)) return;
-                                        try {
-                                          const res = await api.post('/api/auth/admin-reset-password', { userId: u.id });
-                                          alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
-                                        } catch (err) { 
-                                          alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); 
-                                        }
-                                      }}
-                                      className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition-colors"
-                                      title="Reset mật khẩu khẩn cấp"
-                                    >
-                                      <KeyRound size={15} />
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
+                                   {currentUser?.role === 'admin' && (
+                                     <button
+                                       onClick={async () => {
+                                         if (!window.confirm(`Reset mật khẩu cho ${u.username}? Mật khẩu tạm thời sẽ được hiển thị cho Admin.`)) return;
+                                         try {
+                                           const res = await api.post('/auth/admin-reset-password', { userId: u.id });
+                                           alert(`Mật khẩu tạm thời: ${res.data.tempPassword}\nYêu cầu người dùng đổi mật khẩu khi đăng nhập.`);
+                                         } catch (err) { 
+                                           alert(err.response?.data?.error || 'Lỗi reset mật khẩu'); 
+                                         }
+                                       }}
+                                       className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition-colors"
+                                       title="Reset mật khẩu khẩn cấp"
+                                     >
+                                       <KeyRound size={15} />
+                                     </button>
+                                   )}
+                                 </>
+                               )}
+                             </div>
+                           </td>
                         </tr>
                       );
                     })

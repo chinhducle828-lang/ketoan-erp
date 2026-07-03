@@ -10,7 +10,8 @@ import {
   Percent, 
   Coins, 
   Layers, 
-  BarChart3
+  BarChart3,
+  ShieldAlert
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -117,5 +118,13 @@ export const MODULES_REGISTER = [
     component: React.lazy(() => import('./dashboard/CashFlowDashboard.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
     requiresActiveCompany: true
+  },
+  {
+    id: 'audit-logs',
+    name: 'Nhật Ký An Ninh & Hệ Thống',
+    icon: ShieldAlert,
+    component: React.lazy(() => import('./admin/AuditLogs.jsx')),
+    allowedRoles: ['admin'],
+    requiresActiveCompany: false
   }
 ];

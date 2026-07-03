@@ -17,7 +17,7 @@ router.get('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) =>
     if (req.user.role === 'admin') {
       // Sử dụng cardinality và ép kiểu mảng tường minh để Postgres không bao giờ lỗi
       result = await pool.query(`
-        SELECT id, username, role, manager_id,
+        SELECT id, username, role, manager_id, is_root_admin,
                COALESCE(company_ids, '{}'::integer[]) as company_ids,
                COALESCE(staff_ids, '{}'::integer[]) as staff_ids,
                CASE 
@@ -29,7 +29,7 @@ router.get('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) =>
       `);
     } else {
       result = await pool.query(`
-        SELECT id, username, role, manager_id,
+        SELECT id, username, role, manager_id, is_root_admin,
                COALESCE(company_ids, '{}'::integer[]) as company_ids,
                CASE 
                  WHEN cardinality(COALESCE(company_ids, '{}'::integer[])) = 0 THEN NULL 
@@ -141,6 +141,67 @@ router.delete('/:id', authenticate, requireRole(['admin']), async (req, res) => 
   } catch (err) { 
     console.error("Lỗi DELETE /api/users:", err);
     return res.status(500).json({ error: "Lỗi hệ thống khi xóa nhân sự: " + err.message }); 
+  }
+});
+
+// ==========================================
+// 4. SET ROOT ADMIN FLAG - CHỈ CHO PHÉP KHI KHỞI TẠO HỆ THỐNG
+// ==========================================
+router.post('/:id/set-root-admin', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { is_root_admin } = req.body;
+
+    // Validate input
+    if (typeof is_root_admin !== 'boolean') {
+      return res.status(400).json({ error: 'Giá trị is_root_admin phải là boolean (true/false)' });
+    }
+
+    // Check if user exists
+    const targetUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [userId]);
+    if (targetUser.rows.length === 0) {
+      return res.status(400).json({ error: 'Không tìm thấy tài khoản nhân sự!' });
+    }
+
+    const { username, role, is_root_admin: currentRootStatus } = targetUser.rows[0];
+
+    // Only admin role can be set as root admin
+    if (is_root_admin && role !== 'admin') {
+      return res.status(400).json({ error: 'Chỉ tài khoản có vai trò Admin mới có thể được set làm Root Admin!' });
+    }
+
+    // KIỂM TRA NGHIÊM NGẶT: Chỉ cho phép set root admin cho tài khoản admin đầu tiên (ID nhỏ nhất)
+    const firstAdmin = await pool.query(
+      'SELECT id, username FROM users WHERE role = $1 ORDER BY id ASC LIMIT 1',
+      ['admin']
+    );
+    
+    if (firstAdmin.rows.length === 0 || parseInt(firstAdmin.rows[0].id) !== parseInt(userId)) {
+      return res.status(403).json({ 
+        error: `Chỉ tài khoản Admin đầu tiên (${firstAdmin.rows[0]?.username || 'N/A'}) mới có quyền Root Admin! Không thể thay đổi quyền này.` 
+      });
+    }
+
+    // Không cho phép hủy quyền root admin
+    if (!is_root_admin && currentRootStatus) {
+      return res.status(403).json({ 
+        error: 'Không thể hủy quyền Root Admin của tài khoản gốc!' 
+      });
+    }
+
+    // Update the is_root_admin flag
+    await pool.query(
+      'UPDATE users SET is_root_admin = $1 WHERE id = $2',
+      [is_root_admin, userId]
+    );
+
+    return res.json({ 
+      success: true, 
+      message: `Đã cấp quyền Root Admin cho tài khoản ${username} thành công!` 
+    });
+  } catch (err) { 
+    console.error("Lỗi POST /api/users/set-root-admin:", err);
+    return res.status(500).json({ error: "Lỗi hệ thống khi cập nhật quyền Root Admin: " + err.message }); 
   }
 });
 
