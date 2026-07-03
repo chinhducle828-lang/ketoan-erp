@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Building2, LogOut, User, Calendar } from 'lucide-react';
 
-export default function Header({ onMenuClick }) {
+export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
   const { user, companies, activeCompany, changeCompany, logout, fiscalYear, setFiscalYear } = useAuth();
 
@@ -33,6 +33,19 @@ export default function Header({ onMenuClick }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
         </svg>
       </button>
+
+      {/* Nút toggle sidebar trên desktop */}
+      {onToggleSidebar && (
+        <button
+          className="hidden md:flex p-2 mr-2 rounded-lg hover:bg-slate-100 transition-colors"
+          aria-label="Toggle sidebar"
+          onClick={onToggleSidebar}
+        >
+          <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      )}
 
       <div className="flex items-center gap-4 w-full md:w-auto">
         {/* Bộ chọn doanh nghiệp hạch toán (ĐỒNG BỘ THEO CHUỖI ID AN TOÀN) */}

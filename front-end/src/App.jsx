@@ -19,6 +19,11 @@ export default function App() {
   // ✅ ĐÃ HOÀN THIỆN: Lấy loading từ useAuth để kiểm soát render bảo vệ tuyến đường
   const { token, mustChangePassword, loading } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Load sidebar state from localStorage
+    const saved = localStorage.getItem('sidebarOpen');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [isFirstRun, setIsFirstRun] = useState(false);
 
   // ✅ ĐÃ HOÀN THIỆN: Màn hình chờ đồng bộ an toàn khi F5 ứng dụng
@@ -67,10 +72,22 @@ export default function App() {
             ) : (
               // Giao diện Layout tổng thể sau khi Login thành công
               <div className="flex h-screen bg-slate-50 overflow-hidden">
-                <Sidebar mobileOpen={mobileSidebarOpen} onRequestClose={() => setMobileSidebarOpen(false)} />
+                <Sidebar 
+                  mobileOpen={mobileSidebarOpen} 
+                  onRequestClose={() => setMobileSidebarOpen(false)}
+                  isOpen={sidebarOpen}
+                  onToggle={() => {
+                    const newState = !sidebarOpen;
+                    setSidebarOpen(newState);
+                    localStorage.setItem('sidebarOpen', JSON.stringify(newState));
+                  }}
+                />
                 
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                  <Header onMenuClick={() => setMobileSidebarOpen(open => !open)} />
+                  <Header 
+                    onMenuClick={() => setMobileSidebarOpen(open => !open)}
+                    onToggleSidebar={() => setSidebarOpen(open => !open)}
+                  />
                   
                   <main className="flex-1 overflow-y-auto p-4 md:p-6">
                     <Routes>
