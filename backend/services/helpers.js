@@ -1,5 +1,5 @@
 import crypto from 'crypto'; // ✅ BẮT BUỘC: Thêm thư viện mã hóa gốc của Node.js
-import pool  from '../config/db.js';
+import { pool } from '../config/db.js'; // Sửa lại thành named import nếu config/db.js xuất dạng { pool }
 
 // --- CÁC HÀM XỬ LÝ DOANH NGHIỆP CỦA BẠN (GIỮ NGUYÊN TỐT) ---
 
@@ -59,14 +59,16 @@ export const getCompanyIdsForUser = async (user) => {
 
 
 // ====================================================================
-// 🚀 BỔ SUNG: BỘ TỨ CÔNG CỤ QUẢN LÝ COOKIE & TOKEN CHO AUTH.JS
+// 🚀 ĐÃ SỬA: BỘ TỨ CÔNG CỤ QUẢN LÝ COOKIE & TOKEN CHO AUTH.JS
 // ====================================================================
 
-// 1. Cấu hình cookie HttpOnly an toàn chống tấn công XSS
+// 1. Cấu hình cookie HttpOnly an toàn chống tấn công XSS (Đã sửa lỗi SameSite)
 export const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production', // Chỉ kích hoạt HTTPS bảo mật khi lên production
-  sameSite: 'lax',
+  // Khi chạy local (development) thì false, khi lên Railway (production) bắt buộc phải true vì chạy HTTPS
+  secure: process.env.NODE_ENV === 'production', 
+  // 🔴 SỬA TẠI ĐÂY: Lên production bắt buộc là 'none' để trình duyệt cho phép truyền nhận cookie giữa Frontend và Backend khác Domain
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
   maxAge: (Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30) * 24 * 60 * 60 * 1000 // Hạn dùng đồng bộ theo file .env
 };
 
