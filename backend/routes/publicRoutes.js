@@ -4,24 +4,52 @@ import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '..
 
 const router = express.Router();
 
+const getItemsMetadata = async (db) => {
+  const itemColumnsRes = await db.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_name = 'items'
+       AND table_schema NOT IN ('information_schema', 'pg_catalog')`
+  );
+
+  const itemColumns = new Set(
+    itemColumnsRes.rows
+      .map((row) => String(row.column_name || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const commonKeys = ['id', 'item_id', 'itemid', 'id_item'];
+  let itemIdExpr = commonKeys.find((name) => itemColumns.has(name)) || null;
+
+  if (!itemIdExpr) {
+    const pkRes = await db.query(
+      `SELECT a.attname AS column_name
+       FROM pg_index i
+       JOIN pg_class t ON t.oid = i.indrelid
+       JOIN pg_namespace ns ON ns.oid = t.relnamespace
+       JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
+       WHERE t.relname = 'items'
+         AND i.indisprimary
+         AND ns.nspname = ANY(current_schemas(true))
+       ORDER BY a.attnum
+       LIMIT 1`
+    );
+
+    const pkColumn = String(pkRes.rows?.[0]?.column_name || '').trim().toLowerCase();
+    if (pkColumn) itemIdExpr = pkColumn;
+  }
+
+  return { itemColumns, itemIdExpr };
+};
+
 router.get('/items', async (req, res) => {
   try {
     const companyId = req.query.company_id || req.query.companyId;
     if (!companyId) return res.status(400).json({ error: 'Thiếu company_id' });
 
-    const itemColumnsRes = await pool.query(
-      `SELECT column_name
-       FROM information_schema.columns
-       WHERE table_name = 'items'`
-    );
-    const itemColumns = new Set(itemColumnsRes.rows.map((row) => row.column_name));
-    const itemIdExpr = itemColumns.has('id')
-      ? 'id'
-      : itemColumns.has('item_id')
-        ? 'item_id'
-        : null;
+    const { itemColumns, itemIdExpr } = await getItemsMetadata(pool);
     if (!itemIdExpr) {
-      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh (id/item_id).' });
+      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh. Cần có cột định danh hoặc khóa chính.' });
     }
     const hasImageUrls = itemColumns.has('image_urls');
     const hasOpeningQuantity = itemColumns.has('opening_quantity');
@@ -70,10 +98,10 @@ router.post('/orders', async (req, res) => {
 
     const normalizedItems = rawItems
       .map((entry) => ({
-        itemId: Number(entry?.itemId),
+        itemId: String(entry?.itemId ?? '').trim(),
         quantity: Number(entry?.quantity)
       }))
-      .filter((entry) => Number.isInteger(entry.itemId) && Number.isFinite(entry.quantity));
+      .filter((entry) => entry.itemId !== '' && Number.isFinite(entry.quantity));
 
     if (normalizedItems.length === 0) {
       return res.status(400).json({ error: 'Danh sách sản phẩm đặt hàng không hợp lệ' });
@@ -94,19 +122,9 @@ router.post('/orders', async (req, res) => {
       quantity: qty
     }));
 
-    const itemColumnsRes = await client.query(
-      `SELECT column_name
-       FROM information_schema.columns
-       WHERE table_name = 'items'`
-    );
-    const itemColumns = new Set(itemColumnsRes.rows.map((row) => row.column_name));
-    const itemIdExpr = itemColumns.has('id')
-      ? 'id'
-      : itemColumns.has('item_id')
-        ? 'item_id'
-        : null;
+    const { itemIdExpr } = await getItemsMetadata(client);
     if (!itemIdExpr) {
-      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh (id/item_id).' });
+      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh. Cần có cột định danh hoặc khóa chính.' });
     }
 
     const itemIds = mergedItems.map((entry) => entry.itemId);
@@ -117,7 +135,7 @@ router.post('/orders', async (req, res) => {
               unit,
               COALESCE(price_sell, 0) AS price_sell
        FROM items
-       WHERE company_id = $1 AND ${itemIdExpr} = ANY($2::int[])`,
+       WHERE company_id = $1 AND ${itemIdExpr}::text = ANY($2::text[])`,
       [companyId, itemIds]
     );
 
@@ -125,13 +143,13 @@ router.post('/orders', async (req, res) => {
       return res.status(404).json({ error: 'Có sản phẩm không tồn tại hoặc không thuộc doanh nghiệp này' });
     }
 
-    const itemById = new Map(itemRes.rows.map((row) => [Number(row.item_pk), row]));
+    const itemById = new Map(itemRes.rows.map((row) => [String(row.item_pk), row]));
     const lineItems = mergedItems.map((line) => {
-      const item = itemById.get(line.itemId);
+      const item = itemById.get(String(line.itemId));
       const unitPrice = Number(item.price_sell || 0);
       const lineAmount = Number((unitPrice * line.quantity).toFixed(2));
       return {
-        itemId: line.itemId,
+        itemId: item.item_pk,
         code: item.code,
         name: item.name,
         unit: item.unit,
