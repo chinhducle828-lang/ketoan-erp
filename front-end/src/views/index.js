@@ -5,6 +5,7 @@ import {
   BookOpenCheck, 
   Settings, 
   ShoppingBag, 
+  ShoppingCart,
   Users, 
   Percent, 
   Coins, 
@@ -25,7 +26,7 @@ export const MODULES_REGISTER = [
     name: 'Khai báo số dư đầu kỳ',
     icon: Coins,
     component: React.lazy(() => import('./closing/OpeningBalances.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -42,6 +43,14 @@ export const MODULES_REGISTER = [
     icon: ShoppingBag,
     component: React.lazy(() => import('./purchasing/PurchaseInventory.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'pos',
+    name: 'Bán hàng tại quầy',
+    icon: ShoppingCart,
+    component: React.lazy(() => import('./auth/StorefrontAccessNotice.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv_banhang'],
     requiresActiveCompany: true
   },
   {
@@ -81,7 +90,7 @@ export const MODULES_REGISTER = [
     name: 'Tập hợp chi phí Giá thành',
     icon: BookOpenCheck,
     component: React.lazy(() => import('./costs/WorkInProcess.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -89,7 +98,7 @@ export const MODULES_REGISTER = [
     name: 'Tờ khai báo cáo Thuế GTGT',
     icon: Percent,
     component: React.lazy(() => import('./tax/TaxReporting.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -97,7 +106,7 @@ export const MODULES_REGISTER = [
     name: 'Kết chuyển khóa sổ cuối kỳ',
     icon: BookOpenCheck,
     component: React.lazy(() => import('./closing/ClosingProcess.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -161,7 +170,7 @@ export const MODULES_REGISTER = [
     name: 'Báo Cáo Kết Quả Hoạt Động Kinh Doanh',
     icon: TrendingUp,
     component: React.lazy(() => import('./financial/IncomeStatement.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -169,7 +178,7 @@ export const MODULES_REGISTER = [
     name: 'Báo Cáo Tài Chính B01-DN',
     icon: FileText,
     component: React.lazy(() => import('./financial/BalanceSheetB01.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -177,7 +186,7 @@ export const MODULES_REGISTER = [
     name: 'Báo Cáo Kết Quả Kinh Doanh B02-DN',
     icon: TrendingUp,
     component: React.lazy(() => import('./financial/IncomeStatementB02.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -185,7 +194,7 @@ export const MODULES_REGISTER = [
     name: 'Báo Cáo Lưu Chuyển Tiền Tệ B03-DN',
     icon: BarChart3,
     component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   },
   {
@@ -193,7 +202,7 @@ export const MODULES_REGISTER = [
     name: 'Bản Thuyết Minh BCTC B09-DN',
     icon: FileText,
     component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
-    allowedRoles: ['admin', 'ktt'],
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
     requiresActiveCompany: true
   }
 ];

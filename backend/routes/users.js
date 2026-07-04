@@ -12,7 +12,7 @@ const EMPLOYEE_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
 // ==========================================
 // 1. GET ALL USERS (Sửa triệt để lỗi 500)
 // ==========================================
-router.get('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     let result;
     if (req.user.role === 'admin') {
@@ -52,11 +52,19 @@ router.get('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) =>
 // ==========================================
 // 2. CREATE NEW USER (Sửa triệt để lỗi 502 / Crash)
 // ==========================================
-router.post('/', authenticate, requireRole(['admin']), validate(createUserSchema), async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const { username, password, role, companyIds, companyId, managerId } = req.body;
 
-    // 1. Kiểm tra trùng tài khoản
+    // 1. Kiểm tra quyền root admin khi tạo user có role admin
+    const currentUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [req.user.id]);
+    const isRootAdmin = currentUser.rows[0]?.username === 'admin' || currentUser.rows[0]?.is_root_admin === true;
+    
+    if (role === 'admin' && !isRootAdmin) {
+      return res.status(403).json({ error: 'Chỉ Root Admin mới có quyền tạo tài khoản Admin!' });
+    }
+    
+    // 2. Kiểm tra trùng tài khoản
     const userExist = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     if (userExist.rows.length > 0) {
       return res.status(400).json({ error: 'Tên tài khoản này đã tồn tại trên hệ thống!' });
@@ -127,18 +135,26 @@ router.post('/', authenticate, requireRole(['admin']), validate(createUserSchema
 // ==========================================
 // 3. DELETE USER
 // ==========================================
-router.delete('/:id', authenticate, requireRole(['admin']), async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.params.id;
     if (parseInt(userId, 10) === req.user.id) {
       return res.status(400).json({ error: 'Bạn không thể tự xóa tài khoản chính mình!' });
     }
 
-    const targetUser = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    const targetUser = await pool.query('SELECT username, role FROM users WHERE id = $1', [userId]);
     if (targetUser.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy tài khoản nhân sự!' });
 
     if (targetUser.rows[0].username === 'admin') {
       return res.status(400).json({ error: 'Tài khoản Root hệ thống là bất tử, không thể xóa!' });
+    }
+    
+    // Kiểm tra quyền root admin khi xóa user có role admin
+    const currentUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [req.user.id]);
+    const isRootAdmin = currentUser.rows[0]?.username === 'admin' || currentUser.rows[0]?.is_root_admin === true;
+    
+    if (targetUser.rows[0].role === 'admin' && !isRootAdmin) {
+      return res.status(403).json({ error: 'Chỉ Root Admin mới có quyền xóa tài khoản Admin!' });
     }
 
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
@@ -152,7 +168,7 @@ router.delete('/:id', authenticate, requireRole(['admin']), async (req, res) => 
 // ==========================================
 // 4. SET ROOT ADMIN FLAG - CHỈ CHO PHÉP KHI KHỞI TẠO HỆ THỐNG
 // ==========================================
-router.post('/:id/set-root-admin', authenticate, requireRole(['admin']), async (req, res) => {
+router.post('/:id/set-root-admin', authenticate, async (req, res) => {
   try {
     const userId = req.params.id;
     const { is_root_admin } = req.body;
@@ -166,6 +182,14 @@ router.post('/:id/set-root-admin', authenticate, requireRole(['admin']), async (
     const targetUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [userId]);
     if (targetUser.rows.length === 0) {
       return res.status(400).json({ error: 'Không tìm thấy tài khoản nhân sự!' });
+    }
+    
+    // Kiểm tra quyền root admin
+    const currentUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [req.user.id]);
+    const isRootAdmin = currentUser.rows[0]?.username === 'admin' || currentUser.rows[0]?.is_root_admin === true;
+    
+    if (!isRootAdmin) {
+      return res.status(403).json({ error: 'Chỉ Root Admin mới có quyền thay đổi quyền Root Admin!' });
     }
 
     const { username, role, is_root_admin: currentRootStatus } = targetUser.rows[0];

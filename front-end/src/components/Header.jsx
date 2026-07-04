@@ -1,10 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Building2, LogOut, User, Calendar } from 'lucide-react';
+import api from '../utils/api';
+import { Building2, LogOut, User, Calendar, Bell } from 'lucide-react';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
   const { user, companies, activeCompany, changeCompany, logout, fiscalYear, setFiscalYear } = useAuth();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!activeCompany?.id) {
+        setNotificationCount(0);
+        return;
+      }
+
+      try {
+        const { data } = await api.get('/pos/notifications', { params: { company_id: activeCompany.id } });
+        const unread = Array.isArray(data) ? data.filter((item) => !item.is_read).length : 0;
+        setNotificationCount(unread);
+      } catch (error) {
+        console.warn('Không thể tải thông báo POS:', error.message);
+      }
+    };
+
+    fetchNotifications();
+  }, [activeCompany?.id]);
 
   // Danh sách niên độ kế toán hỗ trợ trong hệ thống
   const availableYears = [2024, 2025, 2026, 2027, 2028];
@@ -105,6 +126,17 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
             <User size={16} />
           </div>
         </div>
+
+        {user?.role !== 'nv_banhang' && (
+          <button className="relative p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100" title="Thông báo bán hàng">
+            <Bell size={18} />
+            {notificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
+                {notificationCount}
+              </span>
+            )}
+          </button>
+        )}
 
         <button 
           onClick={logout}

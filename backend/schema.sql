@@ -41,7 +41,7 @@ BEGIN
 
     ALTER TABLE users
     ADD CONSTRAINT users_role_check
-    CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'));
+    CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho', 'gd_kinhdoanh'));
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
@@ -196,3 +196,18 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES companies(id) ON DELETE CASCADE,
+    order_id INT REFERENCES vouchers(id) ON DELETE SET NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    recipient_role VARCHAR(20),
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_company ON notifications(company_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_role, is_read);
