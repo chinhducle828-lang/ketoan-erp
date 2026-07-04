@@ -2782,7 +2782,35 @@ import { invalidateCompanyCache } from '../controllers/erpController.js';
 
 const router = express.Router();
 
-// 1. API cập nhật số dư đầu kỳ lịch sử
+// 1. API lấy số dư đầu kỳ
+router.get('/', authenticate, requireRole(['admin', 'ktt', 'accountant']), checkCompanyAccess, async (req, res) => {
+  try {
+    const targetCompanyId = req.query.company_id;
+    const fiscalYear = req.query.year ? Number(req.query.year) : 2026;
+
+    const result = await pool.query(
+      `SELECT 
+        ob.account_code,
+        ob.opening_debit,
+        ob.opening_credit,
+        ob.fiscal_year,
+        ob.partner_id,
+        p.partner_name,
+        p.partner_code
+      FROM opening_balances ob
+      LEFT JOIN partners p ON ob.partner_id = p.id
+      WHERE ob.company_id = $1 AND ob.fiscal_year = $2
+      ORDER BY ob.account_code`,
+      [targetCompanyId, fiscalYear]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. API cập nhật số dư đầu kỳ lịch sử
 router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id || req.body.companyId;
@@ -2871,6 +2899,7 @@ import {
   executeClosing,
   invalidateReportCache
 } from '../controllers/report.controller.js';
+import { getCycleData } from '../services/cycle.service.js';
 
 const router = express.Router();
 
@@ -2920,7 +2949,25 @@ router.post('/invalidate-cache', authenticate, checkCompanyAccess, (req, res) =>
   res.json({ success: true, message: 'Đã xóa cache báo cáo!' });
 });
 
+// API: Lấy dữ liệu 9 chu trình nghiệp vụ
+router.get('/cycle-data', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : null;
+    
+    const cycleData = await getCycleData(companyId, year);
+    
+    res.json({
+      success: true,
+      data: cycleData
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export { router as reportRouter };
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -3331,6 +3378,23 @@ export default router;
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 
+// Hằng số cấu hình thuế suất (Linh hoạt, dễ thay đổi)
+const DEFAULT_TAX_RATE = 0.2; // Thuế suất mặc định 20%
+
+/**
+ * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
+ * - 15%: Doanh thu ≤ 3 tỷ VNĐ
+ * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
+ * - 20%: Doanh thu trên 50 tỷ VNĐ
+ * @param {number} revenue - Doanh thu năm trước (VNĐ)
+ * @returns {number} - Thuế suất áp dụng
+ */
+export function getTaxRateByRevenue(revenue) {
+  if (revenue <= 3000000000) return 0.15;
+  if (revenue <= 50000000000) return 0.17;
+  return 0.20;
+}
+
 /**
  * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
  * LỖI 4: Thuật toán kết chuyển tự động
@@ -3518,15 +3582,33 @@ export async function runClosingEntries(companyId, month, year) {
     // Chỉ hạch toán thuế TNDN khi có lợi nhuận (netProfit > 0)
     // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
     let taxAmount = 0;
+    let appliedTaxRate = DEFAULT_TAX_RATE;
     
     if (netProfit > 0) {
-      taxAmount = netProfit * 0.2; // Thuế suất 20%
+      // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
+      // Lấy doanh thu năm trước từ TK 511
+      const prevYearRevenueQuery = `
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_revenue
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code = '511'
+          AND EXTRACT(YEAR FROM v.voucher_date) = $2
+      `;
+      
+      const { rows: prevYearRows } = await client.query(prevYearRevenueQuery, [companyId, year - 1]);
+      const prevYearRevenue = parseFloat(prevYearRows[0]?.total_revenue) || 0;
+      
+      // Xác định thuế suất áp dụng
+      appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
+      taxAmount = netProfit * appliedTaxRate;
       
       // Tạo bút toán thuế TNDN: Nợ TK 8211, Có TK 3334
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN 20%')`,
+         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN')`,
         [companyId, closingDate]
       );
       
@@ -3692,6 +3774,518 @@ export async function getClosingData(companyId, month, year) {
       debit: parseFloat(account911.rows[0]?.debit) || 0,
       credit: parseFloat(account911.rows[0]?.credit) || 0
     }
+  };
+}
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/services/cycle.service.js
+// START_OF_FILE
+import { pool } from '../config/db.js';
+
+/**
+ * DỊCH VỤ TÍNH TOÁN 9 CHU TRÌNH NGHIỆP VỤ
+ * Tính toán dữ liệu thực tế từ các tài khoản kế toán
+ */
+
+/**
+ * Chu trình 1: Vốn góp & Đầu tư tài chính (TK 411, 121, 128, 221, 515)
+ */
+export async function getCycle1Data(companyId, year = null) {
+  const accounts = ['411', '121', '128', '221', '515'];
+  const data = {};
+  let total = 0;
+
+  for (const acc of accounts) {
+    const query = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
+        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
+    `;
+    
+    const params = [companyId, `${acc}%`];
+    if (year) params.push(year);
+    
+    const { rows } = await pool.query(query, params);
+    
+    if (rows.length > 0) {
+      const debit = parseFloat(rows[0].debit_total) || 0;
+      const credit = parseFloat(rows[0].credit_total) || 0;
+      data[acc] = { debit, credit, net: debit - credit };
+      total += acc === '411' ? credit : (acc === '515' ? credit : debit);
+    }
+  }
+
+  return {
+    name: 'Vốn góp & Đầu tư tài chính',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 2: Mua sắm vật tư & Công nợ phải trả (TK 152, 156, 1331, 331)
+ */
+export async function getCycle2Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 152 - Nguyên liệu, vật liệu tồn kho
+  const query152 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '152%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows152 } = await pool.query(query152, year ? [companyId, year] : [companyId]);
+  data['152'] = parseFloat(rows152[0]?.total) || 0;
+  total += data['152'];
+
+  // TK 156 - Hàng hóa kho tổng
+  const query156 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '156%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows156 } = await pool.query(query156, year ? [companyId, year] : [companyId]);
+  data['156'] = parseFloat(rows156[0]?.total) || 0;
+  total += data['156'];
+
+  // TK 1331 - Thuế GTGT được khấu trừ
+  const query1331 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '1331%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows1331 } = await pool.query(query1331, year ? [companyId, year] : [companyId]);
+  data['1331'] = parseFloat(rows1331[0]?.total) || 0;
+  total += data['1331'];
+
+  // TK 331 - Phải trả cho người bán
+  const query331 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '331%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows331 } = await pool.query(query331, year ? [companyId, year] : [companyId]);
+  data['331'] = (parseFloat(rows331[0]?.debit_total) || 0) - (parseFloat(rows331[0]?.credit_total) || 0);
+  total += Math.abs(data['331']);
+
+  return {
+    name: 'Mua sắm vật tư & Công nợ phải trả',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 3: Bán hàng & Phải thu khách hàng (TK 632, 156, 131, 511, 3331)
+ */
+export async function getCycle3Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 632 - Giá vốn hàng bán
+  const query632 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '632%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows632 } = await pool.query(query632, year ? [companyId, year] : [companyId]);
+  data['632'] = parseFloat(rows632[0]?.total) || 0;
+  total += data['632'];
+
+  // TK 156 - Hàng hóa xuất kho
+  const query156 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '156%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows156 } = await pool.query(query156, year ? [companyId, year] : [companyId]);
+  data['156'] = parseFloat(rows156[0]?.total) || 0;
+  total += data['156'];
+
+  // TK 131 - Phải thu khách hàng
+  const query131 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '131%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows131 } = await pool.query(query131, year ? [companyId, year] : [companyId]);
+  data['131'] = (parseFloat(rows131[0]?.debit_total) || 0) - (parseFloat(rows131[0]?.credit_total) || 0);
+  total += Math.abs(data['131']);
+
+  // TK 511 - Doanh thu bán hàng
+  const query511 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '511%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows511 } = await pool.query(query511, year ? [companyId, year] : [companyId]);
+  data['511'] = parseFloat(rows511[0]?.total) || 0;
+  total += data['511'];
+
+  // TK 3331 - Thuế GTGT phải nộp
+  const query3331 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '3331%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows3331 } = await pool.query(query3331, year ? [companyId, year] : [companyId]);
+  data['3331'] = (parseFloat(rows3331[0]?.debit_total) || 0) - (parseFloat(rows3331[0]?.credit_total) || 0);
+  total += Math.abs(data['3331']);
+
+  return {
+    name: 'Bán hàng & Phải thu khách hàng',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 4: Tiền lương & Bảo hiểm (TK 622, 641, 642, 334, 338)
+ */
+export async function getCycle4Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  const accounts = ['622', '641', '642', '334', '338'];
+
+  for (const acc of accounts) {
+    const query = `
+      SELECT SUM(vd.amount) as total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
+        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
+    `;
+    
+    const params = [companyId, `${acc}%`];
+    if (year) params.push(year);
+    
+    const { rows } = await pool.query(query, params);
+    data[acc] = parseFloat(rows[0]?.total) || 0;
+    total += data[acc];
+  }
+
+  return {
+    name: 'Tiền lương & Bảo hiểm',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 5: Tài sản cố định (TK 211, 214, 1332, 331)
+ */
+export async function getCycle5Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 211 - Tài sản cố định hữu hình
+  const query211 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '211%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows211 } = await pool.query(query211, year ? [companyId, year] : [companyId]);
+  data['211'] = parseFloat(rows211[0]?.total) || 0;
+  total += data['211'];
+
+  // TK 214 - Hao mòn tài sản cố định
+  const query214 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '214%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows214 } = await pool.query(query214, year ? [companyId, year] : [companyId]);
+  data['214'] = (parseFloat(rows214[0]?.credit_total) || 0) - (parseFloat(rows214[0]?.debit_total) || 0);
+  total += Math.abs(data['214']);
+
+  // TK 1332 - Thuế GTGT khấu trừ TSCĐ
+  const query1332 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '1332%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows1332 } = await pool.query(query1332, year ? [companyId, year] : [companyId]);
+  data['1332'] = parseFloat(rows1332[0]?.total) || 0;
+  total += data['1332'];
+
+  // TK 331 - Phải trả cho người bán (TSCĐ)
+  const query331 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '331%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows331 } = await pool.query(query331, year ? [companyId, year] : [companyId]);
+  data['331'] = (parseFloat(rows331[0]?.debit_total) || 0) - (parseFloat(rows331[0]?.credit_total) || 0);
+  total += Math.abs(data['331']);
+
+  return {
+    name: 'Tài sản cố định',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 6: Tập hợp chi phí & Giá thành (TK 154, 621, 622, 627)
+ */
+export async function getCycle6Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  const accounts = ['154', '621', '622', '627'];
+
+  for (const acc of accounts) {
+    const query = `
+      SELECT SUM(vd.amount) as total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
+        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
+    `;
+    
+    const params = [companyId, `${acc}%`];
+    if (year) params.push(year);
+    
+    const { rows } = await pool.query(query, params);
+    data[acc] = parseFloat(rows[0]?.total) || 0;
+    total += data[acc];
+  }
+
+  return {
+    name: 'Tập hợp chi phí & Giá thành',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 7: Vay & Chi phí tài chính (TK 341, 635, 335)
+ */
+export async function getCycle7Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 341 - Vay và nợ thuê tài chính
+  const query341 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '341%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows341 } = await pool.query(query341, year ? [companyId, year] : [companyId]);
+  data['341'] = (parseFloat(rows341[0]?.debit_total) || 0) - (parseFloat(rows341[0]?.credit_total) || 0);
+  total += Math.abs(data['341']);
+
+  // TK 635 - Chi phí tài chính
+  const query635 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '635%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows635 } = await pool.query(query635, year ? [companyId, year] : [companyId]);
+  data['635'] = parseFloat(rows635[0]?.total) || 0;
+  total += data['635'];
+
+  // TK 335 - Chi phí phải trả
+  const query335 = `
+    SELECT SUM(vd.amount) as total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '335%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows335 } = await pool.query(query335, year ? [companyId, year] : [companyId]);
+  data['335'] = parseFloat(rows335[0]?.total) || 0;
+  total += data['335'];
+
+  return {
+    name: 'Vay & Chi phí tài chính',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 8: Kế toán Thuế (TK 3331, 133)
+ */
+export async function getCycle8Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 3331 - Thuế GTGT
+  const query3331 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '3331%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows3331 } = await pool.query(query3331, year ? [companyId, year] : [companyId]);
+  data['3331'] = (parseFloat(rows3331[0]?.debit_total) || 0) - (parseFloat(rows3331[0]?.credit_total) || 0);
+  total += Math.abs(data['3331']);
+
+  // TK 133 - Thuế GTGT phát sinh
+  const query133 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '133%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows133 } = await pool.query(query133, year ? [companyId, year] : [companyId]);
+  data['133'] = (parseFloat(rows133[0]?.debit_total) || 0) - (parseFloat(rows133[0]?.credit_total) || 0);
+  total += Math.abs(data['133']);
+
+  return {
+    name: 'Kế toán Thuế',
+    data,
+    total
+  };
+}
+
+/**
+ * Chu trình 9: Khóa sổ kết chuyển (TK 911, 4212)
+ */
+export async function getCycle9Data(companyId, year = null) {
+  const data = {};
+  let total = 0;
+
+  // TK 911 - Xác định kết quả kinh doanh
+  const query911 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '911%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows911 } = await pool.query(query911, year ? [companyId, year] : [companyId]);
+  data['911'] = (parseFloat(rows911[0]?.debit_total) || 0) - (parseFloat(rows911[0]?.credit_total) || 0);
+  total += Math.abs(data['911']);
+
+  // TK 4212 - Lợi nhuận sau thuế chưa phân phối
+  const query4212 = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE '4212%'
+      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
+  `;
+  const { rows: rows4212 } = await pool.query(query4212, year ? [companyId, year] : [companyId]);
+  data['4212'] = (parseFloat(rows4212[0]?.credit_total) || 0) - (parseFloat(rows4212[0]?.debit_total) || 0);
+  total += Math.abs(data['4212']);
+
+  return {
+    name: 'Khóa sổ kết chuyển',
+    data,
+    total
+  };
+}
+
+/**
+ * Lấy dữ liệu tổng hợp 9 chu trình nghiệp vụ
+ */
+export async function getCycleData(companyId, year = null) {
+  const [cycle1, cycle2, cycle3, cycle4, cycle5, cycle6, cycle7, cycle8, cycle9] = await Promise.all([
+    getCycle1Data(companyId, year),
+    getCycle2Data(companyId, year),
+    getCycle3Data(companyId, year),
+    getCycle4Data(companyId, year),
+    getCycle5Data(companyId, year),
+    getCycle6Data(companyId, year),
+    getCycle7Data(companyId, year),
+    getCycle8Data(companyId, year),
+    getCycle9Data(companyId, year)
+  ]);
+
+  return {
+    cycle1,
+    cycle2,
+    cycle3,
+    cycle4,
+    cycle5,
+    cycle6,
+    cycle7,
+    cycle8,
+    cycle9
   };
 }
 // END_OF_FILE
@@ -4569,6 +5163,62 @@ export async function getOpeningBalancesByPartner(companyId, fiscalYear, account
     partner_name: row.partner_name,
     partner_code: row.partner_code
   }));
+}
+
+/**
+ * Lấy số dư tài khoản theo mã tài khoản (Hỗ trợ TK 215, 2295 cho nông nghiệp)
+ */
+export async function getAccountBalance(companyId, accountCode, year = null) {
+  let query = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE $2
+  `;
+  
+  const params = [companyId, `${accountCode}%`];
+  
+  if (year) {
+    query += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${params.length + 1}`;
+    params.push(year);
+  }
+  
+  const { rows } = await pool.query(query, params);
+  
+  if (rows.length > 0) {
+    const debit = parseFloat(rows[0].debit_total) || 0;
+    const credit = parseFloat(rows[0].credit_total) || 0;
+    return {
+      account_code: accountCode,
+      debit_balance: debit,
+      credit_balance: credit,
+      net_balance: debit - credit
+    };
+  }
+  
+  return {
+    account_code: accountCode,
+    debit_balance: 0,
+    credit_balance: 0,
+    net_balance: 0
+  };
+}
+
+/**
+ * Lấy số dư tài khoản 215 (Tài sản sinh học)
+ */
+export async function getBiologicalAssetBalance(companyId, year = null) {
+  return getAccountBalance(companyId, '215', year);
+}
+
+/**
+ * Lấy số dư tài khoản 2295 (Dự phòng tổn thất tài sản nông nghiệp)
+ */
+export async function getAgriculturalProvisionBalance(companyId, year = null) {
+  return getAccountBalance(companyId, '2295', year);
 }
 
 // END_OF_FILE
@@ -7217,7 +7867,9 @@ export const CHART_OF_ACCOUNTS = [
   { code: '213', name: 'Tài sản cố định vô hình', type: 'Tai San' },
   { code: '2141', name: 'Hao mòn tài sản cố định hữu hình', type: 'Tai San' },
   { code: '2143', name: 'Hao mòn tài sản cố định vô hình', type: 'Tai San' },
+  { code: '215', name: 'Tài sản sinh học', type: 'Tai San' },
   { code: '217', name: 'Bất động sản đầu tư', type: 'Tai San' },
+  { code: '2295', name: 'Dự phòng tổn thất tài sản nông nghiệp', type: 'Tai San' },
   { code: '241', name: 'Xây dựng cơ bản dở dang', type: 'Tai San' },
   { code: '242', name: 'Chi phí trả trước (Ngắn/Dài hạn)', type: 'Tai San' },
   { code: '244', name: 'Cầm cố, ký quỹ, ký cược', type: 'Tai San' },
@@ -9233,7 +9885,7 @@ const ACCOUNT_DICTIONARY = {
 
 export default function ClosingProcess() {
   const { vouchers, fetchVouchers } = useVouchers();
-  const { activeCompany } = useAuth();
+  const { activeCompany, fiscalYear } = useAuth();
   const [log, setLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [accountLedger, setAccountLedger] = useState({});
@@ -9249,7 +9901,7 @@ export default function ClosingProcess() {
       setLoadingBalances(true);
       try {
         const response = await api.get('/inventory/balances', {
-          params: { company_id: currentCompanyId }
+          params: { company_id: currentCompanyId, year: fiscalYear }
         });
         if (response.data?.success && response.data.data?.accountLedger) {
           setAccountLedger(response.data.data.accountLedger);
@@ -9262,7 +9914,7 @@ export default function ClosingProcess() {
     };
 
     loadBalances();
-  }, [currentCompanyId]);
+  }, [currentCompanyId, fiscalYear]);
 
   const executeClosing = async () => {
     if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');
@@ -9270,10 +9922,11 @@ export default function ClosingProcess() {
     setLog('⏳ Đang gửi yêu cầu kích hoạt engine khóa sổ tự động lên máy chủ...');
 
     try {
-      const response = await fetch('/vouchers/closing', {
+      // Sử dụng API endpoint đúng: /api/report/closing
+      const response = await fetch('/api/report/closing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId: currentCompanyId, year: 2026 })
+        body: JSON.stringify({ companyId: currentCompanyId, year: fiscalYear || 2026 })
       });
       const result = await response.json();
 
@@ -10197,25 +10850,60 @@ export default function CashFlowDashboard() {
 
 // FILE_PATH: front-end/src/views/financial/IncomeStatement.jsx
 // START_OF_FILE
-// FILE_PATH: front-end/src/views/financial-statements/IncomeStatement.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-// ĐÃ ĐỔI: Sử dụng getTotalDebit và getTotalCredit thay vì getClosingBalance cho TK doanh thu/chi phí
 import { calculateBalances, getTotalDebit, getTotalCredit } from '../../utils/accountingEngine.js';
-import { TrendingUp, TrendingDown, DollarSign, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
 
 export default function IncomeStatement() {
-  const { activeCompany } = useAuth();
+  const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
   const [loading, setLoading] = useState(true);
   const [ledger, setLedger] = useState({});
-  const [fiscalYear, setFiscalYear] = useState(new Date().getFullYear());
+  const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
+  const [prevYearRevenue, setPrevYearRevenue] = useState(0);
+  const [activeTab, setActiveTab] = useState('income-statement');
+  const [cycleData, setCycleData] = useState(null);
+  const [cycleLoading, setCycleLoading] = useState(false);
+  
+  const getTaxRateByRevenue = (revenue) => {
+    if (revenue <= 3000000000) return 0.15;
+    if (revenue <= 50000000000) return 0.17;
+    return 0.20;
+  };
+  
+  const appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
+  const taxRateLabel = appliedTaxRate === 0.15 ? '15%' : appliedTaxRate === 0.17 ? '17%' : '20%';
 
   useEffect(() => {
     if (activeCompany) {
       fetchVouchers();
     }
-  }, [activeCompany, fiscalYear]);
+  }, [activeCompany, contextFiscalYear]);
+
+  useEffect(() => {
+    if (activeCompany && activeTab === 'cycles') {
+      fetchCycleData();
+    }
+  }, [activeCompany, fiscalYear, activeTab]);
+
+  const fetchCycleData = async () => {
+    if (!activeCompany) return;
+    
+    setCycleLoading(true);
+    try {
+      const companyId = activeCompany.id || activeCompany;
+      const response = await api.get(`/report/cycle-data?company_id=${companyId}&year=${fiscalYear}`);
+      
+      if (response.data?.success) {
+        setCycleData(response.data.data);
+      }
+    } catch (error) {
+      console.error('Lỗi tải dữ liệu 9 chu trình:', error);
+    } finally {
+      setCycleLoading(false);
+    }
+  };
 
   const fetchVouchers = async () => {
     if (!activeCompany) return;
@@ -10223,7 +10911,6 @@ export default function IncomeStatement() {
     setLoading(true);
     try {
       const companyId = activeCompany.id || activeCompany;
-      // Gọi đúng API lấy danh sách chứng từ hạch toán của niên độ được chọn
       const response = await api.get(`/inventory/balances?company_id=${companyId}&year=${fiscalYear}`);
       
       if (response.data?.success && response.data.data?.accountLedger) {
@@ -10236,60 +10923,31 @@ export default function IncomeStatement() {
     }
   };
 
-  // Tính toán các chỉ tiêu Báo cáo KQKD chuẩn theo nghiệp vụ kết chuyển
   const calculateMetrics = () => {
-    // 1. Doanh thu bán hàng và cung cấp dịch vụ (Phát sinh CÓ TK 511)
     const revenue = getTotalCredit(ledger, '511');
-    
-    // 2. Giá vốn hàng bán (Phát sinh NỢ TK 632)
     const cogs = getTotalDebit(ledger, '632');
-    
-    // 3. Lợi nhuận gộp về bán hàng và cung cấp dịch vụ
     const grossProfit = revenue - cogs;
-
-    // 4. Doanh thu hoạt động tài chính (Phát sinh CÓ TK 515)
     const financialRevenue = getTotalCredit(ledger, '515');
-
-    // 5. Chi phí hoạt động sản xuất kinh doanh trong kỳ
+    
     const operatingExpenses = {
-      '635': getTotalDebit(ledger, '635'), // Chi phí tài chính
-      '641': getTotalDebit(ledger, '641'), // Chi phí bán hàng
-      '642': getTotalDebit(ledger, '642'), // Chi phí quản lý doanh nghiệp
+      '635': getTotalDebit(ledger, '635'),
+      '641': getTotalDebit(ledger, '641'),
+      '642': getTotalDebit(ledger, '642'),
     };
 
     const totalOperatingExpenses = Object.values(operatingExpenses).reduce((sum, val) => sum + val, 0);
-
-    // 6. Lợi nhuận thuần từ HĐKD (Doanh thu + Tài chính - Chi phí)
     const operatingProfit = grossProfit + financialRevenue - totalOperatingExpenses;
-
-    // 7. Thu nhập khác (Phát sinh CÓ TK 711)
     const totalOtherIncome = getTotalCredit(ledger, '711');
-
-    // 8. Chi phí khác (Phát sinh NỢ TK 811)
     const totalOtherExpenses = getTotalDebit(ledger, '811');
-
-    // 9. Tổng lợi nhuận kế toán trước thuế
     const profitBeforeTax = operatingProfit + (totalOtherIncome - totalOtherExpenses);
-
-    // 10. Chi phí thuế TNDN hiện hành (Phát sinh NỢ TK 821)
     const incomeTaxExpense = getTotalDebit(ledger, '821');
-
-    // 11. Lợi nhuận sau thuế thu nhập doanh nghiệp (Chỉ tiêu thực tế của kỳ)
     const netProfit = profitBeforeTax - incomeTaxExpense;
 
     return {
-      revenue,
-      cogs,
-      grossProfit,
-      financialRevenue,
-      operatingExpenses,
-      totalOperatingExpenses,
-      operatingProfit,
-      totalOtherIncome,
-      totalOtherExpenses,
-      profitBeforeTax,
-      incomeTaxExpense,
-      netProfit
+      revenue, cogs, grossProfit, financialRevenue,
+      operatingExpenses, totalOperatingExpenses, operatingProfit,
+      totalOtherIncome, totalOtherExpenses, profitBeforeTax,
+      incomeTaxExpense, netProfit
     };
   };
 
@@ -10319,6 +10977,83 @@ export default function IncomeStatement() {
     );
   };
 
+  const renderCycleTable = () => {
+    if (cycleLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <RefreshCw className="animate-spin text-indigo-600 mx-auto mb-3" size={32} />
+            <p className="text-xs text-slate-500 font-medium">Đang tải dữ liệu 9 chu trình nghiệp vụ...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!cycleData) {
+      return (
+        <div className="text-center py-12 text-slate-400">
+          <p className="text-xs">Chưa có dữ liệu cho 9 chu trình nghiệp vụ</p>
+        </div>
+      );
+    }
+
+    const cycleLabels = {
+      cycle1: { accounts: 'TK 411, 121, 128, 221, 515' },
+      cycle2: { accounts: 'TK 152, 156, 1331, 331' },
+      cycle3: { accounts: 'TK 632, 156, 131, 511, 3331' },
+      cycle4: { accounts: 'TK 622, 641, 642, 334, 338' },
+      cycle5: { accounts: 'TK 211, 214, 1332, 331' },
+      cycle6: { accounts: 'TK 154, 621, 622, 627' },
+      cycle7: { accounts: 'TK 341, 635, 335' },
+      cycle8: { accounts: 'TK 3331, 133' },
+      cycle9: { accounts: 'TK 911, 4212' }
+    };
+
+    return (
+      <div className="space-y-4">
+        {Object.entries(cycleData).map(([cycleKey, cycle]) => (
+          <div key={cycleKey} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs">
+                  {cycleKey.replace('cycle', 'Chu trình ')}
+                </span>
+                {cycle.name}
+              </h3>
+              <p className="text-[10px] text-slate-500 mt-1">{cycleLabels[cycleKey]?.accounts}</p>
+            </div>
+            <div className="p-4">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 font-bold text-slate-500">
+                    <th className="pb-2 text-slate-600">Hạng mục</th>
+                    <th className="pb-2 text-right font-mono">Số liệu thực tế (VND)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {Object.entries(cycle.data).map(([key, value]) => (
+                    <tr key={key} className="hover:bg-slate-50/30 transition">
+                      <td className="py-2 text-slate-600 capitalize">{key.replace(/_/g, ' ')}</td>
+                      <td className="py-2 text-right font-mono font-bold text-slate-800">
+                        {formatCurrency(value)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-slate-50/50 font-bold">
+                    <td className="py-2 text-slate-800">Tổng cộng</td>
+                    <td className="py-2 text-right font-mono font-black text-indigo-700">
+                      {formatCurrency(cycle.total)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -10343,118 +11078,168 @@ export default function IncomeStatement() {
         </p>
       </div>
 
-      {/* Year Selector */}
-      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm w-fit">
-        <FileText size={14} className="text-blue-500" />
-        <span className="text-slate-600">Niên độ kế toán:</span>
-        <select
-          value={fiscalYear}
-          onChange={(e) => setFiscalYear(Number(e.target.value))}
-          className="bg-transparent border-none focus:outline-none font-bold text-slate-800 cursor-pointer pl-1"
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 bg-white p-1.5 rounded-xl border border-slate-200 w-fit">
+        <button
+          onClick={() => setActiveTab('income-statement')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+            activeTab === 'income-statement'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
         >
-          {[2024, 2025, 2026, 2027, 2028].map(y => (
-            <option key={y} value={y}>Năm {y}</option>
-          ))}
-        </select>
+          Báo cáo KQKD
+        </button>
+        <button
+          onClick={() => setActiveTab('cycles')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+            activeTab === 'cycles'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Layers size={14} />
+          9 Chu trình nghiệp vụ
+        </button>
       </div>
 
-      {/* Income Statement */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-6 space-y-6">
-          {/* I. Doanh thu */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px]">I</span>
-              DOANH THU THUẦN VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
-            </h3>
-            {renderRow('Doanh thu bán hàng và cung cấp dịch vụ (511)', metrics.revenue, false, false, false)}
+      {/* Year Selector & Previous Year Revenue - Only show for income statement tab */}
+      {activeTab === 'income-statement' && (
+        <div className="flex flex-col md:flex-row gap-4 items-start">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm w-fit">
+            <FileText size={14} className="text-blue-500" />
+            <span className="text-slate-600">Niên độ kế toán:</span>
+            <select
+              value={fiscalYear}
+              onChange={(e) => setFiscalYear(Number(e.target.value))}
+              className="bg-transparent border-none focus:outline-none font-bold text-slate-800 cursor-pointer pl-1"
+            >
+              {[2024, 2025, 2026, 2027, 2028].map(y => (
+                <option key={y} value={y}>Năm {y}</option>
+              ))}
+            </select>
           </div>
-
-          {/* II. Giá vốn */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px]">II</span>
-              GIÁ VỐN HÀNG BÁN
-            </h3>
-            {renderRow('Giá vốn hàng bán (632)', metrics.cogs, false, false, true)}
+          
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-slate-600">Doanh thu năm {fiscalYear - 1}:</span>
+            <input
+              type="number"
+              value={prevYearRevenue}
+              onChange={(e) => setPrevYearRevenue(Number(e.target.value))}
+              placeholder="Nhập doanh thu năm trước..."
+              className="w-40 bg-transparent border border-slate-200 rounded px-2 py-1 text-right font-mono text-xs focus:outline-none focus:border-emerald-400"
+            />
+            <span className="text-slate-400">VNĐ</span>
           </div>
-
-          {/* III. Lợi nhuận gộp */}
-          <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-100">
-            <h3 className="text-sm font-bold text-emerald-900 mb-2 flex items-center gap-2">
-              <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px]">III</span>
-              LỢI NHUẬN GỘP VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
-            </h3>
-            {renderRow('Lợi nhuận gộp (III = I - II)', metrics.grossProfit, true, false)}
+          
+          <div className="flex items-center gap-2 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200">
+            <span>Thuế suất TNDN áp dụng: {taxRateLabel}</span>
+            <span className="text-[10px] bg-emerald-100 px-1.5 py-0.5 rounded">Lũy tiến</span>
           </div>
+        </div>
+      )}
 
-          {/* IV. Chi phí & Doanh thu tài chính */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px]">IV</span>
-              HOẠT ĐỘNG KINH DOANH VÀ CHI PHÍ
-            </h3>
-            <div className="ml-4 space-y-1">
-              {renderRow('Doanh thu hoạt động tài chính (515)', metrics.financialRevenue, false, false, false)}
-              {renderRow('Chi phí tài chính (635)', metrics.operatingExpenses['635'], false, false, true)}
-              {renderRow('Chi phí bán hàng (641)', metrics.operatingExpenses['641'], false, false, true)}
-              {renderRow('Chi phí quản lý doanh nghiệp (642)', metrics.operatingExpenses['642'], false, false, true)}
+      {/* Tab Content */}
+      {activeTab === 'cycles' ? (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="p-6">
+            <h2 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
+              <Layers className="text-indigo-600" size={20} />
+              9 Chu trình nghiệp vụ
+            </h2>
+            {renderCycleTable()}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 space-y-6">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px]">I</span>
+                DOANH THU THUẦN VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
+              </h3>
+              {renderRow('Doanh thu bán hàng và cung cấp dịch vụ (511)', metrics.revenue, false, false, false)}
             </div>
-          </div>
 
-          {/* V. Lợi nhuận thuần */}
-          <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-100">
-            <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px]">V</span>
-              LỢI NHUẬN THUẦN TỪ HOẠT ĐỘNG KINH DOANH
-            </h3>
-            {renderRow('Lợi nhuận thuần từ HĐKD', metrics.operatingProfit, true, false)}
-          </div>
-
-          {/* VI & VII. Khác */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px]">VI</span>
-              THU NHẬP KHÁC VÀ CHI PHÍ KHÁC
-            </h3>
-            <div className="ml-4 space-y-1">
-              {renderRow('Thu nhập khác (711)', metrics.totalOtherIncome, false, false, false)}
-              {renderRow('Chi phí khác (811)', metrics.totalOtherExpenses, false, false, true)}
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px]">II</span>
+                GIÁ VỐN HÀNG BÁN
+              </h3>
+              {renderRow('Giá vốn hàng bán (632)', metrics.cogs, false, false, true)}
             </div>
-          </div>
 
-          {/* Thuế TNDN bổ sung */}
-          <div>
-            {renderRow('Tổng lợi nhuận kế toán trước thuế', metrics.profitBeforeTax, false, false)}
-            {renderRow('Chi phí thuế TNDN hiện hành (821)', metrics.incomeTaxExpense, false, false, true)}
-          </div>
-
-          {/* VIII. Kết quả cuối cùng */}
-          <div className={`p-4 rounded-xl text-white shadow-md ${metrics.netProfit >= 0 ? 'bg-slate-900' : 'bg-rose-600'}`}>
-            <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
-              <span className="bg-white/20 text-white px-2 py-0.5 rounded text-[10px]">VIII</span>
-              LỢI NHUẬN SAU THUẾ THU NHẬP DOANH NGHIỆP
-            </h3>
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-white/90">LNST dòng của kỳ này:</span>
-              <span className="text-lg font-black">{formatCurrency(metrics.netProfit)}</span>
+            <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-100">
+              <h3 className="text-sm font-bold text-emerald-900 mb-2 flex items-center gap-2">
+                <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px]">III</span>
+                LỢI NHUẬN GỘP VỀ BÁN HÀNG VÀ CUNG CẤP DỊCH VỤ
+              </h3>
+              {renderRow('Lợi nhuận gộp (III = I - II)', metrics.grossProfit, true, false)}
             </div>
-            <div className="mt-2 flex items-center gap-2 text-xs text-white/80 border-t border-white/10 pt-2">
-              {metrics.netProfit >= 0 ? (
-                <>
-                  <TrendingUp size={14} />
-                  <span>Doanh nghiệp hoạt động có lãi trong năm {fiscalYear}</span>
-                </>
-              ) : (
-                <>
-                  <TrendingDown size={14} />
-                  <span>Doanh nghiệp lâm vào tình trạng lỗ ròng trong năm {fiscalYear}</span>
-                </>
-              )}
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px]">IV</span>
+                HOẠT ĐỘNG KINH DOANH VÀ CHI PHÍ
+              </h3>
+              <div className="ml-4 space-y-1">
+                {renderRow('Doanh thu hoạt động tài chính (515)', metrics.financialRevenue, false, false, false)}
+                {renderRow('Chi phí tài chính (635)', metrics.operatingExpenses['635'], false, false, true)}
+                {renderRow('Chi phí bán hàng (641)', metrics.operatingExpenses['641'], false, false, true)}
+                {renderRow('Chi phí quản lý doanh nghiệp (642)', metrics.operatingExpenses['642'], false, false, true)}
+              </div>
+            </div>
+
+            <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-100">
+              <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px]">V</span>
+                LỢI NHUẬN THUẦN TỪ HOẠT ĐỘNG KINH DOANH
+              </h3>
+              {renderRow('Lợi nhuận thuần từ HĐKD', metrics.operatingProfit, true, false)}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px]">VI</span>
+                THU NHẬP KHÁC VÀ CHI PHÍ KHÁC
+              </h3>
+              <div className="ml-4 space-y-1">
+                {renderRow('Thu nhập khác (711)', metrics.totalOtherIncome, false, false, false)}
+                {renderRow('Chi phí khác (811)', metrics.totalOtherExpenses, false, false, true)}
+              </div>
+            </div>
+
+            <div>
+              {renderRow('Tổng lợi nhuận kế toán trước thuế', metrics.profitBeforeTax, false, false)}
+              {renderRow('Chi phí thuế TNDN hiện hành (821)', metrics.incomeTaxExpense, false, false, true)}
+            </div>
+
+            <div className={`p-4 rounded-xl text-white shadow-md ${metrics.netProfit >= 0 ? 'bg-slate-900' : 'bg-rose-600'}`}>
+              <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
+                <span className="bg-white/20 text-white px-2 py-0.5 rounded text-[10px]">VIII</span>
+                LỢI NHUẬN SAU THUẾ THU NHẬP DOANH NGHIỆP
+              </h3>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-white/90">LNST dòng của kỳ này:</span>
+                <span className="text-lg font-black">{formatCurrency(metrics.netProfit)}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-white/80 border-t border-white/10 pt-2">
+                {metrics.netProfit >= 0 ? (
+                  <>
+                    <TrendingUp size={14} />
+                    <span>Doanh nghiệp hoạt động có lãi trong năm {fiscalYear}</span>
+                  </>
+                ) : (
+                  <>
+                    <TrendingDown size={14} />
+                    <span>Doanh nghiệp lâm vào tình trạng lỗ ròng trong năm {fiscalYear}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

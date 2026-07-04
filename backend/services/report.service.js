@@ -304,3 +304,59 @@ export async function getOpeningBalancesByPartner(companyId, fiscalYear, account
     partner_code: row.partner_code
   }));
 }
+
+/**
+ * Lấy số dư tài khoản theo mã tài khoản (Hỗ trợ TK 215, 2295 cho nông nghiệp)
+ */
+export async function getAccountBalance(companyId, accountCode, year = null) {
+  let query = `
+    SELECT 
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1 
+      AND vd.account_code LIKE $2
+  `;
+  
+  const params = [companyId, `${accountCode}%`];
+  
+  if (year) {
+    query += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${params.length + 1}`;
+    params.push(year);
+  }
+  
+  const { rows } = await pool.query(query, params);
+  
+  if (rows.length > 0) {
+    const debit = parseFloat(rows[0].debit_total) || 0;
+    const credit = parseFloat(rows[0].credit_total) || 0;
+    return {
+      account_code: accountCode,
+      debit_balance: debit,
+      credit_balance: credit,
+      net_balance: debit - credit
+    };
+  }
+  
+  return {
+    account_code: accountCode,
+    debit_balance: 0,
+    credit_balance: 0,
+    net_balance: 0
+  };
+}
+
+/**
+ * Lấy số dư tài khoản 215 (Tài sản sinh học)
+ */
+export async function getBiologicalAssetBalance(companyId, year = null) {
+  return getAccountBalance(companyId, '215', year);
+}
+
+/**
+ * Lấy số dư tài khoản 2295 (Dự phòng tổn thất tài sản nông nghiệp)
+ */
+export async function getAgriculturalProvisionBalance(companyId, year = null) {
+  return getAccountBalance(companyId, '2295', year);
+}

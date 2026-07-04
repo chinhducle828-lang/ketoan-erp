@@ -10,6 +10,7 @@ import {
   executeClosing,
   invalidateReportCache
 } from '../controllers/report.controller.js';
+import { getCycleData } from '../services/cycle.service.js';
 
 const router = express.Router();
 
@@ -57,6 +58,23 @@ router.post('/invalidate-cache', authenticate, checkCompanyAccess, (req, res) =>
   const companyId = req.companyId;
   invalidateReportCache(companyId);
   res.json({ success: true, message: 'Đã xóa cache báo cáo!' });
+});
+
+// API: Lấy dữ liệu 9 chu trình nghiệp vụ
+router.get('/cycle-data', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : null;
+    
+    const cycleData = await getCycleData(companyId, year);
+    
+    res.json({
+      success: true,
+      data: cycleData
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 export { router as reportRouter };
