@@ -119,6 +119,39 @@ export default function StorefrontPage() {
   const [selectedCurrency, setSelectedCurrency] = useState('VND');
   const [storefrontToken, setStorefrontToken] = useState(() => localStorage.getItem('storefrontAccessToken') || '');
   const [hasAdminSession, setHasAdminSession] = useState(false);
+  const [authenticatingAdmin, setAuthenticatingAdmin] = useState(false);
+
+  const getERPUrl = () => {
+    const env = import.meta.env.VITE_ERP_URL;
+    if (env) return env.replace(/\/$/, '');
+    // fallback to same host but ERP port/path assumptions may vary
+    if (typeof window !== 'undefined') {
+      if (window.location.protocol === 'https:') return 'https://dazzling-grace-production-03a5.up.railway.app';
+      return `${window.location.protocol}//${window.location.hostname}`;
+    }
+    return 'http://localhost:5000';
+  };
+
+  // If the user is in an admin role but there's no server-side admin session,
+  // automatically redirect back to the ERP login so they can obtain an admin session.
+  useEffect(() => {
+    if (!isAdminRole) return;
+    if (authenticatingAdmin) return;
+    if (hasAdminSession) return;
+
+    // Build ERP login URL with company and role context so ERP can redirect back with erp_token
+    const erpBase = getERPUrl();
+    const params = new URLSearchParams();
+    if (companyId) params.set('company_id', companyId);
+    if (storefrontRole) params.set('role', storefrontRole);
+    // navigate to ERP login (replace current storefront tab)
+    const loginUrl = `${erpBase}${params.toString() ? `?${params.toString()}` : ''}`;
+    try {
+      window.location.replace(loginUrl);
+    } catch (e) {
+      window.location.href = loginUrl;
+    }
+  }, [isAdminRole, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const adminImageInputRef = useRef(null);
@@ -488,34 +521,41 @@ export default function StorefrontPage() {
   };
 
   const loadWarehouseQueue = async () => {
-    if (!companyId) {
-      setWarehouseQueue([]);
-      return;
+    if (erpToken) {
+      (async () => {
+        setAuthenticatingAdmin(true);
+        try {
+          await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
+          // remove token from URL to avoid leakage
+          params.delete('erp_token');
+          const nextQuery = params.toString();
+          const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+          window.history.replaceState({}, '', nextUrl);
+
+          // validate server-side session via cookie
+          try {
+            const { data } = await authApi.get('/api/auth/me');
+            const roleCode = data?.user?.role;
+            if (roleCode === 'admin') {
+              setAdminMessage('Phiên admin hợp lệ từ ERP.');
+              setHasAdminSession(true);
+            } else {
+              setAdminMessage('Phiên ERP hiện tại không phải admin. Vui lòng mở storefront từ tài khoản admin trên ERP.');
+              setHasAdminSession(false);
+            }
+          } catch (e) {
+            setAdminMessage('Phiên admin chưa được xác thực. Vui lòng mở storefront từ ERP bằng tài khoản admin.');
+            setHasAdminSession(false);
+          }
+        } catch (err) {
+          console.error('External login exchange failed:', err?.response?.data || err.message);
+          setAdminMessage('Không thể thiết lập phiên admin từ ERP. Vui lòng thử mở lại từ ERP.');
+          setHasAdminSession(false);
+        } finally {
+          setAuthenticatingAdmin(false);
+        }
+      })();
     }
-
-    setWarehouseLoading(true);
-    try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
-        params: { company_id: companyId },
-        headers: { Authorization: `Bearer ${storefrontToken}` }
-      });
-
-      const nextList = Array.isArray(data) ? data : [];
-      const nextMap = new Map(nextList.map((order) => [Number(order.id), order]));
-
-      const previousMap = previousQueueRef.current;
-      if (!firstQueueLoadRef.current) {
-        const addedPendingOrders = nextList.filter((order) => {
-          const id = Number(order.id);
-          return !previousMap.has(id) && order.loading_status === 'pending_loading';
-        });
-
-        const completedOrders = nextList.filter((order) => {
-          const id = Number(order.id);
-          const previous = previousMap.get(id);
-          return previous && previous.loading_status !== 'completed' && order.loading_status === 'completed';
-        });
-
         if ((isAdminRole || isWarehouseRole) && addedPendingOrders.length > 0) {
           setRolePopup({
             id: `added-${Date.now()}`,
@@ -1174,7 +1214,9 @@ export default function StorefrontPage() {
 
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
               <h4 className="font-semibold text-slate-900">Phiên admin từ ERP</h4>
-              <p className="mt-2 text-sm text-slate-600">{hasAdminSession ? 'Đã nhận phiên quản trị từ ERP, bạn có thể tạo/cập nhật danh mục.' : 'Chưa có phiên admin. Vui lòng mở storefront từ ERP bằng tài khoản admin để thao tác.'}</p>
+              <p className="mt-2 text-sm text-slate-600">
+                {authenticatingAdmin ? 'Đang xác thực phiên admin từ ERP...' : hasAdminSession ? 'Đã nhận phiên quản trị từ ERP, bạn có thể tạo/cập nhật danh mục.' : 'Chưa có phiên admin. Vui lòng mở storefront từ ERP bằng tài khoản admin để thao tác.'}
+              </p>
               {adminMessage && <p className="mt-2 text-sm text-slate-500">{adminMessage}</p>}
             </div>
 
