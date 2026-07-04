@@ -109,6 +109,11 @@ const buildErpLoginUrl = (baseUrl, companyId, role) => {
   return url.toString();
 };
 
+const buildBearerConfig = (token) => {
+  if (!token) return {};
+  return { headers: { Authorization: `Bearer ${token}` } };
+};
+
 const isSessionAllowedForRole = (targetRole, sessionRole) => {
   if (!targetRole || targetRole === 'guest') return true;
   if (!sessionRole) return false;
@@ -284,15 +289,17 @@ export default function StorefrontPage() {
         setAdminSessionChecked(false);
         try {
           await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
+          setStorefrontToken(erpToken);
+          localStorage.setItem('storefrontAccessToken', erpToken);
           // remove token from URL to avoid leakage
           params.delete('erp_token');
           const nextQuery = params.toString();
           const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
           window.history.replaceState({}, '', nextUrl);
 
-          // validate server-side session via cookie
+          // validate session with the same token that backend stores in sessions.token
           try {
-            const { data } = await authApi.get('/api/auth/me');
+            const { data } = await authApi.get('/api/auth/me', buildBearerConfig(erpToken));
             const roleCode = data?.user?.role || '';
             const targetRole = paramRole || storefrontRole;
             const canUseSession = isSessionAllowedForRole(targetRole, roleCode);
@@ -315,6 +322,21 @@ export default function StorefrontPage() {
               }
             }
           } catch (e) {
+            // Fallback: try cookie-based validation for environments that support shared cookies
+            try {
+              const { data } = await authApi.get('/api/auth/me');
+              const roleCode = data?.user?.role || '';
+              const targetRole = paramRole || storefrontRole;
+              const canUseSession = isSessionAllowedForRole(targetRole, roleCode);
+
+              setSessionRole(roleCode);
+              setHasAdminSession(canUseSession);
+              if (canUseSession) {
+                setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
+              } else {
+                setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(targetRole)}.`);
+              }
+            } catch {
             if (paramRole === 'admin') {
               setAdminMessage('Phiên từ ERP chưa được xác thực cho admin. Giữ nguyên chế độ admin và thử xác thực lại.');
               setHasAdminSession(false);
@@ -323,6 +345,7 @@ export default function StorefrontPage() {
               setAdminMessage('Phiên từ ERP chưa được xác thực. Vui lòng mở storefront lại từ ERP bằng đúng vai trò được phân quyền.');
               setHasAdminSession(false);
               setSessionRole('');
+            }
             }
           }
         } catch (err) {
@@ -355,7 +378,10 @@ export default function StorefrontPage() {
       try {
         setAuthenticatingAdmin(true);
         setAdminSessionChecked(false);
-        const { data } = await authApi.get('/api/auth/me');
+        const meRequest = storefrontToken
+          ? authApi.get('/api/auth/me', buildBearerConfig(storefrontToken))
+          : authApi.get('/api/auth/me');
+        const { data } = await meRequest;
         const roleCode = data?.user?.role || '';
         const canUseSession = isSessionAllowedForRole(storefrontRole, roleCode);
 
@@ -377,14 +403,30 @@ export default function StorefrontPage() {
           }
         }
       } catch {
-        if (storefrontRole === 'admin') {
-          setAdminMessage('Không nhận được phiên admin từ ERP. Giữ nguyên chế độ admin và thử xác thực lại.');
-          setHasAdminSession(false);
-          setSessionRole('');
-        } else {
-          setAdminMessage('Không nhận được phiên từ ERP. Vui lòng mở storefront từ ERP để tiếp tục thao tác theo vai trò hiện tại.');
-          setHasAdminSession(false);
-          setSessionRole('');
+        try {
+          const { data } = await authApi.get('/api/auth/me');
+          const roleCode = data?.user?.role || '';
+          const canUseSession = isSessionAllowedForRole(storefrontRole, roleCode);
+
+          setSessionRole(roleCode);
+          setHasAdminSession(canUseSession);
+          if (canUseSession) {
+            setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
+          } else if (storefrontRole === 'admin') {
+            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
+          } else {
+            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(storefrontRole)}.`);
+          }
+        } catch {
+          if (storefrontRole === 'admin') {
+            setAdminMessage('Không nhận được phiên admin từ ERP. Giữ nguyên chế độ admin và thử xác thực lại.');
+            setHasAdminSession(false);
+            setSessionRole('');
+          } else {
+            setAdminMessage('Không nhận được phiên từ ERP. Vui lòng mở storefront từ ERP để tiếp tục thao tác theo vai trò hiện tại.');
+            setHasAdminSession(false);
+            setSessionRole('');
+          }
         }
       } finally {
         setAuthenticatingAdmin(false);
