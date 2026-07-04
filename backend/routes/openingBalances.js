@@ -7,7 +7,35 @@ import { invalidateCompanyCache } from '../controllers/erpController.js';
 
 const router = express.Router();
 
-// 1. API cập nhật số dư đầu kỳ lịch sử
+// 1. API lấy số dư đầu kỳ
+router.get('/', authenticate, requireRole(['admin', 'ktt', 'accountant']), checkCompanyAccess, async (req, res) => {
+  try {
+    const targetCompanyId = req.query.company_id;
+    const fiscalYear = req.query.year ? Number(req.query.year) : 2026;
+
+    const result = await pool.query(
+      `SELECT 
+        ob.account_code,
+        ob.opening_debit,
+        ob.opening_credit,
+        ob.fiscal_year,
+        ob.partner_id,
+        p.partner_name,
+        p.partner_code
+      FROM opening_balances ob
+      LEFT JOIN partners p ON ob.partner_id = p.id
+      WHERE ob.company_id = $1 AND ob.fiscal_year = $2
+      ORDER BY ob.account_code`,
+      [targetCompanyId, fiscalYear]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. API cập nhật số dư đầu kỳ lịch sử
 router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id || req.body.companyId;

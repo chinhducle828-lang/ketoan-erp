@@ -1,6 +1,23 @@
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 
+// Hằng số cấu hình thuế suất (Linh hoạt, dễ thay đổi)
+const DEFAULT_TAX_RATE = 0.2; // Thuế suất mặc định 20%
+
+/**
+ * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
+ * - 15%: Doanh thu ≤ 3 tỷ VNĐ
+ * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
+ * - 20%: Doanh thu trên 50 tỷ VNĐ
+ * @param {number} revenue - Doanh thu năm trước (VNĐ)
+ * @returns {number} - Thuế suất áp dụng
+ */
+export function getTaxRateByRevenue(revenue) {
+  if (revenue <= 3000000000) return 0.15;
+  if (revenue <= 50000000000) return 0.17;
+  return 0.20;
+}
+
 /**
  * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
  * LỖI 4: Thuật toán kết chuyển tự động
@@ -188,15 +205,33 @@ export async function runClosingEntries(companyId, month, year) {
     // Chỉ hạch toán thuế TNDN khi có lợi nhuận (netProfit > 0)
     // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
     let taxAmount = 0;
+    let appliedTaxRate = DEFAULT_TAX_RATE;
     
     if (netProfit > 0) {
-      taxAmount = netProfit * 0.2; // Thuế suất 20%
+      // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
+      // Lấy doanh thu năm trước từ TK 511
+      const prevYearRevenueQuery = `
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_revenue
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code = '511'
+          AND EXTRACT(YEAR FROM v.voucher_date) = $2
+      `;
+      
+      const { rows: prevYearRows } = await client.query(prevYearRevenueQuery, [companyId, year - 1]);
+      const prevYearRevenue = parseFloat(prevYearRows[0]?.total_revenue) || 0;
+      
+      // Xác định thuế suất áp dụng
+      appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
+      taxAmount = netProfit * appliedTaxRate;
       
       // Tạo bút toán thuế TNDN: Nợ TK 8211, Có TK 3334
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN 20%')`,
+         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN')`,
         [companyId, closingDate]
       );
       

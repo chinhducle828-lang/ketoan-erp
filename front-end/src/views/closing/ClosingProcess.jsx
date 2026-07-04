@@ -30,7 +30,7 @@ const ACCOUNT_DICTIONARY = {
 
 export default function ClosingProcess() {
   const { vouchers, fetchVouchers } = useVouchers();
-  const { activeCompany } = useAuth();
+  const { activeCompany, fiscalYear } = useAuth();
   const [log, setLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [accountLedger, setAccountLedger] = useState({});
@@ -46,7 +46,7 @@ export default function ClosingProcess() {
       setLoadingBalances(true);
       try {
         const response = await api.get('/inventory/balances', {
-          params: { company_id: currentCompanyId }
+          params: { company_id: currentCompanyId, year: fiscalYear }
         });
         if (response.data?.success && response.data.data?.accountLedger) {
           setAccountLedger(response.data.data.accountLedger);
@@ -59,7 +59,7 @@ export default function ClosingProcess() {
     };
 
     loadBalances();
-  }, [currentCompanyId]);
+  }, [currentCompanyId, fiscalYear]);
 
   const executeClosing = async () => {
     if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');
@@ -67,10 +67,11 @@ export default function ClosingProcess() {
     setLog('⏳ Đang gửi yêu cầu kích hoạt engine khóa sổ tự động lên máy chủ...');
 
     try {
-      const response = await fetch('/vouchers/closing', {
+      // Sử dụng API endpoint đúng: /api/report/closing
+      const response = await fetch('/api/report/closing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId: currentCompanyId, year: 2026 })
+        body: JSON.stringify({ companyId: currentCompanyId, year: fiscalYear || 2026 })
       });
       const result = await response.json();
 
