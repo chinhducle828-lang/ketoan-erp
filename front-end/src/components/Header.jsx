@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
-  const { user, companies, activeCompany, changeCompany, logout, fiscalYear, setFiscalYear } = useAuth();
+  const { user, companies, activeCompany, changeCompany, logout, fiscalYear, setFiscalYear, token } = useAuth();
   
 
   // Danh sách niên độ kế toán hỗ trợ trong hệ thống
@@ -38,9 +38,12 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     const STOREFRONT_URL = getStorefrontURL();
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const roleCode = user?.roleId || user?.role;
+    const erpToken = token || localStorage.getItem('accessToken') || '';
     const params = new URLSearchParams();
     if (companyId) params.set('company_id', companyId);
     if (roleCode) params.set('role', roleCode);
+    if (erpToken) params.set('erp_token', erpToken);
+    if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
     const href = `${STOREFRONT_URL}${params.toString() ? `?${params.toString()}` : ''}`;
     window.open(href, '_blank', 'noreferrer');
   };

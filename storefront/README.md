@@ -23,6 +23,7 @@ Environment variables:
 
 - `VITE_API_BASE_URL=https://<backend-service>.up.railway.app`
 - `VITE_BASE_URL=/`
+- `VITE_ERP_URL=https://<erp-frontend-service>.up.railway.app` (required for admin redirect/login flow)
 - `VITE_ALLOW_ROLE_SWITCH=false` (recommended for production)
 
 Backend service should allow CORS origin from this storefront domain in `FRONTEND_URL`.
