@@ -2,9 +2,15 @@ import express from 'express';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
+import {
+  ensureStorefrontRealtimeListener,
+  publishStorefrontOrderEvent,
+  registerStorefrontStreamClient
+} from '../services/storefrontRealtime.service.js';
 
 const router = express.Router();
 const LOGISTICS_ALLOWED_ROLES = ['admin', 'ktt', 'nv', 'nv_kho', 'nv_banhang'];
+ensureStorefrontRealtimeListener();
 
 const ensureCompanyAccess = async (req, companyId) => {
   if (!companyId) return { ok: false, message: 'Thiếu company_id' };
@@ -155,6 +161,40 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
   }
 });
 
+router.get('/stream', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (req, res) => {
+  try {
+    const companyId = req.query.company_id || req.query.companyId;
+    const access = await ensureCompanyAccess(req, companyId);
+    if (!access.ok) return res.status(403).json({ error: access.message });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    const unregister = registerStorefrontStreamClient({
+      companyId: Number(companyId),
+      res
+    });
+
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(': keep-alive\n\n');
+      } catch {
+        // Ignore closed streams.
+      }
+    }, 20000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      unregister();
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 'nv_kho']), async (req, res) => {
   try {
     const { companyId, voucherId } = req.body;
@@ -179,6 +219,14 @@ router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 
         error: `Không thể hoàn thành đơn ở trạng thái hiện tại (${transition.currentStatus || 'unknown'}). Chỉ đơn đang giao mới được hoàn thành.`
       });
     }
+
+    await publishStorefrontOrderEvent(pool, {
+      event: 'logistics_status_changed',
+      companyId: Number(companyId),
+      voucherId: Number(voucherId),
+      voucherNumber: transition.row.voucher_number,
+      loadingStatus: transition.row.loading_status
+    });
 
     res.json({ success: true, order: transition.row, message: 'Đơn hàng đã được xác nhận hoàn thành xuất kho.' });
   } catch (error) {
@@ -211,6 +259,14 @@ router.post('/assign-truck', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
         error: `Không thể phân xe khi đơn đang ở trạng thái ${transition.currentStatus || 'unknown'}.`
       });
     }
+
+    await publishStorefrontOrderEvent(pool, {
+      event: 'logistics_status_changed',
+      companyId: Number(companyId),
+      voucherId: Number(voucherId),
+      voucherNumber: transition.row.voucher_number,
+      loadingStatus: transition.row.loading_status
+    });
 
     res.json({ success: true, order: transition.row });
   } catch (error) {
@@ -251,6 +307,15 @@ router.post('/confirm-loaded', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES
     }
 
     await client.query('COMMIT');
+
+    await publishStorefrontOrderEvent(pool, {
+      event: 'logistics_status_changed',
+      companyId: Number(companyId),
+      voucherId: Number(voucherId),
+      voucherNumber: transition.row.voucher_number,
+      loadingStatus: transition.row.loading_status
+    });
+
     res.json({ success: true, order: transition.row });
   } catch (error) {
     await client.query('ROLLBACK');
