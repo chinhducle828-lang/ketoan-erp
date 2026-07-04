@@ -355,8 +355,8 @@ export async function getClosingData(companyId, month, year) {
     WHERE v.company_id = $1 AND vd.account_code = '511'
       AND EXTRACT(MONTH FROM v.voucher_date) = $2
       AND EXTRACT(YEAR FROM v.voucher_date) = $3
-  `, [companyId, month, year]);
-  
+`, [companyId, month, year]);
+
   // Lấy số dư TK 632, 641, 642
   const costAccounts = await pool.query(`
     SELECT 
@@ -369,8 +369,8 @@ export async function getClosingData(companyId, month, year) {
       AND EXTRACT(MONTH FROM v.voucher_date) = $2
       AND EXTRACT(YEAR FROM v.voucher_date) = $3
     GROUP BY vd.account_code
-  `, [companyId, month, year]);
-  
+`, [companyId, month, year]);
+
   // Lấy số dư TK 911
   const account911 = await pool.query(`
     SELECT 
@@ -381,8 +381,8 @@ export async function getClosingData(companyId, month, year) {
     WHERE v.company_id = $1 AND vd.account_code = '911'
       AND EXTRACT(MONTH FROM v.voucher_date) = $2
       AND EXTRACT(YEAR FROM v.voucher_date) = $3
-  `, [companyId, month, year]);
-  
+`, [companyId, month, year]);
+
   return {
     account511: {
       debit: parseFloat(account511.rows[0]?.debit) || 0,
@@ -398,4 +398,233 @@ export async function getClosingData(companyId, month, year) {
       credit: parseFloat(account911.rows[0]?.credit) || 0
     }
   };
+}
+
+/**
+ * Tạo bút toán phân bổ chi phí trả trước (TK 242)
+ * Phân bổ chi phí trả trước vào chi phí hoạt động
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function createAllowanceEntries(companyId, month, year) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Lấy số dư TK 242 (Chi phí trả trước)
+    const query242 = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '242%'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: rows242 } = await client.query(query242, [companyId, month, year]);
+    const allowanceBalance = (parseFloat(rows242[0]?.debit_total) || 0) - (parseFloat(rows242[0]?.credit_total) || 0);
+    
+    if (allowanceBalance > 0) {
+      // Tạo bút toán phân bổ: Nợ TK 642, Có TK 242
+      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      await client.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Phân bổ chi phí trả trước')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await client.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '642', 'DR', $2), ($3, '242', 'CR', $4)`,
+        [voucherId, allowanceBalance, voucherId, allowanceBalance]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    return {
+      success: true,
+      message: 'Phân bổ chi phí trả trước thành công',
+      allowance_balance: allowanceBalance
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Tạo bút toán khấu hao TSCĐ (TK 214)
+ * Tính khấu hao tài sản cố định theo phương pháp khấu hao tuyến tính
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function createDepreciationEntries(companyId, month, year) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Lấy danh sách TSCĐ cần khấu hao
+    const query = `
+      SELECT 
+        v.id as voucher_id,
+        v.voucher_date,
+        vd.amount as original_value,
+        EXTRACT(YEAR FROM v.voucher_date) as purchase_year
+      FROM vouchers v
+      JOIN voucher_details vd ON v.id = vd.voucher_id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '211%'
+        AND EXTRACT(YEAR FROM v.voucher_date) <= $2
+    `;
+    
+    const { rows } = await client.query(query, [companyId, year]);
+    
+    // Tính khấu hao (giả sử khấu hao 20% giá trị gốc mỗi năm)
+    for (const asset of rows) {
+      const depreciationAmount = asset.original_value * 0.2 / 12; // Khấu hao hàng tháng
+      
+      if (depreciationAmount > 0) {
+        const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+        await client.query(
+          `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+           VALUES ($1, 'DauKy', $2, 'Khấu hao TSCĐ')`,
+          [companyId, closingDate]
+        );
+        
+        const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+        
+        await client.query(
+          `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+           VALUES ($1, '611', 'DR', $2), ($3, '214', 'CR', $4)`,
+          [voucherId, depreciationAmount, voucherId, depreciationAmount]
+        );
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    return {
+      success: true,
+      message: `Đã tạo bút toán khấu hao cho ${rows.length} tài sản`,
+      assets_processed: rows.length
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Tạo bút toán dự phòng nợ khó đòi (TK 335)
+ * Dự phòng 10% số dư phải thu khách hàng quá hạn
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function createProvisionEntries(companyId, month, year) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Lấy số dư TK 131 (Phải thu khách hàng)
+    const query131 = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '131%'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: rows131 } = await client.query(query131, [companyId, month, year]);
+    const arBalance = (parseFloat(rows131[0]?.debit_total) || 0) - (parseFloat(rows131[0]?.credit_total) || 0);
+    
+    // Dự phòng 10% số dư phải thu
+    const provisionAmount = arBalance * 0.1;
+    
+    if (provisionAmount > 0) {
+      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      await client.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Dự phòng nợ khó đòi')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await client.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '635', 'DR', $2), ($3, '335', 'CR', $4)`,
+        [voucherId, provisionAmount, voucherId, provisionAmount]
+      );
+    }
+    
+    // Dự phòng tài sản sinh học (TK 2295)
+    const query215 = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '215%'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: rows215 } = await client.query(query215, [companyId, month, year]);
+    const bioAssetBalance = (parseFloat(rows215[0]?.debit_total) || 0) - (parseFloat(rows215[0]?.credit_total) || 0);
+    
+    // Dự phòng 5% tài sản sinh học
+    const bioProvisionAmount = bioAssetBalance * 0.05;
+    
+    if (bioProvisionAmount > 0) {
+      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      await client.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Dự phòng tài sản sinh học')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await client.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '635', 'DR', $2), ($3, '2295', 'CR', $4)`,
+        [voucherId, bioProvisionAmount, voucherId, bioProvisionAmount]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    return {
+      success: true,
+      message: 'Tạo dự phòng thành công',
+      ar_provision: provisionAmount,
+      bio_provision: bioProvisionAmount
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }

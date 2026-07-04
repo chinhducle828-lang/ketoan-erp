@@ -10,6 +10,7 @@ export const CHART_OF_ACCOUNTS = [
   // ==========================================
   { code: '1111', name: 'Tiền mặt Việt Nam Đồng (VND)', type: 'Tai San' },
   { code: '1112', name: 'Tiền mặt Ngoại tệ', type: 'Tai San' },
+{ code: '112', name: 'Tiền gửi không kỳ hạn', type: 'Tai San' },
   { code: '1121', name: 'Tiền gửi Ngân hàng bằng VND', type: 'Tai San' },
   { code: '1122', name: 'Tiền gửi Ngân hàng bằng Ngoại tệ', type: 'Tai San' },
   { code: '121', name: 'Chứng khoán kinh doanh', type: 'Tai San' },

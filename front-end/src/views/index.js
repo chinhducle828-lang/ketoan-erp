@@ -12,7 +12,8 @@ import {
   Layers, 
   BarChart3,
   ShieldAlert,
-  TrendingUp
+  TrendingUp,
+  FileText
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -133,6 +134,22 @@ export const MODULES_REGISTER = [
     name: 'Báo Cáo Kết Quả Hoạt Động Kinh Doanh',
     icon: TrendingUp,
     component: React.lazy(() => import('./financial/IncomeStatement.jsx')),
+    allowedRoles: ['admin', 'ktt'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'balance-sheet',
+    name: 'Báo Cáo Tài Chính B01-DN',
+    icon: FileText,
+    component: React.lazy(() => import('./financial/BalanceSheetB01.jsx')),
+    allowedRoles: ['admin', 'ktt'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'income-statement-b02',
+    name: 'Báo Cáo Kết Quả Kinh Doanh B02-DN',
+    icon: TrendingUp,
+    component: React.lazy(() => import('./financial/IncomeStatementB02.jsx')),
     allowedRoles: ['admin', 'ktt'],
     requiresActiveCompany: true
   }
