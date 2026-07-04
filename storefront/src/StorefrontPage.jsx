@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'dazzling-grace-production-03a5.up.railway.app').replace(/\/$/, '');
 const ALLOW_ROLE_SWITCH = String(import.meta.env.VITE_ALLOW_ROLE_SWITCH || 'false').toLowerCase() === 'true';
 
 const publicApi = axios.create({
