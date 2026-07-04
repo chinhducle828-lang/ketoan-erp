@@ -316,14 +316,31 @@ router.post('/orders', async (req, res) => {
     ].filter(Boolean).join(' | ');
 
     const vouchersColumnsRes = await client.query(
-      `SELECT column_name
+      `SELECT column_name, is_nullable, column_default
        FROM information_schema.columns
        WHERE table_name = 'vouchers'`
     );
-    const vouchersColumns = new Set(vouchersColumnsRes.rows.map((r) => r.column_name));
-    const hasVoucherNumber = vouchersColumns.has('voucher_number');
-    const hasAccountDr = vouchersColumns.has('account_dr');
-    const hasAccountCr = vouchersColumns.has('account_cr');
+    const vouchersMeta = new Map(
+      vouchersColumnsRes.rows.map((row) => [
+        String(row.column_name || '').trim().toLowerCase(),
+        {
+          isNullable: String(row.is_nullable || '').toUpperCase() !== 'NO',
+          hasDefault: row.column_default !== null
+        }
+      ])
+    );
+
+    const hasVoucherColumn = (name) => vouchersMeta.has(name);
+    const isVoucherColumnRequired = (name) => {
+      const meta = vouchersMeta.get(name);
+      if (!meta) return false;
+      return !meta.isNullable && !meta.hasDefault;
+    };
+
+    const hasVoucherNumber = hasVoucherColumn('voucher_number');
+    const hasAccountDr = hasVoucherColumn('account_dr');
+    const hasAccountCr = hasVoucherColumn('account_cr');
+    const hasVoucherAmount = hasVoucherColumn('amount');
     const voucherType = 'XK';
 
     const debitHeaderEntry = accountingEntries
@@ -351,25 +368,56 @@ router.post('/orders', async (req, res) => {
         })
       : null;
 
-    if (!hasVoucherNumber && hasAccountDr && !legacyAccountDr) {
+    if (hasAccountDr && isVoucherColumnRequired('account_dr') && !legacyAccountDr) {
       return res.status(400).json({ error: 'Không xác định được account_dr hợp lệ cho chứng từ bán hàng.' });
     }
 
-    if (!hasVoucherNumber && hasAccountCr && !legacyAccountCr) {
+    if (hasAccountCr && isVoucherColumnRequired('account_cr') && !legacyAccountCr) {
       return res.status(400).json({ error: 'Không xác định được account_cr hợp lệ cho chứng từ bán hàng.' });
     }
 
-    const voucherRes = hasVoucherNumber
-      ? await client.query(
-          `INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, description, is_posted, loading_status)
-           VALUES ($1, $2, CURRENT_DATE, $3, $4, FALSE, 'pending_loading') RETURNING id`,
-          [companyId, voucherNumber, voucherType, description]
-        )
-      : await client.query(
-          `INSERT INTO vouchers (company_id, voucher_date, voucher_type, description, account_dr, account_cr, amount, is_posted, loading_status)
-           VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, FALSE, 'pending_loading') RETURNING id`,
-          [companyId, voucherType, description, legacyAccountDr, legacyAccountCr, amount]
-        );
+    const voucherInsertColumns = ['company_id', 'voucher_date', 'voucher_type', 'description'];
+    const voucherInsertValues = [companyId, new Date().toISOString().slice(0, 10), voucherType, description];
+
+    if (hasVoucherNumber) {
+      voucherInsertColumns.push('voucher_number');
+      voucherInsertValues.push(voucherNumber);
+    }
+
+    if (hasAccountDr && (legacyAccountDr || isVoucherColumnRequired('account_dr'))) {
+      voucherInsertColumns.push('account_dr');
+      voucherInsertValues.push(legacyAccountDr);
+    }
+
+    if (hasAccountCr && (legacyAccountCr || isVoucherColumnRequired('account_cr'))) {
+      voucherInsertColumns.push('account_cr');
+      voucherInsertValues.push(legacyAccountCr);
+    }
+
+    if (hasVoucherAmount) {
+      voucherInsertColumns.push('amount');
+      voucherInsertValues.push(amount);
+    }
+
+    if (hasVoucherColumn('is_posted')) {
+      voucherInsertColumns.push('is_posted');
+      voucherInsertValues.push(false);
+    }
+
+    if (hasVoucherColumn('loading_status')) {
+      voucherInsertColumns.push('loading_status');
+      voucherInsertValues.push('pending_loading');
+    }
+
+    const voucherInsertPlaceholders = voucherInsertColumns
+      .map((_, index) => `$${index + 1}`)
+      .join(', ');
+
+    const voucherRes = await client.query(
+      `INSERT INTO vouchers (${voucherInsertColumns.join(', ')})
+       VALUES (${voucherInsertPlaceholders}) RETURNING id`,
+      voucherInsertValues
+    );
 
     const voucherId = voucherRes.rows[0].id;
 
