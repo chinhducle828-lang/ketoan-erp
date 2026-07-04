@@ -152,5 +152,21 @@ export const MODULES_REGISTER = [
     component: React.lazy(() => import('./financial/IncomeStatementB02.jsx')),
     allowedRoles: ['admin', 'ktt'],
     requiresActiveCompany: true
+  },
+  {
+    id: 'cash-flow',
+    name: 'Báo Cáo Lưu Chuyển Tiền Tệ B03-DN',
+    icon: BarChart3,
+    component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
+    allowedRoles: ['admin', 'ktt'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'financial-notes',
+    name: 'Bản Thuyết Minh BCTC B09-DN',
+    icon: FileText,
+    component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
+    allowedRoles: ['admin', 'ktt'],
+    requiresActiveCompany: true
   }
 ];

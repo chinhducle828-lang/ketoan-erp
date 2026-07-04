@@ -192,3 +192,54 @@ export function getTotalCredit(ledger, accountCode) {
   if (!ledger[accountCode]) return 0;
   return ledger[accountCode].patsinhCr || 0;
 }
+
+/**
+ * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
+ * - 15%: Doanh thu ≤ 3 tỷ VNĐ
+ * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
+ * - 20%: Doanh thu trên 50 tỷ VNĐ
+ * @param {number} revenue - Doanh thu năm trước (VNĐ)
+ * @returns {number} - Thuế suất áp dụng
+ */
+export function getTaxRateByRevenue(revenue) {
+  if (revenue <= 3000000000) return 0.15;
+  if (revenue <= 50000000000) return 0.17;
+  return 0.20;
+}
+
+/**
+ * Tính thuế TNDN tự động dựa trên lợi nhuận trước thuế
+ * @param {number} profitBeforeTax - Lợi nhuận trước thuế
+ * @param {number} prevYearRevenue - Doanh thu năm trước (để tính thuế suất lũy tiến)
+ * @returns {Object} - { taxAmount, taxRate }
+ */
+export function calculateTax(profitBeforeTax, prevYearRevenue = 0) {
+  if (profitBeforeTax <= 0) {
+    return {
+      taxAmount: 0,
+      taxRate: 0
+    };
+  }
+  
+  const taxRate = getTaxRateByRevenue(prevYearRevenue);
+  const taxAmount = profitBeforeTax * taxRate;
+  
+  return {
+    taxAmount,
+    taxRate
+  };
+}
+
+/**
+ * Tính toán lợi nhuận trước thuế từ dữ liệu kế toán
+ * @param {number} revenue - Doanh thu
+ * @param {number} otherIncome - Thu nhập khác
+ * @param {number} costOfGoodsSold - Giá vốn hàng bán
+ * @param {number} operatingExpenses - Chi phí hoạt động
+ * @param {number} otherExpenses - Chi phí khác
+ * @param {number} taxExpense - Thuế đầu vào đã trừ
+ * @returns {number} - Lợi nhuận trước thuế
+ */
+export function calculateProfitBeforeTax(revenue, otherIncome, costOfGoodsSold, operatingExpenses, otherExpenses, taxExpense = 0) {
+  return revenue + otherIncome - costOfGoodsSold - operatingExpenses - otherExpenses - taxExpense;
+}
