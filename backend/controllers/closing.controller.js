@@ -1,6 +1,7 @@
 import { pool } from '../config/db.js';
 import { getClosingWorkflow, getTaxRateByRevenue } from '../config/closingWorkflow.js';
-import { calculateWeightedAverageCost, allocateLogisticCosts } from '../services/inventory.service.js';
+import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
+import { allocateLogisticCosts } from '../services/inventory.service.js';
 import { 
   runClosingEntries, 
   createDepreciationEntries, 
