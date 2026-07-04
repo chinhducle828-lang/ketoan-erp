@@ -25,7 +25,14 @@ import {
 } from 'lucide-react';
 
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app';
+if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
+  API_BASE_URL = `https://${API_BASE_URL}`;
+}
+API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
+if (API_BASE_URL.includes('localhost') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+  console.error('[STOREFRONT] VITE_API_BASE_URL points to localhost while storefront is served over HTTPS — requests will be blocked by browser Private Network Access. Set VITE_API_BASE_URL to your backend public URL.');
+}
 const ALLOW_ROLE_SWITCH = String(import.meta.env.VITE_ALLOW_ROLE_SWITCH || 'false').toLowerCase() === 'true';
 
 const publicApi = axios.create({
