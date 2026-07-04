@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { getCashFlowRules } from '../config/businessRules.js';
 
 /**
  * BÁO CÁO LƯU CHUYỂN TIỀN TỆ (B03-DN)
@@ -6,79 +7,76 @@ import { pool } from '../config/db.js';
  * Chuẩn Thông tư 99/2025/TT-BTC
  */
 
+const buildLikeCondition = (fieldExpr, prefixes, params) => {
+  const safePrefixes = (Array.isArray(prefixes) ? prefixes : [])
+    .map((prefix) => String(prefix || '').trim())
+    .filter(Boolean);
+
+  if (safePrefixes.length === 0) return '1=0';
+
+  const clauses = safePrefixes.map((prefix) => {
+    params.push(`${prefix}%`);
+    return `${fieldExpr} LIKE $${params.length}`;
+  });
+
+  return `(${clauses.join(' OR ')})`;
+};
+
+const getScopedConditions = (companyId, year = null) => {
+  const conditions = ['v.company_id = $1'];
+  const params = [companyId];
+
+  if (year) {
+    params.push(year);
+    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${params.length}`);
+  }
+
+  return { conditions, params };
+};
+
 /**
  * Phương pháp Trực tiếp (Direct Method)
  * Quét chéo dữ liệu đối ứng từ TK 111/112
  */
 export async function calculateCashFlowDirect(companyId, year = null) {
-  const conditions = ['v.company_id = $1'];
-  const params = [companyId];
-  let paramIndex = 2;
+  const cashFlowRules = getCashFlowRules();
+  const directRules = cashFlowRules.directMethod || {};
+  const cashAccountPrefixes = cashFlowRules.cashAccountPrefixes || ['111', '112'];
 
-  if (year) {
-    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`);
-    params.push(year);
-    paramIndex++;
-  }
+  const runDirectAggregate = async (counterpartPrefixes) => {
+    const { conditions, params } = getScopedConditions(companyId, year);
+    const cashCondition = buildLikeCondition('vd.account_code', cashAccountPrefixes, params);
+    const counterpartCondition = buildLikeCondition('vd2.account_code', counterpartPrefixes, params);
 
-  // 1. Tiền thu từ bán hàng (DR 111/112 + CR 511/3331/131)
-  const salesQuery = `
-    SELECT 
-      SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%')
-      AND EXISTS (
-        SELECT 1 FROM voucher_details vd2 
-        WHERE vd2.voucher_id = vd.voucher_id 
-        AND (vd2.account_code LIKE '511%' OR vd2.account_code LIKE '3331%' OR vd2.account_code LIKE '131%')
-      )
-  `;
+    const query = `
+      SELECT SUM(vd.amount) as total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE ${conditions.join(' AND ')}
+        AND ${cashCondition}
+        AND EXISTS (
+          SELECT 1 FROM voucher_details vd2
+          WHERE vd2.voucher_id = vd.voucher_id
+            AND ${counterpartCondition}
+        )
+    `;
 
-  // 2. Tiền chi trả NCC (CR 111/112 + DR 331/152/156/242)
-  const supplierPaymentQuery = `
-    SELECT 
-      SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%')
-      AND EXISTS (
-        SELECT 1 FROM voucher_details vd2 
-        WHERE vd2.voucher_id = vd.voucher_id 
-        AND (vd2.account_code LIKE '331%' OR vd2.account_code LIKE '152%' OR vd2.account_code LIKE '156%' OR vd2.account_code LIKE '242%')
-      )
-  `;
+    const { rows } = await pool.query(query, params);
+    return parseFloat(rows[0]?.total) || 0;
+  };
 
-  // 3. Tiền chi trả NLĐ (CR 111/112 + DR 334)
-  const salaryPaymentQuery = `
-    SELECT 
-      SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND (vd.account_code LIKE '111%' OR vd.account_code LIKE '112%')
-      AND EXISTS (
-        SELECT 1 FROM voucher_details vd2 
-        WHERE vd2.voucher_id = vd.voucher_id 
-        AND vd2.account_code LIKE '334%'
-      )
-  `;
-
-  // Thực thi các truy vấn
-  const [salesRes, supplierRes, salaryRes] = await Promise.all([
-    pool.query(salesQuery, params),
-    pool.query(supplierPaymentQuery, params),
-    pool.query(salaryPaymentQuery, params)
+  const [cashReceivedFromCustomers, cashPaidToSuppliers, cashPaidToEmployees] = await Promise.all([
+    runDirectAggregate(directRules.salesCounterpartPrefixes || ['511', '3331', '131']),
+    runDirectAggregate(directRules.supplierPaymentCounterpartPrefixes || ['331', '152', '156', '242']),
+    runDirectAggregate(directRules.salaryCounterpartPrefixes || ['334'])
   ]);
 
   return {
     method: 'direct',
     operatingActivities: {
-      cashReceivedFromCustomers: parseFloat(salesRes.rows[0]?.total) || 0,
-      cashPaidToSuppliers: parseFloat(supplierRes.rows[0]?.total) || 0,
-      cashPaidToEmployees: parseFloat(salaryRes.rows[0]?.total) || 0
+      cashReceivedFromCustomers,
+      cashPaidToSuppliers,
+      cashPaidToEmployees
     },
     investingActivities: {
       cashReceivedFromInvestments: 0,
@@ -98,23 +96,28 @@ export async function calculateCashFlowDirect(companyId, year = null) {
  * Dựa trên lợi nhuận trước thuế
  */
 export async function calculateCashFlowIndirect(companyId, year = null) {
-  const conditions = ['v.company_id = $1'];
-  const params = [companyId];
-  let paramIndex = 2;
+  const cashFlowRules = getCashFlowRules();
+  const indirectRules = cashFlowRules.indirectMethod || {};
+  const { conditions, params } = getScopedConditions(companyId, year);
 
-  if (year) {
-    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`);
-    params.push(year);
-    paramIndex++;
-  }
+  const revenueCondition = buildLikeCondition('vd.account_code', indirectRules.revenuePrefixes || ['5'], params);
+  const expenseCondition = buildLikeCondition('vd.account_code', indirectRules.expensePrefixes || ['6'], params);
+  const otherIncomeCondition = buildLikeCondition('vd.account_code', indirectRules.otherIncomePrefixes || ['7'], params);
+  const otherExpenseCondition = buildLikeCondition('vd.account_code', indirectRules.otherExpensePrefixes || ['8'], params);
+  const depreciationCondition = buildLikeCondition('vd.account_code', indirectRules.depreciationPrefixes || ['214'], params);
+  const provisionCondition = buildLikeCondition('vd.account_code', indirectRules.provisionPrefixes || ['2293', '2294', '2295'], params);
+  const arCondition = buildLikeCondition('vd.account_code', indirectRules.accountsReceivablePrefixes || ['131'], params);
+  const inventoryCondition = buildLikeCondition('vd.account_code', indirectRules.inventoryPrefixes || ['152'], params);
+  const apCondition = buildLikeCondition('vd.account_code', indirectRules.accountsPayablePrefixes || ['331'], params);
+  const financingCondition = buildLikeCondition('vd.account_code', indirectRules.financingPrefixes || ['341'], params);
 
   // 1. Lợi nhuận trước thuế (từ TK 5xx, 6xx, 7xx, 8xx)
   const profitQuery = `
     SELECT 
-      SUM(CASE WHEN vd.account_code LIKE '5%' AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as revenue,
-      SUM(CASE WHEN vd.account_code LIKE '6%' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as expenses,
-      SUM(CASE WHEN vd.account_code LIKE '7%' AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as other_income,
-      SUM(CASE WHEN vd.account_code LIKE '8%' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as other_expenses
+      SUM(CASE WHEN ${revenueCondition} AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as revenue,
+      SUM(CASE WHEN ${expenseCondition} AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as expenses,
+      SUM(CASE WHEN ${otherIncomeCondition} AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as other_income,
+      SUM(CASE WHEN ${otherExpenseCondition} AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as other_expenses
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE ${conditions.join(' AND ')}
@@ -128,7 +131,7 @@ export async function calculateCashFlowIndirect(companyId, year = null) {
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '214%'
+      AND ${depreciationCondition}
   `;
 
   // 3. Dự phòng (TK 2293, 2294, 2295 - Thông tư 99)
@@ -139,21 +142,21 @@ export async function calculateCashFlowIndirect(companyId, year = null) {
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE ${conditions.join(' AND ')}
-      AND (vd.account_code LIKE '2293%' OR vd.account_code LIKE '2294%' OR vd.account_code LIKE '2295%')
+      AND ${provisionCondition}
   `;
 
   // 4. Biến động vốn lưu động (TK 131, 152/156, 331)
   const workingCapitalQuery = `
     SELECT 
       -- TK 131: Phải thu khách hàng
-      SUM(CASE WHEN vd.account_code LIKE '131%' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) -
-      SUM(CASE WHEN vd.account_code LIKE '131%' AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as ar_change,
+      SUM(CASE WHEN ${arCondition} AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) -
+      SUM(CASE WHEN ${arCondition} AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as ar_change,
       -- TK 152/156: Hàng tồn kho
-      SUM(CASE WHEN vd.account_code LIKE '152%' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) -
-      SUM(CASE WHEN vd.account_code LIKE '152%' AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as inventory_change,
+      SUM(CASE WHEN ${inventoryCondition} AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) -
+      SUM(CASE WHEN ${inventoryCondition} AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as inventory_change,
       -- TK 331: Phải trả người bán
-      SUM(CASE WHEN vd.account_code LIKE '331%' AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) -
-      SUM(CASE WHEN vd.account_code LIKE '331%' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as ap_change
+      SUM(CASE WHEN ${apCondition} AND vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) -
+      SUM(CASE WHEN ${apCondition} AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as ap_change
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE ${conditions.join(' AND ')}
@@ -167,7 +170,7 @@ export async function calculateCashFlowIndirect(companyId, year = null) {
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '341%'
+      AND ${financingCondition}
   `;
 
   // Thực thi các truy vấn

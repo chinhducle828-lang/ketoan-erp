@@ -1,9 +1,29 @@
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 import { getPeriodBalanceSummary } from './summary.service.js';
+import { getClosingRules } from '../config/businessRules.js';
 
-// Hằng số cấu hình thuế suất (Linh hoạt, dễ thay đổi)
-const DEFAULT_TAX_RATE = 0.2; // Thuế suất mặc định 20%
+const getClosingDate = (year, month) => `${year}-${String(month).padStart(2, '0')}-31`;
+
+const getBalanceByPrefix = async (db, companyId, accountPrefix, month, year) => {
+  const query = `
+    SELECT
+      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+    FROM voucher_details vd
+    JOIN vouchers v ON vd.voucher_id = v.id
+    WHERE v.company_id = $1
+      AND vd.account_code LIKE $2
+      AND EXTRACT(MONTH FROM v.voucher_date) = $3
+      AND EXTRACT(YEAR FROM v.voucher_date) = $4
+  `;
+
+  const { rows } = await db.query(query, [companyId, `${accountPrefix}%`, month, year]);
+  return {
+    debit: parseFloat(rows[0]?.debit_total) || 0,
+    credit: parseFloat(rows[0]?.credit_total) || 0
+  };
+};
 
 /**
  * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
@@ -14,9 +34,21 @@ const DEFAULT_TAX_RATE = 0.2; // Thuế suất mặc định 20%
  * @returns {number} - Thuế suất áp dụng
  */
 export function getTaxRateByRevenue(revenue) {
-  if (revenue <= 3000000000) return 0.15;
-  if (revenue <= 50000000000) return 0.17;
-  return 0.20;
+  const rules = getClosingRules();
+  const brackets = Array.isArray(rules.progressiveTaxBrackets)
+    ? rules.progressiveTaxBrackets
+    : [];
+
+  for (const bracket of brackets) {
+    const maxRevenue = bracket?.maxRevenue;
+    const rate = Number(bracket?.rate);
+    if (!Number.isFinite(rate)) continue;
+    if (maxRevenue === null || maxRevenue === undefined || revenue <= Number(maxRevenue)) {
+      return rate;
+    }
+  }
+
+  return Number(rules.defaultTaxRate ?? 0.2);
 }
 
 /**
@@ -32,6 +64,19 @@ export function getTaxRateByRevenue(revenue) {
  */
 export async function runClosingEntries(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const closingAccounts = closingRules.accounts || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const revenueAccount = String(closingAccounts.revenue || '511');
+  const costAccounts = Array.isArray(closingAccounts.cost) && closingAccounts.cost.length > 0
+    ? closingAccounts.cost.map((acc) => String(acc))
+    : ['632', '641', '642'];
+  const otherIncomeAccount = String(closingAccounts.otherIncome || '711');
+  const otherExpenseAccount = String(closingAccounts.otherExpense || '811');
+  const taxExpenseAccount = String(closingAccounts.taxExpense || '821');
+  const closingAccount = String(closingAccounts.closing || '911');
+  const corporateTaxPayableAccount = String(closingAccounts.corporateTaxPayable || '3334');
+  const retainedEarningsAccount = String(closingAccounts.retainedEarnings || '4212');
   
   try {
     await client.query('BEGIN');
@@ -64,31 +109,35 @@ export async function runClosingEntries(companyId, month, year) {
     
     const closingEntryId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
     
-    const summaryRows = await getPeriodBalanceSummary(companyId, ['511', '632', '641', '642', '711', '811', '821', '911'], year, month);
+    const summaryRows = await getPeriodBalanceSummary(
+      companyId,
+      [revenueAccount, ...costAccounts, otherIncomeAccount, otherExpenseAccount, taxExpenseAccount, closingAccount],
+      year,
+      month
+    );
     const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
 
-    const account511Credit = summaryMap['511']?.credit || 0;
+    const accountRevenueCredit = summaryMap[revenueAccount]?.credit || 0;
     
-    if (account511Credit > 0) {
-      // Tạo bút toán kết chuyển doanh thu: Nợ TK 911, Có TK 511
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+    if (accountRevenueCredit > 0) {
+      // Tạo bút toán kết chuyển doanh thu: Nợ TK kết chuyển, Có TK doanh thu
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển doanh thu sang TK 911')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Kết chuyển doanh thu sang TK kết chuyển')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '911', 'DR', $2), ($3, '511', 'CR', $4)`,
-        [voucherId, account511Credit, voucherId, account511Credit]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, closingAccount, accountRevenueCredit, voucherId, revenueAccount, accountRevenueCredit]
       );
     }
     
-    // 3. Kết chuyển chi phí: Khấu trừ số dư Nợ TK 632, 641, 642 sang TK 911
-    const costAccounts = ['632', '641', '642'];
+    // 3. Kết chuyển chi phí: Khấu trừ số dư Nợ các TK chi phí sang TK kết chuyển
     let totalCostDebit = 0;
 
     for (const acc of costAccounts) {
@@ -96,12 +145,12 @@ export async function runClosingEntries(companyId, month, year) {
     }
     
     if (totalCostDebit > 0) {
-      // Tạo bút toán kết chuyển chi phí: Nợ TK 632/641/642, Có TK 911
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      // Tạo bút toán kết chuyển chi phí: Nợ TK chi phí, Có TK kết chuyển
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển chi phí sang TK 911')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Kết chuyển chi phí sang TK kết chuyển')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
@@ -125,8 +174,8 @@ export async function runClosingEntries(companyId, month, year) {
         if (costAmount > 0) {
           await client.query(
             `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-             VALUES ($1, $2, 'DR', $3), ($4, '911', 'CR', $5)`,
-            [voucherId, acc, costAmount, voucherId, costAmount]
+             VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+            [voucherId, acc, costAmount, voucherId, closingAccount, costAmount]
           );
         }
       }
@@ -134,12 +183,12 @@ export async function runClosingEntries(companyId, month, year) {
     
     // 4. Tính thuế TNDN tự động - CẬP NHẬT: Thêm tài khoản 711, 811, 821
     // Công thức: Lãi = Doanh thu (511) + Thu nhập khác (711) - Chi phí (632, 641, 642) - Chi phí khác (811) - Thuế (821)
-    const account711Credit = summaryMap['711']?.credit || 0;
-    const account811Debit = summaryMap['811']?.debit || 0;
-    const account821Debit = summaryMap['821']?.debit || 0;
+    const account711Credit = summaryMap[otherIncomeAccount]?.credit || 0;
+    const account811Debit = summaryMap[otherExpenseAccount]?.debit || 0;
+    const account821Debit = summaryMap[taxExpenseAccount]?.debit || 0;
     
     // Tính lợi nhuận trước thuế: Doanh thu + Thu nhập khác - Chi phí - Chi phí khác - Thuế
-    const revenueCredit = account511Credit;
+    const revenueCredit = accountRevenueCredit;
     const otherIncome = account711Credit;
     const otherExpenses = account811Debit;
     const taxExpense = account821Debit;
@@ -149,12 +198,12 @@ export async function runClosingEntries(companyId, month, year) {
     // Chỉ hạch toán thuế TNDN khi có lợi nhuận (netProfit > 0)
     // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
     let taxAmount = 0;
-    let appliedTaxRate = DEFAULT_TAX_RATE;
+    let appliedTaxRate = Number(closingRules.defaultTaxRate ?? 0.2);
     
     if (netProfit > 0) {
       // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
       // Lấy doanh thu năm trước từ TK 511
-      const prevYearSummary = await getPeriodBalanceSummary(companyId, ['511'], year - 1);
+      const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1);
       const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
       // Xác định thuế suất áp dụng
@@ -162,74 +211,74 @@ export async function runClosingEntries(companyId, month, year) {
       taxAmount = netProfit * appliedTaxRate;
       
       // Tạo bút toán thuế TNDN: Nợ TK 821, Có TK 3334
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Kết chuyển thuế TNDN')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '821', 'DR', $2), ($3, '3334', 'CR', $4)`,
-        [voucherId, taxAmount, voucherId, taxAmount]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, taxExpenseAccount, taxAmount, voucherId, corporateTaxPayableAccount, taxAmount]
       );
       
       // Bút toán kết chuyển TK 821 về TK 911: Nợ TK 911, Có TK 821
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN từ 821 về 911')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Kết chuyển thuế TNDN từ chi phí thuế về TK kết chuyển')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId2 = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '911', 'DR', $2), ($3, '821', 'CR', $4)`,
-        [voucherId2, taxAmount, voucherId2, taxAmount]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId2, closingAccount, taxAmount, voucherId2, taxExpenseAccount, taxAmount]
       );
     }
     
     // 5. Kết chuyển lãi/lỗ cuối cùng: TK 911 → TK 4212
     // Lấy số dư còn lại trên TK 911 sau khi đã kết chuyển
-    const final911Summary = await getPeriodBalanceSummary(companyId, ['911'], year, month);
+    const final911Summary = await getPeriodBalanceSummary(companyId, [closingAccount], year, month);
     const final911Balance = (final911Summary[0]?.debit || 0) - (final911Summary[0]?.credit || 0);
     
     if (Math.abs(final911Balance) > 0) {
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       
       if (final911Balance > 0) {
         // Lãi: Nợ TK 911, Có TK 4212
         await client.query(
           `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-           VALUES ($1, 'DauKy', $2, 'Kết chuyển lãi cuối kỳ sang TK 4212')`,
-          [companyId, closingDate]
+           VALUES ($1, $2, $3, 'Kết chuyển lãi cuối kỳ sang TK lợi nhuận giữ lại')`,
+          [companyId, closingVoucherType, closingDate]
         );
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-           VALUES ($1, '911', 'DR', $2), ($3, '4212', 'CR', $4)`,
-          [voucherId, final911Balance, voucherId, final911Balance]
+           VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+          [voucherId, closingAccount, final911Balance, voucherId, retainedEarningsAccount, final911Balance]
         );
       } else {
         // Lỗ: Nợ TK 4212, Có TK 911
         await client.query(
           `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-           VALUES ($1, 'DauKy', $2, 'Kết chuyển lỗ cuối kỳ sang TK 4212')`,
-          [companyId, closingDate]
+           VALUES ($1, $2, $3, 'Kết chuyển lỗ cuối kỳ sang TK lợi nhuận giữ lại')`,
+          [companyId, closingVoucherType, closingDate]
         );
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-           VALUES ($1, '4212', 'DR', $2), ($3, '911', 'CR', $4)`,
-          [voucherId, Math.abs(final911Balance), voucherId, Math.abs(final911Balance)]
+           VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+          [voucherId, retainedEarningsAccount, Math.abs(final911Balance), voucherId, closingAccount, Math.abs(final911Balance)]
         );
       }
     }
@@ -248,7 +297,7 @@ export async function runClosingEntries(companyId, month, year) {
       success: true,
       message: 'Kết chuyển sổ tháng ' + month + '/' + year + ' thành công',
       details: {
-        revenue_closing: account511Credit,
+        revenue_closing: accountRevenueCredit,
         cost_closing: totalCostDebit,
         profit_before_tax: netProfit,
         income_tax: taxAmount,
@@ -268,22 +317,30 @@ export async function runClosingEntries(companyId, month, year) {
  * Lấy số liệu để tính kết chuyển
  */
 export async function getClosingData(companyId, month, year) {
-  const summaryRows = await getPeriodBalanceSummary(companyId, ['511', '632', '641', '642', '911'], year, month);
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const revenueAccount = String(accounts.revenue || '511');
+  const costAccounts = Array.isArray(accounts.cost) && accounts.cost.length > 0
+    ? accounts.cost.map((acc) => String(acc))
+    : ['632', '641', '642'];
+  const closingAccount = String(accounts.closing || '911');
+
+  const summaryRows = await getPeriodBalanceSummary(companyId, [revenueAccount, ...costAccounts, closingAccount], year, month);
   const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
 
   return {
     account511: {
-      debit: summaryMap['511']?.debit || 0,
-      credit: summaryMap['511']?.credit || 0
+      debit: summaryMap[revenueAccount]?.debit || 0,
+      credit: summaryMap[revenueAccount]?.credit || 0
     },
-    costAccounts: ['632', '641', '642'].map((accountCode) => ({
+    costAccounts: costAccounts.map((accountCode) => ({
       account_code: accountCode,
       debit: summaryMap[accountCode]?.debit || 0,
       credit: summaryMap[accountCode]?.credit || 0
     })),
     account911: {
-      debit: summaryMap['911']?.debit || 0,
-      credit: summaryMap['911']?.credit || 0
+      debit: summaryMap[closingAccount]?.debit || 0,
+      credit: summaryMap[closingAccount]?.credit || 0
     }
   };
 }
@@ -297,41 +354,34 @@ export async function getClosingData(companyId, month, year) {
  */
 export async function createAllowanceEntries(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const prepaidExpenseAccount = String(accounts.prepaidExpense || '242');
+  const prepaidExpenseAllocationAccount = String(accounts.prepaidExpenseAllocation || '642');
   
   try {
     await client.query('BEGIN');
     
     // Lấy số dư TK 242 (Chi phí trả trước)
-    const query242 = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE '242%'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: rows242 } = await client.query(query242, [companyId, month, year]);
-    const allowanceBalance = (parseFloat(rows242[0]?.debit_total) || 0) - (parseFloat(rows242[0]?.credit_total) || 0);
+    const prepaidBalance = await getBalanceByPrefix(client, companyId, prepaidExpenseAccount, month, year);
+    const allowanceBalance = prepaidBalance.debit - prepaidBalance.credit;
     
     if (allowanceBalance > 0) {
       // Tạo bút toán phân bổ: Nợ TK 642, Có TK 242
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Phân bổ chi phí trả trước')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Phân bổ chi phí trả trước')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '642', 'DR', $2), ($3, '242', 'CR', $4)`,
-        [voucherId, allowanceBalance, voucherId, allowanceBalance]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, prepaidExpenseAllocationAccount, allowanceBalance, voucherId, prepaidExpenseAccount, allowanceBalance]
       );
     }
     
@@ -359,6 +409,14 @@ export async function createAllowanceEntries(companyId, month, year) {
  */
 export async function createDepreciationEntries(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const rates = closingRules.rates || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const fixedAssetAccount = String(accounts.fixedAsset || '211');
+  const depreciationExpenseAccount = String(accounts.depreciationExpense || '611');
+  const accumulatedDepreciationAccount = String(accounts.accumulatedDepreciation || '214');
+  const depreciationAnnualRate = Number(rates.depreciationAnnualRate ?? 0.2);
   
   try {
     await client.query('BEGIN');
@@ -373,30 +431,30 @@ export async function createDepreciationEntries(companyId, month, year) {
       FROM vouchers v
       JOIN voucher_details vd ON v.id = vd.voucher_id
       WHERE v.company_id = $1 
-        AND vd.account_code LIKE '211%'
+        AND vd.account_code LIKE $3
         AND EXTRACT(YEAR FROM v.voucher_date) <= $2
     `;
-    
-    const { rows } = await client.query(query, [companyId, year]);
+
+      const { rows } = await client.query(query, [companyId, year, `${fixedAssetAccount}%`]);
     
     // Tính khấu hao (giả sử khấu hao 20% giá trị gốc mỗi năm)
     for (const asset of rows) {
-      const depreciationAmount = asset.original_value * 0.2 / 12; // Khấu hao hàng tháng
+      const depreciationAmount = asset.original_value * depreciationAnnualRate / 12;
       
       if (depreciationAmount > 0) {
-        const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+        const closingDate = getClosingDate(year, month);
         await client.query(
           `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-           VALUES ($1, 'DauKy', $2, 'Khấu hao TSCĐ')`,
-          [companyId, closingDate]
+           VALUES ($1, $2, $3, 'Khấu hao TSCĐ')`,
+          [companyId, closingVoucherType, closingDate]
         );
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-           VALUES ($1, '611', 'DR', $2), ($3, '214', 'CR', $4)`,
-          [voucherId, depreciationAmount, voucherId, depreciationAmount]
+           VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+          [voucherId, depreciationExpenseAccount, depreciationAmount, voucherId, accumulatedDepreciationAccount, depreciationAmount]
         );
       }
     }
@@ -425,79 +483,66 @@ export async function createDepreciationEntries(companyId, month, year) {
  */
 export async function createProvisionEntries(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const rates = closingRules.rates || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const receivableAccount = String(accounts.receivable || '131');
+  const provisionExpenseAccount = String(accounts.provisionExpense || '635');
+  const doubtfulDebtProvisionAccount = String(accounts.doubtfulDebtProvision || '335');
+  const biologicalAssetAccount = String(accounts.biologicalAsset || '215');
+  const biologicalProvisionAccount = String(accounts.biologicalProvision || '2295');
+  const doubtfulDebtRate = Number(rates.doubtfulDebtProvisionRate ?? 0.1);
+  const biologicalProvisionRate = Number(rates.biologicalProvisionRate ?? 0.05);
   
   try {
     await client.query('BEGIN');
     
     // Lấy số dư TK 131 (Phải thu khách hàng)
-    const query131 = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE '131%'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: rows131 } = await client.query(query131, [companyId, month, year]);
-    const arBalance = (parseFloat(rows131[0]?.debit_total) || 0) - (parseFloat(rows131[0]?.credit_total) || 0);
+    const receivableBalance = await getBalanceByPrefix(client, companyId, receivableAccount, month, year);
+    const arBalance = receivableBalance.debit - receivableBalance.credit;
     
     // Dự phòng 10% số dư phải thu
-    const provisionAmount = arBalance * 0.1;
+    const provisionAmount = arBalance * doubtfulDebtRate;
     
     if (provisionAmount > 0) {
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Dự phòng nợ khó đòi')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Dự phòng nợ khó đòi')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '635', 'DR', $2), ($3, '335', 'CR', $4)`,
-        [voucherId, provisionAmount, voucherId, provisionAmount]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, provisionExpenseAccount, provisionAmount, voucherId, doubtfulDebtProvisionAccount, provisionAmount]
       );
     }
     
     // Dự phòng tài sản sinh học (TK 2295)
-    const query215 = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE '215%'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: rows215 } = await client.query(query215, [companyId, month, year]);
-    const bioAssetBalance = (parseFloat(rows215[0]?.debit_total) || 0) - (parseFloat(rows215[0]?.credit_total) || 0);
+    const biologicalBalance = await getBalanceByPrefix(client, companyId, biologicalAssetAccount, month, year);
+    const bioAssetBalance = biologicalBalance.debit - biologicalBalance.credit;
     
     // Dự phòng 5% tài sản sinh học
-    const bioProvisionAmount = bioAssetBalance * 0.05;
+    const bioProvisionAmount = bioAssetBalance * biologicalProvisionRate;
     
     if (bioProvisionAmount > 0) {
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Dự phòng tài sản sinh học')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Dự phòng tài sản sinh học')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '635', 'DR', $2), ($3, '2295', 'CR', $4)`,
-        [voucherId, bioProvisionAmount, voucherId, bioProvisionAmount]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, provisionExpenseAccount, bioProvisionAmount, voucherId, biologicalProvisionAccount, bioProvisionAmount]
       );
     }
     
@@ -526,41 +571,34 @@ export async function createProvisionEntries(companyId, month, year) {
  */
 export async function processTaxTNCN(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const tncnPayableAccount = String(accounts.personalIncomeTaxPayable || '3331');
+  const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
   try {
     await client.query('BEGIN');
     
     // Lấy số dư TK 3331 (Thuế TNCN phải nộp)
-    const taxQuery = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE '3331%'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: taxRows } = await client.query(taxQuery, [companyId, month, year]);
-    const taxPayable = (parseFloat(taxRows[0]?.debit_total) || 0) - (parseFloat(taxRows[0]?.credit_total) || 0);
+    const taxBalance = await getBalanceByPrefix(client, companyId, tncnPayableAccount, month, year);
+    const taxPayable = taxBalance.debit - taxBalance.credit;
     
     if (taxPayable > 0) {
       // Tạo bút toán nộp thuế TNCN: Nợ TK 3331, Có TK 331
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Nộp thuế TNCN')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Nộp thuế TNCN')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '3331', 'DR', $2), ($3, '331', 'CR', $4)`,
-        [voucherId, taxPayable, voucherId, taxPayable]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, tncnPayableAccount, taxPayable, voucherId, taxPaymentOffsetAccount, taxPayable]
       );
     }
     
@@ -588,41 +626,34 @@ export async function processTaxTNCN(companyId, month, year) {
  */
 export async function processTaxVAT(companyId, month, year) {
   const client = await pool.connect();
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+  const vatPayableAccount = String(accounts.vatPayable || '33311');
+  const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
   try {
     await client.query('BEGIN');
     
     // Lấy số dư TK 33311 (Thuế GTGT phải nộp)
-    const vatQuery = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE '33311%'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: vatRows } = await client.query(vatQuery, [companyId, month, year]);
-    const vatPayable = (parseFloat(vatRows[0]?.debit_total) || 0) - (parseFloat(vatRows[0]?.credit_total) || 0);
+    const vatBalance = await getBalanceByPrefix(client, companyId, vatPayableAccount, month, year);
+    const vatPayable = vatBalance.debit - vatBalance.credit;
     
     if (vatPayable > 0) {
       // Tạo bút toán nộp thuế VAT: Nợ TK 33311, Có TK 331
-      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Nộp thuế GTGT')`,
-        [companyId, closingDate]
+         VALUES ($1, $2, $3, 'Nộp thuế GTGT')`,
+        [companyId, closingVoucherType, closingDate]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '33311', 'DR', $2), ($3, '331', 'CR', $4)`,
-        [voucherId, vatPayable, voucherId, vatPayable]
+         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+        [voucherId, vatPayableAccount, vatPayable, voucherId, taxPaymentOffsetAccount, vatPayable]
       );
     }
     

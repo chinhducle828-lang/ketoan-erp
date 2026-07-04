@@ -1,4 +1,28 @@
 import { pool } from '../config/db.js';
+import { getInventoryRules } from '../config/businessRules.js';
+
+const getInventoryRuleContext = () => {
+  const rules = getInventoryRules();
+  const accounts = rules.accounts || {};
+  const inventoryAccount = String(accounts.inventory || '156');
+  const logisticsAccount = String(accounts.logistics || '1562');
+  const logisticsCostAccounts = Array.isArray(accounts.logisticsCost) && accounts.logisticsCost.length > 0
+    ? accounts.logisticsCost.map((account) => String(account || '').trim()).filter(Boolean)
+    : ['632', '641', '642'];
+
+  return {
+    inboundVoucherType: String(rules.inboundVoucherType || 'NK'),
+    outboundVoucherType: String(rules.outboundVoucherType || 'XK'),
+    allocationVoucherType: String(rules.allocationVoucherType || 'DauKy'),
+    inventoryAccount,
+    logisticsAccount,
+    logisticsCostAccounts,
+    allocationCreditAccount: String(accounts.allocationCredit || logisticsCostAccounts[0] || '632')
+  };
+};
+
+const isInboundMovement = (row, inboundVoucherType) => row.voucher_type === inboundVoucherType || (row.entry_type === 'DR' && Number(row.quantity || 0) > 0);
+const isOutboundMovement = (row, outboundVoucherType) => row.voucher_type === outboundVoucherType || (row.entry_type === 'CR' && Number(row.quantity || 0) > 0);
 
 /**
  * QUẢN LÝ KHO & TÍNH GIÁ VỐN - ERP KẾ TOÁN
@@ -12,6 +36,7 @@ import { pool } from '../config/db.js';
  * @param {string} targetDate - Ngày tính giá (định dạng YYYY-MM-DD)
  */
 export async function calculateFifoCost(companyId, itemId, targetDate) {
+  const ruleContext = getInventoryRuleContext();
   // Lấy tất cả phiếu nhập/xuất của vật tư sắp xếp theo thời gian
   const query = `
     SELECT vd.entry_type, vd.quantity, vd.amount, v.voucher_date, v.voucher_type
@@ -35,7 +60,7 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
     const qty = parseFloat(row.quantity) || 0;
     const val = parseFloat(row.amount) || 0;
     
-    if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && qty > 0)) {
+    if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
       // Nhập kho - tạo lô mới
       inventoryLots.push({
         date: row.voucher_date,
@@ -46,7 +71,7 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
       });
       totalQty += qty;
       totalCostValue += val;
-    } else if (row.voucher_type === 'XK' || (row.entry_type === 'CR' && qty > 0)) {
+    } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
       // Xuất kho - trừ dần từ các lô cũ nhất
       let qtyToDeduct = qty;
       let costValueToDeduct = 0;
@@ -82,6 +107,7 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
  * @param {number} year - Năm
  */
 export async function calculateWeightedAverageCostForPeriod(companyId, month, year) {
+  const ruleContext = getInventoryRuleContext();
   // Xây dựng điều kiện WHERE cho tháng/năm
   let whereClause = 'WHERE v.company_id = $1';
   const params = [companyId];
@@ -127,14 +153,14 @@ export async function calculateWeightedAverageCostForPeriod(companyId, month, ye
       };
     }
     
-    if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && quantity > 0)) {
+    if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
       // Nhập kho - cập nhật giá trung bình
       itemCosts[itemId].totalQty += quantity;
       itemCosts[itemId].totalCostValue += amount;
       if (itemCosts[itemId].totalQty > 0) {
         itemCosts[itemId].averagePrice = itemCosts[itemId].totalCostValue / itemCosts[itemId].totalQty;
       }
-    } else if (row.voucher_type === 'XK' || (row.entry_type === 'CR' && quantity > 0)) {
+    } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
       // Xuất kho - cập nhật giá trị dựa trên giá bình quân
       const calculatedValue = quantity * itemCosts[itemId].averagePrice;
       itemCosts[itemId].totalQty -= quantity;
@@ -162,6 +188,7 @@ export async function calculateWeightedAverageCostForPeriod(companyId, month, ye
  * @param {number} year - Năm
  */
 export async function calculateFifoCostForPeriod(companyId, month, year) {
+  const ruleContext = getInventoryRuleContext();
   // Xây dựng điều kiện WHERE cho tháng/năm
   let whereClause = 'WHERE v.company_id = $1';
   const params = [companyId];
@@ -207,7 +234,7 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
       };
     }
     
-    if (row.voucher_type === 'NK' || (row.entry_type === 'DR' && quantity > 0)) {
+    if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
       // Nhập kho - tạo lô mới theo FIFO
       const unitCost = quantity > 0 ? amount / quantity : 0;
       itemCosts[itemId].lots.push({
@@ -219,7 +246,7 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
       });
       itemCosts[itemId].totalQty += quantity;
       itemCosts[itemId].totalCostValue += amount;
-    } else if (row.voucher_type === 'XK' || (row.entry_type === 'CR' && quantity > 0)) {
+    } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
       // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
       let qtyToDeduct = quantity;
       let costValueToDeduct = 0;
@@ -238,16 +265,14 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
       itemCosts[itemId].totalQty -= quantity;
       itemCosts[itemId].totalCostValue -= costValueToDeduct;
       
-      // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho
-      // Vế CR: Tài khoản 632 (Giá vốn) - cập nhật số tiền
-      // Vế DR: Tài khoản 156 (Hàng tồn kho) - cập nhật số tiền giảm
+      // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho.
       await pool.query(
         'UPDATE voucher_details SET amount = $1 WHERE id = $2',
         [costValueToDeduct, row.detail_id]
       );
       
       // Cập nhật vế đối ứng (DR) - giảm số tiền tương ứng
-      if (row.account_code === '632' || row.account_code === '156') {
+      if (row.account_code === ruleContext.allocationCreditAccount || row.account_code === ruleContext.inventoryAccount) {
         // Tìm chi tiết đối ứng trong cùng phiếu
         const counterQuery = `
           SELECT id, account_code, entry_type, amount 
@@ -282,15 +307,19 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
  * @param {number} voucherId - ID phiếu nhập kho
  */
 export async function checkLogisticCostAllocation(companyId, voucherId) {
+  const ruleContext = getInventoryRuleContext();
+  const inAccounts = [ruleContext.inventoryAccount, ...ruleContext.logisticsCostAccounts];
+  const inPlaceholders = inAccounts.map((_, idx) => `$${idx + 2}`).join(', ');
+
   // Kiểm tra xem phiếu nhập kho đã có phân bổ chi phí logistic chưa
   const query = `
     SELECT vd.id, vd.account_code, vd.amount, vd.entry_type
     FROM voucher_details vd
     WHERE vd.voucher_id = $1
-    AND vd.account_code IN ('156', '632', '641', '642')
+    AND vd.account_code IN (${inPlaceholders})
   `;
   
-  const { rows } = await pool.query(query, [voucherId]);
+  const { rows } = await pool.query(query, [voucherId, ...inAccounts]);
   
   // Tính tổng giá trị nhập kho và chi phí đã phân bổ
   let totalInputValue = 0;
@@ -299,9 +328,9 @@ export async function checkLogisticCostAllocation(companyId, voucherId) {
   for (const row of rows) {
     const amount = parseFloat(row.amount) || 0;
     
-    if (row.account_code === '156' && row.entry_type === 'DR') {
+    if (row.account_code === ruleContext.inventoryAccount && row.entry_type === 'DR') {
       totalInputValue += amount;
-    } else if (['632', '641', '642'].includes(row.account_code) && row.entry_type === 'DR') {
+    } else if (ruleContext.logisticsCostAccounts.includes(row.account_code) && row.entry_type === 'DR') {
       totalCostAllocated += amount;
     }
   }
@@ -321,6 +350,9 @@ export async function checkLogisticCostAllocation(companyId, voucherId) {
  */
 export async function allocateLogisticCosts(companyId, month, year) {
   const client = await pool.connect();
+  const ruleContext = getInventoryRuleContext();
+  const costAccounts = ruleContext.logisticsCostAccounts;
+  const costAccountsPlaceholders = costAccounts.map((_, idx) => `$${idx + 6}`).join(', ');
   
   try {
     await client.query('BEGIN');
@@ -328,20 +360,28 @@ export async function allocateLogisticCosts(companyId, month, year) {
     // Lấy tất cả phiếu nhập kho chưa phân bổ chi phí
     const query = `
       SELECT v.id as voucher_id, v.voucher_date,
-             SUM(CASE WHEN vd.account_code = '156' AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as input_value,
-             SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as cost_allocated
+             SUM(CASE WHEN vd.account_code = $4 AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as input_value,
+             SUM(CASE WHEN vd.account_code IN (${costAccountsPlaceholders}) AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as cost_allocated
       FROM vouchers v
       JOIN voucher_details vd ON v.id = vd.voucher_id
       WHERE v.company_id = $1 
         AND v.is_posted = TRUE
-        AND v.voucher_type = 'NK'
+        AND v.voucher_type = $5
         AND EXTRACT(MONTH FROM v.voucher_date) = $2
         AND EXTRACT(YEAR FROM v.voucher_date) = $3
       GROUP BY v.id, v.voucher_date
-      HAVING SUM(CASE WHEN vd.account_code IN ('632', '641', '642') AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
+      HAVING SUM(CASE WHEN vd.account_code IN (${costAccountsPlaceholders}) AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
     `;
     
-    const { rows } = await client.query(query, [companyId, month, year]);
+    const queryParams = [
+      companyId,
+      month,
+      year,
+      ruleContext.inventoryAccount,
+      ruleContext.inboundVoucherType,
+      ...costAccounts
+    ];
+    const { rows } = await client.query(query, queryParams);
     
     // Tính tổng giá trị nhập kho
     let totalInputValue = 0;
@@ -356,13 +396,13 @@ export async function allocateLogisticCosts(companyId, month, year) {
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
         AND v.is_posted = TRUE
-        AND vd.account_code = '1562'
+        AND vd.account_code = $4
         AND vd.entry_type = 'DR'
         AND EXTRACT(MONTH FROM v.voucher_date) = $2
         AND EXTRACT(YEAR FROM v.voucher_date) = $3
     `;
     
-    const { rows: logisticsRows } = await client.query(logisticsQuery, [companyId, month, year]);
+    const { rows: logisticsRows } = await client.query(logisticsQuery, [companyId, month, year, ruleContext.logisticsAccount]);
     const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
     
     // Tính tỷ lệ phân bổ thực tế: totalLogistics / totalInputValue
@@ -376,8 +416,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
         const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
         await client.query(
           `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-           VALUES ($1, 'DauKy', $2, 'Phân bổ chi phí logistics cho hàng tồn kho')`,
-          [companyId, closingDate]
+           VALUES ($1, $2, $3, 'Phân bổ chi phí logistics cho hàng tồn kho')`,
+          [companyId, ruleContext.allocationVoucherType, closingDate]
         );
         
         const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
@@ -387,8 +427,8 @@ export async function allocateLogisticCosts(companyId, month, year) {
         
         await client.query(
           `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-           VALUES ($1, '156', 'DR', $2), ($3, '632', 'CR', $4)`,
-          [voucherId, logisticCost, voucherId, logisticCost]
+           VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
+          [voucherId, ruleContext.inventoryAccount, logisticCost, voucherId, ruleContext.allocationCreditAccount, logisticCost]
         );
       }
     }

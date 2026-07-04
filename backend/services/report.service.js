@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { getBalanceSheetRules } from '../config/businessRules.js';
 
 /**
  * BÁO CÁO TÀI CHÍNH - ERP KẾ TOÁN
@@ -11,6 +12,12 @@ import { pool } from '../config/db.js';
  * Tách khách hàng có số dư Nợ → Tài sản, số dư Có → TK 312 (Người mua trả tiền trước)
  */
 export async function getCustomerAccountBalances(companyId, accountCode) {
+  const rules = getBalanceSheetRules();
+  const dualAccounts = rules.customerDualAccounts || {};
+  const receivableAccount = String(dualAccounts.receivable || '131');
+  const customerAdvanceAccount = String(dualAccounts.customerAdvance || '312');
+  const payableAccount = String(dualAccounts.payable || '331');
+
   // Lấy số dư theo từng khách hàng
   const query = `
     SELECT 
@@ -37,7 +44,7 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
     
     // Tài khoản 131 (Phải thu khách hàng) - Tài sản lưỡng tính
     // Số dư Nợ → Tài sản (131), Số dư Có → TK 312 (Người mua trả tiền trước)
-    if (accountCode === '131') {
+    if (accountCode === receivableAccount) {
       if (balance > 0) {
         // Số dư Nợ - Tài sản (Phải thu khách hàng)
         results.push({
@@ -46,7 +53,7 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: balance,
           balance_type: 'asset', // Tài sản
-          account_code: '131'
+          account_code: receivableAccount
         });
       } else if (balance < 0) {
         // Số dư Có - Gán vào TK 312 (Người mua trả tiền trước)
@@ -56,12 +63,12 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: Math.abs(balance),
           balance_type: 'advance', // Người mua trả tiền trước
-          account_code: '312'
+          account_code: customerAdvanceAccount
         });
       }
     }
     // Tài khoản 312 (Người mua trả tiền trước) - Tài sản lưỡng tính
-    else if (accountCode === '312') {
+    else if (accountCode === customerAdvanceAccount) {
       if (balance > 0) {
         // Số dư Nợ - Tài sản (Người mua trả tiền trước)
         results.push({
@@ -70,7 +77,7 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: balance,
           balance_type: 'asset', // Tài sản
-          account_code: '312'
+          account_code: customerAdvanceAccount
         });
       } else if (balance < 0) {
         // Số dư Có - Nguồn vốn
@@ -80,12 +87,12 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: Math.abs(balance),
           balance_type: 'liability', // Nguồn vốn
-          account_code: '312'
+          account_code: customerAdvanceAccount
         });
       }
     }
     // Tài khoản 331 (Phải trả người bán) - Nợ phải trả lưỡng tính
-    else if (accountCode === '331') {
+    else if (accountCode === payableAccount) {
       if (balance > 0) {
         // Số dư Nợ - Nợ phải trả (Phải trả người bán)
         results.push({
@@ -94,7 +101,7 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: balance,
           balance_type: 'liability', // Nợ phải trả
-          account_code: '331'
+          account_code: payableAccount
         });
       } else if (balance < 0) {
         // Số dư Có - Có phải thu (Khách hàng trả tiền trước)
@@ -104,7 +111,7 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
           partner_code: row.partner_code,
           amount: Math.abs(balance),
           balance_type: 'asset', // Tài sản
-          account_code: '331'
+          account_code: payableAccount
         });
       }
     }
@@ -118,6 +125,11 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
  * Tài khoản 214 thì lấy giá trị = (Tổng Có - Tổng Nợ) * -1 để hiển thị âm
  */
 export async function getDepreciationBalance(companyId) {
+  const rules = getBalanceSheetRules();
+  const depreciationRules = rules.depreciation || {};
+  const sourcePrefix = String(depreciationRules.sourcePrefix || '214');
+  const displayAccountCode = String(depreciationRules.displayAccountCode || '223');
+
   // Lấy số dư tài khoản 214 (TSCĐ)
   const query = `
     SELECT 
@@ -126,10 +138,10 @@ export async function getDepreciationBalance(companyId) {
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE v.company_id = $1 
-      AND vd.account_code LIKE '214%'
+      AND vd.account_code LIKE $2
   `;
   
-  const { rows } = await pool.query(query, [companyId]);
+  const { rows } = await pool.query(query, [companyId, `${sourcePrefix}%`]);
   
   if (rows.length > 0) {
     const debit = parseFloat(rows[0].debit_total) || 0;
@@ -140,7 +152,7 @@ export async function getDepreciationBalance(companyId) {
     const depreciationValue = (credit - debit) * -1;
     
     return {
-      account_code: '223',
+      account_code: displayAccountCode,
       amount: Math.abs(depreciationValue),
       is_negative: depreciationValue < 0,
       raw_debit: debit,
@@ -149,7 +161,7 @@ export async function getDepreciationBalance(companyId) {
   }
   
   return {
-    account_code: '223',
+    account_code: displayAccountCode,
     amount: 0,
     is_negative: false,
     raw_debit: 0,
@@ -163,11 +175,15 @@ export async function getDepreciationBalance(companyId) {
  * Bóc tách chi tiết: 3331 (GTGT), 3334 (TNDN), 3339 (Thuế môn bài)
  */
 export async function getTaxAccountBalances(companyId) {
-  const taxAccounts = {
-    '3331': { name: 'Thuế GTGT', amount: 0 },
-    '3334': { name: 'Thuế TNDN', amount: 0 },
-    '3339': { name: 'Thuế môn bài', amount: 0 }
-  };
+  const rules = getBalanceSheetRules();
+  const taxCodes = Array.isArray(rules.taxAccounts) && rules.taxAccounts.length > 0
+    ? rules.taxAccounts.map((code) => String(code || '').trim()).filter(Boolean)
+    : ['3331', '3334', '3339'];
+  const taxNames = rules.taxAccountNames || {};
+
+  const taxAccounts = Object.fromEntries(
+    taxCodes.map((code) => [code, { name: String(taxNames[code] || `Thuế ${code}`), amount: 0 }])
+  );
   
   // Lấy số dư từng tài khoản con thuế
   for (const accountCode of Object.keys(taxAccounts)) {
@@ -199,6 +215,15 @@ export async function getTaxAccountBalances(companyId) {
  * Báo cáo Bảng cân đối kế toán tổng hợp
  */
 export async function getBalanceSheetData(companyId, month = null, year = null) {
+  const rules = getBalanceSheetRules();
+  const accountGroups = rules.accountGroups || {};
+  const assetPrefixes = Array.isArray(accountGroups.assetPrefixes) ? accountGroups.assetPrefixes : ['1', '2'];
+  const liabilityPrefixes = Array.isArray(accountGroups.liabilityPrefixes) ? accountGroups.liabilityPrefixes : ['3'];
+  const equityPrefixes = Array.isArray(accountGroups.equityPrefixes) ? accountGroups.equityPrefixes : ['4'];
+  const excludeAssetPrefixes = Array.isArray(accountGroups.excludeAssetPrefixes) ? accountGroups.excludeAssetPrefixes : ['214', '223'];
+
+  const startsWithAny = (value, prefixes) => prefixes.some((prefix) => String(value || '').startsWith(String(prefix || '')));
+
   // Tính toán số dư tài khoản tổng hợp
   const query = `
     SELECT 
@@ -230,8 +255,8 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
     const accCode = row.account_code;
     
     // Tài sản (1xx, 2xx)
-    if (accCode.startsWith('1') || accCode.startsWith('2')) {
-      if (!accCode.startsWith('214') && !accCode.startsWith('223')) {
+    if (startsWithAny(accCode, assetPrefixes)) {
+      if (!startsWithAny(accCode, excludeAssetPrefixes)) {
         // Bỏ qua TSCĐ (214) và Hao mòn (223) vì sẽ xử lý riêng
         if (balance !== 0) {
           assets.push({
@@ -243,7 +268,7 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
       }
     }
     // Nợ phải trả (3xx)
-    else if (accCode.startsWith('3')) {
+    else if (startsWithAny(accCode, liabilityPrefixes)) {
       if (balance !== 0) {
         liabilities.push({
           account_code: accCode,
@@ -253,7 +278,7 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
       }
     }
     // Vốn (4xx)
-    else if (accCode.startsWith('4')) {
+    else if (startsWithAny(accCode, equityPrefixes)) {
       if (balance !== 0) {
         equity.push({
           account_code: accCode,
