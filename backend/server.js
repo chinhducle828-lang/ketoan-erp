@@ -33,7 +33,11 @@ const wildcardOrigins = normalizedOrigins
   .filter(origin => origin.includes('*'))
   .map(pattern => new RegExp(`^${pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\\\*/g, '.*')}$`));
 
-const allowedRailwayOrigin = normalizedOrigins.some(origin => origin.includes('railway.app') || origin.includes('railway.com'));
+const allowedRailwayOrigin = normalizedOrigins.some(origin => origin.includes('railway.app') || origin.includes('railway.sh') || origin.includes('railway.com'));
+
+console.log('🔧 CORS config: FRONTEND_URL=', rawFrontend);
+console.log('🔧 CORS allowedOrigins=', normalizedOrigins);
+console.log('🔧 CORS allow any Railway origin=', allowedRailwayOrigin);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -53,7 +57,11 @@ app.use(cors({
       return callback(null, true);
     }
 
-    if (allowedRailwayOrigin && normalizedOrigin.endsWith('.railway.app')) {
+    if (allowedRailwayOrigin && (
+      normalizedOrigin.endsWith('.railway.app') ||
+      normalizedOrigin.endsWith('.railway.sh') ||
+      normalizedOrigin.endsWith('.railway.com')
+    )) {
       return callback(null, true);
     }
 
