@@ -4,10 +4,25 @@ import { usePersistentState } from '../../utils/persistence.js';
 import { Lock, User, Sparkles, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const getStorefrontURL = () => {
+  if (import.meta.env.VITE_STOREFRONT_URL) {
+    return import.meta.env.VITE_STOREFRONT_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
+      return 'http://banhang.railway.internal';
+    }
+  }
+
+  return '';
+};
+
 export default function Login({ onFirstRun }) {
   const { login, logout, user } = useAuth();
   const navigate = useNavigate();
-  const storefrontUrl = import.meta.env.VITE_STOREFRONT_URL || '';
+  const storefrontUrl = getStorefrontURL();
   const roleCode = user?.roleId || user?.role;
   const isStorefrontOnlyRole = roleCode === 'nv_banhang' || roleCode === 'nv_kho';
 

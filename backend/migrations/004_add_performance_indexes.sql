@@ -1,4 +1,8 @@
 -- Composite Indexes tối ưu hiệu năng truy vấn
+-- Đảm bảo cột exchange_rate tồn tại trước khi tạo index
+ALTER TABLE vouchers
+  ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(15,4) DEFAULT 1.0000;
+
 -- Index cho bảng vouchers: company_id + voucher_date
 CREATE INDEX IF NOT EXISTS idx_vouchers_company_date 
 ON vouchers(company_id, voucher_date DESC) 

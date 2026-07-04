@@ -24,41 +24,43 @@ app.set('trust proxy', true);
 // ====================================================================
 const rawFrontend = process.env.FRONTEND_URL || '';
 // Tách chuỗi và loại bỏ khoảng trắng dư thừa
-const allowedOrigins = rawFrontend.split(',').map(s => s.trim()).filter(Boolean);
+const allowedOrigins = [...new Set(rawFrontend.split(',').map(s => s.trim()).filter(Boolean))];
 
-// Xử lý thông minh: Tự động thêm cả bản có dấu '/' ở cuối và bản không có để tránh lỗi cấu hình sai trên Railway
-if (allowedOrigins.length > 0) {
-  const dynamicOrigins = [];
-  allowedOrigins.forEach(origin => {
-    if (origin.endsWith('/')) {
-      dynamicOrigins.push(origin.slice(0, -1));
-    } else {
-      dynamicOrigins.push(origin + '/');
-    }
-  });
-  allowedOrigins.push(...dynamicOrigins);
-}
+const normalizeOrigin = (origin) => origin.replace(/\/$/, '');
+const normalizedOrigins = allowedOrigins.map(normalizeOrigin);
+
+const wildcardOrigins = normalizedOrigins
+  .filter(origin => origin.includes('*'))
+  .map(pattern => new RegExp(`^${pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\\\*/g, '.*')}$`));
+
+const allowedRailwayOrigin = normalizedOrigins.some(origin => origin.includes('railway.app') || origin.includes('railway.com'));
 
 app.use(cors({
   origin: (origin, callback) => {
-    // 1. Cho phép các request không có origin (Ví dụ: Postman, Mobile App, hoặc server internal check)
+    // Cho phép request không có origin (Postman, server-to-server, internal health check)
     if (!origin) return callback(null, true);
-    
-    // 2. Chế độ an toàn: Nếu chạy local (Development) hoặc quên chưa cấu hình biến môi trường, tự động cho phép
+
     if (allowedOrigins.length === 0 || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    
-    // 3. Khớp chính xác danh sách domain được cấu hình
-    if (allowedOrigins.includes(origin)) {
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
-    
-    // Log ra terminal lỗi chi tiết để khi debug trên Railway có thể nhìn thấy domain nào đang bị từ chối
-    console.error(`🔴 [CORS BLOCKED]: Cửa ngõ bảo mật từ chối kết nối từ tên miền: ${origin}. Danh sách cho phép hiện tại:`, allowedOrigins);
+
+    if (wildcardOrigins.some(regex => regex.test(normalizedOrigin))) {
+      return callback(null, true);
+    }
+
+    if (allowedRailwayOrigin && normalizedOrigin.endsWith('.railway.app')) {
+      return callback(null, true);
+    }
+
+    console.error(`🔴 [CORS BLOCKED]: Cửa ngõ bảo mật từ chối kết nối từ tên miền: ${origin}. Danh sách cho phép hiện tại:`, normalizedOrigins);
     return callback(new Error('CORS policy: origin not allowed'));
   },
-  credentials: true, // Bắt buộc: Giữ true để truyền tải cookie bảo mật HttpOnly (refresh_token)
+  credentials: true,
 }));
 
 app.use(express.json());
@@ -125,7 +127,12 @@ const dbInitPromise = (async () => {
       
       for (const migrationFile of migrationFiles) {
         try {
-          const migrationSql = fs.readFileSync(path.join(migrationsPath, migrationFile), 'utf8');
+          let migrationSql = fs.readFileSync(path.join(migrationsPath, migrationFile), 'utf8');
+          migrationSql = migrationSql.replace(/^\uFEFF/, '').trim();
+          if (!migrationSql) {
+            console.warn(`⚠️ Bỏ qua migration rỗng: ${migrationFile}`);
+            continue;
+          }
           await pool.query(migrationSql);
           console.log(`✅ Đã chạy migration: ${migrationFile}`);
         } catch (err) {
