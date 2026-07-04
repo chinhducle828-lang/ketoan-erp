@@ -118,6 +118,9 @@ export async function getCycle5Data(companyId, year = null) {
   data['331'] = (summaryMap['331']?.debit || 0) - (summaryMap['331']?.credit || 0);
 
   total += data['211'] + Math.abs(data['214']) + data['1332'] + Math.abs(data['331']);
+
+  return {
+    name: 'Tài sản cố định',
     data,
     total
   };
