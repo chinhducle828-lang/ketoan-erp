@@ -13,7 +13,9 @@ import {
   BarChart3,
   ShieldAlert,
   TrendingUp,
-  FileText
+  FileText,
+  ClipboardList,
+  Warehouse
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -118,6 +120,22 @@ export const MODULES_REGISTER = [
     name: 'Dashboard dòng tiền',
     icon: BarChart3,
     component: React.lazy(() => import('./dashboard/CashFlowDashboard.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'vouchers',
+    name: 'Quản Lý Chứng Từ Tổng Hợp',
+    icon: ClipboardList,
+    component: React.lazy(() => import('./vouchers/VoucherManagement.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'inventory',
+    name: 'Quản Lý Kho Tổng Hợp',
+    icon: Warehouse,
+    component: React.lazy(() => import('./inventory/InventoryManagement.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
     requiresActiveCompany: true
   },
