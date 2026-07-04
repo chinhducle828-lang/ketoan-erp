@@ -1,7 +1,12 @@
 import React, { useMemo } from 'react';
 
 const getERPUrl = () => {
-  return import.meta.env.VITE_ERP_URL || 'http://localhost:5000';
+  const env = import.meta.env.VITE_ERP_URL;
+  if (env) return env.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return 'https://dazzling-grace-production-03a5.up.railway.app';
+  }
+  return 'http://localhost:5000';
 };
 
 export default function BackToERP() {

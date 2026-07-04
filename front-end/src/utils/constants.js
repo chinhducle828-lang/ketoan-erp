@@ -4,7 +4,19 @@ export const ROLES = {
   NV: 'nv'
 };
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+export const API_BASE_URL = (() => {
+  const env = import.meta.env.VITE_API_BASE_URL;
+  if (env) return env.replace(/\/$/, '');
+  if (typeof window !== 'undefined') {
+    // If frontend is served over HTTPS, avoid defaulting to localhost (PNA block).
+    if (window.location.protocol === 'https:') {
+      return 'https://dazzling-grace-production-03a5.up.railway.app';
+    }
+    // default to same host with port 5000 for local dev over HTTP
+    return `${window.location.protocol}//${window.location.hostname}:5000`;
+  }
+  return 'http://localhost:5000';
+})();
 
 export const CHART_OF_ACCOUNTS = [
   // ==========================================
