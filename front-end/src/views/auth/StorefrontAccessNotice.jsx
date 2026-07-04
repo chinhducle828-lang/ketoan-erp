@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { normalizeStorefrontRole } from '../../constants/storefrontRoles.js';
 
 const getStorefrontURL = () => {
   const fromEnv = String(import.meta.env.VITE_STOREFRONT_URL || '').trim();
@@ -24,11 +25,11 @@ export default function StorefrontAccessNotice() {
 
     const params = new URLSearchParams();
     const companyId = activeCompany?.id ? String(activeCompany.id) : '';
-    const roleCode = user?.roleId || user?.role || '';
+    const storefrontRole = normalizeStorefrontRole(user?.roleId || user?.role);
     const erpToken = token || localStorage.getItem('accessToken') || '';
 
     if (companyId) params.set('company_id', companyId);
-    if (roleCode) params.set('role', roleCode);
+    params.set('role', storefrontRole);
     if (erpToken) params.set('erp_token', erpToken);
     if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
 

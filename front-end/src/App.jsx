@@ -9,6 +9,7 @@ import Register from './views/auth/Register.jsx';
 import ChangePassword from './views/auth/ChangePassword.jsx';
 import StorefrontAccessNotice from './views/auth/StorefrontAccessNotice.jsx';
 import CustomerView from './views/auth/CustomerView.jsx';
+import { isStorefrontOnlyRole } from './constants/storefrontRoles.js';
 
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
@@ -28,7 +29,7 @@ export default function App() {
   });
   const [isFirstRun, setIsFirstRun] = useState(false);
   const roleCode = user?.roleId || user?.role;
-  const isStorefrontOnlyRole = roleCode === 'nv_banhang' || roleCode === 'nv_kho';
+  const userNeedsStorefrontOnly = isStorefrontOnlyRole(roleCode);
   const isGiamDocKinhDoanh = roleCode === 'gd_kinhdoanh';
   const defaultModule = MODULES_REGISTER.find((module) => module.allowedRoles?.includes(roleCode));
   const defaultPath = defaultModule ? `/${defaultModule.id}` : '/login';
@@ -54,7 +55,7 @@ export default function App() {
         <Route 
           path="/login" 
           element={
-            !token || isStorefrontOnlyRole ? (
+            !token || userNeedsStorefrontOnly ? (
               isFirstRun ? <Register onSwitch={() => setIsFirstRun(false)} /> : <Login onFirstRun={() => setIsFirstRun(true)} />
             ) : (
               <Navigate to="/" replace />
@@ -99,7 +100,7 @@ export default function App() {
               <Navigate to="/login" replace />
             ) : mustChangePassword ? (
               <Navigate to="/change-password" replace />
-            ) : isStorefrontOnlyRole ? (
+            ) : userNeedsStorefrontOnly ? (
               <StorefrontAccessNotice />
             ) : (
               // Giao diện Layout tổng thể sau khi Login thành công

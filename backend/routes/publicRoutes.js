@@ -4,6 +4,84 @@ import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '..
 
 const router = express.Router();
 
+const IDENTIFIER_PART_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+const quoteQualifiedIdentifier = (identifier) => {
+  const raw = String(identifier || '').trim();
+  if (!raw) return null;
+  const parts = raw.split('.').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.some((part) => !IDENTIFIER_PART_REGEX.test(part))) return null;
+  return parts.map((part) => `"${part}"`).join('.');
+};
+
+const ensureLockDateOpen = async (db, companyId) => {
+  const lockRes = await db.query('SELECT lock_date FROM companies WHERE id = $1 LIMIT 1', [companyId]);
+  const lockDate = lockRes.rows?.[0]?.lock_date;
+  if (!lockDate) return;
+
+  const today = new Date();
+  const lockBoundary = new Date(lockDate);
+  if (today <= lockBoundary) {
+    throw new Error(`Doanh nghiệp đã khóa sổ đến ngày ${lockBoundary.toISOString().slice(0, 10)}. Không thể tạo đơn web.`);
+  }
+};
+
+const resolveLegacyAccountByConstraint = async (db, { tableName, columnName, preferredCode, fallbackCodes = [] }) => {
+  const constraintRes = await db.query(
+    `SELECT c.confrelid::regclass::text AS referenced_table,
+            af.attname AS referenced_column
+     FROM pg_constraint c
+     JOIN pg_attribute a
+       ON a.attrelid = c.conrelid
+      AND a.attnum = ANY(c.conkey)
+     JOIN pg_attribute af
+       ON af.attrelid = c.confrelid
+      AND af.attnum = ANY(c.confkey)
+     WHERE c.contype = 'f'
+       AND c.conrelid = $1::regclass
+       AND a.attname = $2
+     LIMIT 1`,
+    [tableName, columnName]
+  );
+
+  const referencedTable = constraintRes.rows?.[0]?.referenced_table;
+  const referencedColumn = constraintRes.rows?.[0]?.referenced_column;
+  if (!referencedTable || !referencedColumn) {
+    return preferredCode || fallbackCodes.find(Boolean) || null;
+  }
+
+  const safeTable = quoteQualifiedIdentifier(referencedTable);
+  const safeColumn = quoteQualifiedIdentifier(referencedColumn);
+  if (!safeTable || !safeColumn) {
+    return preferredCode || fallbackCodes.find(Boolean) || null;
+  }
+
+  const candidates = [preferredCode, ...fallbackCodes]
+    .map((code) => String(code || '').trim())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const candidateRes = await db.query(
+      `SELECT 1
+       FROM ${safeTable}
+       WHERE ${safeColumn}::text = $1
+       LIMIT 1`,
+      [candidate]
+    );
+    if (candidateRes.rowCount > 0) return candidate;
+  }
+
+  const fallbackRes = await db.query(
+    `SELECT ${safeColumn}::text AS account_code
+     FROM ${safeTable}
+     ORDER BY ${safeColumn}::text
+     LIMIT 1`
+  );
+
+  return String(fallbackRes.rows?.[0]?.account_code || '').trim() || null;
+};
+
 const getItemsMetadata = async (db) => {
   const itemColumnsRes = await db.query(
     `SELECT column_name
@@ -144,6 +222,8 @@ router.post('/orders', async (req, res) => {
       return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
     }
 
+    await ensureLockDateOpen(client, Number(companyId));
+
     const rawItems = Array.isArray(items) && items.length > 0
       ? items
       : [{ itemId, quantity }];
@@ -242,7 +322,42 @@ router.post('/orders', async (req, res) => {
     );
     const vouchersColumns = new Set(vouchersColumnsRes.rows.map((r) => r.column_name));
     const hasVoucherNumber = vouchersColumns.has('voucher_number');
-    const voucherType = hasVoucherNumber ? 'XK' : 'Xuat';
+    const hasAccountDr = vouchersColumns.has('account_dr');
+    const hasAccountCr = vouchersColumns.has('account_cr');
+    const voucherType = 'XK';
+
+    const debitHeaderEntry = accountingEntries
+      .filter((entry) => entry.entryType === 'DR')
+      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
+    const creditHeaderEntry = accountingEntries
+      .filter((entry) => entry.entryType === 'CR')
+      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
+
+    const legacyAccountDr = hasAccountDr
+      ? await resolveLegacyAccountByConstraint(client, {
+          tableName: 'vouchers',
+          columnName: 'account_dr',
+          preferredCode: debitHeaderEntry?.accountCode || '131',
+          fallbackCodes: ['131', '111', '112']
+        })
+      : null;
+
+    const legacyAccountCr = hasAccountCr
+      ? await resolveLegacyAccountByConstraint(client, {
+          tableName: 'vouchers',
+          columnName: 'account_cr',
+          preferredCode: creditHeaderEntry?.accountCode || '511',
+          fallbackCodes: ['511', '3331', '33311', '131']
+        })
+      : null;
+
+    if (!hasVoucherNumber && hasAccountDr && !legacyAccountDr) {
+      return res.status(400).json({ error: 'Không xác định được account_dr hợp lệ cho chứng từ bán hàng.' });
+    }
+
+    if (!hasVoucherNumber && hasAccountCr && !legacyAccountCr) {
+      return res.status(400).json({ error: 'Không xác định được account_cr hợp lệ cho chứng từ bán hàng.' });
+    }
 
     const voucherRes = hasVoucherNumber
       ? await client.query(
@@ -252,8 +367,8 @@ router.post('/orders', async (req, res) => {
         )
       : await client.query(
           `INSERT INTO vouchers (company_id, voucher_date, voucher_type, description, account_dr, account_cr, amount, is_posted, loading_status)
-           VALUES ($1, CURRENT_DATE, $2, $3, '131', '511', $4, FALSE, 'pending_loading') RETURNING id`,
-          [companyId, voucherType, description, amount]
+           VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, FALSE, 'pending_loading') RETURNING id`,
+          [companyId, voucherType, description, legacyAccountDr, legacyAccountCr, amount]
         );
 
     const voucherId = voucherRes.rows[0].id;
@@ -287,10 +402,10 @@ router.post('/orders', async (req, res) => {
       );
     }
 
-    // Dòng xuất kho giữ liên kết item và quantity để đồng bộ xử lý kho sau này.
+    // Dòng vận hành kho được tách khỏi bút toán tài chính: amount=0, chỉ giữ quantity + item_id để logistics xử lý.
     for (const line of lineItems) {
       const columns = ['voucher_id', 'account_code', 'entry_type', 'amount'];
-      const values = [voucherId, '156', 'CR', line.lineAmount];
+      const values = [voucherId, '156_OPS', 'CR', 0];
       if (hasDetailQuantity) {
         columns.push('quantity');
         values.push(line.quantity);

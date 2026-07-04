@@ -1,6 +1,5 @@
 import express from 'express';
 import { pool } from '../config/db.js';
-import { buildAccountingEntries } from '../services/logistics.service.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
 
@@ -13,6 +12,47 @@ const ensureCompanyAccess = async (req, companyId) => {
   const hasAccess = await canAccessCompany(req.user, companyId);
   if (!hasAccess) return { ok: false, message: 'Không có quyền truy cập doanh nghiệp này' };
   return { ok: true };
+};
+
+const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, toStatus, patch = {} }) => {
+  const patchKeys = Object.keys(patch);
+  const patchSql = patchKeys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
+  const values = patchKeys.map((key) => patch[key]);
+  const updateBaseIndex = values.length;
+
+  const updateQuery = `
+    UPDATE vouchers
+    SET ${patchSql ? `${patchSql}, ` : ''}loading_status = $${updateBaseIndex + 1}
+    WHERE id = $${updateBaseIndex + 2}
+      AND company_id = $${updateBaseIndex + 3}
+      AND voucher_type = 'XK'
+      AND loading_status = $${updateBaseIndex + 4}
+    RETURNING id, voucher_number, loading_status
+  `;
+
+  const rs = await db.query(updateQuery, [...values, toStatus, voucherId, companyId, fromStatus]);
+  if (rs.rows.length > 0) {
+    return { ok: true, row: rs.rows[0] };
+  }
+
+  const statusRes = await db.query(
+    `SELECT id, voucher_number, loading_status
+     FROM vouchers
+     WHERE id = $1 AND company_id = $2 AND voucher_type = 'XK'
+     LIMIT 1`,
+    [voucherId, companyId]
+  );
+
+  if (statusRes.rows.length === 0) {
+    return { ok: false, notFound: true };
+  }
+
+  return {
+    ok: false,
+    notFound: false,
+    currentStatus: statusRes.rows[0].loading_status,
+    voucherNumber: statusRes.rows[0].voucher_number
+  };
 };
 
 router.get('/queue', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (req, res) => {
@@ -123,22 +163,24 @@ router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 
     const access = await ensureCompanyAccess(req, companyId);
     if (!access.ok) return res.status(403).json({ error: access.message });
 
-    const rs = await pool.query(
-      `UPDATE vouchers
-       SET loading_status = 'completed'
-       WHERE id = $1
-         AND company_id = $2
-         AND voucher_type = 'XK'
-         AND loading_status <> 'completed'
-       RETURNING id, voucher_number, loading_status`,
-      [voucherId, companyId]
-    );
+    const transition = await transitionVoucherStatus({
+      db: pool,
+      voucherId,
+      companyId,
+      fromStatus: 'delivering',
+      toStatus: 'completed'
+    });
 
-    if (rs.rows.length === 0) {
-      return res.status(404).json({ error: 'Không tìm thấy đơn cần hoàn thành hoặc đơn đã hoàn thành trước đó.' });
+    if (!transition.ok) {
+      if (transition.notFound) {
+        return res.status(404).json({ error: 'Không tìm thấy đơn xuất kho.' });
+      }
+      return res.status(409).json({
+        error: `Không thể hoàn thành đơn ở trạng thái hiện tại (${transition.currentStatus || 'unknown'}). Chỉ đơn đang giao mới được hoàn thành.`
+      });
     }
 
-    res.json({ success: true, order: rs.rows[0], message: 'Đơn hàng đã được xác nhận hoàn thành xuất kho.' });
+    res.json({ success: true, order: transition.row, message: 'Đơn hàng đã được xác nhận hoàn thành xuất kho.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -147,13 +189,30 @@ router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 
 router.post('/assign-truck', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (req, res) => {
   try {
     const { companyId, voucherId, truckId } = req.body;
-    if (!companyId || !voucherId || !truckId) return res.status(400).json({ error: 'Thiếu thông tin' });
+    if (!companyId || !voucherId) return res.status(400).json({ error: 'Thiếu thông tin' });
 
     const access = await ensureCompanyAccess(req, companyId);
     if (!access.ok) return res.status(403).json({ error: access.message });
 
-    await pool.query('UPDATE vouchers SET truck_id = $1, loading_status = $2 WHERE id = $3 AND company_id = $4', [truckId, 'assigned', voucherId, companyId]);
-    res.json({ success: true });
+    const transition = await transitionVoucherStatus({
+      db: pool,
+      voucherId,
+      companyId,
+      fromStatus: 'pending_loading',
+      toStatus: 'assigned',
+      patch: Number.isFinite(Number(truckId)) && Number(truckId) > 0 ? { truck_id: Number(truckId) } : {}
+    });
+
+    if (!transition.ok) {
+      if (transition.notFound) {
+        return res.status(404).json({ error: 'Không tìm thấy đơn xuất kho.' });
+      }
+      return res.status(409).json({
+        error: `Không thể phân xe khi đơn đang ở trạng thái ${transition.currentStatus || 'unknown'}.`
+      });
+    }
+
+    res.json({ success: true, order: transition.row });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -163,7 +222,7 @@ router.post('/confirm-loaded', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { companyId, voucherId, amount, costAmount, taxAmount = 0 } = req.body;
+    const { companyId, voucherId } = req.body;
 
     if (!companyId || !voucherId) return res.status(400).json({ error: 'Thiếu voucherId' });
 
@@ -173,22 +232,26 @@ router.post('/confirm-loaded', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES
       return res.status(403).json({ error: access.message });
     }
 
-    const entries = buildAccountingEntries({ amount, costAmount, taxAmount });
+    const transition = await transitionVoucherStatus({
+      db: client,
+      voucherId,
+      companyId,
+      fromStatus: 'assigned',
+      toStatus: 'delivering'
+    });
 
-    await client.query(
-      `UPDATE vouchers SET loading_status = 'delivering' WHERE id = $1 AND company_id = $2`,
-      [voucherId, companyId]
-    );
-
-    for (const entry of entries) {
-      await client.query(
-        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount)
-         VALUES ($1, $2, $3, $4)`,
-        [voucherId, entry.accountCode, entry.entryType, entry.amount]
-      );
+    if (!transition.ok) {
+      await client.query('ROLLBACK');
+      if (transition.notFound) {
+        return res.status(404).json({ error: 'Không tìm thấy đơn xuất kho.' });
+      }
+      return res.status(409).json({
+        error: `Không thể xác nhận đã bốc hàng khi đơn đang ở trạng thái ${transition.currentStatus || 'unknown'}.`
+      });
     }
+
     await client.query('COMMIT');
-    res.json({ success: true });
+    res.json({ success: true, order: transition.row });
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: error.message });

@@ -70,6 +70,33 @@ const ROLE_BADGE_CLASS = {
   nv_kho: 'bg-sky-100 text-sky-700 border-sky-200'
 };
 
+const ROLE_CAPABILITY_MAP = {
+  guest: {
+    canOrder: true,
+    canUseCart: true,
+    canManageItems: false,
+    canTrackQueue: false
+  },
+  admin: {
+    canOrder: false,
+    canUseCart: false,
+    canManageItems: true,
+    canTrackQueue: true
+  },
+  nv_banhang: {
+    canOrder: true,
+    canUseCart: true,
+    canManageItems: false,
+    canTrackQueue: true
+  },
+  nv_kho: {
+    canOrder: false,
+    canUseCart: false,
+    canManageItems: false,
+    canTrackQueue: true
+  }
+};
+
 const WAREHOUSE_STATUS_OPTIONS = [
   { value: 'all', label: 'Tất cả trạng thái' },
   { value: 'pending_loading', label: 'Chờ xuất kho' },
@@ -195,9 +222,11 @@ export default function StorefrontPage() {
   const isAdminRole = storefrontRole === 'admin';
   const isSalesRole = storefrontRole === 'nv_banhang';
   const isWarehouseRole = storefrontRole === 'nv_kho';
-  const canOrder = isSalesRole || isGuestRole;
-  const canUseCart = isSalesRole || isGuestRole;
-  const canManageItems = isAdminRole;
+  const currentRoleCapabilities = ROLE_CAPABILITY_MAP[storefrontRole] || ROLE_CAPABILITY_MAP.guest;
+  const canOrder = currentRoleCapabilities.canOrder;
+  const canUseCart = currentRoleCapabilities.canUseCart;
+  const canManageItems = currentRoleCapabilities.canManageItems;
+  const canTrackQueue = currentRoleCapabilities.canTrackQueue;
   const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
 
   const rollbackToGuest = (message) => {
@@ -569,18 +598,34 @@ export default function StorefrontPage() {
   };
 
   const filteredItems = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return items.filter((item) => {
-      const matchCategory = activeCategory === 'Tất cả' || (item.category || 'Phổ biến').toLowerCase().includes(activeCategory.toLowerCase());
-      const matchSearch = !term || item.name.toLowerCase().includes(term) || item.code.toLowerCase().includes(term);
-      const matchPrice = Number(item.price_sell || 0) <= priceMax;
-      return matchCategory && matchSearch && matchPrice;
-    }).sort((a, b) => {
-      if (sortBy === 'priceAsc') return Number(a.price_sell || 0) - Number(b.price_sell || 0);
-      if (sortBy === 'priceDesc') return Number(b.price_sell || 0) - Number(a.price_sell || 0);
-      if (sortBy === 'newest') return Number(b.id || 0) - Number(a.id || 0);
-      return 0;
-    });
+    const term = String(searchTerm || '').trim().toLowerCase();
+    const normalizedCategory = String(activeCategory || '').trim().toLowerCase();
+
+    const nextItems = [];
+    for (const item of items) {
+      const name = String(item?.name || '').toLowerCase();
+      const code = String(item?.code || '').toLowerCase();
+      const category = String(item?.category || 'Phổ biến').toLowerCase();
+      const price = Number(item?.price_sell || 0);
+
+      const matchCategory = activeCategory === 'Tất cả' || category.includes(normalizedCategory);
+      const matchSearch = !term || name.includes(term) || code.includes(term);
+      const matchPrice = price <= priceMax;
+
+      if (matchCategory && matchSearch && matchPrice) {
+        nextItems.push(item);
+      }
+    }
+
+    if (sortBy === 'priceAsc') {
+      nextItems.sort((a, b) => Number(a.price_sell || 0) - Number(b.price_sell || 0));
+    } else if (sortBy === 'priceDesc') {
+      nextItems.sort((a, b) => Number(b.price_sell || 0) - Number(a.price_sell || 0));
+    } else if (sortBy === 'newest') {
+      nextItems.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+    }
+
+    return nextItems;
   }, [items, searchTerm, activeCategory, sortBy, priceMax]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
@@ -786,7 +831,7 @@ export default function StorefrontPage() {
   };
 
   useEffect(() => {
-    if (!(isWarehouseRole || isAdminRole || isSalesRole)) return;
+    if (!canTrackQueue) return;
     if (!companyId) return;
 
     previousQueueRef.current = new Map();
@@ -795,7 +840,7 @@ export default function StorefrontPage() {
     loadWarehouseQueue();
     const timer = setInterval(loadWarehouseQueue, 15000);
     return () => clearInterval(timer);
-  }, [companyId, isWarehouseRole, isAdminRole, isSalesRole]);
+  }, [companyId, canTrackQueue]);
 
   useEffect(() => {
     if (!rolePopup) return;
@@ -944,6 +989,23 @@ export default function StorefrontPage() {
     if (!companyId) return;
 
     try {
+      const currentStatus = String(order?.loading_status || '').trim();
+      if (currentStatus === 'pending_loading') {
+        await axios.post(
+          `${API_BASE_URL}/api/logistics/assign-truck`,
+          { companyId: Number(companyId), voucherId: Number(order.id), truckId: order?.truck_id || null },
+          getAdminAuthConfig()
+        );
+      }
+
+      if (currentStatus === 'assigned' || currentStatus === 'pending_loading') {
+        await axios.post(
+          `${API_BASE_URL}/api/logistics/confirm-loaded`,
+          { companyId: Number(companyId), voucherId: Number(order.id) },
+          getAdminAuthConfig()
+        );
+      }
+
       await axios.post(
         `${API_BASE_URL}/api/logistics/mark-completed`,
         { companyId: Number(companyId), voucherId: Number(order.id) },
