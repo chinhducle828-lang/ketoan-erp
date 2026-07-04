@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 
 
+// Normalize API base URL: allow env override, ensure protocol, trim trailing slash,
+// and warn when using localhost from an HTTPS-served storefront (PNA/CORS issue).
 let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app';
 if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
   API_BASE_URL = `https://${API_BASE_URL}`;
