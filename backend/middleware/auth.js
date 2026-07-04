@@ -3,7 +3,9 @@ import { pool } from '../config/db.js'; // Đường dẫn chuẩn xác từ mid
 
 // 1. Middleware Xác thực người dùng & Kiểm tra Phiên làm việc
 export const authenticate = async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const tokenFromHeader = req.headers.authorization?.split(' ')[1];
+  const tokenFromQuery = req.query?.access_token || req.query?.token;
+  const token = tokenFromHeader || tokenFromQuery;
   if (!token) return res.status(401).json({ error: 'Truy cập bị từ chối. Vui lòng đăng nhập!' });
   
   try {
