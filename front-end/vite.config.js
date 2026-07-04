@@ -11,7 +11,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8080', // Đồng bộ về cổng 8080 của backend kế toán
+        target: 'http://127.0.0.1:5000', // Đồng bộ về cổng 5000 của backend kế toán
         changeOrigin: true,
       }
     }
