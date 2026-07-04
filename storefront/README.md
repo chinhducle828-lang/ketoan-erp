@@ -31,6 +31,7 @@ Backend service should allow CORS origin from this storefront domain in `FRONTEN
 
 Storefront now supports role-specific UI modes through query params:
 
+- `role=guest`: khách vãng lai (không cần đăng nhập, duyệt sản phẩm + đặt hàng nhanh)
 - `role=nv_banhang`: sales mode (cart + checkout + create order)
 - `role=nv_kho`: warehouse mode (catalog + operations tracking, no checkout)
 - `role=admin`: storefront admin mode (product catalog CRUD in storefront)
@@ -45,6 +46,7 @@ Admin mode notes:
 
 Examples:
 
+- `https://storefront.example.com/?company_id=18&role=guest`
 - `https://storefront.example.com/?company_id=18&role=nv_banhang`
 - `https://storefront.example.com/?company_id=18&role=nv_kho`
 - `https://storefront.example.com/?company_id=18&role=admin`

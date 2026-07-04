@@ -57,12 +57,14 @@ const SORT_OPTIONS = [
 ];
 
 const ROLE_OPTIONS = [
+  { value: 'guest', label: 'Khách vãng lai' },
   { value: 'admin', label: 'Admin bán hàng' },
   { value: 'nv_banhang', label: 'Nhân viên bán hàng' },
   { value: 'nv_kho', label: 'Nhân viên kho' }
 ];
 
 const ROLE_BADGE_CLASS = {
+  guest: 'bg-violet-100 text-violet-700 border-violet-200',
   admin: 'bg-amber-100 text-amber-700 border-amber-200',
   nv_banhang: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   nv_kho: 'bg-sky-100 text-sky-700 border-sky-200'
@@ -84,7 +86,7 @@ const WAREHOUSE_STATUS_LABEL = {
 
 export default function StorefrontPage() {
   const [companyId, setCompanyId] = useState(() => localStorage.getItem('shopCompanyId') || '');
-  const [storefrontRole, setStorefrontRole] = useState(() => localStorage.getItem('storefrontRole') || 'nv_banhang');
+  const [storefrontRole, setStorefrontRole] = useState(() => localStorage.getItem('storefrontRole') || 'guest');
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -121,13 +123,14 @@ export default function StorefrontPage() {
   const [hasAdminSession, setHasAdminSession] = useState(false);
   const [authenticatingAdmin, setAuthenticatingAdmin] = useState(false);
 
+  const isGuestRole = storefrontRole === 'guest';
   const isAdminRole = storefrontRole === 'admin';
   const isSalesRole = storefrontRole === 'nv_banhang';
   const isWarehouseRole = storefrontRole === 'nv_kho';
-  const canOrder = isSalesRole;
-  const canUseCart = isSalesRole;
+  const canOrder = isSalesRole || isGuestRole;
+  const canUseCart = isSalesRole || isGuestRole;
   const canManageItems = isAdminRole;
-  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[1];
+  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
 
   const getERPUrl = () => {
     const env = import.meta.env.VITE_ERP_URL;
@@ -508,7 +511,7 @@ export default function StorefrontPage() {
     localStorage.setItem('storefrontRole', nextRole);
     setError('');
     setSuccess('');
-    if (nextRole !== 'nv_banhang') {
+    if (nextRole !== 'nv_banhang' && nextRole !== 'guest') {
       setShowMiniCart(false);
       setCart([]);
     }
@@ -793,6 +796,9 @@ export default function StorefrontPage() {
               <div>
                 <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">Mua vật liệu xây dựng nhanh chóng</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Tìm kiếm gạch, sơn, xi măng, thép và vật tư xây dựng giá tốt trên cùng một trang. Đặt hàng nhanh, giao hàng tận công trình.</p>
+                {isGuestRole && (
+                  <p className="mt-2 max-w-2xl text-sm font-medium text-violet-700">Bạn đang ở chế độ khách vãng lai, có thể xem sản phẩm và đặt hàng nhanh mà không cần đăng nhập.</p>
+                )}
               </div>
             </div>
 
@@ -824,6 +830,28 @@ export default function StorefrontPage() {
             <button type="button" className="ml-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-4 py-2 text-sm text-slate-600 hover:border-emerald-500">
               <SlidersHorizontal size={14} /> Lọc theo vật liệu
             </button>
+          </div>
+
+          <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-slate-100/80 p-4 md:grid-cols-[1fr_auto] md:items-end">
+            <form onSubmit={handleCompanySubmit} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="space-y-1 text-sm text-slate-600">
+                <span>Doanh nghiệp đang xem</span>
+                <input
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  placeholder="Nhập company_id để tải danh mục"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
+                />
+              </label>
+              <button type="submit" className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Tải gian hàng</button>
+            </form>
+            {!isGuestRole ? (
+              <div className="text-xs text-slate-500">Đang ở chế độ nội bộ. Có thể đổi về Khách vãng lai ở thanh role.</div>
+            ) : (
+              <a href={getERPUrl()} className="inline-flex items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700">
+                Nhân viên? Đăng nhập ERP
+              </a>
+            )}
           </div>
         </header>
 
@@ -970,7 +998,7 @@ export default function StorefrontPage() {
                 <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-300"><Package size={16} /></div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">{isWarehouseRole || isAdminRole ? 'Theo dõi nhập xuất' : 'Chi tiết sản phẩm'}</h3>
-                  <p className="text-xs text-slate-500">{isWarehouseRole ? 'Chế độ kho chỉ theo dõi dữ liệu vật tư và trạng thái vận hành.' : isAdminRole ? 'Admin storefront quản lý danh mục sản phẩm tách biệt ERP.' : 'Xem nhanh và thao tác giỏ hàng trong 1 khung.'}</p>
+                  <p className="text-xs text-slate-500">{isWarehouseRole ? 'Chế độ kho chỉ theo dõi dữ liệu vật tư và trạng thái vận hành.' : isAdminRole ? 'Admin storefront quản lý danh mục sản phẩm tách biệt ERP.' : isGuestRole ? 'Khách vãng lai có thể duyệt sản phẩm và thêm vào giỏ mà không cần đăng nhập.' : 'Xem nhanh và thao tác giỏ hàng trong 1 khung.'}</p>
                 </div>
               </div>
 
@@ -1121,8 +1149,8 @@ export default function StorefrontPage() {
           <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">Thanh toán nhanh</h3>
-                <p className="text-sm text-slate-500">Hoàn tất đơn hàng chỉ trong một bước.</p>
+                <h3 className="text-xl font-bold text-slate-900">{isGuestRole ? 'Đặt hàng nhanh cho khách vãng lai' : 'Thanh toán nhanh'}</h3>
+                <p className="text-sm text-slate-500">{isGuestRole ? 'Không cần tài khoản, chỉ cần thông tin liên hệ để tạo đơn.' : 'Hoàn tất đơn hàng chỉ trong một bước.'}</p>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">Checkout</span>
             </div>
@@ -1375,7 +1403,7 @@ export default function StorefrontPage() {
           </section>
         )}
 
-        {(isAdminRole || isWarehouseRole || isSalesRole) && rolePopup && (
+        {rolePopup && (
           <div className="fixed right-4 top-4 z-50 w-80 rounded-xl border border-blue-200 bg-white p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
