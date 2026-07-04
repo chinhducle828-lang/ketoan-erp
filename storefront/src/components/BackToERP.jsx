@@ -1,12 +1,28 @@
 import React, { useMemo } from 'react';
 
-const getERPUrl = () => {
-  const env = import.meta.env.VITE_ERP_URL;
-  if (env) return env.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return 'https://dazzling-grace-production-03a5.up.railway.app';
+const normalizeAbsoluteUrl = (value) => {
+  if (!value) return '';
+  let raw = String(value).trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw}`;
   }
-  return 'http://localhost:5000';
+  try {
+    const parsed = new URL(raw);
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+};
+
+const getERPUrl = () => {
+  const env = normalizeAbsoluteUrl(import.meta.env.VITE_ERP_URL);
+  if (env) return env;
+  if (typeof window !== 'undefined') {
+    const query = normalizeAbsoluteUrl(new URLSearchParams(window.location.search).get('erp_url'));
+    if (query) return query;
+  }
+  return '';
 };
 
 export default function BackToERP() {
@@ -23,10 +39,14 @@ export default function BackToERP() {
   const role = params.get('role');
 
   if (!erpToken) return null;
+  const erpBase = getERPUrl();
+  if (!erpBase) return null;
 
   const openERPDirect = () => {
-    const erpUrl = getERPUrl();
-    const url = new URL(erpUrl);
+    const url = new URL(erpBase);
+    if (!url.pathname || url.pathname === '/') {
+      url.pathname = '/login';
+    }
     if (companyId) url.searchParams.set('company_id', companyId);
     if (role) url.searchParams.set('role', role);
     url.searchParams.set('erp_token', erpToken);
@@ -35,7 +55,6 @@ export default function BackToERP() {
 
   const openERPViaBackend = async () => {
     try {
-      const erpBase = getERPUrl().replace(/\/$/, '');
       const resp = await fetch(`${erpBase}/api/auth/external-login`, {
         method: 'POST',
         credentials: 'include',
