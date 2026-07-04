@@ -283,6 +283,58 @@ router.post('/admin-reset-password', authenticate, requireRole(['admin']), safeV
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// External login: accept an erp_token (JWT) from storefront and create a server-side session
+router.post('/external-login', async (req, res) => {
+  try {
+    const { erp_token, company_id, role } = req.body;
+    if (!erp_token) return res.status(400).json({ error: 'Missing erp_token' });
+
+    // Verify token: expect it to be a JWT issued by this ERP (signed with same JWT_SECRET)
+    let payload;
+    try {
+      payload = jwt.verify(erp_token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid erp_token' });
+    }
+
+    // Create a session record similar to login flow
+    const accessToken = erp_token; // reuse token as access token (short-lived)
+    const refreshToken = createRefreshToken();
+    const hashedRefresh = hashToken(refreshToken);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+
+    try {
+      await pool.query('DELETE FROM sessions WHERE user_id = $1', [payload.id]);
+      await pool.query(
+        'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1,$2,$3,now(),$4,$5,$6)',
+        [payload.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
+      );
+    } catch (err) {
+      console.error('Failed to save external session:', err.message);
+      return res.status(500).json({ error: 'Failed to create session' });
+    }
+
+    // Set HttpOnly refresh cookie so browser is authenticated for ERP
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
+
+    // Optionally, you can log an audit entry for external login
+    try {
+      await pool.query(
+        `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [payload.id, 'EXTERNAL_LOGIN', 'USERS', null, JSON.stringify({ from: 'storefront', company_id, role }), req.ip]
+      );
+    } catch (e) {
+      console.warn('Failed to write audit log for external login:', e.message);
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('External login error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Kế toán trưởng tích chọn quản lý nhiều nhân viên
 router.post('/assign-staff', authenticate, requireRole(['admin']), safeValidate(assignStaffSchema), async (req, res) => {
   try {
@@ -304,58 +356,6 @@ router.post('/assign-staff', authenticate, requireRole(['admin']), safeValidate(
       );
     }
 
-
-  // External login: accept an erp_token (JWT) from storefront and create a server-side session
-  router.post('/external-login', async (req, res) => {
-    try {
-      const { erp_token, company_id, role } = req.body;
-      if (!erp_token) return res.status(400).json({ error: 'Missing erp_token' });
-
-      // Verify token: expect it to be a JWT issued by this ERP (signed with same JWT_SECRET)
-      let payload;
-      try {
-        payload = jwt.verify(erp_token, process.env.JWT_SECRET);
-      } catch (err) {
-        return res.status(401).json({ error: 'Invalid erp_token' });
-      }
-
-      // Create a session record similar to login flow
-      const accessToken = erp_token; // reuse token as access token (short-lived)
-      const refreshToken = createRefreshToken();
-      const hashedRefresh = hashToken(refreshToken);
-      const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
-
-      try {
-        await pool.query('DELETE FROM sessions WHERE user_id = $1', [payload.id]);
-        await pool.query(
-          'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1,$2,$3,now(),$4,$5,$6)',
-          [payload.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
-        );
-      } catch (err) {
-        console.error('Failed to save external session:', err.message);
-        return res.status(500).json({ error: 'Failed to create session' });
-      }
-
-      // Set HttpOnly refresh cookie so browser is authenticated for ERP
-      res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
-
-      // Optionally, you can log an audit entry for external login
-      try {
-        await pool.query(
-          `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [payload.id, 'EXTERNAL_LOGIN', 'USERS', null, JSON.stringify({ from: 'storefront', company_id, role }), req.ip]
-        );
-      } catch (e) {
-        console.warn('Failed to write audit log for external login:', e.message);
-      }
-
-      return res.json({ success: true });
-    } catch (err) {
-      console.error('External login error:', err);
-      return res.status(500).json({ error: 'Server error' });
-    }
-  });
     await pool.query('UPDATE users SET staff_ids = $1 WHERE id = $2', [staffIds, managerId]);
 
     await pool.query('COMMIT');
