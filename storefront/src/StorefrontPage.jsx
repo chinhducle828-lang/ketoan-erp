@@ -960,6 +960,431 @@ export default function StorefrontPage() {
     }
   };
 
+  if (isSalesRole) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
+        <div className="mx-auto max-w-7xl px-4 py-5 lg:px-8 lg:py-7">
+          <header className="overflow-hidden rounded-[30px] border border-emerald-100 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)] lg:p-6">
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  <Sparkles size={14} /> Vật liệu xây dựng chất lượng
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-700">Vai trò storefront:</span>
+                  <span className={`rounded-full border px-2.5 py-1 font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                    {currentRole.label}
+                  </span>
+                </div>
+              </div>
+
+              {ALLOW_ROLE_SWITCH && (
+                <div className="inline-flex w-full flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600">
+                  <span className="px-1 font-semibold text-slate-700">Chuyển role (dev):</span>
+                  {ROLE_OPTIONS.map((role) => (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => handleRoleChange(role.value)}
+                      className={`rounded-xl px-3 py-1.5 font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'bg-white hover:bg-emerald-50'}`}
+                    >
+                      {role.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
+                <div>
+                  <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Quầy bán hàng POS - Tạo hóa đơn nhanh</h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">Màn hình dành riêng cho nhân viên bán hàng: chọn hàng, cập nhật số lượng và chốt hóa đơn nhanh tại quầy.</p>
+                  <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">POS Mode: Nhân viên bán hàng</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-1">
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 text-sm text-slate-600">
+                    <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VI</button>
+                    <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>EN</button>
+                    <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VND</button>
+                    <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>USD</button>
+                  </div>
+                  <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25">
+                    <ShoppingCart size={18} /> Màn hình POS {cartCount > 0 ? `(${cartCount})` : ''}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_auto] md:items-end">
+                <form onSubmit={handleCompanySubmit} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <label className="space-y-1 text-sm text-slate-600">
+                    <span>Doanh nghiệp đang xem</span>
+                    <input
+                      value={companyId}
+                      onChange={(e) => setCompanyId(e.target.value)}
+                      placeholder="Nhập company_id để tải danh mục"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
+                    />
+                  </label>
+                  <button type="submit" className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Tải gian hàng</button>
+                </form>
+                <div className="text-xs text-slate-500">Đang ở chế độ nội bộ. Có thể đổi về Khách vãng lai ở thanh role.</div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                  <p className="text-xs text-emerald-700">Sản phẩm trong đơn</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-900">{cart.length} dòng - {cartCount} món</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-slate-500">Tạm tính hiện tại</p>
+                  <p className="mt-1 text-lg font-bold text-slate-900">{checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-slate-500">Đơn đang theo dõi</p>
+                  <p className="mt-1 text-lg font-bold text-slate-900">{warehouseQueue.length} đơn</p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {showMiniCart && (
+            <div className="mt-5 rounded-[24px] border border-emerald-200 bg-white p-4 shadow-[0_12px_36px_-20px_rgba(15,23,42,0.35)]">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Giỏ hàng nhanh</h2>
+                <button onClick={() => setShowMiniCart(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
+                {cart.length === 0 ? (
+                  <p className="text-sm text-slate-500">Giỏ hàng hiện trống.</p>
+                ) : (
+                  cart.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                        <p className="text-xs text-slate-500">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm">-</button>
+                        <span className="w-6 text-center text-sm font-semibold text-slate-800">{item.quantity}</span>
+                        <button onClick={() => updateCartQuantity(item.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm">+</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          <section className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_1fr]">
+            <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_36px_-24px_rgba(15,23,42,0.35)]">
+              <div className="grid gap-3 lg:grid-cols-[1.45fr_0.55fr]">
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-4 top-3.5 text-slate-400" size={18} />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm nhanh theo tên hoặc mã hàng"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-900 outline-none"
+                  />
+                </label>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none">
+                    {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  <label className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <span>Giá tối đa: {priceMax.toLocaleString('vi-VN')} ₫</span>
+                    <input type="range" min="500000" max="5000000" step="100000" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="mt-1 w-full accent-emerald-500" />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                {CATEGORY_OPTIONS.map((item) => (
+                  <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {filteredItems.length === 0 ? (
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Không có sản phẩm phù hợp. Thử thay đổi từ khóa hoặc bộ lọc.</div>
+                ) : filteredItems.map((item) => {
+                  const isWishlisted = wishlist.includes(item.id);
+                  const previewImage = item.image_urls?.[0] || item.image_url;
+                  return (
+                    <div key={item.id} className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-300 hover:bg-white">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{item.category || 'Phổ biến'}</span>
+                        <button onClick={() => toggleWishlist(item.id)} className={`rounded-full p-2 ${isWishlisted ? 'bg-rose-100 text-rose-600' : 'bg-white text-slate-500'}`}>
+                          <Heart size={15} />
+                        </button>
+                      </div>
+                      <button type="button" onClick={() => handleItemSelect(item)} className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left">
+                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                          {previewImage ? (
+                            <img src={previewImage} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <Package size={18} className="text-slate-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+                          <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
+                          <p className="mt-1 text-sm font-bold text-slate-900">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                        </div>
+                      </button>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button onClick={() => openQuickView(item)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">Chi tiết</button>
+                        <button onClick={() => addToCart(item, 1)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">Thêm vào đơn</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="space-y-4 xl:sticky xl:top-4 self-start">
+              <div className="rounded-[24px] border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-4 shadow-[0_12px_30px_-22px_rgba(16,185,129,0.45)]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Chi tiết đơn tại quầy</h3>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700">{cartCount} món</span>
+                </div>
+                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {cart.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-white p-3 text-sm text-slate-500">Chưa có sản phẩm. Chọn hàng ở danh sách bên trái để bắt đầu.</div>
+                  ) : (
+                    cart.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-emerald-100 bg-white p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
+                          <p className="text-xs font-semibold text-slate-700">{Number(entry.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
+                          <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
+                          <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
+                          <div className="ml-auto text-xs font-semibold text-slate-700">{(Number(entry.price_sell || 0) * entry.quantity).toLocaleString('vi-VN')} ₫</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="mt-3 space-y-2 rounded-xl border border-emerald-100 bg-white p-3 text-sm">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>Tạm tính</span>
+                    <span className="font-semibold text-slate-900">{cartSubtotal.toLocaleString('vi-VN')} ₫</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>Giảm giá</span>
+                    <span className="font-semibold text-slate-900">{discountAmount.toLocaleString('vi-VN')} ₫</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
+                    <span className="font-semibold">Tổng tạm tính</span>
+                    <span className="text-lg font-black text-slate-900">{checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <h3 className="text-base font-bold text-slate-900">Sản phẩm đang chọn</h3>
+                {selectedItem ? (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-900">{selectedItem.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{selectedItem.code} - {selectedItem.unit || 'Đơn vị'}</p>
+                    <p className="mt-2 text-sm font-bold text-slate-900">{getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</p>
+                    <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">
+                      Thêm vào giỏ ({checkoutForm.quantity || 1})
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">Chọn một sản phẩm từ danh sách để xem nhanh.</p>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <h3 className="text-base font-bold text-slate-900">Gợi ý bán nhanh tại quầy</h3>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  {promoHighlights.map((highlight, index) => (
+                    <div key={`${highlight}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      {highlight}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </section>
+
+          <section className="mt-6 grid gap-5 lg:grid-cols-[1.28fr_0.72fr]">
+            <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_36px_-24px_rgba(15,23,42,0.35)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Thanh toán quầy POS</h3>
+                  <p className="text-sm text-slate-500">Nhập nhanh thông tin khách và chốt hóa đơn tại quầy.</p>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">Checkout</span>
+              </div>
+
+              {error && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+              {success && <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle2 size={16} />{success}</div>}
+
+              <form onSubmit={handleCheckoutSubmit} className="mt-4 space-y-4">
+                {hasCheckoutCart && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+                    Đơn hàng sẽ tạo đồng thời {cart.length} sản phẩm trong giỏ ({cartCount} món).
+                  </div>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />Tên khách</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />Số điện thoại</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                </div>
+                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />Địa chỉ</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm text-slate-600"><span>Số lượng</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span>Giá trị</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> Mã giảm giá</div>
+                  <div className="mt-2.5 flex gap-2">
+                    <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                    <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Áp dụng</button>
+                  </div>
+                  {couponMessage && <p className="mt-2 text-sm text-emerald-700">{couponMessage}</p>}
+                </div>
+
+                <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : 'Tạo hóa đơn POS'} <ArrowRight size={16} /></button>
+              </form>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Thao tác nhanh POS</h3>
+                  <span className="text-xs text-slate-500">Ca hiện tại</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">Ưu tiên nhập tên khách và số điện thoại để kho giao đúng địa chỉ.</div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">Gom nhiều mã hàng trong cùng hóa đơn để giảm thao tác.</div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <h3 className="text-base font-bold text-slate-900">Vận chuyển nhanh</h3>
+                <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder="Mã bưu chính" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
+                <textarea
+                  value={shippingNote}
+                  onChange={(e) => setShippingNote(e.target.value)}
+                  rows={3}
+                  placeholder="Ghi chú giao hàng cho bộ phận kho"
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none"
+                />
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <h3 className="text-base font-bold text-slate-900">Theo dõi xử lý đơn</h3>
+                {warehouseQueue.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">Chưa có đơn trong hàng chờ xuất kho.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {warehouseQueue.slice(0, 4).map((order) => (
+                      <div key={`sales-track-${order.id}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                        <p className="truncate text-sm font-semibold text-slate-900">{order.voucher_number || `Đơn #${order.id}`}</p>
+                        <p className="mt-1 text-xs text-slate-500">{WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {rolePopup && (
+            <div className="fixed right-4 top-4 z-50 w-80 rounded-xl border border-blue-200 bg-white p-4 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{rolePopup.title}</p>
+                  <p className="mt-1 text-sm text-slate-600">{rolePopup.message}</p>
+                </div>
+                <button type="button" onClick={() => setRolePopup(null)} className="text-slate-400 hover:text-slate-600">x</button>
+              </div>
+            </div>
+          )}
+
+          {showQuickView && quickViewItem && (
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-[2px]">
+              <div className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-400/30">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-slate-900">Xem nhanh</h3>
+                  <button onClick={() => setShowQuickView(false)} className="rounded-full bg-slate-100 p-2 text-slate-600"><X size={16} /></button>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
+                  <div className="space-y-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
+                    <div className="relative rounded-[20px] border border-slate-200 bg-white p-3">
+                      {quickViewCurrentImage ? (
+                        <img src={quickViewCurrentImage} alt={quickViewItem.name} className="mx-auto h-40 w-full rounded-[18px] object-cover" />
+                      ) : (
+                        <Package size={32} className="mx-auto my-16 text-slate-400" />
+                      )}
+                      {quickViewImages.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={showQuickViewPrevImage}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={showQuickViewNextImage}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {quickViewImages.length > 1 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {quickViewImages.map((src, index) => (
+                          <button
+                            type="button"
+                            key={`${src}-${index}`}
+                            onClick={() => setQuickViewImageIndex(index)}
+                            className={`overflow-hidden rounded-2xl border ${quickViewImageIndex === index ? 'border-emerald-500' : 'border-slate-200'}`}
+                          >
+                            <img src={src} alt={`Ảnh ${index + 1}`} className="h-14 w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-700">{quickViewItem.category || 'Phổ biến'}</p>
+                    <h4 className="mt-2 text-2xl font-black text-slate-900">{quickViewItem.name}</h4>
+                    <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
+                    <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <span className="text-sm text-slate-500">Giá bán</span>
+                      <span className="font-semibold text-slate-900">{Number(quickViewItem.price_sell || 0).toLocaleString('vi-VN')} ₫</span>
+                    </div>
+                    {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={() => { handleItemSelect(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">Xem chi tiết</button>
+                      <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">Thêm vào giỏ</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
