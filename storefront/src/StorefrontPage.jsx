@@ -121,6 +121,14 @@ export default function StorefrontPage() {
   const [hasAdminSession, setHasAdminSession] = useState(false);
   const [authenticatingAdmin, setAuthenticatingAdmin] = useState(false);
 
+  const isAdminRole = storefrontRole === 'admin';
+  const isSalesRole = storefrontRole === 'nv_banhang';
+  const isWarehouseRole = storefrontRole === 'nv_kho';
+  const canOrder = isSalesRole;
+  const canUseCart = isSalesRole;
+  const canManageItems = isAdminRole;
+  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[1];
+
   const getERPUrl = () => {
     const env = import.meta.env.VITE_ERP_URL;
     if (env) return env.replace(/\/$/, '');
@@ -180,14 +188,6 @@ export default function StorefrontPage() {
   });
   const previousQueueRef = useRef(new Map());
   const firstQueueLoadRef = useRef(true);
-
-  const isAdminRole = storefrontRole === 'admin';
-  const isSalesRole = storefrontRole === 'nv_banhang';
-  const isWarehouseRole = storefrontRole === 'nv_kho';
-  const canOrder = isSalesRole;
-  const canUseCart = isSalesRole;
-  const canManageItems = isAdminRole;
-  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[1];
 
   const hasCartItems = cart.length > 0;
   const getUnitPrice = (item) => Number(item?.price_sell || 0);
