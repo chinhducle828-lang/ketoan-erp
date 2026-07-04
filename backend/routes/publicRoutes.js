@@ -1,8 +1,11 @@
 import express from 'express';
 import { pool } from '../config/db.js';
 import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '../services/logistics.service.js';
+import { publishStorefrontOrderEvent } from '../services/storefrontRealtime.service.js';
 
 const router = express.Router();
+const SCHEMA_CACHE_TTL_MS = 30 * 1000;
+const tableColumnsCache = new Map();
 
 const IDENTIFIER_PART_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -13,6 +16,37 @@ const quoteQualifiedIdentifier = (identifier) => {
   if (parts.length === 0) return null;
   if (parts.some((part) => !IDENTIFIER_PART_REGEX.test(part))) return null;
   return parts.map((part) => `"${part}"`).join('.');
+};
+
+const getTableColumnsMetadata = async (db, tableName) => {
+  const normalizedName = String(tableName || '').trim().toLowerCase();
+  if (!normalizedName) return [];
+
+  const cacheEntry = tableColumnsCache.get(normalizedName);
+  if (cacheEntry && Date.now() - cacheEntry.cachedAt < SCHEMA_CACHE_TTL_MS) {
+    return cacheEntry.rows;
+  }
+
+  const { rows } = await db.query(
+    `SELECT column_name, is_nullable, column_default
+     FROM information_schema.columns
+     WHERE table_name = $1
+       AND table_schema NOT IN ('information_schema', 'pg_catalog')`,
+    [normalizedName]
+  );
+
+  const normalizedRows = rows.map((row) => ({
+    column_name: String(row.column_name || '').trim().toLowerCase(),
+    is_nullable: String(row.is_nullable || '').trim().toUpperCase(),
+    column_default: row.column_default
+  }));
+
+  tableColumnsCache.set(normalizedName, {
+    cachedAt: Date.now(),
+    rows: normalizedRows
+  });
+
+  return normalizedRows;
 };
 
 const ensureLockDateOpen = async (db, companyId) => {
@@ -83,15 +117,10 @@ const resolveLegacyAccountByConstraint = async (db, { tableName, columnName, pre
 };
 
 const getItemsMetadata = async (db) => {
-  const itemColumnsRes = await db.query(
-    `SELECT column_name
-     FROM information_schema.columns
-     WHERE table_name = 'items'
-       AND table_schema NOT IN ('information_schema', 'pg_catalog')`
-  );
+  const itemColumnsRows = await getTableColumnsMetadata(db, 'items');
 
   const itemColumns = new Set(
-    itemColumnsRes.rows
+    itemColumnsRows
       .map((row) => String(row.column_name || '').trim().toLowerCase())
       .filter(Boolean)
   );
@@ -315,13 +344,9 @@ router.post('/orders', async (req, res) => {
         .join(', ')}${lineItems.length > 3 ? ` +${lineItems.length - 3} SP` : ''}`
     ].filter(Boolean).join(' | ');
 
-    const vouchersColumnsRes = await client.query(
-      `SELECT column_name, is_nullable, column_default
-       FROM information_schema.columns
-       WHERE table_name = 'vouchers'`
-    );
+    const vouchersColumnsRows = await getTableColumnsMetadata(client, 'vouchers');
     const vouchersMeta = new Map(
-      vouchersColumnsRes.rows.map((row) => [
+      vouchersColumnsRows.map((row) => [
         String(row.column_name || '').trim().toLowerCase(),
         {
           isNullable: String(row.is_nullable || '').toUpperCase() !== 'NO',
@@ -421,57 +446,74 @@ router.post('/orders', async (req, res) => {
 
     const voucherId = voucherRes.rows[0].id;
 
-    const detailsColumnsRes = await client.query(
-      `SELECT column_name
-       FROM information_schema.columns
-       WHERE table_name = 'voucher_details'`
-    );
-    const detailsColumns = new Set(detailsColumnsRes.rows.map((r) => r.column_name));
+    const detailsColumnsRows = await getTableColumnsMetadata(client, 'voucher_details');
+    const detailsColumns = new Set(detailsColumnsRows.map((r) => r.column_name));
     const hasDetailQuantity = detailsColumns.has('quantity');
     const hasDetailItemId = detailsColumns.has('item_id');
 
-    for (const entry of accountingEntries) {
-      const columns = ['voucher_id', 'account_code', 'entry_type', 'amount'];
-      const values = [voucherId, entry.accountCode, entry.entryType, entry.amount];
-      if (hasDetailQuantity) {
-        columns.push('quantity');
-        values.push(0);
-      }
-      if (hasDetailItemId) {
-        columns.push('item_id');
-        values.push(null);
-      }
+    const detailInsertColumns = ['voucher_id', 'account_code', 'entry_type', 'amount'];
+    if (hasDetailQuantity) detailInsertColumns.push('quantity');
+    if (hasDetailItemId) detailInsertColumns.push('item_id');
 
-      const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
-      await client.query(
-        `INSERT INTO voucher_details (${columns.join(', ')})
-         VALUES (${placeholders})`,
-        values
-      );
+    const detailRows = [];
+    for (const entry of accountingEntries) {
+      detailRows.push({
+        accountCode: entry.accountCode,
+        entryType: entry.entryType,
+        amount: entry.amount,
+        quantity: 0,
+        itemId: null
+      });
     }
 
     // Dòng vận hành kho được tách khỏi bút toán tài chính: amount=0, chỉ giữ quantity + item_id để logistics xử lý.
     for (const line of lineItems) {
-      const columns = ['voucher_id', 'account_code', 'entry_type', 'amount'];
-      const values = [voucherId, '156_OPS', 'CR', 0];
-      if (hasDetailQuantity) {
-        columns.push('quantity');
-        values.push(line.quantity);
-      }
-      if (hasDetailItemId) {
-        columns.push('item_id');
-        values.push(line.itemId);
-      }
+      detailRows.push({
+        accountCode: '156_OPS',
+        entryType: 'CR',
+        amount: 0,
+        quantity: line.quantity,
+        itemId: line.itemId
+      });
+    }
 
-      const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
+    if (detailRows.length > 0) {
+      const detailValues = [];
+      const detailPlaceholders = detailRows.map((row, rowIndex) => {
+        const rowValues = [voucherId, row.accountCode, row.entryType, row.amount];
+        if (hasDetailQuantity) rowValues.push(row.quantity);
+        if (hasDetailItemId) rowValues.push(row.itemId);
+
+        detailValues.push(...rowValues);
+        const offset = rowIndex * detailInsertColumns.length;
+        const rowPlaceholders = detailInsertColumns.map((_, colIndex) => `$${offset + colIndex + 1}`);
+        return `(${rowPlaceholders.join(', ')})`;
+      });
+
       await client.query(
-        `INSERT INTO voucher_details (${columns.join(', ')})
-         VALUES (${placeholders})`,
-        values
+        `INSERT INTO voucher_details (${detailInsertColumns.join(', ')})
+         VALUES ${detailPlaceholders.join(', ')}`,
+        detailValues
       );
     }
 
     await client.query('COMMIT');
+
+    try {
+      await publishStorefrontOrderEvent(client, {
+        event: 'order_created',
+        companyId: Number(companyId),
+        voucherId,
+        voucherNumber,
+        amount,
+        taxAmount,
+        createdAt: new Date().toISOString()
+      });
+    } catch (notifyError) {
+      // Notification failure must not break order creation flow.
+      console.warn('storefront_orders notify failed:', notifyError.message);
+    }
+
     res.status(201).json({
       success: true,
       voucherId,

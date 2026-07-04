@@ -312,7 +312,44 @@ export default function StorefrontPage() {
   const firstQueueLoadRef = useRef(true);
 
   const hasCartItems = cart.length > 0;
-  const getUnitPrice = (item) => Number(item?.price_sell || 0);
+  const parsePriceValue = (value) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (value === null || value === undefined) return 0;
+
+    let raw = String(value).trim();
+    if (!raw) return 0;
+    raw = raw.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
+    if (!raw) return 0;
+
+    const lastDot = raw.lastIndexOf('.');
+    const lastComma = raw.lastIndexOf(',');
+
+    if (lastDot !== -1 && lastComma !== -1) {
+      // Keep the last separator as decimal marker, remove the other as thousands marker.
+      if (lastComma > lastDot) {
+        raw = raw.replace(/\./g, '').replace(/,/g, '.');
+      } else {
+        raw = raw.replace(/,/g, '');
+      }
+    } else if (lastComma !== -1) {
+      const fractionalDigits = raw.length - lastComma - 1;
+      if (fractionalDigits > 0 && fractionalDigits <= 2) {
+        raw = raw.replace(/,/g, '.');
+      } else {
+        raw = raw.replace(/,/g, '');
+      }
+    } else if (lastDot !== -1) {
+      const fractionalDigits = raw.length - lastDot - 1;
+      if (!(fractionalDigits > 0 && fractionalDigits <= 2)) {
+        raw = raw.replace(/\./g, '');
+      }
+    }
+
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getUnitPrice = (item) => parsePriceValue(item?.price_sell);
   const getOrderAmount = (item, quantity) => Number((getUnitPrice(item) * Math.max(Number(quantity) || 1, 1)).toFixed(2));
 
   useEffect(() => {
@@ -606,7 +643,7 @@ export default function StorefrontPage() {
       const name = String(item?.name || '').toLowerCase();
       const code = String(item?.code || '').toLowerCase();
       const category = String(item?.category || 'Phổ biến').toLowerCase();
-      const price = Number(item?.price_sell || 0);
+      const price = getUnitPrice(item);
 
       const matchCategory = activeCategory === 'Tất cả' || category.includes(normalizedCategory);
       const matchSearch = !term || name.includes(term) || code.includes(term);
@@ -618,9 +655,9 @@ export default function StorefrontPage() {
     }
 
     if (sortBy === 'priceAsc') {
-      nextItems.sort((a, b) => Number(a.price_sell || 0) - Number(b.price_sell || 0));
+      nextItems.sort((a, b) => getUnitPrice(a) - getUnitPrice(b));
     } else if (sortBy === 'priceDesc') {
-      nextItems.sort((a, b) => Number(b.price_sell || 0) - Number(a.price_sell || 0));
+      nextItems.sort((a, b) => getUnitPrice(b) - getUnitPrice(a));
     } else if (sortBy === 'newest') {
       nextItems.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     }
@@ -629,7 +666,7 @@ export default function StorefrontPage() {
   }, [items, searchTerm, activeCategory, sortBy, priceMax]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
-  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.price_sell || 0) * item.quantity, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPrice(item) * item.quantity, 0), [cart]);
   const discountAmount = couponCode.toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
@@ -648,9 +685,9 @@ export default function StorefrontPage() {
     }
 
     const fromProducts = [...items]
-      .sort((a, b) => Number(a.price_sell || 0) - Number(b.price_sell || 0))
+      .sort((a, b) => getUnitPrice(a) - getUnitPrice(b))
       .slice(0, 2)
-      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫.`);
+      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${getUnitPrice(item).toLocaleString('vi-VN')} ₫.`);
 
     if (fromProducts.length > 0) {
       return fromProducts;
@@ -1124,7 +1161,7 @@ export default function StorefrontPage() {
                     <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                        <p className="text-xs text-slate-500">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                        <p className="text-xs text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm">-</button>
@@ -1194,7 +1231,7 @@ export default function StorefrontPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
                           <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
-                          <p className="mt-1 text-sm font-bold text-slate-900">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                          <p className="mt-1 text-sm font-bold text-slate-900">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
                         </div>
                       </button>
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1227,7 +1264,7 @@ export default function StorefrontPage() {
                           <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
                           <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                           <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
-                          <div className="ml-auto text-xs font-semibold text-slate-700">{(Number(entry.price_sell || 0) * entry.quantity).toLocaleString('vi-VN')} ₫</div>
+                          <div className="ml-auto text-xs font-semibold text-slate-700">{(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫</div>
                         </div>
                       </div>
                     ))
@@ -1430,7 +1467,7 @@ export default function StorefrontPage() {
                     <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
                     <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <span className="text-sm text-slate-500">Giá bán</span>
-                      <span className="font-semibold text-slate-900">{Number(quickViewItem.price_sell || 0).toLocaleString('vi-VN')} ₫</span>
+                      <span className="font-semibold text-slate-900">{getUnitPrice(quickViewItem).toLocaleString('vi-VN')} ₫</span>
                     </div>
                     {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
                     <div className="mt-4 flex gap-2">
@@ -1564,7 +1601,7 @@ export default function StorefrontPage() {
                   <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div>
                       <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-sm text-slate-500">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                      <p className="text-sm text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-full bg-slate-100 px-2 py-1 text-sm">-</button>
@@ -1685,7 +1722,7 @@ export default function StorefrontPage() {
                       <h4 className="text-base font-bold text-slate-900">{item.name}</h4>
                       <p className="mt-1 text-sm text-slate-500">{item.code} • {item.unit || 'Đơn vị'}</p>
                         </div>
-                        <p className="text-sm font-semibold text-emerald-300">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                        <p className="text-sm font-semibold text-emerald-300">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
                       </div>
                       <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
                         <Star size={14} className="text-amber-400" /> 4.8 • 128 đánh giá
@@ -1723,7 +1760,7 @@ export default function StorefrontPage() {
                       <p className="font-semibold text-slate-900">{selectedItem.name}</p>
                       <p className="mt-1 text-xs text-slate-500">{selectedItem.code} • {selectedItem.unit || 'Đơn vị'}</p>
                       <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                        <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {Number(selectedItem.price_sell || 0).toLocaleString('vi-VN')} ₫</div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</div>
                         <div className="rounded-lg border border-slate-200 bg-white p-2">Loại hàng: {selectedItem.category || 'Phổ biến'}</div>
                       </div>
                     </div>
@@ -1781,7 +1818,7 @@ export default function StorefrontPage() {
                               <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                               <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
                               <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {(Number(entry.price_sell || 0) * entry.quantity).toLocaleString('vi-VN')} ₫
+                                {(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫
                               </div>
                             </div>
                           </div>
@@ -1819,7 +1856,7 @@ export default function StorefrontPage() {
                               <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                               <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
                               <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {(Number(entry.price_sell || 0) * entry.quantity).toLocaleString('vi-VN')} ₫
+                                {(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫
                               </div>
                             </div>
                           </div>
@@ -1846,7 +1883,7 @@ export default function StorefrontPage() {
                         <p className="font-semibold text-slate-900">{selectedItem.name}</p>
                         <p className="mt-1 text-xs text-slate-500">Đơn giá: {getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫/{selectedItem.unit || 'đơn vị'}</p>
                       </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{Number(selectedItem.price_sell || 0).toLocaleString('vi-VN')} ₫</div>
+                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</div>
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 p-2.5">
                       <div className="text-sm text-slate-600">Số lượng cần mua</div>
@@ -2090,7 +2127,7 @@ export default function StorefrontPage() {
                     <div key={item.id || item.code} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{item.code} - {item.name}</p>
-                        <p className="text-xs text-slate-500">{Number(item.price_sell || 0).toLocaleString('vi-VN')} ₫ • {item.unit || 'Đơn vị'} • SL nhập: {Number(item.opening_quantity || 0).toLocaleString('vi-VN')}</p>
+                        <p className="text-xs text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫ • {item.unit || 'Đơn vị'} • SL nhập: {Number(item.opening_quantity || 0).toLocaleString('vi-VN')}</p>
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">Sửa</button>
@@ -2239,7 +2276,7 @@ export default function StorefrontPage() {
                   <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
                   <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <span className="text-sm text-slate-500">Giá bán</span>
-                    <span className="font-semibold text-emerald-300">{Number(quickViewItem.price_sell || 0).toLocaleString('vi-VN')} ₫</span>
+                    <span className="font-semibold text-emerald-300">{getUnitPrice(quickViewItem).toLocaleString('vi-VN')} ₫</span>
                   </div>
                   {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
                   <div className="mt-4 flex gap-2">
