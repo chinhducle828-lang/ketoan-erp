@@ -48,6 +48,42 @@ const authApi = axios.create({
   withCredentials: true
 });
 
+// Runtime info to help debug network errors in production
+if (typeof window !== 'undefined') {
+  console.info('[STOREFRONT] API_BASE_URL =', API_BASE_URL);
+}
+
+// Log axios errors with more context to console for debugging
+publicApi.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    console.error('[STOREFRONT][publicApi] Request failed', {
+      message: err.message,
+      isAxiosError: err.isAxiosError,
+      config: err.config,
+      code: err.code,
+      response: err.response ? { status: err.response.status, data: err.response.data } : null,
+      event: err.request && err.request._events ? err.request._events : err.request
+    });
+    return Promise.reject(err);
+  }
+);
+
+authApi.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    console.error('[STOREFRONT][authApi] Request failed', {
+      message: err.message,
+      isAxiosError: err.isAxiosError,
+      config: err.config,
+      code: err.code,
+      response: err.response ? { status: err.response.status, data: err.response.data } : null,
+      event: err.request && err.request._events ? err.request._events : err.request
+    });
+    return Promise.reject(err);
+  }
+);
+
 const CATEGORY_OPTIONS = ['Tất cả', 'Gạch', 'Sơn', 'Xi măng', 'Thép', 'Ống nước'];
 const SORT_OPTIONS = [
   { value: 'featured', label: 'Nổi bật' },
