@@ -18,7 +18,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
     
     // 2. Chỉ root admin mới xem audit logs
     if (module.id === 'audit-logs') {
-      const isRoot = user?.username === 'admin' || user?.is_root_admin === true;
+      const isRoot = user?.role === 'admin' || user?.is_root_admin === true;
       if (!isRoot) return false;
     }
     
