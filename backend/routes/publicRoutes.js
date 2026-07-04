@@ -15,6 +15,14 @@ router.get('/items', async (req, res) => {
        WHERE table_name = 'items'`
     );
     const itemColumns = new Set(itemColumnsRes.rows.map((row) => row.column_name));
+    const itemIdExpr = itemColumns.has('id')
+      ? 'id'
+      : itemColumns.has('item_id')
+        ? 'item_id'
+        : null;
+    if (!itemIdExpr) {
+      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh (id/item_id).' });
+    }
     const hasImageUrls = itemColumns.has('image_urls');
     const hasOpeningQuantity = itemColumns.has('opening_quantity');
     const descriptionExpr = itemColumns.has('description')
@@ -24,7 +32,7 @@ router.get('/items', async (req, res) => {
         : "''";
 
     const { rows } = await pool.query(
-      `SELECT id,
+      `SELECT ${itemIdExpr} AS id,
               company_id,
               COALESCE(NULLIF(code, ''), item_code) AS code,
               COALESCE(NULLIF(name, ''), item_name) AS name,
@@ -86,15 +94,30 @@ router.post('/orders', async (req, res) => {
       quantity: qty
     }));
 
+    const itemColumnsRes = await client.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_name = 'items'`
+    );
+    const itemColumns = new Set(itemColumnsRes.rows.map((row) => row.column_name));
+    const itemIdExpr = itemColumns.has('id')
+      ? 'id'
+      : itemColumns.has('item_id')
+        ? 'item_id'
+        : null;
+    if (!itemIdExpr) {
+      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh (id/item_id).' });
+    }
+
     const itemIds = mergedItems.map((entry) => entry.itemId);
     const itemRes = await client.query(
-      `SELECT id,
+      `SELECT ${itemIdExpr} AS item_pk,
               COALESCE(NULLIF(code, ''), item_code) AS code,
               COALESCE(NULLIF(name, ''), item_name) AS name,
               unit,
               COALESCE(price_sell, 0) AS price_sell
        FROM items
-       WHERE company_id = $1 AND id = ANY($2::int[])`,
+       WHERE company_id = $1 AND ${itemIdExpr} = ANY($2::int[])`,
       [companyId, itemIds]
     );
 
@@ -102,7 +125,7 @@ router.post('/orders', async (req, res) => {
       return res.status(404).json({ error: 'Có sản phẩm không tồn tại hoặc không thuộc doanh nghiệp này' });
     }
 
-    const itemById = new Map(itemRes.rows.map((row) => [Number(row.id), row]));
+    const itemById = new Map(itemRes.rows.map((row) => [Number(row.item_pk), row]));
     const lineItems = mergedItems.map((line) => {
       const item = itemById.get(line.itemId);
       const unitPrice = Number(item.price_sell || 0);

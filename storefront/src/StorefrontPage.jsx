@@ -184,6 +184,11 @@ export default function StorefrontPage() {
     setAdminMessage(message || 'Phiên admin không hợp lệ. Đã chuyển về chế độ Khách vãng lai.');
   };
 
+  const isExplicitNonAdminRole = (roleCode) => {
+    const normalized = String(roleCode || '').trim().toLowerCase();
+    return normalized !== '' && normalized !== 'admin';
+  };
+
   const getERPUrl = () => {
     const envUrl = normalizeAbsoluteUrl(import.meta.env.VITE_ERP_URL);
     if (envUrl) return envUrl;
@@ -219,7 +224,7 @@ export default function StorefrontPage() {
     // Build ERP login URL with company and role context so ERP can redirect back with erp_token
     const erpBase = getERPUrl();
     if (!erpBase) {
-      rollbackToGuest('Thiếu địa chỉ ERP để xác thực lại admin. Đã chuyển về chế độ Khách vãng lai.');
+      setAdminMessage('Thiếu địa chỉ ERP để xác thực lại admin. Giữ nguyên chế độ admin và chờ phiên hợp lệ.');
       return;
     }
     const params = new URLSearchParams();
@@ -307,14 +312,20 @@ export default function StorefrontPage() {
               setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
             } else {
               if (targetRole === 'admin') {
-                rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+                if (isExplicitNonAdminRole(roleCode)) {
+                  rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+                } else {
+                  setAdminMessage('Chưa xác thực được phiên admin từ ERP. Giữ nguyên chế độ admin, vui lòng đăng nhập lại từ ERP nếu cần.');
+                }
               } else {
                 setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(targetRole)}.`);
               }
             }
           } catch (e) {
             if (paramRole === 'admin') {
-              rollbackToGuest('Phiên từ ERP chưa được xác thực cho admin. Đã chuyển về chế độ Khách vãng lai.');
+              setAdminMessage('Phiên từ ERP chưa được xác thực cho admin. Giữ nguyên chế độ admin và thử xác thực lại.');
+              setHasAdminSession(false);
+              setSessionRole('');
             } else {
               setAdminMessage('Phiên từ ERP chưa được xác thực. Vui lòng mở storefront lại từ ERP bằng đúng vai trò được phân quyền.');
               setHasAdminSession(false);
@@ -324,7 +335,9 @@ export default function StorefrontPage() {
         } catch (err) {
           console.error('External login exchange failed:', err?.response?.data || err.message);
           if (paramRole === 'admin') {
-            rollbackToGuest('Không thể thiết lập phiên admin từ ERP. Đã chuyển về chế độ Khách vãng lai.');
+            setAdminMessage('Không thể thiết lập phiên admin từ ERP. Giữ nguyên chế độ admin và chờ xác thực lại.');
+            setHasAdminSession(false);
+            setSessionRole('');
           } else {
             setAdminMessage('Không thể thiết lập phiên từ ERP. Vui lòng thử mở lại storefront từ ERP.');
             setHasAdminSession(false);
@@ -359,14 +372,20 @@ export default function StorefrontPage() {
           setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
         } else {
           if (storefrontRole === 'admin') {
-            rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+            if (isExplicitNonAdminRole(roleCode)) {
+              rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+            } else {
+              setAdminMessage('Chưa xác thực được phiên admin. Giữ nguyên chế độ admin và chờ đồng bộ phiên từ ERP.');
+            }
           } else {
             setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(storefrontRole)}.`);
           }
         }
       } catch {
         if (storefrontRole === 'admin') {
-          rollbackToGuest('Không nhận được phiên admin từ ERP. Đã chuyển về chế độ Khách vãng lai.');
+          setAdminMessage('Không nhận được phiên admin từ ERP. Giữ nguyên chế độ admin và thử xác thực lại.');
+          setHasAdminSession(false);
+          setSessionRole('');
         } else {
           setAdminMessage('Không nhận được phiên từ ERP. Vui lòng mở storefront từ ERP để tiếp tục thao tác theo vai trò hiện tại.');
           setHasAdminSession(false);
