@@ -127,6 +127,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
         role: user.role,
         company_ids: companyIds,
         must_change_password: !!user.must_change_password,
+        is_root_admin: !!user.is_root_admin,
         web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho'].includes(user.role) ? 'storefront' : 'erp')
       },
       storefrontOnlyRole: ['nv_banhang', 'nv_kho'].includes(user.role),
@@ -142,7 +143,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
 // ✅ Lấy thông tin người dùng hiện tại từ token
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const q = await pool.query('SELECT id, username, role, company_ids, must_change_password FROM users WHERE id = $1', [req.user.id]);
+    const q = await pool.query('SELECT id, username, role, company_ids, must_change_password, is_root_admin FROM users WHERE id = $1', [req.user.id]);
     if (q.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
     
     const user = q.rows[0];
@@ -152,7 +153,8 @@ router.get('/me', authenticate, async (req, res) => {
         username: user.username,
         role: user.role,
         company_ids: user.company_ids,
-        must_change_password: user.must_change_password
+        must_change_password: user.must_change_password,
+        is_root_admin: !!user.is_root_admin
       },
       fiscal_year: new Date().getFullYear()
     });
