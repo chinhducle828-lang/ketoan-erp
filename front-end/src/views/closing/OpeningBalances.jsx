@@ -272,7 +272,7 @@ export default function OpeningBalances() {
         </div>
       </div>
 
-      {/* Alert Message - ĐÃ ĐƯỢC FIX LỖI CÚ PHÁP TẠI ĐÂY */}
+      {/* Alert Message */}
       {message && (
         <div className={`px-4 py-3 rounded-xl border flex items-center gap-2 text-xs font-medium shadow-sm transition-all tracking-wide ${
           messageType === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -299,6 +299,11 @@ export default function OpeningBalances() {
                 const customItems = customAccounts.filter(b => b.groupId === sub.id);
                 const mergedItems = [...standardItems, ...customItems];
 
+                // Tính toán cấu trúc cột động cho phân mục hiện tại để tránh vỡ Table
+                const hasPartnerColumn = HERMAPHRODITIC_ACCOUNTS.some(c => sub.codes.includes(c));
+                const hasActionColumn = customAccounts.some(b => b.groupId === sub.id);
+                const totalCols = 4 + (hasPartnerColumn ? 1 : 0) + (hasActionColumn ? 1 : 0);
+
                 return (
                   <div key={sub.id} className="space-y-2">
                     <h3 className="font-bold text-xs text-slate-600 flex items-center gap-1.5 uppercase tracking-wider">
@@ -312,12 +317,12 @@ export default function OpeningBalances() {
                           <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             <th className="py-2 pl-1 w-[75px]">Mã TK</th>
                             <th className="py-2">Tên tài khoản kế toán</th>
-                            {HERMAPHRODITIC_ACCOUNTS.some(c => sub.codes.includes(c)) && (
+                            {hasPartnerColumn && (
                               <th className="py-2 w-[140px]">Đối tác</th>
                             )}
                             <th className="py-2 text-center w-[120px]">Số dư Nợ (DR)</th>
                             <th className="py-2 text-center w-[120px]">Số dư Có (CR)</th>
-                            {customItems.length > 0 && <th className="py-2 w-[35px]"></th>}
+                            {hasActionColumn && <th className="py-2 w-[35px]"></th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs">
@@ -325,35 +330,40 @@ export default function OpeningBalances() {
                             const config = ACCOUNT_DICTIONARY[item.account_code] || { type: 'BOTH' };
                             const isDrDisabled = config.type === 'CR';
                             const isCrDisabled = config.type === 'DR';
-                            const isCrNegative = config.type === 'CR_NEG';
                             const isHermaphroditic = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code);
 
                             return (
                               <tr key={item.account_code} className="hover:bg-slate-50/50 transition-colors group">
                                 <td className="py-2 font-semibold text-blue-600 font-mono">{item.account_code}</td>
                                 <td className="py-2 text-slate-600 font-medium pr-2">{item.account_name}</td>
-                                {isHermaphroditic && (
+                                
+                                {hasPartnerColumn && (
                                   <td className="py-1 px-1">
-                                    <select
-                                      value={selectedPartner[item.account_code] || ''}
-                                      onChange={(e) => {
-                                        const partnerId = e.target.value ? Number(e.target.value) : null;
-                                        setSelectedPartner(prev => ({
-                                          ...prev,
-                                          [item.account_code]: e.target.value
-                                        }));
-                                      }}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-400"
-                                    >
-                                      <option value="">-- Chọn đối tác --</option>
-                                      {partners.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                          {p.partner_name} ({p.partner_code})
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {isHermaphroditic ? (
+                                      <select
+                                        value={selectedPartner[item.account_code] ?? ''}
+                                        onChange={(e) => {
+                                          const partnerId = e.target.value ? Number(e.target.value) : null;
+                                          setSelectedPartner(prev => ({
+                                            ...prev,
+                                            [item.account_code]: partnerId
+                                          }));
+                                        }}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-400"
+                                      >
+                                        <option value="">-- Chọn đối tác --</option>
+                                        {partners.map(p => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.partner_name} ({p.partner_code})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <div className="text-center text-slate-300">-</div>
+                                    )}
                                   </td>
                                 )}
+
                                 <td className="py-1 px-1">
                                   {isDrDisabled ? (
                                     <div className="text-center text-slate-300 font-medium">-</div>
@@ -362,21 +372,28 @@ export default function OpeningBalances() {
                                       value={item.debit_balance || ''} onChange={(e) => updateBalanceValue(item.account_code, 'debit_balance', e.target.value)} />
                                   )}
                                 </td>
+                                
                                 <td className="py-1 px-1">
                                   {isCrDisabled ? (
                                     <div className="text-center text-slate-300 font-medium">-</div>
-                                  ) : isCrNegative ? (
-                                    <div className="w-full bg-slate-50 border border-slate-200 text-slate-400 rounded px-2 py-1 text-right font-mono text-xs">(0)</div>
                                   ) : (
-                                    <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-right font-mono text-xs text-slate-700 focus:outline-none focus:border-amber-400 focus:bg-white" placeholder="0"
-                                      value={item.credit_balance || ''} onChange={(e) => updateBalanceValue(item.account_code, 'credit_balance', e.target.value)} />
+                                    <input 
+                                      type="number" 
+                                      className={`w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-right font-mono text-xs focus:outline-none focus:border-amber-400 focus:bg-white ${config.type === 'CR_NEG' ? 'text-rose-600 font-bold' : 'text-slate-700'}`} 
+                                      placeholder="0"
+                                      value={item.credit_balance || ''} 
+                                      onChange={(e) => updateBalanceValue(item.account_code, 'credit_balance', e.target.value)} 
+                                    />
                                   )}
                                 </td>
-                                {item.isCustom && (
+
+                                {hasActionColumn && (
                                   <td className="py-1 text-center">
-                                    <button onClick={() => removeCustomAccount(item.account_code)} className="text-slate-300 hover:text-rose-500 transition-colors">
-                                      <Trash2 size={13} />
-                                    </button>
+                                    {item.isCustom ? (
+                                      <button onClick={() => removeCustomAccount(item.account_code)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                                        <Trash2 size={13} />
+                                      </button>
+                                    ) : null}
                                   </td>
                                 )}
                               </tr>
@@ -406,7 +423,7 @@ export default function OpeningBalances() {
                                   onKeyDown={(e) => e.key === 'Enter' && handleSaveInlineAccount(sub)}
                                 />
                               </td>
-                              <td colSpan={2} className="py-1.5 pr-2 text-right text-[11px] text-slate-400 italic">
+                              <td colSpan={totalCols - 3} className="py-1.5 pr-2 text-right text-[11px] text-slate-400 italic">
                                 Nhấn Enter hoặc nút (+) để thêm
                               </td>
                               <td className="py-1.5 text-center">
@@ -430,13 +447,13 @@ export default function OpeningBalances() {
                               <td className="py-2.5 text-[11px] text-slate-400 italic group-hover:text-slate-600">
                                 Nhập tên tài khoản hoặc tự động định nghĩa
                               </td>
-                              <td colSpan={2} className="py-2.5 text-right text-[11px] text-slate-400/60 italic pr-3">
+                              <td colSpan={totalCols - 3} className="py-2.5 text-right text-[11px] text-slate-400/60 italic pr-3">
                                 Bấm icon bên cạnh để kích hoạt dòng nhập liệu
                               </td>
                               <td className="py-2.5 text-center">
                                 <button
                                   onClick={(e) => {
-                                    e.stopPropagation(); // Ngăn chặn kích hoạt lại hàm cha trỏ nhầm trạng thái
+                                    e.stopPropagation();
                                     handleActivateInlineInput(sub);
                                   }}
                                   className="w-5 h-5 rounded-md border border-slate-200 bg-white hover:border-indigo-400 text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all shadow-sm"
