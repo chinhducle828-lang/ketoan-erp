@@ -64,8 +64,14 @@ export const requireRootAdmin = async (req, res, next) => {
 };
 
 // 3. Middleware Cách ly dữ liệu giữa các Công ty (Row-Level Security)
-export const checkCompanyAccess = (req, res, next) => {
-  const targetCompanyId = req.body.companyId || req.query.company_id || req.params.company_id;
+export const checkCompanyAccess = async (req, res, next) => {
+  const targetCompanyId =
+    req.body.companyId ||
+    req.body.company_id ||
+    req.query.company_id ||
+    req.query.companyId ||
+    req.params.company_id ||
+    req.params.companyId;
   
   if (!targetCompanyId) {
     return res.status(400).json({ error: 'Yêu cầu không hợp lệ. Thiếu thông tin định danh công ty (companyId)!' });
@@ -75,11 +81,26 @@ export const checkCompanyAccess = (req, res, next) => {
     return next();
   }
 
-  if (!req.user || String(req.user.company_id) !== String(targetCompanyId)) {
-    return res.status(403).json({ 
-      error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.' 
-    });
-  }
+  try {
+    if (!req.user?.id) {
+      return res.status(403).json({
+        error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.'
+      });
+    }
 
-  next();
+    const access = await pool.query(
+      'SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+      [req.user.id, Number(targetCompanyId)]
+    );
+
+    if (access.rows.length === 0) {
+      return res.status(403).json({
+        error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(500).json({ error: 'Lỗi xác thực quyền doanh nghiệp' });
+  }
 };

@@ -1,9 +1,25 @@
 import React, { Suspense, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle, Lock } from 'lucide-react';
+import { MODULES_REGISTER } from '../views/index.js';
 
 export default function CompanyRouteWrapper({ component: Component, requiresActiveCompany, moduleId }) {
-  const { activeCompany, hasOpeningBalance, checkOpeningBalanceStatus } = useAuth();
+  const { user, activeCompany, hasOpeningBalance, checkOpeningBalanceStatus } = useAuth();
+  const currentModule = MODULES_REGISTER.find((module) => module.id === moduleId);
+
+  if (!currentModule || !currentModule.allowedRoles?.includes(user?.role)) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-white border border-slate-200 rounded-2xl shadow-sm max-w-lg mx-auto mt-12 animate-fade-in">
+        <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl mb-4 border border-rose-100">
+          <Lock size={32} />
+        </div>
+        <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">Không có quyền truy cập</h2>
+        <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+          Tài khoản hiện tại không được phân quyền cho phân hệ này. Vui lòng liên hệ quản trị để cấp quyền đúng vai trò nghiệp vụ.
+        </p>
+      </div>
+    );
+  }
 
   // Kiểm tra trạng thái số dư đầu kỳ khi thay đổi công ty
   useEffect(() => {

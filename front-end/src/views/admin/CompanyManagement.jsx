@@ -7,6 +7,8 @@ import { ShieldAlert, Users, UserPlus, Trash2, KeyRound, Database } from 'lucide
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
+const EMPLOYEE_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
+
 export default function CompanyManagement() {
   // Lấy danh sách dữ liệu và hàm load từ Context chung của hệ thống
   const { fetchCompanies, companies, user: currentUser, loadUsers } = useAuth();
@@ -95,7 +97,7 @@ export default function CompanyManagement() {
   // States quản lý Form thêm nhân viên mới
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState('nv');
+  const [newRole, setNewRole] = useState('nv_banhang');
   const [newManagerId, setNewManagerId] = useState('');
   const [newCompanyIds, setNewCompanyIds] = useState([]);
   const [exportCompanyId, setExportCompanyId] = useState(null);
@@ -129,12 +131,12 @@ export default function CompanyManagement() {
         userId,
         companyId: targetCompanyId,
         companyIds: targetCompanyId ? [targetCompanyId] : [],
-        role: targetUser?.role || 'nv'
+        role: targetUser?.role || 'nv_banhang'
       });
       const updatedUsers = await fetchUsersFromApi();
       syncLocalUsers(updatedUsers);
     } catch (err) {
-      alert('Lỗi gán quyền đơn vị');
+      alert(err.response?.data?.error || 'Lỗi gán quyền đơn vị');
       const updatedUsers = await fetchUsersFromApi();
       syncLocalUsers(updatedUsers);
     }
@@ -172,7 +174,7 @@ export default function CompanyManagement() {
       const updatedUsers = await fetchUsersFromApi();
       syncLocalUsers(updatedUsers);
     } catch (err) {
-      alert('Lỗi cập nhật vai trò');
+      alert(err.response?.data?.error || 'Lỗi cập nhật vai trò');
       const updatedUsers = await fetchUsersFromApi();
       syncLocalUsers(updatedUsers);
     }
@@ -188,12 +190,16 @@ export default function CompanyManagement() {
     }
     try {
       const companyIdsPayload = newRole === 'admin' ? [] : newCompanyIds.map(Number).filter(id => id > 0);
+      if (EMPLOYEE_ROLES.includes(newRole) && companyIdsPayload.length === 0) {
+        alert('Nhân viên bán hàng/kho phải được gán ít nhất 1 doanh nghiệp trước khi tạo tài khoản.');
+        return;
+      }
       const res = await api.post('/users', {
         username: newUsername,
         password: newPassword,
         role: newRole,
         companyIds: companyIdsPayload,
-        managerId: newRole === 'nv' ? (newManagerId ? Number(newManagerId) : null) : null
+        managerId: EMPLOYEE_ROLES.includes(newRole) ? (newManagerId ? Number(newManagerId) : null) : null
       });
 
       const createdUser = res.data?.user;
@@ -204,7 +210,7 @@ export default function CompanyManagement() {
             ...createdUser,
             company_ids: companyIdsPayload,
             company_id: companyIdsPayload[0] || null,
-            manager_id: newRole === 'nv' ? (newManagerId ? Number(newManagerId) : null) : null
+            manager_id: EMPLOYEE_ROLES.includes(newRole) ? (newManagerId ? Number(newManagerId) : null) : null
           }
         ]);
       }
@@ -214,7 +220,7 @@ export default function CompanyManagement() {
       setNewPassword('');
       setNewCompanyIds([]);
       setNewManagerId('');
-      setNewRole('nv');
+      setNewRole('nv_banhang');
       
       try {
         const refreshedUsers = await fetchUsersFromApi();
@@ -365,7 +371,9 @@ export default function CompanyManagement() {
                   }}
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-medium text-slate-700"
                 >
-                  <option value="nv">Nhân viên (nv)</option>
+                  <option value="nv_banhang">Nhân viên bán hàng (nv_banhang)</option>
+                  <option value="nv_kho">Nhân viên kho (nv_kho)</option>
+                  <option value="nv">Nhân viên chung (nv - legacy)</option>
                   <option value="ktt">Kế toán trưởng (ktt)</option>
                   <option value="admin">Quản trị viên (admin)</option>
                 </select>
@@ -399,8 +407,8 @@ export default function CompanyManagement() {
                 </div>
               </div>
 
-              {/* Người quản lý trực tiếp (Chỉ hiển thị khi vai trò là 'nv') */}
-              {newRole === 'nv' && (
+              {/* Người quản lý trực tiếp (hiển thị cho nhóm vai trò nhân viên) */}
+              {EMPLOYEE_ROLES.includes(newRole) && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1 pl-0.5 uppercase tracking-wider">Cấp trên quản lý phụ trách</label>
                   <select
@@ -517,6 +525,8 @@ export default function CompanyManagement() {
                             >
                               <option value="admin">ADMIN</option>
                               <option value="ktt">KTT</option>
+                              <option value="nv_banhang">NV_BANHANG</option>
+                              <option value="nv_kho">NV_KHO</option>
                               <option value="nv">NV</option>
                             </select>
                           </td>
@@ -621,13 +631,17 @@ export default function CompanyManagement() {
                                 ? 'bg-amber-50 text-amber-700 border border-amber-100'
                                 : user.role === 'ktt'
                                 ? 'bg-purple-50 text-purple-700 border border-purple-100'
+                                : user.role === 'nv_banhang'
+                                ? 'bg-cyan-50 text-cyan-700 border border-cyan-100'
+                                : user.role === 'nv_kho'
+                                ? 'bg-teal-50 text-teal-700 border border-teal-100'
                                 : 'bg-blue-50 text-blue-600 border border-blue-100'
                             }`}>
-                              {user.role === 'admin' ? 'Admin' : user.role === 'ktt' ? 'KTT' : 'NV'}
+                              {user.role === 'admin' ? 'Admin' : user.role === 'ktt' ? 'KTT' : user.role === 'nv_banhang' ? 'NV Bán hàng' : user.role === 'nv_kho' ? 'NV Kho' : 'NV'}
                             </span>
                           </td>
                           <td className="p-3.5">
-                            {user.role === 'nv' ? (
+                            {EMPLOYEE_ROLES.includes(user.role) ? (
                               <span className="text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded-lg">👤 {managerName}</span>
                             ) : (
                               <span className="text-slate-300 italic pl-1">— Không áp dụng —</span>

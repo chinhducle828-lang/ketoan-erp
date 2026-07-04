@@ -28,12 +28,31 @@ export function AuthProvider({ children }) {
           
           // Phục hồi dữ liệu phân vùng doanh nghiệp làm việc
           const storedCompany = localStorage.getItem('activeCompany');
+          let parsedStoredCompany = null;
           if (storedCompany) {
-            setActiveCompany(JSON.parse(storedCompany));
+            try {
+              parsedStoredCompany = JSON.parse(storedCompany);
+            } catch {
+              parsedStoredCompany = null;
+            }
           }
-          
+
           // ✅ FIX: Tải danh sách công ty từ database khi khởi động phiên làm việc
-          await fetchCompanies();
+          const fetchedCompanies = await fetchCompanies();
+
+          // Nếu tài khoản mới đăng nhập chưa có activeCompany, tự chọn công ty đầu tiên được cấp quyền.
+          const matchedCompany = parsedStoredCompany?.id
+            ? fetchedCompanies.find((c) => Number(c.id) === Number(parsedStoredCompany.id))
+            : null;
+
+          const defaultCompany = matchedCompany || fetchedCompanies[0] || null;
+          if (defaultCompany) {
+            setActiveCompany(defaultCompany);
+            localStorage.setItem('activeCompany', JSON.stringify(defaultCompany));
+          } else {
+            setActiveCompany(null);
+            localStorage.removeItem('activeCompany');
+          }
         }
       } catch (err) {
         console.warn('Phiên làm việc hết hạn hoặc chưa được đăng nhập trước đó.');
@@ -49,8 +68,36 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
     localStorage.setItem('accessToken', data.accessToken);
-    setUser(data.user);
+    setUser({
+      ...(data.user || {}),
+      must_change_password: Boolean(data?.user?.must_change_password ?? data?.must_change_password)
+    });
     setFiscalYear(data.fiscal_year);
+
+    const fetchedCompanies = await fetchCompanies();
+    const storedCompany = localStorage.getItem('activeCompany');
+    let parsedStoredCompany = null;
+    if (storedCompany) {
+      try {
+        parsedStoredCompany = JSON.parse(storedCompany);
+      } catch {
+        parsedStoredCompany = null;
+      }
+    }
+
+    const matchedCompany = parsedStoredCompany?.id
+      ? fetchedCompanies.find((c) => Number(c.id) === Number(parsedStoredCompany.id))
+      : null;
+    const defaultCompany = matchedCompany || fetchedCompanies[0] || null;
+
+    if (defaultCompany) {
+      setActiveCompany(defaultCompany);
+      localStorage.setItem('activeCompany', JSON.stringify(defaultCompany));
+    } else {
+      setActiveCompany(null);
+      localStorage.removeItem('activeCompany');
+    }
+
     return data;
   };
 
@@ -65,6 +112,19 @@ export function AuthProvider({ children }) {
       setUser(null);
       setActiveCompany(null);
     }
+  };
+
+  const changePassword = async (oldPassword, newPassword) => {
+    const { data } = await api.post('/auth/change-password', { oldPassword, newPassword });
+
+    // Backend đã hủy toàn bộ session sau khi đổi mật khẩu,
+    // nên client cũng dọn trạng thái để buộc đăng nhập lại.
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('activeCompany');
+    setUser(null);
+    setActiveCompany(null);
+
+    return data;
   };
 
   const changeCompany = (company) => {
@@ -129,6 +189,7 @@ export function AuthProvider({ children }) {
       fiscalYear, 
       login, 
       logout, 
+      changePassword,
       changeCompany,
       token,
       mustChangePassword,
@@ -138,7 +199,8 @@ export function AuthProvider({ children }) {
       companies,
       users,
       fetchCompanies,
-      loadUsers
+      loadUsers,
+      setFiscalYear
     }}>
       {children}
     </AuthContext.Provider>

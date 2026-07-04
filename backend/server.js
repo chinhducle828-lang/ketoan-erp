@@ -69,7 +69,7 @@ export const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 // Khởi tạo Database thông qua đọc file schema.sql bên ngoài
-(async () => {
+const dbInitPromise = (async () => {
   try {
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
@@ -83,6 +83,38 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
     } else {
       console.warn('⚠️ Cảnh báo: Không tìm thấy file schema.sql tại thư mục backend.');
     }
+
+    const compatibilitySql = `
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS lock_date DATE DEFAULT NULL;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_posted BOOLEAN DEFAULT FALSE;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP DEFAULT NULL;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS posted_by INT REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS loading_status VARCHAR(20) DEFAULT 'pending_loading';
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS truck_id INT DEFAULT NULL;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS price_sell NUMERIC(15,2) DEFAULT 0;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS opening_quantity NUMERIC(15,4) DEFAULT 0;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          WHERE t.relname = 'users' AND c.conname = 'users_role_check'
+        ) THEN
+          ALTER TABLE users DROP CONSTRAINT users_role_check;
+        END IF;
+
+        ALTER TABLE users
+        ADD CONSTRAINT users_role_check
+        CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'));
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
+    `;
+    await pool.query(compatibilitySql);
+    console.log('Đã áp dụng các ALTER TABLE tương thích cho schema hiện tại.');
     
     // Run migrations if they exist
     const migrationsPath = path.join(__dirname, 'migrations');
@@ -122,6 +154,8 @@ import inventoryRoutes from './routes/inventoryRoutes.js';
 import { reportRouter } from './routes/report.js';
 import vouchersRouter from './routes/vouchers.js';
 import maintenanceRouter from './routes/maintenance.js';
+import publicRoutes from './routes/publicRoutes.js';
+import logisticsRoutes from './routes/logisticsRoutes.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -139,6 +173,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/report', reportRouter);
 app.use('/api/vouchers', vouchersRouter);
 app.use('/api/maintenance', maintenanceRouter);
+app.use('/api/public', publicRoutes);
+app.use('/api/logistics', logisticsRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
 // HEALTH CHECK & UTILITIES
@@ -152,15 +189,7 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-if (process.env.SEED_DATABASE === 'true') {
-  import('./services/seedData.js').then(({ seedDatabase }) => {
-    seedDatabase();
-  }).catch(err => {
-    console.error('Failed to seed database:', err.message);
-  });
-}
-
-if (process.env.NODE_ENV === 'production') {
+if (process.env.SERVE_STATIC_FRONTEND === 'true') {
   const possiblePaths = [
     path.join(__dirname, '..', 'front-end', 'dist'),
     path.join(__dirname, '..', 'dist'),
@@ -191,10 +220,18 @@ if (process.env.NODE_ENV === 'production') {
   } else {
     console.warn('⚠️ Frontend dist not found in any expected location. API-only mode.');
   }
+} else {
+  console.log('ℹ️ Running in API-only mode. Static frontend will not be served by backend.');
 }
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+
+if (isMainModule) {
+  app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
+}
+
+export { app, dbInitPromise };
 export default app;
 
 //

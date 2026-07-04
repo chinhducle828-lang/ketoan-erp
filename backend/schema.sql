@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS companies (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS lock_date DATE DEFAULT NULL;
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
@@ -25,6 +27,24 @@ CREATE TABLE IF NOT EXISTS users (
     preferences JSONB DEFAULT '{}', -- Lưu trữ tùy chỉnh giao diện
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        WHERE t.relname = 'users' AND c.conname = 'users_role_check'
+    ) THEN
+        ALTER TABLE users DROP CONSTRAINT users_role_check;
+    END IF;
+
+    ALTER TABLE users
+    ADD CONSTRAINT users_role_check
+    CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS partners (
     id SERIAL PRIMARY KEY,
@@ -45,10 +65,21 @@ CREATE TABLE IF NOT EXISTS items (
     company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
+    description TEXT,
     unit VARCHAR(50) DEFAULT 'Cái',
+    price_sell NUMERIC(15,2) DEFAULT 0,
+    opening_quantity NUMERIC(15,4) DEFAULT 0,
+    image_url TEXT,
+    image_urls JSONB DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_item_company_code UNIQUE (company_id, code)
 );
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS price_sell NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS opening_quantity NUMERIC(15,4) DEFAULT 0;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS image_urls JSONB DEFAULT '[]';
+ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
 
 CREATE TABLE IF NOT EXISTS vouchers (
     id SERIAL PRIMARY KEY,
@@ -63,8 +94,16 @@ CREATE TABLE IF NOT EXISTS vouchers (
     is_posted BOOLEAN DEFAULT FALSE,
     posted_at TIMESTAMP DEFAULT NULL,
     posted_by INT REFERENCES users(id) ON DELETE SET NULL,
+    loading_status VARCHAR(20) DEFAULT 'pending_loading',
+    truck_id INT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_posted BOOLEAN DEFAULT FALSE;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP DEFAULT NULL;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS posted_by INT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS loading_status VARCHAR(20) DEFAULT 'pending_loading';
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS truck_id INT DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS voucher_details (
     id SERIAL PRIMARY KEY,
@@ -97,6 +136,25 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_posted_only ON vouchers(company_id, vouc
 CREATE INDEX IF NOT EXISTS idx_voucher_details_lookup ON voucher_details(voucher_id, account_code, entry_type);
 CREATE INDEX IF NOT EXISTS idx_opening_balances_lookup ON opening_balances(company_id, fiscal_year, account_code);
 CREATE INDEX IF NOT EXISTS idx_partners_company_search ON partners(company_id, partner_code, partner_name);
+CREATE TABLE IF NOT EXISTS trucks (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    plate_number VARCHAR(20) NOT NULL,
+    driver_name VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'available',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_truck_company_plate UNIQUE (company_id, plate_number)
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'vouchers_truck_id_fk'
+  ) THEN
+    ALTER TABLE vouchers ADD CONSTRAINT vouchers_truck_id_fk FOREIGN KEY (truck_id) REFERENCES trucks(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_items_company_search ON items(company_id, code, name);
 
 -- ====================================================================

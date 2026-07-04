@@ -3,14 +3,19 @@ import axios from 'axios';
 
 // ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
 const getBaseURL = () => {
+  const base = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (base) {
+    return base.endsWith('/api') ? base : `${base.replace(/\/$/, '')}/api`;
+  }
+
   if (typeof window !== 'undefined') {
-    // 🌟 ĐÃ SỬA: Gom nhóm ngoặc đơn chuẩn xác để tránh lỗi logic thứ tự ưu tiên toán tử
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost:3000') {
-      return '/api'; // Dùng proxy Vite cấu hình sẵn ở local
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return '/api';
     }
   }
-  // 🔴 KHI LÊN RAILWAY PRODUCTION: Ép cứng trỏ thẳng về endpoint /api của Backend Railway
-  return 'https://dazzling-grace-production-03a5.up.railway.app/api';
+
+  return '/api';
 };
 
 const api = axios.create({
@@ -29,6 +34,10 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
     // Tự động kiểm tra và cấu hình ID doanh nghiệp đang làm việc vào Header hệ thống
     const activeCompanyData = localStorage.getItem('activeCompany');
     if (activeCompanyData) {
@@ -36,7 +45,6 @@ api.interceptors.request.use(
         const company = JSON.parse(activeCompanyData);
         if (company && company.id) {
           config.headers['X-Company-Id'] = company.id;
-          // Đồng thời gắn vào query params để đảm bảo đồng bộ hoàn toàn
           config.params = {
             ...config.params,
             company_id: company.id

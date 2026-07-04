@@ -4,6 +4,8 @@ export const ROLES = {
   NV: 'nv'
 };
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 export const CHART_OF_ACCOUNTS = [
   // ==========================================
   // LOẠI 1 & LOẠI 2: TÀI SẢN (DEBIT BALANCE)
