@@ -138,6 +138,13 @@ const resolveMediaUrl = (value) => {
   return `${API_BASE_URL}/${normalizedPath}`;
 };
 
+const formatDisplayDate = (value) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+  return date.toLocaleDateString('vi-VN');
+};
+
 const ImageWithFallback = ({
   src,
   alt,
@@ -352,8 +359,13 @@ export default function StorefrontPage() {
   });
   const previousQueueRef = useRef(new Map());
   const firstQueueLoadRef = useRef(true);
+  const salesOrderIdsRef = useRef(salesOrderIds);
+  const streamRef = useRef(null);
 
   const hasCartItems = cart.length > 0;
+
+  const getOrderDisplayDate = (order) => formatDisplayDate(order?.voucher_date || order?.created_at);
+
   const parsePriceValue = (value) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
     if (value === null || value === undefined) return 0;
@@ -853,13 +865,15 @@ export default function StorefrontPage() {
     return { withCredentials: true };
   };
 
-  const loadWarehouseQueue = async () => {
+  const loadWarehouseQueue = async ({ source = 'poll', keepLoadingState = true } = {}) => {
     if (!companyId) {
       setWarehouseQueue([]);
       return;
     }
 
-    setWarehouseLoading(true);
+    if (keepLoadingState) {
+      setWarehouseLoading(true);
+    }
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
         params: { company_id: companyId },
@@ -870,7 +884,7 @@ export default function StorefrontPage() {
       const nextMap = new Map(nextList.map((order) => [Number(order.id), order]));
       const previousMap = previousQueueRef.current;
 
-      if (!firstQueueLoadRef.current) {
+      if (!firstQueueLoadRef.current && source !== 'realtime') {
         const addedPendingOrders = nextList.filter((order) => {
           const id = Number(order.id);
           return !previousMap.has(id) && order.loading_status === 'pending_loading';
@@ -920,9 +934,15 @@ export default function StorefrontPage() {
         setError(err.response?.data?.error || 'Không thể tải danh sách chờ xuất kho.');
       }
     } finally {
-      setWarehouseLoading(false);
+      if (keepLoadingState) {
+        setWarehouseLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    salesOrderIdsRef.current = salesOrderIds;
+  }, [salesOrderIds]);
 
   useEffect(() => {
     if (!canTrackQueue) return;
@@ -932,9 +952,102 @@ export default function StorefrontPage() {
     firstQueueLoadRef.current = true;
 
     loadWarehouseQueue();
-    const timer = setInterval(loadWarehouseQueue, 15000);
+    const timer = setInterval(() => loadWarehouseQueue({ source: 'poll', keepLoadingState: false }), 60000);
     return () => clearInterval(timer);
   }, [companyId, canTrackQueue]);
+
+  useEffect(() => {
+    if (!canTrackQueue || !companyId) return;
+
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
+    }
+
+    const streamUrl = new URL(`${API_BASE_URL}/api/logistics/stream`);
+    streamUrl.searchParams.set('company_id', String(companyId));
+    if (storefrontToken) {
+      streamUrl.searchParams.set('access_token', storefrontToken);
+    }
+
+    const eventSource = new EventSource(
+      streamUrl.toString(),
+      storefrontToken ? undefined : { withCredentials: true }
+    );
+    streamRef.current = eventSource;
+
+    const refreshFromRealtime = () => {
+      loadWarehouseQueue({ source: 'realtime', keepLoadingState: false });
+    };
+
+    eventSource.addEventListener('order_created', (rawEvent) => {
+      let payload = {};
+      try {
+        payload = JSON.parse(String(rawEvent?.data || '{}'));
+      } catch {
+        payload = {};
+      }
+
+      if (isAdminRole || isWarehouseRole) {
+        setRolePopup({
+          id: `rt-order-created-${Date.now()}`,
+          title: isWarehouseRole ? 'Đơn mới chờ xuất kho' : 'Đơn mới từ bán hàng',
+          message: `${payload.voucherNumber || 'Đơn web'} vừa được tạo lúc ${new Date().toLocaleTimeString('vi-VN')}.`
+        });
+      }
+
+      refreshFromRealtime();
+    });
+
+    eventSource.addEventListener('logistics_status_changed', (rawEvent) => {
+      let payload = {};
+      try {
+        payload = JSON.parse(String(rawEvent?.data || '{}'));
+      } catch {
+        payload = {};
+      }
+
+      const voucherId = Number(payload?.voucherId);
+      const voucherNumber = payload?.voucherNumber || 'Đơn hàng';
+      const loadingStatus = String(payload?.loadingStatus || '').trim();
+      const statusLabel = WAREHOUSE_STATUS_LABEL[loadingStatus] || loadingStatus || 'được cập nhật';
+
+      if (isAdminRole || isWarehouseRole) {
+        setRolePopup({
+          id: `rt-status-${Date.now()}`,
+          title: 'Cập nhật trạng thái đơn',
+          message: `${voucherNumber}: ${statusLabel}.`
+        });
+      }
+
+      if (isSalesRole && loadingStatus === 'completed' && Number.isFinite(voucherId)) {
+        const trackedIds = salesOrderIdsRef.current || [];
+        if (trackedIds.includes(voucherId)) {
+          const remaining = trackedIds.filter((id) => Number(id) !== voucherId);
+          setSalesOrderIds(remaining);
+          localStorage.setItem('salesOrderIds', JSON.stringify(remaining));
+          setRolePopup({
+            id: `rt-sales-completed-${Date.now()}`,
+            title: 'Đơn hàng đã hoàn thành',
+            message: `${voucherNumber} đã được kho xử lý hoàn tất.`
+          });
+        }
+      }
+
+      refreshFromRealtime();
+    });
+
+    eventSource.onerror = () => {
+      // Keep lightweight polling as fallback when stream reconnects.
+    };
+
+    return () => {
+      eventSource.close();
+      if (streamRef.current === eventSource) {
+        streamRef.current = null;
+      }
+    };
+  }, [companyId, canTrackQueue, storefrontToken, isAdminRole, isWarehouseRole, isSalesRole]);
 
   useEffect(() => {
     if (!rolePopup) return;
@@ -1450,7 +1563,7 @@ export default function StorefrontPage() {
                     {warehouseQueue.slice(0, 4).map((order) => (
                       <div key={`sales-track-${order.id}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                         <p className="truncate text-sm font-semibold text-slate-900">{order.voucher_number || `Đơn #${order.id}`}</p>
-                        <p className="mt-1 text-xs text-slate-500">{WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
+                        <p className="mt-1 text-xs text-slate-500">{WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status} • Ngày: {getOrderDisplayDate(order)}</p>
                       </div>
                     ))}
                   </div>
@@ -2169,7 +2282,7 @@ export default function StorefrontPage() {
                     <div key={`admin-track-${order.id}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{order.voucher_number || `Đơn #${order.id}`}</p>
-                        <p className="text-xs text-slate-500">{order.description || 'Đơn web'}</p>
+                        <p className="text-xs text-slate-500">{order.description || 'Đơn web'} • Ngày: {getOrderDisplayDate(order)}</p>
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
                         {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
@@ -2237,7 +2350,7 @@ export default function StorefrontPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{order.voucher_number || `Đơn #${order.id}`}</p>
-                        <p className="text-xs text-slate-500">{order.description || 'Đơn web'} • Trạng thái: {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
+                        <p className="text-xs text-slate-500">{order.description || 'Đơn web'} • Ngày: {getOrderDisplayDate(order)} • Trạng thái: {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
                       </div>
                       <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Tổng SL: {Number(order.total_quantity || 0).toLocaleString('vi-VN')}</span>
                     </div>

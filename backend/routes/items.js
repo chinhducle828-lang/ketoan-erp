@@ -38,13 +38,56 @@ const getItemsColumns = async () => {
 const parseImageUrls = (bodyValue, uploadedImages) => {
   if (uploadedImages.length > 0) return uploadedImages;
   if (!bodyValue) return null;
-  if (Array.isArray(bodyValue)) return bodyValue;
+  if (Array.isArray(bodyValue)) {
+    return bodyValue
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+  }
   try {
     const parsed = JSON.parse(bodyValue);
-    return Array.isArray(parsed) ? parsed : null;
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
   } catch {
     return null;
   }
+};
+
+const parseGoogleDriveFileId = (rawInput) => {
+  const raw = String(rawInput || '').trim();
+  if (!raw) return null;
+
+  const fromPath = raw.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (fromPath?.[1]) return fromPath[1];
+
+  const fromDriveusercontentPath = raw.match(/\/d\/([a-zA-Z0-9_-]{10,})(?:[=?&#/]|$)/);
+  if (fromDriveusercontentPath?.[1]) return fromDriveusercontentPath[1];
+
+  try {
+    const parsed = new URL(raw);
+    const idFromQuery = parsed.searchParams.get('id');
+    if (idFromQuery && /^[a-zA-Z0-9_-]{10,}$/.test(idFromQuery)) return idFromQuery;
+
+    const pathnameMatch = parsed.pathname.match(/\/d\/([a-zA-Z0-9_-]{10,})(?:[/?#]|$)/);
+    if (pathnameMatch?.[1]) return pathnameMatch[1];
+  } catch {
+    // Ignore malformed URLs and leave as-is.
+  }
+
+  return null;
+};
+
+const normalizeImageUrlInput = (rawInput) => {
+  const raw = String(rawInput || '').trim();
+  if (!raw) return null;
+
+  const driveFileId = parseGoogleDriveFileId(raw);
+  if (driveFileId) {
+    return `https://drive.google.com/uc?export=view&id=${driveFileId}`;
+  }
+
+  return raw;
 };
 
 const toAbsoluteMediaUrl = (req, rawValue) => {
@@ -134,7 +177,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
     const targetCompanyId = companyId || company_id || req.query.company_id;
     const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
     const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
-    const imageUrlValue = image_url || req.body.imageUrl || null;
+    const imageUrlValue = normalizeImageUrlInput(image_url || req.body.imageUrl || null);
     const descriptionValue = (description ?? item_description ?? '').trim();
     const uploadedImages = Array.isArray(req.files) ? req.files.map((file) => `/uploads/items/${file.filename}`) : [];
 
@@ -147,8 +190,10 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
     }
 
     const columns = await getItemsColumns();
-    const imageUrlsValue = parseImageUrls(req.body.image_urls, uploadedImages);
-    const firstImage = uploadedImages[0] || imageUrlValue || null;
+    const imageUrlsValue = (parseImageUrls(req.body.image_urls, uploadedImages) || [])
+      .map((value) => normalizeImageUrlInput(value))
+      .filter(Boolean);
+    const firstImage = uploadedImages[0] || imageUrlValue || imageUrlsValue[0] || null;
 
     const insertColumns = ['company_id', 'unit'];
     const insertValues = [targetCompanyId, unit.trim()];
@@ -191,7 +236,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
     }
     if (columns.has('image_urls')) {
       insertColumns.push('image_urls');
-      insertValues.push(imageUrlsValue ? JSON.stringify(imageUrlsValue) : JSON.stringify([]));
+      insertValues.push(JSON.stringify(imageUrlsValue));
     }
     if (columns.has('created_by')) {
       insertColumns.push('created_by');
@@ -245,10 +290,12 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
     const targetCompanyId = companyId || company_id || req.query.company_id;
     const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
     const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
-    const imageUrlValue = image_url || req.body.imageUrl || null;
+    const hasImageUrlField = Object.prototype.hasOwnProperty.call(req.body, 'image_url')
+      || Object.prototype.hasOwnProperty.call(req.body, 'imageUrl');
+    const hasImageUrlsField = Object.prototype.hasOwnProperty.call(req.body, 'image_urls');
+    const imageUrlValue = normalizeImageUrlInput(image_url || req.body.imageUrl || null);
     const descriptionValue = (description ?? item_description ?? '').trim();
     const uploadedImages = Array.isArray(req.files) ? req.files.map((file) => `/uploads/items/${file.filename}`) : [];
-    const firstImage = uploadedImages[0] || imageUrlValue || null;
 
     if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính mới.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp cần cập nhật!' });
@@ -259,7 +306,16 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
     }
 
     const columns = await getItemsColumns();
-    const imageUrlsValue = parseImageUrls(req.body.image_urls, uploadedImages);
+    const shouldUpdateImageUrls = uploadedImages.length > 0 || hasImageUrlsField;
+    const imageUrlsValue = shouldUpdateImageUrls
+      ? (parseImageUrls(req.body.image_urls, uploadedImages) || [])
+          .map((value) => normalizeImageUrlInput(value))
+          .filter(Boolean)
+      : null;
+    const shouldUpdatePrimaryImage = uploadedImages.length > 0
+      || hasImageUrlField
+      || (Array.isArray(imageUrlsValue) && imageUrlsValue.length > 0);
+    const firstImage = uploadedImages[0] || imageUrlValue || imageUrlsValue?.[0] || null;
     const updateSet = [];
     const updateValues = [];
 
@@ -290,11 +346,11 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
       updateSet.push(`opening_quantity = $${updateSet.length + 1}`);
       updateValues.push(openingQuantityValue);
     }
-    if (columns.has('image_url')) {
+    if (columns.has('image_url') && shouldUpdatePrimaryImage) {
       updateSet.push(`image_url = $${updateSet.length + 1}`);
       updateValues.push(firstImage);
     }
-    if (columns.has('image_urls') && imageUrlsValue) {
+    if (columns.has('image_urls') && shouldUpdateImageUrls) {
       updateSet.push(`image_urls = $${updateSet.length + 1}`);
       updateValues.push(JSON.stringify(imageUrlsValue));
     }
