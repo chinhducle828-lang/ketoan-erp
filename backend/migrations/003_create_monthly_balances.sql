@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS monthly_balances (
   closing_debit NUMERIC(18,2) NOT NULL DEFAULT 0,
   closing_credit NUMERIC(18,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(company_id, account_code, COALESCE(partner_id, 0), month, year)
+  updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_monthly_balances_company_account_partner_month_year
+ON monthly_balances(company_id, account_code, COALESCE(partner_id, 0), month, year);
 
 CREATE INDEX IF NOT EXISTS idx_monthly_balances_lookup 
 ON monthly_balances(company_id, year, month);

@@ -3,9 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { Store, ExternalLink, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const STOREFRONT_URL = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001';
+const getStorefrontURL = () => {
+  if (import.meta.env.VITE_STOREFRONT_URL) {
+    return import.meta.env.VITE_STOREFRONT_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
+      return 'http://banhang.railway.internal';
+    }
+  }
+
+  return 'http://localhost:3001';
+};
 
 export default function StorefrontAccessNotice() {
+  const STOREFRONT_URL = getStorefrontURL();
   const { activeCompany, user, logout } = useAuth();
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(true);
