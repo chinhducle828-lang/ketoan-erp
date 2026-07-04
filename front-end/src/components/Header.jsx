@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { Building2, LogOut, User, Calendar, Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
@@ -37,6 +38,36 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     if (targetCompObj) {
       changeCompany(targetCompObj);
     }
+  };
+
+  const navigate = useNavigate();
+
+  const getStorefrontURL = () => {
+    if (import.meta.env.VITE_STOREFRONT_URL) return import.meta.env.VITE_STOREFRONT_URL;
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
+        return 'http://banhang.railway.internal';
+      }
+    }
+    return 'http://localhost:3001';
+  };
+
+  const openStorefront = () => {
+    const STOREFRONT_URL = getStorefrontURL();
+    const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
+    const roleCode = user?.roleId || user?.role;
+    const erpAccessToken = localStorage.getItem('accessToken');
+    const params = new URLSearchParams();
+    if (companyId) params.set('company_id', companyId);
+    if (roleCode) params.set('role', roleCode);
+    if (erpAccessToken) params.set('erp_token', erpAccessToken);
+    const href = `${STOREFRONT_URL}${params.toString() ? `?${params.toString()}` : ''}`;
+    window.open(href, '_blank', 'noreferrer');
+  };
+
+  const openERP = () => {
+    navigate('/');
   };
 
   // Xác định vai trò quản trị hệ thống tối cao
@@ -111,6 +142,20 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Toggle between Storefront and ERP */}
+      <div className="hidden md:flex items-center gap-2 ml-4">
+        {((user?.role === 'admin') || ['nv_banhang','nv_kho','ktt'].includes(user?.role)) && (
+          <div className="flex items-center gap-2">
+            <button onClick={openStorefront} className="px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100">
+              Mở Web Bán Hàng
+            </button>
+            <button onClick={openERP} className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50">
+              Mở ERP
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Khối hiển thị thông tin tài khoản và Đăng xuất */}

@@ -24,6 +24,7 @@ import {
   X
 } from 'lucide-react';
 
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 const ALLOW_ROLE_SWITCH = String(import.meta.env.VITE_ALLOW_ROLE_SWITCH || 'false').toLowerCase() === 'true';
 
@@ -223,6 +224,8 @@ export default function StorefrontPage() {
       loadItems(companyId);
     }
   }, [companyId]);
+
+  // enhance loadItems error logging for production troubleshooting
 
   const handleCompanySubmit = (e) => {
     e.preventDefault();
