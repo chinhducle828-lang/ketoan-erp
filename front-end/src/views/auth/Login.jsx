@@ -27,6 +27,7 @@ export default function Login({ onFirstRun }) {
   const isStorefrontOnlyRole = roleCode === 'nv_banhang' || roleCode === 'nv_kho';
 
   const [form, setForm] = usePersistentState('login-form', { username: '', password: '' });
+  const [postLoginRedirect, setPostLoginRedirect] = usePersistentState('post-login-redirect', 'erp');
   const [error, setError] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
 
@@ -37,7 +38,23 @@ export default function Login({ onFirstRun }) {
     try {
       const response = await login(form.username, form.password);
       if (response && (response.success || response.accessToken)) {
-        navigate('/', { replace: true });
+        // Redirect according to user preference: ERP (default) or Storefront
+        if (postLoginRedirect === 'storefront' && storefrontUrl) {
+          const storedCompany = localStorage.getItem('activeCompany');
+          let companyId;
+          try { companyId = storedCompany ? JSON.parse(storedCompany)?.id : undefined; } catch { companyId = undefined; }
+          const role = response.user?.roleId || response.user?.role || '';
+          const erpToken = localStorage.getItem('accessToken');
+          const params = new URLSearchParams();
+          if (companyId) params.set('company_id', String(companyId));
+          if (role) params.set('role', role);
+          if (erpToken) params.set('erp_token', erpToken);
+          const href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
+          // Navigate to storefront (same tab)
+          window.location.href = href;
+        } else {
+          navigate('/', { replace: true });
+        }
       } else {
         setError(response?.message || 'Tên người dùng hoặc mật khẩu không chính xác.');
       }
@@ -147,6 +164,17 @@ export default function Login({ onFirstRun }) {
                     className="w-full rounded-2xl border border-slate-700 bg-slate-950/70 py-3 pl-10 pr-4 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500"
                   />
                 </div>
+              </div>
+
+              <div className="mt-2 flex items-center gap-4 text-sm text-slate-400">
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="postLoginRedirect" value="erp" checked={postLoginRedirect === 'erp'} onChange={() => setPostLoginRedirect('erp')} />
+                  <span className="ml-1">Về ERP sau khi đăng nhập</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="postLoginRedirect" value="storefront" checked={postLoginRedirect === 'storefront'} onChange={() => setPostLoginRedirect('storefront')} />
+                  <span className="ml-1">Chuyển tới Web Bán Hàng</span>
+                </label>
               </div>
 
               <button
