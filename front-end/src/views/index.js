@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Wallet, 
-  Package, 
   Calculator, 
   BookOpenCheck, 
   Settings, 
@@ -15,7 +14,9 @@ import {
   TrendingUp,
   FileText,
   ClipboardList,
-  Warehouse
+  Warehouse,
+  Truck,
+  Boxes
 } from 'lucide-react';
 
 export const MODULES_REGISTER = [
@@ -44,19 +45,11 @@ export const MODULES_REGISTER = [
     requiresActiveCompany: true
   },
   {
-    id: 'items',
-    name: 'Danh mục mã vật tư hàng hóa',
-    icon: Package,
-    component: React.lazy(() => import('./sales/ItemManagement.jsx')),
-    allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
-  },
-  {
     id: 'partners', // 👈 1. Đăng ký ID duy nhất đại diện cho URL: /partners
     name: 'Danh mục Đối tác (KH & NCC)',
     icon: Users,    // 👈 2. Tái sử dụng icon nhóm người dùng thích hợp cho đối tác
     component: React.lazy(() => import('./sales/PartnerManagement.jsx')), // 👈 3. Lazy load chuẩn chỉ
-    allowedRoles: ['admin', 'ktt', 'nv'], // Cho phép cả ban quản trị, kế toán trưởng và nhân viên vào xem
+    allowedRoles: ['admin', 'ktt', 'nv'], // Cho phép cả ban quản trị, kế toán trưởng và nhân viên nội bộ ERP
     requiresActiveCompany: true // Bắt buộc phải có một công ty đang active mới cho dùng dữ liệu
   },
   {
@@ -136,6 +129,22 @@ export const MODULES_REGISTER = [
     name: 'Quản Lý Kho Tổng Hợp',
     icon: Warehouse,
     component: React.lazy(() => import('./inventory/InventoryManagement.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'logistics-dashboard',
+    name: 'Logistics / Giao Hàng',
+    icon: Truck,
+    component: React.lazy(() => import('./logistics/LogisticsDashboard.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'bai-xuc',
+    name: 'Màn Hình Bãi Xúc',
+    icon: Boxes,
+    component: React.lazy(() => import('./logistics/LoadingDock.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
     requiresActiveCompany: true
   },

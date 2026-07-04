@@ -38,7 +38,7 @@ describe('Integration Tests - Quy trình nhập liệu kế toán', () => {
       );
 
       expect(result.rows[0].id).toBe(1);
-      expect(pool.query).toHaveBeenCalledTimes(2);
+      expect(pool.query).toHaveBeenCalledTimes(1);
     });
 
     test('Tạo chứng từ chi (PC) với đa dòng định khoản', async () => {

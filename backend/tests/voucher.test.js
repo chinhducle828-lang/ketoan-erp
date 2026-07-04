@@ -1,32 +1,58 @@
+import { jest } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../server.js';
+import bcrypt from 'bcryptjs';
+import app from '../server.js';
+import { dbInitPromise } from '../server.js';
 import { pool } from '../config/db.js';
 
 describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGRATION TESTS)', () => {
+  jest.setTimeout(120000);
   let authToken;
   let testCompanyId;
+  let testAdminId;
+  const testAdminUsername = `voucher_admin_${Date.now()}`;
+  const testAdminPassword = 'Password123!';
 
   beforeAll(async () => {
+    // Chờ server hoàn tất khởi tạo schema/migration để tránh race condition khi test ghi DB
+    await dbInitPromise;
+
     // 1. Tạo công ty hạch toán thử nghiệm
     const compRes = await pool.query(
       `INSERT INTO companies (name, tax_code, address, lock_date) 
-       VALUES ('Doanh nghiệp Kiểm thử ERP', '0110202688', 'Hai Xuan, Ninh Binh', '2026-06-30') 
+       VALUES ('Doanh nghiệp Kiểm thử ERP', '0110202688-' || floor(random()*1000000), 'Hai Xuan, Ninh Binh', '2026-06-30') 
        RETURNING id`
     );
     testCompanyId = compRes.rows[0].id;
 
-    // 2. Tạo tài khoản hạch toán thử nghiệm và lấy jwt token
+    // 2. Tạo tài khoản admin test độc lập để tránh phụ thuộc dữ liệu local
+    const hashed = await bcrypt.hash(testAdminPassword, 10);
+    const userRes = await pool.query(
+      `INSERT INTO users (username, password, role, company_ids, staff_ids, must_change_password)
+       VALUES ($1, $2, 'admin', '{}', '{}', false)
+       RETURNING id`,
+      [testAdminUsername, hashed]
+    );
+    testAdminId = userRes.rows[0].id;
+
+    // 3. Đăng nhập tài khoản test và lấy access token hợp lệ theo session hiện tại
     const loginRes = await request(app)
       .post('/api/auth/login')
-      .send({ username: 'admin', password: 'password123' }); // Giả định tài khoản admin mẫu
+      .send({ username: testAdminUsername, password: testAdminPassword });
 
     authToken = loginRes.body.accessToken;
+    expect(loginRes.status).toBe(200);
+    expect(authToken).toBeTruthy();
   });
 
   afterAll(async () => {
     // Dọn dẹp sạch sẽ rác kiểm thử sau khi hoàn tất
-    await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
-    await pool.end();
+    if (testCompanyId) {
+      await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
+    }
+    if (testAdminId) {
+      await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+    }
   });
 
   test('TẠO CHỨNG TỪ: Hệ thống phải lưu thành công với định dạng snake_case cân đối Nợ/Có', async () => {

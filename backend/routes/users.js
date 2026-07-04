@@ -7,6 +7,7 @@ import { createUserSchema } from '../validators/index.js';
 import { normalizeCompanyIds, syncUserCompanyLinks } from '../services/helpers.js';
 
 const router = express.Router();
+const EMPLOYEE_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
 
 // ==========================================
 // 1. GET ALL USERS (Sửa triệt để lỗi 500)
@@ -36,9 +37,9 @@ router.get('/', authenticate, requireRole(['admin', 'ktt']), async (req, res) =>
                  ELSE (COALESCE(company_ids, '{}'::integer[]))[1] 
                END as company_id
         FROM users 
-        WHERE manager_id = $1 AND role = 'nv'
+        WHERE manager_id = $1 AND role = ANY($2::text[])
         ORDER BY username ASC
-      `, [req.user.id]);
+      `, [req.user.id, EMPLOYEE_ROLES]);
     }
     
     return res.json(result.rows);
@@ -63,10 +64,14 @@ router.post('/', authenticate, requireRole(['admin']), validate(createUserSchema
 
     const hashed = await bcrypt.hash(password, 10);
     const normalizedCompanyIds = role === 'admin' ? [] : normalizeCompanyIds(companyIds ?? companyId);
+
+    if (EMPLOYEE_ROLES.includes(role) && normalizedCompanyIds.length === 0) {
+      return res.status(400).json({ error: 'Nhân viên bắt buộc phải được gán ít nhất 1 doanh nghiệp làm việc.' });
+    }
     
     // Ép kiểu an toàn: Chuỗi rỗng, không truyền, hoặc null đều đưa về null nguyên bản
     let finalManagerId = null;
-    if (role === 'nv' && managerId !== undefined && managerId !== '' && managerId !== null) {
+    if (EMPLOYEE_ROLES.includes(role) && managerId !== undefined && managerId !== '' && managerId !== null) {
       finalManagerId = Number(managerId);
     }
 
@@ -78,8 +83,8 @@ router.post('/', authenticate, requireRole(['admin']), validate(createUserSchema
       }
 
       const countRes = await pool.query(
-        "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = 'nv'",
-        [finalManagerId]
+        "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = ANY($2::text[])",
+        [finalManagerId, EMPLOYEE_ROLES]
       );
       if (parseInt(countRes.rows[0].count, 10) >= 15) {
         return res.status(400).json({ error: 'Kế toán trưởng này đã quản lý đủ tối đa 15 nhân viên!' });
@@ -105,8 +110,8 @@ router.post('/', authenticate, requireRole(['admin']), validate(createUserSchema
     // 5. Đồng bộ cập nhật mảng staff_ids cho Kế toán trưởng quản lý
     if (finalManagerId) {
       const staffRes = await pool.query(
-        "SELECT id FROM users WHERE manager_id = $1 AND role = 'nv' ORDER BY id DESC",
-        [finalManagerId]
+        "SELECT id FROM users WHERE manager_id = $1 AND role = ANY($2::text[]) ORDER BY id DESC",
+        [finalManagerId, EMPLOYEE_ROLES]
       );
       const currentStaffIds = staffRes.rows.map((row) => row.id) || [];
       await pool.query('UPDATE users SET staff_ids = $1::integer[] WHERE id = $2', [currentStaffIds, finalManagerId]);

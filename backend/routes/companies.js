@@ -30,7 +30,17 @@ router.post('/', authenticate, requireRole(['admin']), validate(createCompanySch
 // Lấy danh sách công ty hạch toán
 router.get('/', authenticate, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM companies ORDER BY id DESC');
+    const query = req.user?.role === 'admin'
+      ? 'SELECT * FROM companies ORDER BY id DESC'
+      : `SELECT c.*
+         FROM companies c
+         JOIN user_companies uc ON uc.company_id = c.id
+         WHERE uc.user_id = $1
+         ORDER BY c.id DESC`;
+
+    const result = req.user?.role === 'admin'
+      ? await pool.query(query)
+      : await pool.query(query, [req.user.id]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Lỗi nạp danh sách công ty: ' + err.message });

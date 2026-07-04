@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 
@@ -8,6 +8,14 @@ export default function ChangePassword() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!success) return;
+    const timer = window.setTimeout(() => {
+      window.location.replace('/login');
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [success]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -15,14 +23,16 @@ export default function ChangePassword() {
     try {
       await changePassword(form.oldPassword, form.newPassword);
       setSuccess(true);
-    } catch (err) { setError(err); }
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Không thể đổi mật khẩu.');
+    }
   };
 
   if (success) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md bg-white p-6 rounded-2xl shadow text-center">
         <h2 className="text-lg font-black text-emerald-600">Đổi mật khẩu thành công</h2>
-        <p className="text-sm text-slate-600 mt-2">Vui lòng đăng nhập lại nếu cần.</p>
+        <p className="text-sm text-slate-600 mt-2">Hệ thống đang chuyển về màn hình đăng nhập...</p>
         <button onClick={() => location.reload()} className="mt-4 bg-emerald-600 text-white py-2 px-4 rounded">Đồng ý</button>
       </div>
     </div>

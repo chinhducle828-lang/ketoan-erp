@@ -8,7 +8,7 @@ import { invalidateCompanyCache } from '../controllers/erpController.js';
 const router = express.Router();
 
 // 1. API lấy số dư đầu kỳ
-router.get('/', authenticate, requireRole(['admin', 'ktt', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.get('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id;
     const fiscalYear = req.query.year ? Number(req.query.year) : 2026;
@@ -36,7 +36,7 @@ router.get('/', authenticate, requireRole(['admin', 'ktt', 'accountant']), check
 });
 
 // 2. API cập nhật số dư đầu kỳ lịch sử
-router.post('/', authenticate, requireRole(['admin', 'accountant']), checkCompanyAccess, async (req, res) => {
+router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
     const targetCompanyId = req.query.company_id || req.body.companyId;
     const { accountCode, debitBalance, creditBalance, fiscalYear, partnerId } = req.body;

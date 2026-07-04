@@ -12,7 +12,7 @@ const strictPositiveNumeric = z.preprocess((val) => {
   if (val === '' || val === undefined || val === null) return 0;
   const num = Number(val);
   return isNaN(num) ? 0 : num;
-}, z.number().positive('Giá trị bắt buộc phải lớn hơn 0'));
+}, z.number().min(0, 'Giá trị bắt buộc phải lớn hơn hoặc bằng 0'));
 
 // --- 1. AUTH VALIDATORS ---
 export const registerAdminSchema = z.object({
@@ -26,9 +26,7 @@ export const loginSchema = z.object({
 });
 
 export const adminResetPasswordSchema = z.object({
-  username: z.string().min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự'),
-  newPassword: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
-  new_password: z.string().min(6).optional()
+  userId: z.number().positive('ID người dùng không hợp lệ')
 });
 
 export const changePasswordSchema = z.object({
@@ -42,7 +40,7 @@ export const changePasswordSchema = z.object({
 export const createUserSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải từ 3 ký tự'),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự'),
-  role: z.enum(['admin', 'ktt', 'nv', 'accountant'], { errorMap: () => ({ message: 'Vai trò không hợp lệ' }) }),
+  role: z.enum(['admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'], { errorMap: () => ({ message: 'Vai trò không hợp lệ' }) }),
   companyIds: z.array(z.number().positive()).optional(),
   companyId: z.number().positive().optional(),
   managerId: z.number().positive().optional().nullable(),
@@ -53,7 +51,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải từ 3 ký tự').optional(),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự').optional(),
-  role: z.enum(['admin', 'accountant'], { errorMap: () => ({ message: 'Vai trò không hợp lệ' }) }).optional(),
+  role: z.enum(['admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'], { errorMap: () => ({ message: 'Vai trò không hợp lệ' }) }).optional(),
   fiscal_year: z.number().int().min(2000).max(2100).optional()
 });
 
@@ -61,14 +59,13 @@ export const assignCompanySchema = z.object({
   userId: z.number().positive('ID người dùng không hợp lệ'),
   companyId: z.number().positive().optional().nullable(),
   companyIds: z.array(z.number().positive()).optional(),
-  role: z.enum(['admin', 'ktt', 'nv']).optional(),
+  role: z.enum(['admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho']).optional(),
   managerId: z.number().positive().optional().nullable()
 });
 
 export const assignStaffSchema = z.object({
-  user_id: z.number().positive('ID nhân viên không hợp lệ'),
-  company_id: z.number().positive('ID công ty không hợp lệ'),
-  permissions: z.array(z.string()).optional()
+  managerId: z.number().positive('ID kế toán trưởng không hợp lệ'),
+  staffIds: z.array(z.number().positive('ID nhân viên không hợp lệ'))
 });
 
 // --- 3. COMPANY VALIDATORS (Chuẩn snake_case khớp DB) ---
@@ -112,13 +109,26 @@ export const updatePartnerSchema = z.object({
 });
 
 // --- 5. INVENTORY ITEM VALIDATORS ---
-export const createItemSchema = z.object({
+const normalizeItemInput = (val) => {
+  if (!val || typeof val !== 'object') return val;
+
+  const input = { ...val };
+  if (typeof input.code === 'string' && !('item_code' in input)) input.item_code = input.code;
+  if (typeof input.name === 'string' && !('item_name' in input)) input.item_name = input.name;
+  if (typeof input.companyId === 'number' && !('company_id' in input)) input.company_id = input.companyId;
+  if (typeof input.companyId === 'string' && !('company_id' in input)) input.company_id = Number(input.companyId);
+  if (typeof input.safetyStock !== 'undefined' && !('safety_stock' in input)) input.safety_stock = input.safetyStock;
+
+  return input;
+};
+
+export const createItemSchema = z.preprocess(normalizeItemInput, z.object({
   company_id: z.number().positive('Thiếu thông tin ID công ty'),
   item_code: z.string().min(1, 'Mã vật tư, hàng hóa không được để trống'),
   item_name: z.string().min(1, 'Tên vật tư, hàng hóa không được để trống'),
   unit: z.string().min(1, 'Đơn vị tính không được để trống'),
-  safety_stock: numericPreprocess.default(0)
-});
+  safety_stock: z.number().optional().default(0)
+}));
 
 export const itemsSchema = createItemSchema;
 // Note: updateItemSchema cannot use .partial() on schemas with .default() in Zod v4
@@ -131,7 +141,49 @@ export const updateItemSchema = z.object({
 });
 
 // --- 6. VOUCHER VALIDATORS (Bắt buộc nguyên tắc cân đối kế toán Tổng Nợ = Tổng Có) ---
-export const createVoucherSchema = z.object({
+const normalizeVoucherInput = (val) => {
+  if (!val || typeof val !== 'object') return val;
+
+  const input = { ...val };
+  if (typeof input.voucherDate === 'string' && !('voucher_date' in input)) input.voucher_date = input.voucherDate;
+  if (typeof input.voucherType === 'string' && !('voucher_type' in input)) input.voucher_type = input.voucherType;
+  if (typeof input.type === 'string' && !('voucher_type' in input)) {
+    const typeMap = { Thu: 'PT', Chi: 'PC', NK: 'NK', PT: 'PT', PC: 'PC', PN: 'PN', PX: 'PX' };
+    input.voucher_type = typeMap[input.type] || input.type;
+  }
+  if (typeof input.companyId === 'number' && !('company_id' in input)) input.company_id = input.companyId;
+  if (typeof input.companyId === 'string' && !('company_id' in input)) input.company_id = Number(input.companyId);
+  if (typeof input.voucherNumber === 'string' && !('voucher_number' in input)) input.voucher_number = input.voucherNumber;
+  if (!('voucher_number' in input) || typeof input.voucher_number !== 'string' || input.voucher_number.trim() === '') {
+    input.voucher_number = `AUTO-${Date.now()}`;
+  }
+  if (typeof input.entryType === 'string' && Array.isArray(input.details)) {
+    input.details = input.details.map((detail) => {
+      if (!detail || typeof detail !== 'object') return detail;
+      const normalizedDetail = { ...detail };
+      if (typeof normalizedDetail.accountCode === 'string' && !('account_code' in normalizedDetail)) normalizedDetail.account_code = normalizedDetail.accountCode;
+      if (typeof normalizedDetail.entryType === 'string' && !('entry_type' in normalizedDetail)) normalizedDetail.entry_type = normalizedDetail.entryType;
+      if (typeof normalizedDetail.partnerId === 'number' && !('partner_id' in normalizedDetail)) normalizedDetail.partner_id = normalizedDetail.partnerId;
+      if (typeof normalizedDetail.itemId === 'number' && !('item_id' in normalizedDetail)) normalizedDetail.item_id = normalizedDetail.itemId;
+      return normalizedDetail;
+    });
+  }
+  if (Array.isArray(input.details)) {
+    input.details = input.details.map((detail) => {
+      if (!detail || typeof detail !== 'object') return detail;
+      const normalizedDetail = { ...detail };
+      if (typeof normalizedDetail.accountCode === 'string' && !('account_code' in normalizedDetail)) normalizedDetail.account_code = normalizedDetail.accountCode;
+      if (typeof normalizedDetail.entryType === 'string' && !('entry_type' in normalizedDetail)) normalizedDetail.entry_type = normalizedDetail.entryType;
+      if (typeof normalizedDetail.partnerId === 'number' && !('partner_id' in normalizedDetail)) normalizedDetail.partner_id = normalizedDetail.partnerId;
+      if (typeof normalizedDetail.itemId === 'number' && !('item_id' in normalizedDetail)) normalizedDetail.item_id = normalizedDetail.itemId;
+      return normalizedDetail;
+    });
+  }
+
+  return input;
+};
+
+export const createVoucherSchema = z.preprocess(normalizeVoucherInput, z.object({
   company_id: z.number().positive('Công ty không hợp lệ'),
   voucher_number: z.string().min(1, 'Số chứng từ không được để trống'),
   voucher_date: z.string().min(1, 'Ngày hạch toán không được để trống'),
@@ -155,7 +207,7 @@ export const createVoucherSchema = z.object({
 }, { 
   message: 'Lỗi hạch toán bất cân đối: Tổng số tiền ghi Nợ phải bằng tổng số tiền ghi Có!',
   path: ['details']
-});
+}));
 
 export const vouchersSchema = createVoucherSchema;
 // Note: updateVoucherSchema cannot use .partial() on schemas with .refine() in Zod v4

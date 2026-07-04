@@ -20,6 +20,16 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
 
   // Xác định vai trò quản trị hệ thống tối cao
   const isAdmin = user?.roleId === 'admin' || user?.role === 'admin';
+  const roleCode = user?.roleId || user?.role;
+  const roleLabel = roleCode === 'admin'
+    ? 'Quản trị tối cao'
+    : roleCode === 'ktt'
+      ? 'Kế toán trưởng'
+      : roleCode === 'nv_banhang'
+        ? 'Nhân viên bán hàng'
+        : roleCode === 'nv_kho'
+          ? 'Nhân viên kho'
+          : 'Kế toán viên';
 
   return (
     <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-4 md:px-6 z-10 shrink-0 py-3 md:py-0">
@@ -55,7 +65,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
             value={activeCompany?.id || activeCompany || ''} 
             onChange={handleCompanyChange}
             className="bg-transparent border-none focus:outline-none font-bold text-slate-800 w-full cursor-pointer"
-            disabled={!isAdmin} // CHỈ Quản trị viên (Admin) tối cao mới được quyền chuyển chéo doanh nghiệp hạch toán
+            disabled={companies.length <= 1} // Tài khoản có nhiều đơn vị được phân quyền có thể chuyển trực tiếp.
           >
             <option value="" disabled>-- Chọn doanh nghiệp hạch toán --</option>
             {companies.map(c => (
@@ -88,7 +98,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
           <div>
             <div className="text-xs font-bold text-slate-800">{user?.fullName || user?.username}</div>
             <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-              {isAdmin ? 'Quản trị tối cao' : user?.roleId === 'ktt' || user?.role === 'ktt' ? 'Kế toán trưởng' : 'Kế toán viên'}
+              {roleLabel}
             </div>
           </div>
           <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 border border-slate-200 shadow-inner">

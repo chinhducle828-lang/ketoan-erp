@@ -31,6 +31,7 @@ import {
 } from '../validators/index.js';
 
 const router = express.Router();
+const EMPLOYEE_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
 
 // ====================================================================
 // 🛠️ HÀM TRỢ GIÚP: Bỏ qua kiểm định Zod nếu là yêu cầu tiền trạm OPTIONS
@@ -120,7 +121,19 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
     res.json({ 
       accessToken, 
-      user: { id: user.id, username: user.username, role: user.role, company_ids: companyIds },
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        company_ids: companyIds,
+        must_change_password: !!user.must_change_password,
+        web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho'].includes(user.role) ? 'storefront' : 'erp')
+      },
+      storefrontOnlyRole: ['nv_banhang', 'nv_kho'].includes(user.role),
+      message: ['nv_banhang', 'nv_kho'].includes(user.role)
+        ? 'Tài khoản này chỉ sử dụng trên web bán hàng (Storefront).'
+        : undefined,
+      fiscal_year: new Date().getFullYear(),
       must_change_password: !!user.must_change_password
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -202,7 +215,13 @@ router.post('/refresh', async (req, res) => {
     res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
     res.json({
       accessToken,
-      user: { id: current.user_id, username: current.username, role: current.role, company_ids: current.company_ids },
+      user: {
+        id: current.user_id,
+        username: current.username,
+        role: current.role,
+        company_ids: current.company_ids,
+        must_change_password: !!current.must_change_password
+      },
       must_change_password: !!current.must_change_password
     });
   } catch (err) {
@@ -274,12 +293,12 @@ router.post('/assign-staff', authenticate, requireRole(['admin']), safeValidate(
 
     await pool.query('BEGIN');
 
-    await pool.query("UPDATE users SET manager_id = NULL WHERE manager_id = $1 AND role = 'nv'", [managerId]);
+    await pool.query("UPDATE users SET manager_id = NULL WHERE manager_id = $1 AND role = ANY($2::text[])", [managerId, EMPLOYEE_ROLES]);
 
     if (staffIds.length > 0) {
       await pool.query(
-        "UPDATE users SET manager_id = $1 WHERE id = ANY($2) AND role = 'nv'",
-        [managerId, staffIds]
+        "UPDATE users SET manager_id = $1 WHERE id = ANY($2) AND role = ANY($3::text[])",
+        [managerId, staffIds, EMPLOYEE_ROLES]
       );
     }
 
@@ -305,14 +324,14 @@ router.post('/assign-company', authenticate, requireRole(['admin']), safeValidat
       return res.status(400).json({ error: 'Cấm tuyệt đối hành vi tương tác hoặc thay đổi vai trò của tài khoản Root hệ thống!' });
     }
 
-    const userRole = role || 'nv';
-    const finalManagerId = userRole === 'nv' ? (managerId || null) : null;
+    const userRole = role || targetUser.rows[0].role || 'nv_banhang';
+    const finalManagerId = EMPLOYEE_ROLES.includes(userRole) ? (managerId || null) : null;
     const normalizedCompanyIds = userRole === 'admin' ? [] : normalizeCompanyIds(companyIds ?? companyId);
 
     if (finalManagerId) {
       const countRes = await pool.query(
-        "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = 'nv' AND id != $2",
-        [finalManagerId, userId]
+        "SELECT COUNT(*) FROM users WHERE manager_id = $1 AND role = ANY($2::text[]) AND id != $3",
+        [finalManagerId, EMPLOYEE_ROLES, userId]
       );
       if (parseInt(countRes.rows[0].count, 10) >= 15) {
         return res.status(400).json({ error: 'Kế toán trưởng phụ trách được chọn đã quản lý đủ tối đa 15 nhân viên!' });
@@ -331,8 +350,8 @@ router.post('/assign-company', authenticate, requireRole(['admin']), safeValidat
     const kttList = await pool.query("SELECT id FROM users WHERE role = 'ktt'");
     for (const ktt of kttList.rows) {
       const staffRes = await pool.query(
-        "SELECT id FROM users WHERE manager_id = $1 AND role = 'nv' ORDER BY id DESC",
-        [ktt.id]
+        "SELECT id FROM users WHERE manager_id = $1 AND role = ANY($2::text[]) ORDER BY id DESC",
+        [ktt.id, EMPLOYEE_ROLES]
       );
       const currentStaffIds = staffRes.rows.map((row) => row.id);
       await pool.query('UPDATE users SET staff_ids = $1 WHERE id = $2', [currentStaffIds, ktt.id]);
@@ -347,7 +366,7 @@ router.post('/assign-company', authenticate, requireRole(['admin']), safeValidat
 });
 
 // ✅ API LẤY DANH SÁCH TOÀN BỘ NGƯỜI DÙNG
-router.get('/users', authenticate, async (req, res) => {
+router.get('/users', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, username, role, company_ids, manager_id, staff_ids FROM users ORDER BY id DESC'
