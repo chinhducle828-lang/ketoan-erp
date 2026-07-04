@@ -612,6 +612,18 @@ export default function StorefrontPage() {
     setRecentlyViewed((prev) => [item, ...prev.filter((entry) => entry.id !== item.id)].slice(0, 4));
   };
 
+  const handleViewStock = (item) => {
+    handleItemSelect(item);
+    const openingQuantity = Number(item?.opening_quantity || 0);
+    const unitLabel = item?.unit || 'đơn vị';
+
+    setRolePopup({
+      id: `stock-view-${Date.now()}`,
+      title: `Tồn kho: ${item?.name || item?.code || 'Sản phẩm'}`,
+      message: `SL tồn tham chiếu: ${openingQuantity.toLocaleString('vi-VN')} ${unitLabel}`
+    });
+  };
+
   const handleQuantityChange = (rawValue) => {
     const nextQuantity = Math.max(Number(rawValue) || 1, 1);
     setCheckoutForm((prev) => ({
@@ -1787,7 +1799,7 @@ export default function StorefrontPage() {
                       {canUseCart ? (
                         <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{isSalesRole ? 'Thêm vào đơn POS' : 'Đặt mua'}</button>
                       ) : (
-                        <button onClick={() => handleItemSelect(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Xem tồn kho</button>
+                        <button onClick={() => handleViewStock(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Xem tồn kho</button>
                       )}
                     </div>
                   </div>
@@ -1816,6 +1828,7 @@ export default function StorefrontPage() {
                       <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</div>
                         <div className="rounded-lg border border-slate-200 bg-white p-2">Loại hàng: {selectedItem.category || 'Phổ biến'}</div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-2 sm:col-span-2">Tồn kho tham chiếu: {Number(selectedItem.opening_quantity || 0).toLocaleString('vi-VN')} {selectedItem.unit || 'đơn vị'}</div>
                       </div>
                     </div>
                   ) : (
