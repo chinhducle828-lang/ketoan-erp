@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +7,8 @@
 /* Viết đè trực tiếp cho thẻ body và các thẻ form theo chuẩn v3 */
 @layer base {
   body {
-    @apply bg-slate-50 font-sans antialiased text-slate-800;
+    @apply bg-slate-50 antialiased text-slate-800;
+    font-family: 'Be Vietnam Pro', 'Segoe UI', Tahoma, sans-serif;
   }
 
   input, select, textarea {
