@@ -68,10 +68,11 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
     localStorage.setItem('accessToken', data.accessToken);
-    setUser({
+    const loggedInUser = {
       ...(data.user || {}),
       must_change_password: Boolean(data?.user?.must_change_password ?? data?.must_change_password)
-    });
+    };
+    setUser(loggedInUser);
     setFiscalYear(data.fiscal_year);
 
     const fetchedCompanies = await fetchCompanies();
@@ -96,6 +97,11 @@ export function AuthProvider({ children }) {
     } else {
       setActiveCompany(null);
       localStorage.removeItem('activeCompany');
+    }
+    
+    // ĐÃ SỬA: Nếu là gd_kinhdoanh, tự động điều hướng sang route riêng
+    if (loggedInUser.role === 'gd_kinhdoanh') {
+      window.location.href = '/gd-kinhdoanh/dashboard';
     }
 
     return data;
@@ -157,13 +163,20 @@ export function AuthProvider({ children }) {
   };
 
   // Kiểm tra trạng thái số dư đầu kỳ
+  // ĐÃ SỬA: Không truyền company_id trong URL vì api.js interceptor đã tự động thêm
   const checkOpeningBalanceStatus = async (companyId) => {
     try {
-      const res = await api.get(`/opening-balances?company_id=${companyId}&year=2026`);
+      const res = await api.get('/opening-balances', { params: { year: 2026 } });
       const hasBalance = Array.isArray(res.data) && res.data.length > 0;
       setHasOpeningBalance(hasBalance);
       return hasBalance;
     } catch (err) {
+      // Nếu lỗi 403 (không có quyền) thì coi như chưa có số dư để không chặn người dùng
+      if (err.response?.status === 403) {
+        console.warn('Không có quyền kiểm tra số dư đầu kỳ, bỏ qua kiểm tra');
+        setHasOpeningBalance(true); // Cho phép truy cập các phân hệ khác
+        return true;
+      }
       setHasOpeningBalance(false);
       return false;
     }

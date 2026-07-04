@@ -313,9 +313,18 @@ router.post('/assign-staff', authenticate, requireRole(['admin']), safeValidate(
 });
 
 // Chỉ định nhân viên vào nhiều công ty
-router.post('/assign-company', authenticate, requireRole(['admin']), safeValidate(assignCompanySchema), async (req, res) => {
+// ĐÃ SỬA: Chỉ root admin (username='admin' hoặc is_root_admin=true) mới được phép thay đổi role admin
+router.post('/assign-company', authenticate, async (req, res) => {
   try {
     const { userId, companyIds, companyId, role, managerId } = req.body;
+
+    // Kiểm tra quyền root admin
+    const currentUser = await pool.query('SELECT username, role, is_root_admin FROM users WHERE id = $1', [req.user.id]);
+    const isRootAdmin = currentUser.rows[0]?.username === 'admin' || currentUser.rows[0]?.is_root_admin === true;
+    
+    if (!isRootAdmin) {
+      return res.status(403).json({ error: 'Chỉ Root Admin mới có quyền thay đổi vai trò Admin!' });
+    }
 
     const targetUser = await pool.query('SELECT role, username FROM users WHERE id = $1', [userId]);
     if (targetUser.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy người dùng!' });
@@ -354,7 +363,7 @@ router.post('/assign-company', authenticate, requireRole(['admin']), safeValidat
         [ktt.id, EMPLOYEE_ROLES]
       );
       const currentStaffIds = staffRes.rows.map((row) => row.id);
-      await pool.query('UPDATE users SET staff_ids = $1 WHERE id = $2', [currentStaffIds, ktt.id]);
+      await pool.query('UPDATE users SET staff_ids = $1::integer[] WHERE id = $2', [currentStaffIds, ktt.id]);
     }
 
     await pool.query('COMMIT');
@@ -366,7 +375,7 @@ router.post('/assign-company', authenticate, requireRole(['admin']), safeValidat
 });
 
 // ✅ API LẤY DANH SÁCH TOÀN BỘ NGƯỜI DÙNG
-router.get('/users', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+router.get('/users', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, username, role, company_ids, manager_id, staff_ids FROM users ORDER BY id DESC'

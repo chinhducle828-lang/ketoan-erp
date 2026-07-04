@@ -8,6 +8,7 @@ import Login from './views/auth/Login.jsx';
 import Register from './views/auth/Register.jsx';
 import ChangePassword from './views/auth/ChangePassword.jsx';
 import StorefrontAccessNotice from './views/auth/StorefrontAccessNotice.jsx';
+import CustomerView from './views/auth/CustomerView.jsx';
 
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
@@ -28,6 +29,7 @@ export default function App() {
   const [isFirstRun, setIsFirstRun] = useState(false);
   const roleCode = user?.roleId || user?.role;
   const isStorefrontOnlyRole = roleCode === 'nv_banhang' || roleCode === 'nv_kho';
+  const isGiamDocKinhDoanh = roleCode === 'gd_kinhdoanh';
   const defaultModule = MODULES_REGISTER.find((module) => module.allowedRoles?.includes(roleCode));
   const defaultPath = defaultModule ? `/${defaultModule.id}` : '/login';
 
@@ -59,10 +61,33 @@ export default function App() {
             )
           } 
         />
+        {/* Route riêng cho Giám đốc Kinh doanh - không dùng sidebar ERP */}
+        {isGiamDocKinhDoanh && (
+          <Route 
+            path="/gd-kinhdoanh/*" 
+            element={
+              <div className="flex h-screen bg-slate-50 overflow-hidden">
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                  <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/gd-kinhdoanh/dashboard" replace />} />
+                      <Route path="/dashboard" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'dashboard').component} requiresActiveCompany={true} moduleId="dashboard" />} />
+                      <Route path="/reports" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'income-statement').component} requiresActiveCompany={true} moduleId="income-statement" />} />
+                      <Route path="/balance-sheet" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'balance-sheet').component} requiresActiveCompany={true} moduleId="balance-sheet" />} />
+                      <Route path="/cash-flow" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'cash-flow').component} requiresActiveCompany={true} moduleId="cash-flow" />} />
+                    </Routes>
+                  </main>
+                </div>
+              </div>
+            }
+          />
+        )}
         <Route 
           path="/change-password" 
           element={token && mustChangePassword ? <ChangePassword /> : <Navigate to="/" replace />} 
         />
+        <Route path="/pos" element={<StorefrontAccessNotice />} />
+        <Route path="/customer" element={<CustomerView />} />
 
         {/* ==========================================
             2. CÁC ĐƯỜNG DẪN PHÂN HỆ CHÍNH (PROTECTED ERP ROUTES)

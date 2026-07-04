@@ -9,13 +9,21 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
 
   // Bộ lọc phân hệ hiển thị trên thanh Menu bên trái
   const accessibleModules = MODULES_REGISTER.filter(module => {
-    // 1. Chặn bảo mật cứng cho cả phân hệ 'config' cũ và phân hệ 'users' mới (Nếu không phải admin thì ẩn luôn)
-    if ((module.id === 'config' || module.id === 'users') && user?.role !== 'admin') {
+    const userRole = user?.roleId || user?.role;
+    
+    // 1. Chặn bảo mật cứng cho cả phân hệ 'config' cũ và phân hệ 'users' mới (Chỉ root admin mới xem)
+    if ((module.id === 'config' || module.id === 'users') && userRole !== 'admin') {
       return false;
     }
     
-    // 2. Các phân hệ khác sẽ kiểm tra danh sách vai trò allowedRoles được cấu hình sẵn trong views/index.js
-    return module.allowedRoles && module.allowedRoles.includes(user?.role);
+    // 2. Chỉ root admin mới xem audit logs
+    if (module.id === 'audit-logs') {
+      const isRoot = user?.username === 'admin' || user?.is_root_admin === true;
+      if (!isRoot) return false;
+    }
+    
+    // 3. Các phân hệ khác sẽ kiểm tra danh sách vai trò allowedRoles được cấu hình sẵn trong views/index.js
+    return module.allowedRoles && module.allowedRoles.includes(userRole);
   });
 
   // Hàm helper để render class CSS động dựa trên trạng thái kích hoạt của URL
