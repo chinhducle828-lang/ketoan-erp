@@ -60,10 +60,24 @@ export default function Login({ onFirstRun }) {
           href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
         }
 
-        // Show post-login choice modal so user can decide where to go
+        // If user already selected a redirect preference, honor it now and skip modal
         setPostLoginHref(href);
-            // Attach flag to modal state so UI can disable 'Stay in ERP' when appropriate
-            setShowPostLoginChoice({ open: true, canStayErp: Boolean(hasErpAccess) });
+        if (postLoginRedirect === 'storefront_newtab' && href) {
+          try { window.open(href, '_blank', 'noopener,noreferrer'); } catch { /* ignore */ }
+          // keep ERP session open — navigate to ERP home as well
+          navigate('/', { replace: true });
+          setShowPostLoginChoice(false);
+        } else if (postLoginRedirect === 'storefront_replace' && href) {
+          // replace current tab with storefront
+          window.location.href = href;
+          setShowPostLoginChoice(false);
+        } else if (postLoginRedirect === 'erp') {
+          navigate('/', { replace: true });
+          setShowPostLoginChoice(false);
+        } else {
+          // Show post-login choice modal so user can decide where to go
+          setShowPostLoginChoice({ open: true, canStayErp: Boolean(hasErpAccess) });
+        }
       } else {
         setError(response?.message || 'Tên người dùng hoặc mật khẩu không chính xác.');
       }
