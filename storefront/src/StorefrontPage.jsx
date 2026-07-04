@@ -181,6 +181,17 @@ export default function StorefrontPage() {
     if (typeof window !== 'undefined') {
       const fromQuery = normalizeAbsoluteUrl(new URLSearchParams(window.location.search).get('erp_url'));
       if (fromQuery) return fromQuery;
+
+      const referrer = normalizeAbsoluteUrl(window.document?.referrer);
+      if (referrer) {
+        try {
+          const current = new URL(window.location.href);
+          const source = new URL(referrer);
+          if (source.origin !== current.origin) return source.origin;
+        } catch {
+          // ignore invalid referrer URL
+        }
+      }
     }
 
     return '';
@@ -196,7 +207,6 @@ export default function StorefrontPage() {
     // Build ERP login URL with company and role context so ERP can redirect back with erp_token
     const erpBase = getERPUrl();
     if (!erpBase) {
-      setAdminMessage('Thiếu cấu hình ERP URL. Hãy đặt VITE_ERP_URL trỏ đến web ERP (ví dụ https://ketoan-erp.up.railway.app).');
       return;
     }
     const params = new URLSearchParams();
@@ -679,6 +689,12 @@ export default function StorefrontPage() {
     return warehouseQueue.filter((order) => order.loading_status === warehouseStatusFilter);
   }, [warehouseQueue, warehouseStatusFilter]);
 
+  useEffect(() => {
+    if (isSalesRole) {
+      setShowMiniCart(true);
+    }
+  }, [isSalesRole]);
+
   const fillAdminFormFromItem = (item) => {
     setAdminEditingCode(item.code);
     setAdminItemForm({
@@ -861,6 +877,9 @@ export default function StorefrontPage() {
                 {isGuestRole && (
                   <p className="mt-2 max-w-2xl text-sm font-medium text-violet-700">Bạn đang ở chế độ khách vãng lai, có thể xem sản phẩm và đặt hàng nhanh mà không cần đăng nhập.</p>
                 )}
+                {isSalesRole && (
+                  <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">POS Mode: Quầy bán hàng trực tiếp</p>
+                )}
               </div>
             </div>
 
@@ -873,7 +892,7 @@ export default function StorefrontPage() {
               </div>
               {canUseCart ? (
                 <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-600/20">
-                  <ShoppingCart size={18} /> Giỏ hàng {cartCount > 0 ? `(${cartCount})` : ''}
+                  <ShoppingCart size={18} /> {isSalesRole ? `Màn hình POS ${cartCount > 0 ? `(${cartCount})` : ''}` : `Giỏ hàng ${cartCount > 0 ? `(${cartCount})` : ''}`}
                 </button>
               ) : (
                 <div className="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
@@ -957,8 +976,21 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.9fr_1fr]">
+        <section className={`mt-6 grid gap-6 ${isSalesRole ? 'xl:grid-cols-[1.55fr_1fr]' : 'xl:grid-cols-[1.9fr_1fr]'}`}>
           <div className="space-y-6">
+            {isSalesRole && (
+              <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">POS Counter</p>
+                    <p className="text-sm text-emerald-800">Thêm sản phẩm vào hóa đơn ở bên trái, thao tác chốt đơn ở panel phải.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700">
+                    <ShoppingBag size={14} /> {cartCount} món • {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-4">
@@ -1049,7 +1081,7 @@ export default function StorefrontPage() {
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
                       <button onClick={() => openQuickView(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-500/40">Chi tiết</button>
                       {canUseCart ? (
-                        <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">Đặt mua</button>
+                        <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{isSalesRole ? 'Thêm vào hóa đơn' : 'Đặt mua'}</button>
                       ) : (
                         <button onClick={() => handleItemSelect(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Xem tồn kho</button>
                       )}
@@ -1060,7 +1092,7 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          <aside className="space-y-4">
+          <aside className={`space-y-4 ${isSalesRole ? 'xl:sticky xl:top-4 self-start' : ''}`}>
             <div className="rounded-[24px] border border-slate-200/70 bg-slate-100/70 p-4 shadow-xl shadow-slate-300/20 backdrop-blur">
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-300"><Package size={16} /></div>
@@ -1217,8 +1249,8 @@ export default function StorefrontPage() {
           <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">{isGuestRole ? 'Đặt hàng nhanh cho khách vãng lai' : 'Thanh toán nhanh'}</h3>
-                <p className="text-sm text-slate-500">{isGuestRole ? 'Không cần tài khoản, chỉ cần thông tin liên hệ để tạo đơn.' : 'Hoàn tất đơn hàng chỉ trong một bước.'}</p>
+                <h3 className="text-xl font-bold text-slate-900">{isGuestRole ? 'Đặt hàng nhanh cho khách vãng lai' : isSalesRole ? 'Thanh toán quầy POS' : 'Thanh toán nhanh'}</h3>
+                <p className="text-sm text-slate-500">{isGuestRole ? 'Không cần tài khoản, chỉ cần thông tin liên hệ để tạo đơn.' : isSalesRole ? 'Nhập nhanh thông tin khách và chốt hóa đơn tại quầy.' : 'Hoàn tất đơn hàng chỉ trong một bước.'}</p>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">Checkout</span>
             </div>
@@ -1249,7 +1281,7 @@ export default function StorefrontPage() {
                 </div>
                 {couponMessage && <p className="mt-2 text-sm text-emerald-300">{couponMessage}</p>}
               </div>
-              <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : 'Đặt hàng ngay'} <ArrowRight size={16} /></button>
+              <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : isSalesRole ? 'Tạo hóa đơn POS' : 'Đặt hàng ngay'} <ArrowRight size={16} /></button>
             </form>
           </div>
 
