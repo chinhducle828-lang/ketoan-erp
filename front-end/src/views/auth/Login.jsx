@@ -52,11 +52,9 @@ export default function Login({ onFirstRun }) {
           let companyId;
           try { companyId = storedCompany ? JSON.parse(storedCompany)?.id : undefined; } catch { companyId = undefined; }
           const role = response.user?.roleId || response.user?.role || '';
-          const erpToken = localStorage.getItem('accessToken');
           const params = new URLSearchParams();
           if (companyId) params.set('company_id', String(companyId));
           if (role) params.set('role', role);
-          if (erpToken) params.set('erp_token', erpToken);
           href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
         }
 
