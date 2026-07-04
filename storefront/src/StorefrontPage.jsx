@@ -18,7 +18,6 @@ import {
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
-  Star,
   Truck,
   User,
   X
@@ -124,6 +123,49 @@ const normalizeAbsoluteUrl = (value) => {
   } catch {
     return '';
   }
+};
+
+const resolveMediaUrl = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  if (/^(data:|blob:)/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+
+  const normalizedPath = raw.replace(/^\.\//, '').replace(/^\/+/, '');
+  return `${API_BASE_URL}/${normalizedPath}`;
+};
+
+const ImageWithFallback = ({
+  src,
+  alt,
+  className,
+  iconSize = 18,
+  iconClassName = 'text-slate-400'
+}) => {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  const resolvedSrc = resolveMediaUrl(src);
+  if (!resolvedSrc || hasError) {
+    return <Package size={iconSize} className={iconClassName} />;
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+    />
+  );
 };
 
 const buildErpLoginUrl = (baseUrl, companyId, role) => {
@@ -671,9 +713,12 @@ export default function StorefrontPage() {
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
   const hasCheckoutCart = cart.length > 0;
+  const fallbackPreviewAmount = isSalesRole
+    ? 0
+    : Number(checkoutForm.amount || getOrderAmount(selectedItem, checkoutForm.quantity));
   const checkoutPreviewAmount = hasCheckoutCart
     ? Number(totalAfterDiscount.toFixed(2))
-    : Number(checkoutForm.amount || getOrderAmount(selectedItem, checkoutForm.quantity));
+    : fallbackPreviewAmount;
   const promoHighlights = useMemo(() => {
     const fromDescriptions = items
       .filter((item) => typeof item.description === 'string' && item.description.trim().length > 0)
@@ -1222,11 +1267,13 @@ export default function StorefrontPage() {
                       </div>
                       <button type="button" onClick={() => handleItemSelect(item)} className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left">
                         <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                          {previewImage ? (
-                            <img src={previewImage} alt={item.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <Package size={18} className="text-slate-400" />
-                          )}
+                          <ImageWithFallback
+                            src={previewImage}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                            iconSize={18}
+                            iconClassName="text-slate-400"
+                          />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
@@ -1422,11 +1469,13 @@ export default function StorefrontPage() {
                 <div className="mt-4 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
                   <div className="space-y-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
                     <div className="relative rounded-[20px] border border-slate-200 bg-white p-3">
-                      {quickViewCurrentImage ? (
-                        <img src={quickViewCurrentImage} alt={quickViewItem.name} className="mx-auto h-40 w-full rounded-[18px] object-cover" />
-                      ) : (
-                        <Package size={32} className="mx-auto my-16 text-slate-400" />
-                      )}
+                      <ImageWithFallback
+                        src={quickViewCurrentImage}
+                        alt={quickViewItem.name}
+                        className="mx-auto h-40 w-full rounded-[18px] object-cover"
+                        iconSize={32}
+                        iconClassName="mx-auto my-16 text-slate-400"
+                      />
                       {quickViewImages.length > 1 && (
                         <>
                           <button
@@ -1455,7 +1504,13 @@ export default function StorefrontPage() {
                             onClick={() => setQuickViewImageIndex(index)}
                             className={`overflow-hidden rounded-2xl border ${quickViewImageIndex === index ? 'border-emerald-500' : 'border-slate-200'}`}
                           >
-                            <img src={src} alt={`Ảnh ${index + 1}`} className="h-14 w-full object-cover" />
+                            <ImageWithFallback
+                              src={src}
+                              alt={`Ảnh ${index + 1}`}
+                              className="h-14 w-full object-cover"
+                              iconSize={14}
+                              iconClassName="mx-auto text-slate-400"
+                            />
                           </button>
                         ))}
                       </div>
@@ -1710,11 +1765,13 @@ export default function StorefrontPage() {
                       </button>
                     </div>
                     <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-100/70 p-6 text-center">
-                      {item.image_urls?.length > 0 || item.image_url ? (
-                        <img src={item.image_urls?.[0] || item.image_url} alt={item.name} className="mx-auto h-32 w-full max-w-[220px] rounded-[24px] object-cover" />
-                      ) : (
-                        <Package size={28} className="mx-auto text-emerald-300" />
-                      )}
+                      <ImageWithFallback
+                        src={item.image_urls?.[0] || item.image_url}
+                        alt={item.name}
+                        className="mx-auto h-32 w-full max-w-[220px] rounded-[24px] object-cover"
+                        iconSize={28}
+                        iconClassName="mx-auto text-emerald-300"
+                      />
                     </div>
                     <div className="mt-4">
                       <div className="flex items-start justify-between gap-3">
@@ -1723,9 +1780,6 @@ export default function StorefrontPage() {
                       <p className="mt-1 text-sm text-slate-500">{item.code} • {item.unit || 'Đơn vị'}</p>
                         </div>
                         <p className="text-sm font-semibold text-emerald-300">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-                        <Star size={14} className="text-amber-400" /> 4.8 • 128 đánh giá
                       </div>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1991,23 +2045,19 @@ export default function StorefrontPage() {
             ) : (
               <>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-slate-900">Đánh giá & nhận xét</h3>
-                  <span className="text-sm text-slate-500">4.8/5 • 128 đánh giá</span>
+                  <h3 className="text-xl font-bold text-slate-900">Thông tin mua hàng</h3>
+                  <span className="text-sm text-slate-500">Dữ liệu thật từ hệ thống</span>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {[
-                    { name: 'Minh', text: 'Mua gạch và xi măng nhanh, dịch vụ giao hàng tốt.', rating: 5 },
-                    { name: 'Lan', text: 'Vật liệu đầy đủ, giá rõ ràng và đặt hàng dễ dàng.', rating: 5 },
-                    { name: 'Huy', text: 'Đã đặt hàng thép, giao công trình đúng hạn.', rating: 4 }
-                  ].map((review) => (
-                    <div key={review.name} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                      <div className="flex items-center justify-between text-sm text-slate-600">
-                        <span className="font-semibold text-slate-900">{review.name}</span>
-                        <span className="flex items-center gap-1 text-amber-400">{Array.from({ length: review.rating }).map((_, idx) => <Star key={idx} size={14} />)}</span>
-                      </div>
-                        <p className="mt-2 text-sm text-slate-500">{review.text}</p>
-                    </div>
-                  ))}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
+                    Hình ảnh, giá và tồn kho được đồng bộ trực tiếp từ dữ liệu doanh nghiệp.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
+                    Storefront không hiển thị điểm sao hoặc nhận xét khi chưa có dữ liệu đánh giá thực tế.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
+                    Ảnh lỗi hoặc thiếu sẽ tự chuyển sang biểu tượng thay thế để tránh vỡ giao diện.
+                  </div>
                 </div>
               </>
             )}
@@ -2231,11 +2281,13 @@ export default function StorefrontPage() {
               <div className="mt-4 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
                 <div className="space-y-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/90 p-4 text-center">
                   <div className="relative rounded-[20px] border border-slate-200 bg-white p-3">
-                    {quickViewCurrentImage ? (
-                      <img src={quickViewCurrentImage} alt={quickViewItem.name} className="mx-auto h-40 w-full rounded-[18px] object-cover" />
-                    ) : (
-                      <Package size={32} className="mx-auto my-16 text-emerald-300" />
-                    )}
+                    <ImageWithFallback
+                      src={quickViewCurrentImage}
+                      alt={quickViewItem.name}
+                      className="mx-auto h-40 w-full rounded-[18px] object-cover"
+                      iconSize={32}
+                      iconClassName="mx-auto my-16 text-emerald-300"
+                    />
                     {quickViewImages.length > 1 && (
                       <>
                         <button
@@ -2264,7 +2316,13 @@ export default function StorefrontPage() {
                           onClick={() => setQuickViewImageIndex(index)}
                           className={`overflow-hidden rounded-2xl border ${quickViewImageIndex === index ? 'border-emerald-500' : 'border-slate-200'}`}
                         >
-                          <img src={src} alt={`Ảnh ${index + 1}`} className="h-14 w-full object-cover" />
+                          <ImageWithFallback
+                            src={src}
+                            alt={`Ảnh ${index + 1}`}
+                            className="h-14 w-full object-cover"
+                            iconSize={14}
+                            iconClassName="mx-auto text-slate-400"
+                          />
                         </button>
                       ))}
                     </div>
