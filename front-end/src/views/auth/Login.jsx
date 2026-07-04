@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Lock, User, Sparkles, ArrowRight } from 'lucide-react';
+import { MODULES_REGISTER } from '../../views/index.js';
 import { useNavigate } from 'react-router-dom';
 
 const getStorefrontURL = () => {
@@ -30,6 +31,8 @@ export default function Login({ onFirstRun }) {
   const [postLoginRedirect, setPostLoginRedirect] = usePersistentState('post-login-redirect', 'erp');
   const [error, setError] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
+  const [showPostLoginChoice, setShowPostLoginChoice] = useState(false);
+  const [postLoginHref, setPostLoginHref] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,8 +41,13 @@ export default function Login({ onFirstRun }) {
     try {
       const response = await login(form.username, form.password);
       if (response && (response.success || response.accessToken)) {
-        // Redirect according to user preference: ERP (default) or Storefront
-        if (postLoginRedirect === 'storefront' && storefrontUrl) {
+            // Determine whether this role has any ERP-accessible modules
+            const roleToCheck = response.user?.roleId || response.user?.role || (user && (user.roleId || user.role));
+            const hasErpAccess = MODULES_REGISTER.some((m) => Array.isArray(m.allowedRoles) && m.allowedRoles.includes(roleToCheck));
+
+        // Prepare storefront URL if configured
+        let href = '';
+        if (storefrontUrl) {
           const storedCompany = localStorage.getItem('activeCompany');
           let companyId;
           try { companyId = storedCompany ? JSON.parse(storedCompany)?.id : undefined; } catch { companyId = undefined; }
@@ -49,12 +57,13 @@ export default function Login({ onFirstRun }) {
           if (companyId) params.set('company_id', String(companyId));
           if (role) params.set('role', role);
           if (erpToken) params.set('erp_token', erpToken);
-          const href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
-          // Navigate to storefront (same tab)
-          window.location.href = href;
-        } else {
-          navigate('/', { replace: true });
+          href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
         }
+
+        // Show post-login choice modal so user can decide where to go
+        setPostLoginHref(href);
+            // Attach flag to modal state so UI can disable 'Stay in ERP' when appropriate
+            setShowPostLoginChoice({ open: true, canStayErp: Boolean(hasErpAccess) });
       } else {
         setError(response?.message || 'Tên người dùng hoặc mật khẩu không chính xác.');
       }
@@ -166,14 +175,20 @@ export default function Login({ onFirstRun }) {
                 </div>
               </div>
 
-              <div className="mt-2 flex items-center gap-4 text-sm text-slate-400">
+              <div className="mt-2 flex flex-col gap-2 text-sm text-slate-400">
                 <label className="inline-flex items-center gap-2">
                   <input type="radio" name="postLoginRedirect" value="erp" checked={postLoginRedirect === 'erp'} onChange={() => setPostLoginRedirect('erp')} />
                   <span className="ml-1">Về ERP sau khi đăng nhập</span>
                 </label>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-2">
+                    <input type="radio" name="postLoginRedirect" value="storefront_newtab" checked={postLoginRedirect === 'storefront_newtab'} onChange={() => setPostLoginRedirect('storefront_newtab')} />
+                    <span className="ml-1">Mở Web Bán Hàng (tab mới, giữ phiên ERP)</span>
+                  </label>
+                </div>
                 <label className="inline-flex items-center gap-2">
-                  <input type="radio" name="postLoginRedirect" value="storefront" checked={postLoginRedirect === 'storefront'} onChange={() => setPostLoginRedirect('storefront')} />
-                  <span className="ml-1">Chuyển tới Web Bán Hàng</span>
+                  <input type="radio" name="postLoginRedirect" value="storefront_replace" checked={postLoginRedirect === 'storefront_replace'} onChange={() => setPostLoginRedirect('storefront_replace')} />
+                  <span className="ml-1">Chuyển sang Web Bán Hàng (thay tab hiện tại)</span>
                 </label>
               </div>
 
@@ -186,6 +201,32 @@ export default function Login({ onFirstRun }) {
                 <ArrowRight size={16} />
               </button>
             </form>
+
+            {showPostLoginChoice && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="w-full max-w-md rounded-xl bg-white p-6">
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Bạn muốn làm gì tiếp theo?</h3>
+                  <p className="text-sm text-slate-500 mb-4">Chọn nơi sẽ tiếp tục sau khi đăng nhập.</p>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => { setShowPostLoginChoice(false); navigate('/', { replace: true }); }}
+                      className="w-full rounded-xl border px-4 py-2 text-left"
+                      disabled={!showPostLoginChoice.canStayErp}
+                    >
+                      Ở lại ERP
+                    </button>
+                    {!showPostLoginChoice.canStayErp && (
+                      <div className="text-xs text-rose-500">Tài khoản này hiện không có quyền truy cập các phân hệ ERP.</div>
+                    )}
+                    <button onClick={() => { if (postLoginHref) { window.open(postLoginHref, '_blank', 'noopener,noreferrer'); } else { alert('Chưa cấu hình URL cửa hàng.'); } }} className="w-full rounded-xl bg-emerald-500 text-white px-4 py-2">Mở Web Bán Hàng (tab mới)</button>
+                    <button onClick={() => { if (postLoginHref) { window.location.href = postLoginHref; } else { alert('Chưa cấu hình URL cửa hàng.'); } }} className="w-full rounded-xl border px-4 py-2">Chuyển sang Web Bán Hàng (thay tab)</button>
+                  </div>
+                  <div className="mt-4 text-right">
+                    <button onClick={() => setShowPostLoginChoice(false)} className="text-sm text-slate-500">Đóng</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 space-y-2 border-t border-slate-800 pt-4 text-center text-sm">
               {isStorefrontOnlyRole && (
