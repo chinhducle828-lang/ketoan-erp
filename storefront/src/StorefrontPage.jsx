@@ -212,8 +212,7 @@ export default function StorefrontPage() {
     return '';
   };
 
-  // If the user is in an admin role but there's no server-side admin session,
-  // automatically redirect back to the ERP login so they can obtain an admin session.
+  // If admin session is missing, keep user on storefront and show guidance instead of auto-redirect.
   useEffect(() => {
     if (!isAdminRole) return;
     if (!authBootstrapDone) return;
@@ -221,22 +220,14 @@ export default function StorefrontPage() {
     if (authenticatingAdmin) return;
     if (hasAdminSession) return;
 
-    // Build ERP login URL with company and role context so ERP can redirect back with erp_token
+    // Build ERP login URL for guidance only (no automatic navigation)
     const erpBase = getERPUrl();
     if (!erpBase) {
       setAdminMessage('Thiếu địa chỉ ERP để xác thực lại admin. Giữ nguyên chế độ admin và chờ phiên hợp lệ.');
       return;
     }
-    const params = new URLSearchParams();
-    if (companyId) params.set('company_id', companyId);
-    if (storefrontRole) params.set('role', storefrontRole);
-    // navigate to ERP login (replace current storefront tab)
     const loginUrl = buildErpLoginUrl(erpBase, companyId, storefrontRole);
-    try {
-      window.location.replace(loginUrl);
-    } catch (e) {
-      window.location.href = loginUrl;
-    }
+    setAdminMessage(`Chưa có phiên admin hợp lệ. Vui lòng đăng nhập lại từ ERP nếu cần: ${loginUrl}`);
   }, [isAdminRole, authBootstrapDone, adminSessionChecked, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
@@ -313,7 +304,9 @@ export default function StorefrontPage() {
             } else {
               if (targetRole === 'admin') {
                 if (isExplicitNonAdminRole(roleCode)) {
-                  rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+                  setHasAdminSession(false);
+                  setSessionRole(roleCode);
+                  setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
                 } else {
                   setAdminMessage('Chưa xác thực được phiên admin từ ERP. Giữ nguyên chế độ admin, vui lòng đăng nhập lại từ ERP nếu cần.');
                 }
@@ -373,7 +366,9 @@ export default function StorefrontPage() {
         } else {
           if (storefrontRole === 'admin') {
             if (isExplicitNonAdminRole(roleCode)) {
-              rollbackToGuest(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin.`);
+              setHasAdminSession(false);
+              setSessionRole(roleCode);
+              setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
             } else {
               setAdminMessage('Chưa xác thực được phiên admin. Giữ nguyên chế độ admin và chờ đồng bộ phiên từ ERP.');
             }
