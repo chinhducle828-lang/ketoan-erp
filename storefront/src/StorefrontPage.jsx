@@ -48,42 +48,6 @@ const authApi = axios.create({
   withCredentials: true
 });
 
-// Runtime info to help debug network errors in production
-if (typeof window !== 'undefined') {
-  console.info('[STOREFRONT] API_BASE_URL =', API_BASE_URL);
-}
-
-// Log axios errors with more context to console for debugging
-publicApi.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    console.error('[STOREFRONT][publicApi] Request failed', {
-      message: err.message,
-      isAxiosError: err.isAxiosError,
-      config: err.config,
-      code: err.code,
-      response: err.response ? { status: err.response.status, data: err.response.data } : null,
-      event: err.request && err.request._events ? err.request._events : err.request
-    });
-    return Promise.reject(err);
-  }
-);
-
-authApi.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    console.error('[STOREFRONT][authApi] Request failed', {
-      message: err.message,
-      isAxiosError: err.isAxiosError,
-      config: err.config,
-      code: err.code,
-      response: err.response ? { status: err.response.status, data: err.response.data } : null,
-      event: err.request && err.request._events ? err.request._events : err.request
-    });
-    return Promise.reject(err);
-  }
-);
-
 const CATEGORY_OPTIONS = ['Tất cả', 'Gạch', 'Sơn', 'Xi măng', 'Thép', 'Ống nước'];
 const SORT_OPTIONS = [
   { value: 'featured', label: 'Nổi bật' },
@@ -557,41 +521,34 @@ export default function StorefrontPage() {
   };
 
   const loadWarehouseQueue = async () => {
-    if (erpToken) {
-      (async () => {
-        setAuthenticatingAdmin(true);
-        try {
-          await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
-          // remove token from URL to avoid leakage
-          params.delete('erp_token');
-          const nextQuery = params.toString();
-          const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
-          window.history.replaceState({}, '', nextUrl);
-
-          // validate server-side session via cookie
-          try {
-            const { data } = await authApi.get('/api/auth/me');
-            const roleCode = data?.user?.role;
-            if (roleCode === 'admin') {
-              setAdminMessage('Phiên admin hợp lệ từ ERP.');
-              setHasAdminSession(true);
-            } else {
-              setAdminMessage('Phiên ERP hiện tại không phải admin. Vui lòng mở storefront từ tài khoản admin trên ERP.');
-              setHasAdminSession(false);
-            }
-          } catch (e) {
-            setAdminMessage('Phiên admin chưa được xác thực. Vui lòng mở storefront từ ERP bằng tài khoản admin.');
-            setHasAdminSession(false);
-          }
-        } catch (err) {
-          console.error('External login exchange failed:', err?.response?.data || err.message);
-          setAdminMessage('Không thể thiết lập phiên admin từ ERP. Vui lòng thử mở lại từ ERP.');
-          setHasAdminSession(false);
-        } finally {
-          setAuthenticatingAdmin(false);
-        }
-      })();
+    if (!companyId) {
+      setWarehouseQueue([]);
+      return;
     }
+
+    setWarehouseLoading(true);
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
+        params: { company_id: companyId },
+        ...getAdminAuthConfig()
+      });
+
+      const nextList = Array.isArray(data) ? data : [];
+      const nextMap = new Map(nextList.map((order) => [Number(order.id), order]));
+      const previousMap = previousQueueRef.current;
+
+      if (!firstQueueLoadRef.current) {
+        const addedPendingOrders = nextList.filter((order) => {
+          const id = Number(order.id);
+          return !previousMap.has(id) && order.loading_status === 'pending_loading';
+        });
+
+        const completedOrders = nextList.filter((order) => {
+          const id = Number(order.id);
+          const previous = previousMap.get(id);
+          return previous && previous.loading_status !== 'completed' && order.loading_status === 'completed';
+        });
+
         if ((isAdminRole || isWarehouseRole) && addedPendingOrders.length > 0) {
           setRolePopup({
             id: `added-${Date.now()}`,
