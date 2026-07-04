@@ -42,6 +42,54 @@ const getItemsMetadata = async (db) => {
   return { itemColumns, itemIdExpr };
 };
 
+const buildItemsSelectExpressions = (itemColumns) => {
+  const hasCode = itemColumns.has('code');
+  const hasLegacyCode = itemColumns.has('item_code');
+  const hasName = itemColumns.has('name');
+  const hasLegacyName = itemColumns.has('item_name');
+  const hasDescription = itemColumns.has('description');
+  const hasLegacyDescription = itemColumns.has('item_description');
+  const hasUnit = itemColumns.has('unit');
+  const hasPriceSell = itemColumns.has('price_sell');
+  const hasImageUrl = itemColumns.has('image_url');
+
+  const codeExpr = hasCode && hasLegacyCode
+    ? "COALESCE(NULLIF(code, ''), NULLIF(item_code, ''), '')"
+    : hasCode
+      ? "COALESCE(NULLIF(code, ''), '')"
+      : hasLegacyCode
+        ? "COALESCE(NULLIF(item_code, ''), '')"
+        : "''";
+
+  const nameExpr = hasName && hasLegacyName
+    ? "COALESCE(NULLIF(name, ''), NULLIF(item_name, ''), '')"
+    : hasName
+      ? "COALESCE(NULLIF(name, ''), '')"
+      : hasLegacyName
+        ? "COALESCE(NULLIF(item_name, ''), '')"
+        : "''";
+
+  const descriptionExpr = hasDescription
+    ? "COALESCE(description, '')"
+    : hasLegacyDescription
+      ? "COALESCE(item_description, '')"
+      : "''";
+
+  const unitExpr = hasUnit ? "COALESCE(unit, '')" : "''";
+  const priceSellExpr = hasPriceSell ? 'COALESCE(price_sell, 0)' : '0';
+  const imageUrlExpr = hasImageUrl ? 'image_url' : 'NULL';
+
+  return {
+    codeExpr,
+    nameExpr,
+    descriptionExpr,
+    unitExpr,
+    priceSellExpr,
+    imageUrlExpr,
+    orderByNameExpr: nameExpr
+  };
+};
+
 router.get('/items', async (req, res) => {
   try {
     const companyId = req.query.company_id || req.query.companyId;
@@ -53,26 +101,30 @@ router.get('/items', async (req, res) => {
     }
     const hasImageUrls = itemColumns.has('image_urls');
     const hasOpeningQuantity = itemColumns.has('opening_quantity');
-    const descriptionExpr = itemColumns.has('description')
-      ? "COALESCE(description, '')"
-      : itemColumns.has('item_description')
-        ? "COALESCE(item_description, '')"
-        : "''";
+    const {
+      codeExpr,
+      nameExpr,
+      descriptionExpr,
+      unitExpr,
+      priceSellExpr,
+      imageUrlExpr,
+      orderByNameExpr
+    } = buildItemsSelectExpressions(itemColumns);
 
     const { rows } = await pool.query(
       `SELECT ${itemIdExpr} AS id,
               company_id,
-              COALESCE(NULLIF(code, ''), item_code) AS code,
-              COALESCE(NULLIF(name, ''), item_name) AS name,
+              ${codeExpr} AS code,
+              ${nameExpr} AS name,
               ${descriptionExpr} AS description,
-              unit,
-              COALESCE(price_sell, 0) AS price_sell,
+              ${unitExpr} AS unit,
+              ${priceSellExpr} AS price_sell,
               ${hasOpeningQuantity ? 'COALESCE(opening_quantity, 0)' : '0'} AS opening_quantity,
-              image_url,
+              ${imageUrlExpr} AS image_url,
               ${hasImageUrls ? "COALESCE(image_urls, '[]'::jsonb)" : "'[]'::jsonb"} AS image_urls
        FROM items
        WHERE company_id = $1
-       ORDER BY COALESCE(NULLIF(name, ''), item_name)`,
+       ORDER BY ${orderByNameExpr}`,
       [companyId]
     );
 
@@ -122,18 +174,19 @@ router.post('/orders', async (req, res) => {
       quantity: qty
     }));
 
-    const { itemIdExpr } = await getItemsMetadata(client);
+    const { itemColumns, itemIdExpr } = await getItemsMetadata(client);
     if (!itemIdExpr) {
       return res.status(500).json({ error: 'Bảng items thiếu khóa định danh. Cần có cột định danh hoặc khóa chính.' });
     }
+    const { codeExpr, nameExpr, unitExpr, priceSellExpr } = buildItemsSelectExpressions(itemColumns);
 
     const itemIds = mergedItems.map((entry) => entry.itemId);
     const itemRes = await client.query(
       `SELECT ${itemIdExpr} AS item_pk,
-              COALESCE(NULLIF(code, ''), item_code) AS code,
-              COALESCE(NULLIF(name, ''), item_name) AS name,
-              unit,
-              COALESCE(price_sell, 0) AS price_sell
+              ${codeExpr} AS code,
+              ${nameExpr} AS name,
+              ${unitExpr} AS unit,
+              ${priceSellExpr} AS price_sell
        FROM items
        WHERE company_id = $1 AND ${itemIdExpr}::text = ANY($2::text[])`,
       [companyId, itemIds]
