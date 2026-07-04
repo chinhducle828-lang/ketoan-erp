@@ -272,6 +272,21 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES companies(id) ON DELETE CASCADE,
+    order_id INT REFERENCES vouchers(id) ON DELETE SET NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    recipient_role VARCHAR(20),
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_company ON notifications(company_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_role, is_read);
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -450,6 +465,7 @@ import vouchersRouter from './routes/vouchers.js';
 import maintenanceRouter from './routes/maintenance.js';
 import publicRoutes from './routes/publicRoutes.js';
 import logisticsRoutes from './routes/logisticsRoutes.js';
+import posRouter from './routes/pos.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -469,6 +485,7 @@ app.use('/api/vouchers', vouchersRouter);
 app.use('/api/maintenance', maintenanceRouter);
 app.use('/api/public', publicRoutes);
 app.use('/api/logistics', logisticsRoutes);
+app.use('/api/pos', posRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
@@ -4095,6 +4112,100 @@ router.post('/create', authenticate, checkCompanyAccess, validatePartner, create
 router.get('/list', authenticate, checkCompanyAccess, getPartners);
 
 export { router as partnerRouter };
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/routes/pos.js
+// START_OF_FILE
+import express from 'express';
+import { pool } from '../config/db.js';
+import { authenticate } from '../middleware/auth.js';
+
+const router = express.Router();
+
+router.get('/stats', authenticate, async (req, res) => {
+  try {
+    const companyId = req.query.company_id || req.headers['x-company-id'];
+    if (!companyId) {
+      return res.status(400).json({ error: 'Thiếu company_id' });
+    }
+
+    const orderCountRes = await pool.query(
+      `SELECT COUNT(*)::int AS today_orders
+       FROM vouchers
+       WHERE company_id = $1 AND voucher_date = CURRENT_DATE`,
+      [companyId]
+    );
+
+    const salesRes = await pool.query(
+      `SELECT COALESCE(SUM(CASE WHEN entry_type = 'CR' AND account_code = '511' THEN amount ELSE 0 END), 0)::numeric AS today_sales
+       FROM voucher_details vd
+       JOIN vouchers v ON v.id = vd.voucher_id
+       WHERE v.company_id = $1 AND v.voucher_date = CURRENT_DATE`,
+      [companyId]
+    );
+
+    const notificationRes = await pool.query(
+      `SELECT COUNT(*)::int AS unread_count
+       FROM notifications
+       WHERE company_id = $1 AND is_read = FALSE`,
+      [companyId]
+    );
+
+    res.json({
+      todayOrders: Number(orderCountRes.rows[0]?.today_orders || 0),
+      todaySales: Number(salesRes.rows[0]?.today_sales || 0),
+      unreadNotifications: Number(notificationRes.rows[0]?.unread_count || 0)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/notify', authenticate, async (req, res) => {
+  try {
+    const { companyId, orderId, title, message, recipientRole = 'admin' } = req.body;
+    if (!companyId || !title) {
+      return res.status(400).json({ error: 'Thiếu thông tin thông báo' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO notifications (company_id, order_id, type, title, message, recipient_role, is_read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, FALSE, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [companyId, orderId || null, 'order', title, message || '', recipientRole,]
+    );
+
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/notifications', authenticate, async (req, res) => {
+  try {
+    const companyId = req.query.company_id || req.headers['x-company-id'];
+    if (!companyId) {
+      return res.status(400).json({ error: 'Thiếu company_id' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, company_id, order_id, type, title, message, recipient_role, is_read, created_at
+       FROM notifications
+       WHERE company_id = $1 AND (recipient_role IS NULL OR recipient_role = $2)
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [companyId, req.user?.role || 'admin']
+    );
+
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -10169,6 +10280,7 @@ import Login from './views/auth/Login.jsx';
 import Register from './views/auth/Register.jsx';
 import ChangePassword from './views/auth/ChangePassword.jsx';
 import StorefrontAccessNotice from './views/auth/StorefrontAccessNotice.jsx';
+import CustomerView from './views/auth/CustomerView.jsx';
 
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
@@ -10246,6 +10358,8 @@ export default function App() {
           path="/change-password" 
           element={token && mustChangePassword ? <ChangePassword /> : <Navigate to="/" replace />} 
         />
+        <Route path="/pos" element={<StorefrontAccessNotice />} />
+        <Route path="/customer" element={<CustomerView />} />
 
         {/* ==========================================
             2. CÁC ĐƯỜNG DẪN PHÂN HỆ CHÍNH (PROTECTED ERP ROUTES)
@@ -10521,13 +10635,34 @@ export default function ExportExcelButton({ endpoint, filename, label = 'Xuất 
 
 // FILE_PATH: front-end/src/components/Header.jsx
 // START_OF_FILE
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Building2, LogOut, User, Calendar } from 'lucide-react';
+import api from '../utils/api';
+import { Building2, LogOut, User, Calendar, Bell } from 'lucide-react';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
   const { user, companies, activeCompany, changeCompany, logout, fiscalYear, setFiscalYear } = useAuth();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!activeCompany?.id) {
+        setNotificationCount(0);
+        return;
+      }
+
+      try {
+        const { data } = await api.get('/pos/notifications', { params: { company_id: activeCompany.id } });
+        const unread = Array.isArray(data) ? data.filter((item) => !item.is_read).length : 0;
+        setNotificationCount(unread);
+      } catch (error) {
+        console.warn('Không thể tải thông báo POS:', error.message);
+      }
+    };
+
+    fetchNotifications();
+  }, [activeCompany?.id]);
 
   // Danh sách niên độ kế toán hỗ trợ trong hệ thống
   const availableYears = [2024, 2025, 2026, 2027, 2028];
@@ -10628,6 +10763,17 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
             <User size={16} />
           </div>
         </div>
+
+        {user?.role !== 'nv_banhang' && (
+          <button className="relative p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100" title="Thông báo bán hàng">
+            <Bell size={18} />
+            {notificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
+                {notificationCount}
+              </span>
+            )}
+          </button>
+        )}
 
         <button 
           onClick={logout}
@@ -10881,6 +11027,50 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
 }
 
 //  
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: front-end/src/components/ToastNotification.jsx
+// START_OF_FILE
+import React, { useEffect } from 'react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+
+function ToastItem({ toast, onClose }) {
+  useEffect(() => {
+    const timer = window.setTimeout(() => onClose(toast.id), 5000);
+    return () => window.clearTimeout(timer);
+  }, [toast.id, onClose]);
+
+  const Icon = toast.type === 'success' ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 shadow-lg backdrop-blur ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+        <div className="flex-1">
+          <div className="text-sm font-semibold">{toast.title}</div>
+          {toast.message ? <div className="mt-1 text-sm opacity-90">{toast.message}</div> : null}
+        </div>
+        <button type="button" onClick={() => onClose(toast.id)} className="rounded-full p-1 transition hover:bg-black/5">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function ToastNotification({ toasts, onClose }) {
+  if (!toasts.length) return null;
+
+  return (
+    <div className="fixed right-4 top-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onClose={onClose} />
+      ))}
+    </div>
+  );
+}
+
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -11710,6 +11900,46 @@ export const CHART_OF_ACCOUNTS = [
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: front-end/src/utils/notifications.js
+// START_OF_FILE
+export const requestPermission = async () => {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+
+  if (Notification.permission === 'granted') {
+    return 'granted';
+  }
+
+  if (Notification.permission === 'denied') {
+    return 'denied';
+  }
+
+  return Notification.requestPermission();
+};
+
+export const showNotification = async (title, message) => {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return null;
+  }
+
+  if (Notification.permission !== 'granted') {
+    await requestPermission();
+  }
+
+  if (Notification.permission === 'granted') {
+    return new Notification(title, {
+      body: message,
+      icon: '/favicon.ico'
+    });
+  }
+
+  return null;
+};
+
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: front-end/src/utils/persistence.js
 // START_OF_FILE
 import { useEffect, useState } from 'react';
@@ -11779,6 +12009,7 @@ import {
   BookOpenCheck, 
   Settings, 
   ShoppingBag, 
+  ShoppingCart,
   Users, 
   Percent, 
   Coins, 
@@ -11816,6 +12047,14 @@ export const MODULES_REGISTER = [
     icon: ShoppingBag,
     component: React.lazy(() => import('./purchasing/PurchaseInventory.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true
+  },
+  {
+    id: 'pos',
+    name: 'Bán hàng tại quầy',
+    icon: ShoppingCart,
+    component: React.lazy(() => import('./auth/StorefrontAccessNotice.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv_banhang'],
     requiresActiveCompany: true
   },
   {
@@ -13346,6 +13585,18 @@ export default function ChangePassword() {
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: front-end/src/views/auth/CustomerView.jsx
+// START_OF_FILE
+import React from 'react';
+import StorefrontAccessNotice from './StorefrontAccessNotice.jsx';
+
+export default function CustomerView() {
+  return <StorefrontAccessNotice mode="customer" />;
+}
+
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: front-end/src/views/auth/Login.jsx
 // START_OF_FILE
 import React, { useState } from 'react';
@@ -13609,106 +13860,209 @@ export default function Register({ onSwitch }) {
 
 // FILE_PATH: front-end/src/views/auth/StorefrontAccessNotice.jsx
 // START_OF_FILE
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Store, ExternalLink, ShieldCheck, ArrowLeft } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ShoppingCart, Plus, Minus, CreditCard, Package, ReceiptText, Sparkles } from 'lucide-react';
+import api from '../../utils/api';
+import { showNotification, requestPermission } from '../../utils/notifications';
+import ToastNotification from '../../components/ToastNotification';
 import { useAuth } from '../../context/AuthContext';
 
-const getStorefrontURL = () => {
-  if (import.meta.env.VITE_STOREFRONT_URL) {
-    return import.meta.env.VITE_STOREFRONT_URL;
-  }
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
-      return 'http://banhang.railway.internal';
-    }
-  }
-
-  return 'http://localhost:3001';
-};
-
 export default function StorefrontAccessNotice() {
-  const STOREFRONT_URL = getStorefrontURL();
-  const { activeCompany, user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [isRedirecting, setIsRedirecting] = useState(true);
+  const { activeCompany, user } = useAuth();
+  const [items, setItems] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [customerName, setCustomerName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [toasts, setToasts] = useState([]);
 
   const companyId = activeCompany?.id ? Number(activeCompany.id) : null;
-  const roleCode = user?.roleId || user?.role;
-  const erpAccessToken = localStorage.getItem('accessToken');
-  const params = new URLSearchParams();
-  if (companyId) params.set('company_id', String(companyId));
-  if (roleCode) params.set('role', roleCode);
-  if (erpAccessToken) params.set('erp_token', erpAccessToken);
-  const storefrontHref = `${STOREFRONT_URL}${params.toString() ? `?${params.toString()}` : ''}`;
 
   useEffect(() => {
-    if (!storefrontHref) {
-      setIsRedirecting(false);
+    const loadItems = async () => {
+      if (!companyId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data } = await api.get('/public/items', { params: { company_id: companyId } });
+        setItems(Array.isArray(data) ? data : []);
+      } catch (error) {
+        setToasts((prev) => [...prev, { id: Date.now(), type: 'error', title: 'Lỗi tải sản phẩm', message: error.message }]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadItems();
+  }, [companyId]);
+
+  useEffect(() => {
+    requestPermission();
+  }, []);
+
+  const addToCart = (item) => {
+    setCart((current) => {
+      const existing = current.find((entry) => entry.id === item.id);
+      if (existing) {
+        return current.map((entry) => entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry);
+      }
+      return [...current, { id: item.id, name: item.name, price: Number(item.price_sell || 0), quantity: 1 }];
+    });
+  };
+
+  const updateQuantity = (itemId, delta) => {
+    setCart((current) => current.flatMap((entry) => {
+      if (entry.id !== itemId) return [entry];
+      const nextQty = entry.quantity + delta;
+      return nextQty > 0 ? [{ ...entry, quantity: nextQty }] : [];
+    }));
+  };
+
+  const totalAmount = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart]);
+
+  const submitOrder = async () => {
+    if (!companyId) {
+      setToasts((prev) => [...prev, { id: Date.now(), type: 'error', title: 'Thiếu doanh nghiệp', message: 'Vui lòng chọn doanh nghiệp trước khi bán hàng.' }]);
       return;
     }
 
-    // Chuyển hướng cùng tab để liền mạch sau đăng nhập.
-    const redirectTimer = window.setTimeout(() => window.location.replace(storefrontHref), 1500);
+    if (!cart.length) {
+      setToasts((prev) => [...prev, { id: Date.now(), type: 'error', title: 'Giỏ hàng trống', message: 'Hãy chọn ít nhất một sản phẩm.' }]);
+      return;
+    }
 
-    // Fallback hiển thị nút thủ công nếu môi trường không cho chuyển hướng tự động.
-    const fallbackTimer = window.setTimeout(() => setIsRedirecting(false), 1800);
-    return () => {
-      window.clearTimeout(redirectTimer);
-      window.clearTimeout(fallbackTimer);
-    };
-  }, [storefrontHref]);
+    setSubmitting(true);
+    try {
+      const payload = {
+        companyId,
+        customerName,
+        items: cart.map((item) => ({ itemId: item.id, quantity: item.quantity }))
+      };
+
+      const { data } = await api.post('/public/orders', payload);
+      const orderNumber = data?.voucherNumber || data?.order?.voucherNumber || 'Đơn mới';
+      setToasts((prev) => [...prev, { id: Date.now(), type: 'success', title: 'Tạo đơn thành công', message: `${orderNumber} • Tổng ${totalAmount.toLocaleString('vi-VN')}đ` }]);
+      await showNotification('Đơn bán hàng mới', `${orderNumber} đã được ghi nhận.`);
+      await api.post('/pos/notify', {
+        companyId,
+        orderId: data?.voucherId || null,
+        title: 'Đơn bán hàng mới',
+        message: `Đơn ${orderNumber} đã được tạo bởi ${user?.fullName || user?.username || 'nhân viên'}`
+      });
+      setCart([]);
+      setCustomerName('');
+    } catch (error) {
+      setToasts((prev) => [...prev, { id: Date.now(), type: 'error', title: 'Tạo đơn thất bại', message: error.message }]);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-sm p-8">
-        <div className="flex items-center gap-3 text-slate-900 mb-4">
-          <Store className="h-6 w-6 text-blue-700" />
-          <h1 className="text-xl font-bold">Tài khoản này thuộc hệ bán hàng</h1>
-        </div>
-
-        <p className="text-slate-700 leading-relaxed mb-4">
-          Vai trò của bạn là nhân sự vận hành web bán hàng. Web kế toán ERP không mở các phân hệ nghiệp vụ cho nhóm vai trò này.
-        </p>
-
-        {isRedirecting && (
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700 mb-4">
-            Đang tự động chuyển sang web bán hàng...
-          </div>
-        )}
-
-        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 mb-6">
-          <div className="flex items-start gap-2">
-            <ShieldCheck className="h-5 w-5 mt-0.5" />
+    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+      <ToastNotification toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((toast) => toast.id !== id))} />
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              Nếu bạn được phân công theo nhiều doanh nghiệp, vui lòng chọn doanh nghiệp ở thanh trên trước khi mở web bán hàng để đi đúng dữ liệu.
+              <div className="flex items-center gap-2 text-slate-900">
+                <ShoppingCart className="h-5 w-5 text-emerald-600" />
+                <h1 className="text-xl font-semibold">Bán hàng tại quầy</h1>
+              </div>
+              <p className="text-sm text-slate-500">Chọn sản phẩm, tạo đơn và thanh toán nhanh trong một màn hình.</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {activeCompany?.name || 'Chưa chọn doanh nghiệp'}
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <a
-            href={storefrontHref}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-700 text-white px-4 py-2 font-semibold hover:bg-blue-800 transition-colors"
-          >
-            Mở web bán hàng
-            <ExternalLink className="h-4 w-4" />
-          </a>
-          <button
-            type="button"
-            onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Quay lại ERP
-          </button>
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Sản phẩm</h2>
+                <p className="text-sm text-slate-500">Danh sách đang có trong kho của doanh nghiệp.</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">{items.length} mục</div>
+            </div>
+
+            {loading ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Đang tải sản phẩm...</div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {items.map((item) => (
+                  <button key={item.id} type="button" onClick={() => addToCart(item)} className="rounded-2xl border border-slate-200 p-4 text-left transition hover:border-emerald-300 hover:shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-900">{item.name}</div>
+                        <div className="mt-1 text-sm text-slate-500">{item.code}</div>
+                      </div>
+                      <div className="rounded-full bg-emerald-50 px-2 py-1 text-sm font-semibold text-emerald-700">
+                        {Number(item.price_sell || 0).toLocaleString('vi-VN')}đ
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+                      <span className="inline-flex items-center gap-1"><Package className="h-4 w-4" />{item.unit || 'cái'}</span>
+                      <span className="inline-flex items-center gap-1"><Sparkles className="h-4 w-4" />Thêm vào giỏ</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Giỏ hàng & thanh toán</h2>
+              <p className="text-sm text-slate-500">Kiểm tra đơn hàng trước khi ghi nhận.</p>
+            </div>
+
+            <label className="mb-3 block text-sm font-medium text-slate-700">
+              Tên khách hàng
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none" placeholder="Khách lẻ" />
+            </label>
+
+            <div className="space-y-2">
+              {cart.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Giỏ hàng trống. Chọn sản phẩm để bắt đầu bán.</div>
+              ) : cart.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <div>
+                    <div className="font-medium text-slate-900">{item.name}</div>
+                    <div className="text-sm text-slate-500">{item.price.toLocaleString('vi-VN')}đ / sản phẩm</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => updateQuantity(item.id, -1)} className="rounded-full border border-slate-200 p-1 text-slate-600">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="min-w-6 text-center text-sm font-semibold">{item.quantity}</span>
+                    <button type="button" onClick={() => updateQuantity(item.id, 1)} className="rounded-full border border-slate-200 p-1 text-slate-600">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-slate-900 p-4 text-white">
+              <div className="flex items-center justify-between text-sm text-slate-300">
+                <span>Tổng tiền</span>
+                <span>{totalAmount.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <button type="button" disabled={submitting} onClick={submitOrder} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
+                <CreditCard className="h-4 w-4" />
+                {submitting ? 'Đang xử lý...' : 'Thanh toán'}
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              <ReceiptText className="h-4 w-4" />
+              Đơn sẽ được lưu vào hệ thống kế toán và gửi thông báo tới quản trị.
+            </div>
+          </div>
         </div>
       </div>
     </div>
