@@ -5,6 +5,9 @@ import axios from 'axios';
 const getBaseURL = () => {
   const base = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
   if (base) {
+    if (base.includes('your-backend-domain')) {
+      console.error('[KETOAN-FRONTEND] VITE_API_BASE_URL vẫn dùng placeholder `your-backend-domain`. Hãy thay bằng backend Railway service thực tế.');
+    }
     return base.endsWith('/api') ? base : `${base.replace(/\/$/, '')}/api`;
   }
 
@@ -15,6 +18,7 @@ const getBaseURL = () => {
     }
   }
 
+  console.warn('[KETOAN-FRONTEND] Không tìm thấy VITE_API_BASE_URL. Đang dùng /api làm fallback.');
   return '/api';
 };
 
