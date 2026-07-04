@@ -278,9 +278,12 @@ export function getTotalCredit(ledger, accountCode) {
  */
 export function getTaxRateByRevenue(revenue) {
   const closingRules = getClosingRules();
-  const brackets = Array.isArray(closingRules.taxBracketsByRevenue)
-    ? [...closingRules.taxBracketsByRevenue]
-    : [];
+  // Support both progressiveTaxBrackets (new) and taxBracketsByRevenue (legacy)
+  const brackets = Array.isArray(closingRules.progressiveTaxBrackets)
+    ? [...closingRules.progressiveTaxBrackets]
+    : Array.isArray(closingRules.taxBracketsByRevenue)
+      ? [...closingRules.taxBracketsByRevenue]
+      : [];
 
   if (brackets.length === 0) {
     if (revenue <= 3000000000) return 0.15;

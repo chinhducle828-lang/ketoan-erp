@@ -7,10 +7,17 @@ import {
   publishStorefrontOrderEvent,
   registerStorefrontStreamClient
 } from '../services/storefrontRealtime.service.js';
+import { getLogisticsRules } from '../config/businessRules.js';
 
 const router = express.Router();
 const LOGISTICS_ALLOWED_ROLES = ['admin', 'ktt', 'nv', 'nv_kho', 'nv_banhang'];
 ensureStorefrontRealtimeListener();
+
+// Get sale voucher type from rules (with fallback)
+const getSaleVoucherType = () => {
+  const rules = getLogisticsRules();
+  return String(rules.saleVoucherType || 'XK').trim() || 'XK';
+};
 
 const ensureCompanyAccess = async (req, companyId) => {
   if (!companyId) return { ok: false, message: 'Thiếu company_id' };
@@ -21,6 +28,7 @@ const ensureCompanyAccess = async (req, companyId) => {
 };
 
 const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, toStatus, patch = {} }) => {
+  const saleVoucherType = getSaleVoucherType();
   const patchKeys = Object.keys(patch);
   const patchSql = patchKeys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
   const values = patchKeys.map((key) => patch[key]);
@@ -31,12 +39,12 @@ const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, t
     SET ${patchSql ? `${patchSql}, ` : ''}loading_status = $${updateBaseIndex + 1}
     WHERE id = $${updateBaseIndex + 2}
       AND company_id = $${updateBaseIndex + 3}
-      AND voucher_type = 'XK'
-      AND loading_status = $${updateBaseIndex + 4}
+      AND voucher_type = $${updateBaseIndex + 4}
+      AND loading_status = $${updateBaseIndex + 5}
     RETURNING id, voucher_number, loading_status
   `;
 
-  const rs = await db.query(updateQuery, [...values, toStatus, voucherId, companyId, fromStatus]);
+  const rs = await db.query(updateQuery, [...values, toStatus, voucherId, companyId, saleVoucherType, fromStatus]);
   if (rs.rows.length > 0) {
     return { ok: true, row: rs.rows[0] };
   }
@@ -44,9 +52,9 @@ const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, t
   const statusRes = await db.query(
     `SELECT id, voucher_number, loading_status
      FROM vouchers
-     WHERE id = $1 AND company_id = $2 AND voucher_type = 'XK'
+     WHERE id = $1 AND company_id = $2 AND voucher_type = $3
      LIMIT 1`,
-    [voucherId, companyId]
+    [voucherId, companyId, saleVoucherType]
   );
 
   if (statusRes.rows.length === 0) {
@@ -67,12 +75,13 @@ router.get('/queue', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (
     const access = await ensureCompanyAccess(req, companyId);
     if (!access.ok) return res.status(403).json({ error: access.message });
 
+    const saleVoucherType = getSaleVoucherType();
     const { rows } = await pool.query(
       `SELECT v.id, v.voucher_number, v.description, v.voucher_date, v.loading_status, v.truck_id
        FROM vouchers v
-       WHERE v.company_id = $1 AND v.voucher_type = 'XK' AND v.loading_status = 'pending_loading'
+       WHERE v.company_id = $1 AND v.voucher_type = $2 AND v.loading_status = 'pending_loading'
        ORDER BY v.voucher_date DESC, v.id DESC`,
-      [companyId]
+      [companyId, saleVoucherType]
     );
     res.json(rows);
   } catch (error) {
@@ -100,6 +109,7 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
       return res.status(400).json({ error: 'Bộ lọc trạng thái không hợp lệ' });
     }
 
+    const saleVoucherType = getSaleVoucherType();
     const { rows } = await pool.query(
       `SELECT v.id,
               v.voucher_number,
@@ -120,10 +130,10 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
              AND COALESCE(vd.quantity, 0) > 0
        LEFT JOIN items i ON i.id = vd.item_id
        WHERE v.company_id = $1
-         AND v.voucher_type = 'XK'
-         AND v.loading_status = ANY($2::text[])
+         AND v.voucher_type = $2
+         AND v.loading_status = ANY($3::text[])
        ORDER BY v.voucher_date DESC, v.id DESC, i.code ASC`,
-      [companyId, statuses]
+      [companyId, saleVoucherType, statuses]
     );
 
     const ordersMap = new Map();
