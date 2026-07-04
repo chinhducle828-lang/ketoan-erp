@@ -73,7 +73,7 @@ describe('phase 3 business-rules overrides', () => {
           hermaphroditicAccounts: ['777']
         },
         closing: {
-          taxBracketsByRevenue: [
+          progressiveTaxBrackets: [
             { maxRevenue: 1000, rate: 0.1 },
             { maxRevenue: null, rate: 0.2 }
           ]
@@ -102,5 +102,157 @@ describe('phase 3 business-rules overrides', () => {
       credit: 0,
       net: 150
     }));
+  });
+});
+
+describe('logistics rules', () => {
+  test('returns default sale voucher type when no override', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule();
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('applies sale voucher type override from BUSINESS_RULES_JSON', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: 'CUSTOM_SALE'
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('CUSTOM_SALE');
+  });
+});
+
+describe('validation of BUSINESS_RULES_JSON', () => {
+  test('validates progressiveTaxBrackets with valid data', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 0.1 },
+            { maxRevenue: null, rate: 0.2 }
+          ]
+        }
+      }
+    });
+    expect(errors).toEqual([]);
+  });
+
+  test('validates progressiveTaxBrackets with invalid rate', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 'invalid' }
+          ]
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('rate must be a valid number');
+  });
+
+  test('validates progressiveTaxBrackets with invalid maxRevenue', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 'invalid', rate: 0.1 }
+          ]
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('maxRevenue must be a valid number or null');
+  });
+
+  test('validates logisticsCost must be array', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        inventory: {
+          accounts: {
+            logisticsCost: 'not-an-array'
+          }
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('logisticsCost must be an array');
+  });
+
+  test('validates closing cost must be array', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          accounts: {
+            cost: 'not-an-array'
+          }
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('cost must be an array');
+  });
+});
+
+describe('progressiveTaxBrackets support in accounting engine', () => {
+  test('uses progressiveTaxBrackets (new key) for tax calculation', async () => {
+    const { getTaxRateByRevenue } = await loadAccountingEngineModule({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 0.1 },
+            { maxRevenue: null, rate: 0.2 }
+          ]
+        }
+      }
+    });
+
+    expect(getTaxRateByRevenue(500)).toBe(0.1);
+    expect(getTaxRateByRevenue(5000)).toBe(0.2);
+  });
+
+  test('uses default tax rates when no brackets configured', async () => {
+    const { getTaxRateByRevenue } = await loadAccountingEngineModule();
+    expect(getTaxRateByRevenue(1000000000)).toBe(0.15);
+    expect(getTaxRateByRevenue(10000000000)).toBe(0.17);
+    expect(getTaxRateByRevenue(100000000000)).toBe(0.20);
+  });
+});
+
+describe('negative test cases for rule configuration', () => {
+  test('handles missing key gracefully in getLogisticsRules', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {}
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles null voucher type gracefully', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: null
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles empty string voucher type gracefully', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: ''
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles malformed JSON in BUSINESS_RULES_JSON', async () => {
+    process.env.BUSINESS_RULES_JSON = 'not valid json';
+    const { getInventoryRules } = await loadBusinessRulesModule();
+    // Should use defaults
+    expect(getInventoryRules().inboundVoucherType).toBe('NK');
   });
 });

@@ -164,8 +164,93 @@ export const resetBusinessRulesCache = () => {
 };
 
 export const getSaleRules = () => getBusinessRules().accounting.sale;
-export const getClosingRules = () => getBusinessRules().accounting.closing;
+export const getClosingRules = () => {
+  const rules = getBusinessRules().accounting.closing;
+  // Apply fallback for cost if null/empty
+  if (!rules?.accounts?.cost || !Array.isArray(rules.accounts.cost) || rules.accounts.cost.length === 0) {
+    return {
+      ...rules,
+      accounts: {
+        ...rules?.accounts,
+        cost: ['632', '641', '642']
+      }
+    };
+  }
+  return rules;
+};
 export const getGeneralAccountingRules = () => getBusinessRules().accounting.general;
-export const getInventoryRules = () => getBusinessRules().accounting.inventory;
-export const getCashFlowRules = () => getBusinessRules().reporting.cashFlow;
+export const getInventoryRules = () => {
+  const rules = getBusinessRules().accounting.inventory;
+  // Apply fallback for logisticsCost if null/empty
+  if (!rules?.accounts?.logisticsCost || !Array.isArray(rules.accounts.logisticsCost) || rules.accounts.logisticsCost.length === 0) {
+    return {
+      ...rules,
+      accounts: {
+        ...rules?.accounts,
+        logisticsCost: ['632', '641', '642']
+      }
+    };
+  }
+  return rules;
+};
+export const getCashFlowRules = () => {
+  const rules = getBusinessRules().reporting.cashFlow;
+  // Apply fallback for cashAccountPrefixes if null/empty
+  if (!rules?.cashAccountPrefixes || !Array.isArray(rules.cashAccountPrefixes) || rules.cashAccountPrefixes.length === 0) {
+    return {
+      ...rules,
+      cashAccountPrefixes: ['111', '112']
+    };
+  }
+  return rules;
+};
 export const getBalanceSheetRules = () => getBusinessRules().reporting.balanceSheet;
+
+// Logistics rules - for voucher type configuration
+export const getLogisticsRules = () => {
+  const rules = getBusinessRules();
+  return {
+    saleVoucherType: rules.voucher?.saleVoucherType || 'XK'
+  };
+};
+
+// Validation for BUSINESS_RULES_JSON configuration
+export const validateBusinessRules = (rules) => {
+  const errors = [];
+  
+  // Validate progressiveTaxBrackets
+  if (rules?.accounting?.closing?.progressiveTaxBrackets) {
+    const brackets = rules.accounting.closing.progressiveTaxBrackets;
+    if (!Array.isArray(brackets)) {
+      errors.push('accounting.closing.progressiveTaxBrackets must be an array');
+    } else {
+      brackets.forEach((bracket, idx) => {
+        if (typeof bracket.rate !== 'number' || !Number.isFinite(bracket.rate)) {
+          errors.push(`accounting.closing.progressiveTaxBrackets[${idx}].rate must be a valid number`);
+        }
+        if (bracket.maxRevenue !== null && bracket.maxRevenue !== undefined && 
+            (typeof bracket.maxRevenue !== 'number' || !Number.isFinite(bracket.maxRevenue))) {
+          errors.push(`accounting.closing.progressiveTaxBrackets[${idx}].maxRevenue must be a valid number or null`);
+        }
+      });
+    }
+  }
+  
+  // Validate inventory accounts
+  if (rules?.accounting?.inventory?.accounts) {
+    const accounts = rules.accounting.inventory.accounts;
+    if (accounts.logisticsCost && !Array.isArray(accounts.logisticsCost)) {
+      errors.push('accounting.inventory.accounts.logisticsCost must be an array');
+    }
+  }
+  
+  // Validate closing accounts
+  if (rules?.accounting?.closing?.accounts) {
+    const accounts = rules.accounting.closing.accounts;
+    if (accounts.cost && !Array.isArray(accounts.cost)) {
+      errors.push('accounting.closing.accounts.cost must be an array');
+    }
+  }
+  
+  return errors;
+};

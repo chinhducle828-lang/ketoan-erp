@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 
 // 1. Cấu hình PG Pool từ thư mục config
 import { pool } from './config/db.js';
+import { validateBusinessRules } from './config/businessRules.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -78,9 +79,30 @@ app.use(cookieParser());
 export const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30;
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
+// Validate BUSINESS_RULES_JSON on startup
+const validateRulesOnStartup = () => {
+  if (process.env.BUSINESS_RULES_JSON) {
+    try {
+      const parsed = JSON.parse(process.env.BUSINESS_RULES_JSON);
+      const errors = validateBusinessRules(parsed);
+      if (errors.length > 0) {
+        console.warn('⚠️ [CẢNH BÁO] Cấu hình BUSINESS_RULES_JSON có lỗi:');
+        errors.forEach(err => console.warn(`  - ${err}`));
+      } else {
+        console.log('✅ [XÁC NHẬN] BUSINESS_RULES_JSON hợp lệ.');
+      }
+    } catch (e) {
+      console.error('❌ [LỖI] BUSINESS_RULES_JSON không phải định dạng JSON hợp lệ:', e.message);
+    }
+  }
+};
+
 // Khởi tạo Database thông qua đọc file schema.sql bên ngoài
 const dbInitPromise = (async () => {
   try {
+    // Validate rules first
+    validateRulesOnStartup();
+    
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
