@@ -160,11 +160,11 @@ export async function getDepreciationBalance(companyId) {
 /**
  * LỖI 3: Xử lý nhóm Thuế (TK 333)
  * Không lấy số dư tổng của TK 333
- * Bóc tách chi tiết: 33311 (GTGT), 3334 (TNDN), 3339 (Thuế môn bài)
+ * Bóc tách chi tiết: 3331 (GTGT), 3334 (TNDN), 3339 (Thuế môn bài)
  */
 export async function getTaxAccountBalances(companyId) {
   const taxAccounts = {
-    '33311': { name: 'Thuế GTGT', amount: 0 },
+    '3331': { name: 'Thuế GTGT', amount: 0 },
     '3334': { name: 'Thuế TNDN', amount: 0 },
     '3339': { name: 'Thuế môn bài', amount: 0 }
   };

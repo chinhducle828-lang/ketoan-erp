@@ -227,7 +227,7 @@ export async function runClosingEntries(companyId, month, year) {
       appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
       taxAmount = netProfit * appliedTaxRate;
       
-      // Tạo bút toán thuế TNDN: Nợ TK 8211, Có TK 3334
+      // Tạo bút toán thuế TNDN: Nợ TK 821, Có TK 3334
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
@@ -239,14 +239,14 @@ export async function runClosingEntries(companyId, month, year) {
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '8211', 'DR', $2), ($3, '3334', 'CR', $4)`,
+         VALUES ($1, '821', 'DR', $2), ($3, '3334', 'CR', $4)`,
         [voucherId, taxAmount, voucherId, taxAmount]
       );
       
-      // Bút toán kết chuyển TK 8211 về TK 911: Nợ TK 911, Có TK 8211
+      // Bút toán kết chuyển TK 821 về TK 911: Nợ TK 911, Có TK 821
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN từ 8211 về 911')`,
+         VALUES ($1, 'DauKy', $2, 'Kết chuyển thuế TNDN từ 821 về 911')`,
         [companyId, closingDate]
       );
       
@@ -254,7 +254,7 @@ export async function runClosingEntries(companyId, month, year) {
       
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, '911', 'DR', $2), ($3, '8211', 'CR', $4)`,
+         VALUES ($1, '911', 'DR', $2), ($3, '821', 'CR', $4)`,
         [voucherId2, taxAmount, voucherId2, taxAmount]
       );
     }
@@ -620,6 +620,130 @@ export async function createProvisionEntries(companyId, month, year) {
       message: 'Tạo dự phòng thành công',
       ar_provision: provisionAmount,
       bio_provision: bioProvisionAmount
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Xử lý thuế TNCN tự động
+ * Tính toán thuế TNCN dựa trên số dư tài khoản 3331
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function processTaxTNCN(companyId, month, year) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Lấy số dư TK 3331 (Thuế TNCN phải nộp)
+    const taxQuery = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '3331%'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: taxRows } = await client.query(taxQuery, [companyId, month, year]);
+    const taxPayable = (parseFloat(taxRows[0]?.debit_total) || 0) - (parseFloat(taxRows[0]?.credit_total) || 0);
+    
+    if (taxPayable > 0) {
+      // Tạo bút toán nộp thuế TNCN: Nợ TK 3331, Có TK 331
+      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      await client.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Nộp thuế TNCN')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await client.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '3331', 'DR', $2), ($3, '331', 'CR', $4)`,
+        [voucherId, taxPayable, voucherId, taxPayable]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    return {
+      success: true,
+      message: 'Xử lý thuế TNCN thành công',
+      tax_payable: taxPayable
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Xử lý thuế VAT tự động
+ * Tính toán thuế VAT dựa trên số dư tài khoản 33311
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function processTaxVAT(companyId, month, year) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Lấy số dư TK 33311 (Thuế GTGT phải nộp)
+    const vatQuery = `
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE '33311%'
+        AND EXTRACT(MONTH FROM v.voucher_date) = $2
+        AND EXTRACT(YEAR FROM v.voucher_date) = $3
+    `;
+    
+    const { rows: vatRows } = await client.query(vatQuery, [companyId, month, year]);
+    const vatPayable = (parseFloat(vatRows[0]?.debit_total) || 0) - (parseFloat(vatRows[0]?.credit_total) || 0);
+    
+    if (vatPayable > 0) {
+      // Tạo bút toán nộp thuế VAT: Nợ TK 33311, Có TK 331
+      const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
+      await client.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
+         VALUES ($1, 'DauKy', $2, 'Nộp thuế GTGT')`,
+        [companyId, closingDate]
+      );
+      
+      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+      
+      await client.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
+         VALUES ($1, '33311', 'DR', $2), ($3, '331', 'CR', $4)`,
+        [voucherId, vatPayable, voucherId, vatPayable]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    return {
+      success: true,
+      message: 'Xử lý thuế VAT thành công',
+      vat_payable: vatPayable
     };
   } catch (error) {
     await client.query('ROLLBACK');

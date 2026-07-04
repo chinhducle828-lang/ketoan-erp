@@ -62,7 +62,7 @@ export default function Payroll() {
         amount: totalTaxTNCN
       },
       {
-        accountCode: '3335', // Ghi nhận nghĩa vụ thuế TNCN với NSNN (Có 3335 - Lưỡng tính)
+        accountCode: '3331', // SỬA: Ghi nhận nghĩa vụ thuế TNCN với NSNN (Có 3331 - Thuế TNCN)
         entryType: 'CR',
         amount: totalTaxTNCN,
         partnerId: 'TAX_AUTHORITY_ID' // Khớp theo cơ chế đối tác của Engine TT99
@@ -128,7 +128,7 @@ export default function Payroll() {
       
       <div className="bg-white p-6 rounded-2xl border shadow-sm max-w-md space-y-4">
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] rounded-xl font-medium leading-relaxed">
-          💡 <b>Quy tắc hạch toán kép tích hợp:</b> Ghi nhận toàn bộ chi phí lương (Nợ 6422/Có 334), trích khấu trừ thuế TNCN (Nợ 334/Có 3335). Đồng thời, tự động tính trích 32% BHXH, BHYT, BHTN tương ứng phân bổ theo quy định.
+          💡 <b>Quy tắc hạch toán kép tích hợp:</b> Ghi nhận toàn bộ chi phí lương (Nợ 6422/Có 334), trích khấu trừ thuế TNCN (Nợ 334/Có 3331). Đồng thời, tự động tính trích 32% BHXH, BHYT, BHTN tương ứng phân bổ theo quy định.
         </div>
 
         {msg && (

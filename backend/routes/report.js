@@ -14,6 +14,9 @@ import {
 import { getCycleData } from '../services/cycle.service.js';
 import { getBalanceSheetData } from '../services/report.service.js';
 import { calculateBalances, getTotalDebit, getTotalCredit } from '../utils/accountingEngine.js';
+import { getCashFlowData } from '../services/cashFlowEngine.js';
+import { getFinancialNotesData } from '../services/financialNotesEngine.js';
+import { previewClosing, executeClosing as executeClosingWorkflow, getClosingPreviewData, getWorkflowConfig } from '../controllers/closing.controller.js';
 
 const router = express.Router();
 
@@ -167,5 +170,98 @@ router.get('/management', authenticate, checkCompanyAccess, async (req, res) => 
     res.status(500).json({ error: error.message });
   }
 });
+
+// API: Báo cáo lưu chuyển tiền tệ B03-DN
+router.get('/cash-flow', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : null;
+    const method = req.query.method || 'indirect'; // direct hoặc indirect
+    
+    const cashFlowData = await getCashFlowData(companyId, year, method);
+    
+    res.json({
+      success: true,
+      data: cashFlowData
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Bản thuyết minh BCTC B09-DN
+router.get('/financial-notes', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : null;
+    
+    const financialNotes = await getFinancialNotesData(companyId, year);
+    
+    res.json({
+      success: true,
+      data: financialNotes
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Xuất file Excel B03-DN
+router.get('/export/cash-flow-excel', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : null;
+    const method = req.query.method || 'indirect';
+    
+    const cashFlowData = await getCashFlowData(companyId, year, method);
+    
+    // Tạo file Excel đơn giản
+    const ExcelJS = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('B03-DN');
+    
+    ws.columns = [
+      { header: 'Chỉ tiêu', key: 'item', width: 40 },
+      { header: 'Số tiền (VND)', key: 'amount', width: 20 }
+    ];
+    
+    // Thêm dữ liệu dòng tiền
+    if (method === 'direct') {
+      ws.addRow({ item: 'I. HOẠT ĐỘNG SẢN XUẤT KINH DOANH', amount: '' });
+      ws.addRow({ item: 'Tiền thu từ bán hàng', amount: cashFlowData.operatingActivities?.cashReceivedFromCustomers || 0 });
+      ws.addRow({ item: 'Tiền chi trả cho người bán', amount: cashFlowData.operatingActivities?.cashPaidToSuppliers || 0 });
+      ws.addRow({ item: 'Tiền chi trả cho nhân viên', amount: cashFlowData.operatingActivities?.cashPaidToEmployees || 0 });
+    } else {
+      ws.addRow({ item: 'BÁO CÁO LƯU CHUYỂN TIỀN TỆ (B03-DN) - PHƯƠNG PHÁP GIÁN TIẾP', amount: '' });
+      ws.addRow({ item: 'Lợi nhuận trước thuế', amount: cashFlowData.profitBeforeTax || 0 });
+      ws.addRow({ item: 'Điều chỉnh:', amount: '' });
+      ws.addRow({ item: '- Khấu hao TSCĐ', amount: cashFlowData.adjustments?.depreciation || 0 });
+      ws.addRow({ item: '- Dự phòng', amount: cashFlowData.adjustments?.provisions || 0 });
+      ws.addRow({ item: 'Biến động vốn lưu động:', amount: '' });
+      ws.addRow({ item: '- Phải thu KH', amount: cashFlowData.adjustments?.workingCapitalChanges?.accountsReceivable || 0 });
+      ws.addRow({ item: '- Hàng tồn kho', amount: cashFlowData.adjustments?.workingCapitalChanges?.inventory || 0 });
+      ws.addRow({ item: '- Phải trả NCC', amount: cashFlowData.adjustments?.workingCapitalChanges?.accountsPayable || 0 });
+    }
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=B03-DN_${companyId}_${year || 'all'}.xlsx`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Xem trước bút toán kết chuyển
+router.post('/closing/preview', authenticate, checkCompanyAccess, previewClosing);
+
+// API: Thực thi kết chuyển sổ (workflow)
+router.post('/closing/execute', authenticate, checkCompanyAccess, executeClosingWorkflow);
+
+// API: Lấy dữ liệu kết chuyển để xem trước
+router.get('/closing/data', authenticate, checkCompanyAccess, getClosingPreviewData);
+
+// API: Lấy cấu hình workflow kết chuyển
+router.get('/closing/workflow', authenticate, checkCompanyAccess, getWorkflowConfig);
 
 export { router as reportRouter };
