@@ -2,6 +2,7 @@ import express from 'express';
 import { pool } from '../config/db.js';
 import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '../services/logistics.service.js';
 import { publishStorefrontOrderEvent } from '../services/storefrontRealtime.service.js';
+import { getBusinessRules, getSaleRules } from '../config/businessRules.js';
 
 const router = express.Router();
 const SCHEMA_CACHE_TTL_MS = 30 * 1000;
@@ -286,7 +287,23 @@ router.post('/orders', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { companyId, itemId, quantity, items, customerName, phone, address, taxRate = 0.1 } = req.body;
+    const businessRules = getBusinessRules();
+    const saleRules = getSaleRules();
+    const amountPrecision = Number(businessRules.pricing?.amountPrecision ?? 2);
+    const defaultTaxRate = Number(businessRules.pricing?.defaultTaxRate ?? 0.1);
+    const minOrderQuantity = Number(businessRules.pricing?.minOrderQuantity ?? 1);
+    const defaultLoadingStatus = String(businessRules.voucher?.defaultLoadingStatus || 'pending_loading').trim() || 'pending_loading';
+    const saleVoucherType = String(businessRules.voucher?.saleVoucherType || 'XK').trim() || 'XK';
+    const voucherPrefix = String(businessRules.voucher?.storefrontPrefix || 'WEB').trim() || 'WEB';
+    const excludeFinancialEntries = new Set(
+      (Array.isArray(saleRules.excludeFinancialEntriesForStorefront)
+        ? saleRules.excludeFinancialEntriesForStorefront
+        : [])
+      .map((code) => String(code || '').trim())
+      .filter(Boolean)
+    );
+
+    const { companyId, itemId, quantity, items, customerName, phone, address, taxRate } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
@@ -309,8 +326,8 @@ router.post('/orders', async (req, res) => {
       return res.status(400).json({ error: 'Danh sách sản phẩm đặt hàng không hợp lệ' });
     }
 
-    if (normalizedItems.some((entry) => entry.quantity <= 0)) {
-      return res.status(400).json({ error: 'Số lượng mua phải lớn hơn 0' });
+    if (normalizedItems.some((entry) => entry.quantity < minOrderQuantity)) {
+      return res.status(400).json({ error: `Số lượng mua phải lớn hơn hoặc bằng ${minOrderQuantity}` });
     }
 
     const mergedItemsMap = new Map();
@@ -350,7 +367,7 @@ router.post('/orders', async (req, res) => {
     const lineItems = mergedItems.map((line) => {
       const item = itemById.get(String(line.itemId));
       const unitPrice = Number(item.price_sell || 0);
-      const lineAmount = Number((unitPrice * line.quantity).toFixed(2));
+      const lineAmount = Number((unitPrice * line.quantity).toFixed(amountPrecision));
       return {
         itemId: item.item_pk,
         code: item.code,
@@ -362,13 +379,13 @@ router.post('/orders', async (req, res) => {
       };
     });
 
-    const amount = Number(lineItems.reduce((sum, line) => sum + line.lineAmount, 0).toFixed(2));
-    const safeTaxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : 0.1;
+    const amount = Number(lineItems.reduce((sum, line) => sum + line.lineAmount, 0).toFixed(amountPrecision));
+    const safeTaxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : defaultTaxRate;
 
-    const voucherNumber = buildOrderNumber('WEB');
+    const voucherNumber = buildOrderNumber(voucherPrefix);
     const taxAmount = calculateTaxAmount(amount, safeTaxRate);
     const accountingEntries = buildAccountingEntries({ amount, costAmount: 0, taxAmount })
-      .filter((entry) => !['632', '156'].includes(entry.accountCode))
+      .filter((entry) => !excludeFinancialEntries.has(entry.accountCode))
       .map((entry) => ({
         ...entry,
         amount: Number(entry.amount || 0)
@@ -407,7 +424,7 @@ router.post('/orders', async (req, res) => {
     const hasAccountDr = hasVoucherColumn('account_dr');
     const hasAccountCr = hasVoucherColumn('account_cr');
     const hasVoucherAmount = hasVoucherColumn('amount');
-    const voucherType = 'XK';
+    const voucherType = saleVoucherType;
 
     const debitHeaderEntry = accountingEntries
       .filter((entry) => entry.entryType === 'DR')
@@ -420,8 +437,8 @@ router.post('/orders', async (req, res) => {
       ? await resolveLegacyAccountByConstraint(client, {
           tableName: 'vouchers',
           columnName: 'account_dr',
-          preferredCode: debitHeaderEntry?.accountCode || '131',
-          fallbackCodes: ['131', '111', '112']
+          preferredCode: debitHeaderEntry?.accountCode || saleRules.receivableAccount,
+          fallbackCodes: saleRules.legacyAccountDrFallback
         })
       : null;
 
@@ -429,8 +446,8 @@ router.post('/orders', async (req, res) => {
       ? await resolveLegacyAccountByConstraint(client, {
           tableName: 'vouchers',
           columnName: 'account_cr',
-          preferredCode: creditHeaderEntry?.accountCode || '511',
-          fallbackCodes: ['511', '3331', '33311', '131']
+          preferredCode: creditHeaderEntry?.accountCode || saleRules.revenueAccount,
+          fallbackCodes: saleRules.legacyAccountCrFallback
         })
       : null;
 
@@ -472,7 +489,7 @@ router.post('/orders', async (req, res) => {
 
     if (hasVoucherColumn('loading_status')) {
       voucherInsertColumns.push('loading_status');
-      voucherInsertValues.push('pending_loading');
+      voucherInsertValues.push(defaultLoadingStatus);
     }
 
     const voucherInsertPlaceholders = voucherInsertColumns
@@ -510,7 +527,7 @@ router.post('/orders', async (req, res) => {
     // Dòng vận hành kho được tách khỏi bút toán tài chính: amount=0, chỉ giữ quantity + item_id để logistics xử lý.
     for (const line of lineItems) {
       detailRows.push({
-        accountCode: '156_OPS',
+        accountCode: saleRules.logisticsOpsAccount,
         entryType: 'CR',
         amount: 0,
         quantity: line.quantity,

@@ -1,5 +1,19 @@
 // FILE_PATH: backend/utils/accountingEngine.js
 import { pool } from '../config/db.js';
+import { getGeneralAccountingRules, getClosingRules } from '../config/businessRules.js';
+
+const getHermaphroditicAccounts = () => {
+  const rules = getGeneralAccountingRules();
+  return Array.isArray(rules.hermaphroditicAccounts) && rules.hermaphroditicAccounts.length > 0
+    ? rules.hermaphroditicAccounts.map((account) => String(account || '').trim()).filter(Boolean)
+    : ['131', '331', '138', '338', '3334', '3335', '3381'];
+};
+
+const isHermaphroditicAccount = (accountCode) => {
+  const normalized = String(accountCode || '').trim();
+  if (!normalized) return false;
+  return getHermaphroditicAccounts().some((account) => normalized.startsWith(account));
+};
 
 /**
  * Kiểm tra xem ngày chứng từ có nằm trong vùng đã bị khóa sổ kế toán hay không
@@ -22,9 +36,7 @@ export async function checkLockDate(companyId, voucherDate) {
  * - 3381: Tài sản thừa chờ giải quyết
  */
 export async function getAccountBalance(companyId, accountCode, partnerId = null) {
-  // Cập nhật danh sách tài khoản đặc biệt chuẩn Thông tư 99
-  const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-  const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  const isHermaphroditic = isHermaphroditicAccount(accountCode);
 
   let query = `
     SELECT vd.entry_type, SUM(vd.amount) as total_amount
@@ -152,8 +164,7 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const partnerId = ob.partner_id || ob.partnerId || null;
       
       // Kiểm tra tài khoản lưỡng tính
-      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      const isHermaphroditic = isHermaphroditicAccount(accCode);
       
       // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
       const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
@@ -186,8 +197,7 @@ export function calculateBalances(vouchers, openingBalances = []) {
       const partnerId = detail.partnerId || detail.partner_id || null;
 
       // Kiểm tra tài khoản lưỡng tính
-      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      const isHermaphroditic = isHermaphroditicAccount(accCode);
 
       // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
       const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
@@ -217,9 +227,7 @@ export function calculateBalances(vouchers, openingBalances = []) {
 }
 
 export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
-  // Xây dựng key tìm kiếm cho tài khoản lưỡng tính theo đối tác
-  const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-  const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
+  const isHermaphroditic = isHermaphroditicAccount(accountCode);
   
   // Tìm key phù hợp trong ledger
   let ledgerKey = accountCode;
@@ -269,9 +277,36 @@ export function getTotalCredit(ledger, accountCode) {
  * @returns {number} - Thuế suất áp dụng
  */
 export function getTaxRateByRevenue(revenue) {
-  if (revenue <= 3000000000) return 0.15;
-  if (revenue <= 50000000000) return 0.17;
-  return 0.20;
+  const closingRules = getClosingRules();
+  const brackets = Array.isArray(closingRules.taxBracketsByRevenue)
+    ? [...closingRules.taxBracketsByRevenue]
+    : [];
+
+  if (brackets.length === 0) {
+    if (revenue <= 3000000000) return 0.15;
+    if (revenue <= 50000000000) return 0.17;
+    return 0.20;
+  }
+
+  const sortedBrackets = brackets
+    .map((bracket) => ({
+      maxRevenue: bracket?.maxRevenue == null ? Number.POSITIVE_INFINITY : Number(bracket?.maxRevenue),
+      rate: Number(bracket?.rate)
+    }))
+    .filter((bracket) => Number.isFinite(bracket.rate))
+    .sort((a, b) => {
+      const aMax = Number.isFinite(a.maxRevenue) ? a.maxRevenue : Number.POSITIVE_INFINITY;
+      const bMax = Number.isFinite(b.maxRevenue) ? b.maxRevenue : Number.POSITIVE_INFINITY;
+      return aMax - bMax;
+    });
+
+  for (const bracket of sortedBrackets) {
+    if (!Number.isFinite(bracket.maxRevenue) || revenue <= bracket.maxRevenue) {
+      return bracket.rate;
+    }
+  }
+
+  return sortedBrackets[sortedBrackets.length - 1]?.rate ?? 0.2;
 }
 
 /**
