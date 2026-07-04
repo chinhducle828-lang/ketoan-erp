@@ -30,7 +30,7 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
     SELECT vd.entry_type, SUM(vd.amount) as total_amount
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 AND vd.account_code LIKE $2
+    WHERE v.company_id = $1 AND v.is_posted = TRUE AND vd.account_code LIKE $2
   `;
   
   const params = [companyId, `${accountCode}%`];
@@ -69,6 +69,73 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
   } else {
     return { balance: creditSum - debitSum }; // Số dư Có (hoặc âm nếu dư Nợ)
   }
+}
+
+/**
+ * [TỐI ƯU] Tính số dư tài khoản bằng Window Function PostgreSQL
+ * Chuyển tính toán từ RAM Node.js xuống Database, giảm OOM
+ */
+export async function getBalancesWithWindowFunction(companyId, year, month = null) {
+  const { pool } = await import('../config/db.js');
+  
+  let query = `
+    WITH period_aggregation AS (
+      SELECT 
+        vd.account_code,
+        vd.partner_id,
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) OVER (
+          PARTITION BY vd.account_code, vd.partner_id
+          ORDER BY v.voucher_date, v.id
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) as running_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) OVER (
+          PARTITION BY vd.account_code, vd.partner_id
+          ORDER BY v.voucher_date, v.id
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) as running_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1
+        AND v.is_posted = TRUE
+        AND EXTRACT(YEAR FROM v.voucher_date) = $2
+  `;
+  
+  const params = [companyId, year];
+  let paramIdx = 3;
+  
+  if (month) {
+    query += ` AND EXTRACT(MONTH FROM v.voucher_date) <= $${paramIdx}`;
+    params.push(month);
+    paramIdx++;
+  }
+  
+  query += `
+    )
+    SELECT 
+      account_code,
+      MAX(running_debit) as final_debit,
+      MAX(running_credit) as final_credit
+    FROM period_aggregation
+    GROUP BY account_code
+    ORDER BY account_code
+  `;
+  
+  const { rows } = await pool.query(query, params);
+  
+  // Chuyển đổi kết quả về format ledger
+  const ledger = {};
+  for (const row of rows) {
+    const accCode = row.account_code;
+    if (!ledger[accCode]) {
+      ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+    }
+    ledger[accCode].patsinhDr = parseFloat(row.final_debit) || 0;
+    ledger[accCode].patsinhCr = parseFloat(row.final_credit) || 0;
+    ledger[accCode].closingDr = ledger[accCode].patsinhDr;
+    ledger[accCode].closingCr = ledger[accCode].patsinhCr;
+  }
+  
+  return ledger;
 }
 
 /**

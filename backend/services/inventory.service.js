@@ -18,6 +18,7 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE v.company_id = $1 
+      AND v.is_posted = TRUE
       AND vd.item_id = $2 
       AND v.voucher_date <= $3
     ORDER BY v.voucher_date ASC, v.id ASC
@@ -332,6 +333,7 @@ export async function allocateLogisticCosts(companyId, month, year) {
       FROM vouchers v
       JOIN voucher_details vd ON v.id = vd.voucher_id
       WHERE v.company_id = $1 
+        AND v.is_posted = TRUE
         AND v.voucher_type = 'NK'
         AND EXTRACT(MONTH FROM v.voucher_date) = $2
         AND EXTRACT(YEAR FROM v.voucher_date) = $3
@@ -353,6 +355,7 @@ export async function allocateLogisticCosts(companyId, month, year) {
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1 
+        AND v.is_posted = TRUE
         AND vd.account_code = '1562'
         AND vd.entry_type = 'DR'
         AND EXTRACT(MONTH FROM v.voucher_date) = $2

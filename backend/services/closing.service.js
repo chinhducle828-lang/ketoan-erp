@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
+import { getPeriodBalanceSummary } from './summary.service.js';
 
 // Hằng số cấu hình thuế suất (Linh hoạt, dễ thay đổi)
 const DEFAULT_TAX_RATE = 0.2; // Thuế suất mặc định 20%
@@ -35,38 +36,38 @@ export async function runClosingEntries(companyId, month, year) {
   try {
     await client.query('BEGIN');
     
-    // 1. Tính toán số dư TK 911 (Kết chuyển)
-    const account911Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '911'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
+    // [PESSIMISTIC LOCK] Khóa bản ghi công ty để tránh race condition
+    // Nếu có 2 request đồng thời, request thứ 2 sẽ nhận lỗi ngay lập tức
+    await client.query(
+      'SELECT id, lock_date FROM companies WHERE id = $1 FOR UPDATE NOWAIT',
+      [companyId]
+    );
     
-    const { rows: account911Rows } = await client.query(account911Query, [companyId, month, year]);
-    const account911Balance = (parseFloat(account911Rows[0]?.total_debit) || 0) - 
-                            (parseFloat(account911Rows[0]?.total_credit) || 0);
+    // Kiểm tra xem đã kết chuyển kỳ này chưa
+    const checkClosing = await client.query(
+      `SELECT id FROM closing_entries 
+       WHERE company_id = $1 AND year = $2 AND month = $3 AND status = 'completed'
+       LIMIT 1`,
+      [companyId, year, month]
+    );
     
-    // 2. Kết chuyển doanh thu: Khấu trừ số dư Có TK 511 sang TK 911
-    const account511Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '511'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
+    if (checkClosing.rows.length > 0) {
+      throw new Error(`Kỳ ${month}/${year} đã được kết chuyển rồi`);
+    }
     
-    const { rows: account511Rows } = await client.query(account511Query, [companyId, month, year]);
-    const account511Credit = parseFloat(account511Rows[0]?.total_credit) || 0;
+    // Ghi log bắt đầu kết chuyển
+    await client.query(
+      `INSERT INTO closing_entries (company_id, year, month, status, started_at)
+       VALUES ($1, $2, $3, 'processing', NOW())`,
+      [companyId, year, month]
+    );
+    
+    const closingEntryId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
+    
+    const summaryRows = await getPeriodBalanceSummary(companyId, ['511', '632', '641', '642', '711', '811', '821', '911'], year, month);
+    const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
+
+    const account511Credit = summaryMap['511']?.credit || 0;
     
     if (account511Credit > 0) {
       // Tạo bút toán kết chuyển doanh thu: Nợ TK 911, Có TK 511
@@ -89,21 +90,9 @@ export async function runClosingEntries(companyId, month, year) {
     // 3. Kết chuyển chi phí: Khấu trừ số dư Nợ TK 632, 641, 642 sang TK 911
     const costAccounts = ['632', '641', '642'];
     let totalCostDebit = 0;
-    
+
     for (const acc of costAccounts) {
-      const costQuery = `
-        SELECT 
-          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit
-        FROM voucher_details vd
-        JOIN vouchers v ON vd.voucher_id = v.id
-        WHERE v.company_id = $1 
-          AND vd.account_code = $2
-          AND EXTRACT(MONTH FROM v.voucher_date) = $3
-          AND EXTRACT(YEAR FROM v.voucher_date) = $4
-      `;
-      
-      const { rows: costRows } = await client.query(costQuery, [companyId, acc, month, year]);
-      totalCostDebit += parseFloat(costRows[0]?.total_debit) || 0;
+      totalCostDebit += summaryMap[acc]?.debit || 0;
     }
     
     if (totalCostDebit > 0) {
@@ -145,54 +134,9 @@ export async function runClosingEntries(companyId, month, year) {
     
     // 4. Tính thuế TNDN tự động - CẬP NHẬT: Thêm tài khoản 711, 811, 821
     // Công thức: Lãi = Doanh thu (511) + Thu nhập khác (711) - Chi phí (632, 641, 642) - Chi phí khác (811) - Thuế (821)
-    
-    // Lấy thu nhập khác (711) - Có
-    const account711Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '711'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: account711Rows } = await client.query(account711Query, [companyId, month, year]);
-    const account711Credit = parseFloat(account711Rows[0]?.total_credit) || 0;
-    
-    // Lấy chi phí khác (811) - Nợ
-    const account811Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '811'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: account811Rows } = await client.query(account811Query, [companyId, month, year]);
-    const account811Debit = parseFloat(account811Rows[0]?.total_debit) || 0;
-    
-    // Lấy chi phí thuế (821) - Nợ
-    const account821Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '821'
-        AND EXTRACT(MONTH FROM v.voucher_date) = $2
-        AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    `;
-    
-    const { rows: account821Rows } = await client.query(account821Query, [companyId, month, year]);
-    const account821Debit = parseFloat(account821Rows[0]?.total_debit) || 0;
+    const account711Credit = summaryMap['711']?.credit || 0;
+    const account811Debit = summaryMap['811']?.debit || 0;
+    const account821Debit = summaryMap['821']?.debit || 0;
     
     // Tính lợi nhuận trước thuế: Doanh thu + Thu nhập khác - Chi phí - Chi phí khác - Thuế
     const revenueCredit = account511Credit;
@@ -210,18 +154,8 @@ export async function runClosingEntries(companyId, month, year) {
     if (netProfit > 0) {
       // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
       // Lấy doanh thu năm trước từ TK 511
-      const prevYearRevenueQuery = `
-        SELECT 
-          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_revenue
-        FROM voucher_details vd
-        JOIN vouchers v ON vd.voucher_id = v.id
-        WHERE v.company_id = $1 
-          AND vd.account_code = '511'
-          AND EXTRACT(YEAR FROM v.voucher_date) = $2
-      `;
-      
-      const { rows: prevYearRows } = await client.query(prevYearRevenueQuery, [companyId, year - 1]);
-      const prevYearRevenue = parseFloat(prevYearRows[0]?.total_revenue) || 0;
+      const prevYearSummary = await getPeriodBalanceSummary(companyId, ['511'], year - 1);
+      const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
       // Xác định thuế suất áp dụng
       appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
@@ -261,19 +195,8 @@ export async function runClosingEntries(companyId, month, year) {
     
     // 5. Kết chuyển lãi/lỗ cuối cùng: TK 911 → TK 4212
     // Lấy số dư còn lại trên TK 911 sau khi đã kết chuyển
-    const final911Query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code = '911'
-    `;
-    
-    const { rows: final911Rows } = await client.query(final911Query, [companyId]);
-    const final911Balance = (parseFloat(final911Rows[0]?.total_debit) || 0) - 
-                           (parseFloat(final911Rows[0]?.total_credit) || 0);
+    const final911Summary = await getPeriodBalanceSummary(companyId, ['911'], year, month);
+    const final911Balance = (final911Summary[0]?.debit || 0) - (final911Summary[0]?.credit || 0);
     
     if (Math.abs(final911Balance) > 0) {
       const closingDate = `${year}-${String(month).padStart(2, '0')}-31`;
@@ -345,57 +268,22 @@ export async function runClosingEntries(companyId, month, year) {
  * Lấy số liệu để tính kết chuyển
  */
 export async function getClosingData(companyId, month, year) {
-  // Lấy số dư TK 511
-  const account511 = await pool.query(`
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 AND vd.account_code = '511'
-      AND EXTRACT(MONTH FROM v.voucher_date) = $2
-      AND EXTRACT(YEAR FROM v.voucher_date) = $3
-`, [companyId, month, year]);
-
-  // Lấy số dư TK 632, 641, 642
-  const costAccounts = await pool.query(`
-    SELECT 
-      vd.account_code,
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 AND vd.account_code IN ('632', '641', '642')
-      AND EXTRACT(MONTH FROM v.voucher_date) = $2
-      AND EXTRACT(YEAR FROM v.voucher_date) = $3
-    GROUP BY vd.account_code
-`, [companyId, month, year]);
-
-  // Lấy số dư TK 911
-  const account911 = await pool.query(`
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 AND vd.account_code = '911'
-      AND EXTRACT(MONTH FROM v.voucher_date) = $2
-      AND EXTRACT(YEAR FROM v.voucher_date) = $3
-`, [companyId, month, year]);
+  const summaryRows = await getPeriodBalanceSummary(companyId, ['511', '632', '641', '642', '911'], year, month);
+  const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
 
   return {
     account511: {
-      debit: parseFloat(account511.rows[0]?.debit) || 0,
-      credit: parseFloat(account511.rows[0]?.credit) || 0
+      debit: summaryMap['511']?.debit || 0,
+      credit: summaryMap['511']?.credit || 0
     },
-    costAccounts: costAccounts.rows.map(row => ({
-      account_code: row.account_code,
-      debit: parseFloat(row.debit) || 0,
-      credit: parseFloat(row.credit) || 0
+    costAccounts: ['632', '641', '642'].map((accountCode) => ({
+      account_code: accountCode,
+      debit: summaryMap[accountCode]?.debit || 0,
+      credit: summaryMap[accountCode]?.credit || 0
     })),
     account911: {
-      debit: parseFloat(account911.rows[0]?.debit) || 0,
-      credit: parseFloat(account911.rows[0]?.credit) || 0
+      debit: summaryMap['911']?.debit || 0,
+      credit: summaryMap['911']?.credit || 0
     }
   };
 }

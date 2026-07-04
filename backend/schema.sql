@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS vouchers (
     currency VARCHAR(10) DEFAULT 'VND',
     exchange_rate NUMERIC(15,4) DEFAULT 1.0000,
     created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    is_posted BOOLEAN DEFAULT FALSE,
+    posted_at TIMESTAMP DEFAULT NULL,
+    posted_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -89,6 +92,8 @@ CREATE TABLE IF NOT EXISTS opening_balances (
 
 -- HỆ THỐNG INDEXES TỐI ƯU HIỆU NĂNG TRUY VẤN VÀ DỒN TÍCH SỐ DƯ
 CREATE INDEX IF NOT EXISTS idx_vouchers_date_company ON vouchers(company_id, voucher_date);
+CREATE INDEX IF NOT EXISTS idx_vouchers_posted_status ON vouchers(company_id, is_posted, voucher_date DESC);
+CREATE INDEX IF NOT EXISTS idx_vouchers_posted_only ON vouchers(company_id, voucher_date DESC) WHERE is_posted = TRUE;
 CREATE INDEX IF NOT EXISTS idx_voucher_details_lookup ON voucher_details(voucher_id, account_code, entry_type);
 CREATE INDEX IF NOT EXISTS idx_opening_balances_lookup ON opening_balances(company_id, fiscal_year, account_code);
 CREATE INDEX IF NOT EXISTS idx_partners_company_search ON partners(company_id, partner_code, partner_name);

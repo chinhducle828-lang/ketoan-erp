@@ -1,4 +1,10 @@
 import { pool } from '../config/db.js';
+import { getPeriodBalanceSummary } from './summary.service.js';
+
+async function getSummaryMap(companyId, accountCodes, year = null) {
+  const summary = await getPeriodBalanceSummary(companyId, accountCodes, year);
+  return Object.fromEntries(summary.map((entry) => [entry.account_code, entry]));
+}
 
 /**
  * DỊCH VỤ TÍNH TOÁN 9 CHU TRÌNH NGHIỆP VỤ
@@ -12,30 +18,12 @@ export async function getCycle1Data(companyId, year = null) {
   const accounts = ['411', '121', '128', '221', '515'];
   const data = {};
   let total = 0;
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
   for (const acc of accounts) {
-    const query = `
-      SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE $2
-        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
-    `;
-    
-    const params = [companyId, `${acc}%`];
-    if (year) params.push(year);
-    
-    const { rows } = await pool.query(query, params);
-    
-    if (rows.length > 0) {
-      const debit = parseFloat(rows[0].debit_total) || 0;
-      const credit = parseFloat(rows[0].credit_total) || 0;
-      data[acc] = { debit, credit, net: debit - credit };
-      total += acc === '411' ? credit : (acc === '515' ? credit : debit);
-    }
+    const row = summaryMap[acc] || { debit: 0, credit: 0 };
+    data[acc] = { debit: row.debit, credit: row.credit, net: row.debit - row.credit };
+    total += acc === '411' || acc === '515' ? row.credit : row.debit;
   }
 
   return {
@@ -51,60 +39,15 @@ export async function getCycle1Data(companyId, year = null) {
 export async function getCycle2Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['152', '156', '1331', '331'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 152 - Nguyên liệu, vật liệu tồn kho
-  const query152 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '152%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows152 } = await pool.query(query152, year ? [companyId, year] : [companyId]);
-  data['152'] = parseFloat(rows152[0]?.total) || 0;
-  total += data['152'];
+  data['152'] = (summaryMap['152']?.debit || 0) + (summaryMap['152']?.credit || 0);
+  data['156'] = (summaryMap['156']?.debit || 0) + (summaryMap['156']?.credit || 0);
+  data['1331'] = (summaryMap['1331']?.debit || 0) + (summaryMap['1331']?.credit || 0);
+  data['331'] = (summaryMap['331']?.debit || 0) - (summaryMap['331']?.credit || 0);
 
-  // TK 156 - Hàng hóa kho tổng
-  const query156 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '156%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows156 } = await pool.query(query156, year ? [companyId, year] : [companyId]);
-  data['156'] = parseFloat(rows156[0]?.total) || 0;
-  total += data['156'];
-
-  // TK 1331 - Thuế GTGT được khấu trừ
-  const query1331 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '1331%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows1331 } = await pool.query(query1331, year ? [companyId, year] : [companyId]);
-  data['1331'] = parseFloat(rows1331[0]?.total) || 0;
-  total += data['1331'];
-
-  // TK 331 - Phải trả cho người bán
-  const query331 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '331%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows331 } = await pool.query(query331, year ? [companyId, year] : [companyId]);
-  data['331'] = (parseFloat(rows331[0]?.debit_total) || 0) - (parseFloat(rows331[0]?.credit_total) || 0);
-  total += Math.abs(data['331']);
+  total += data['152'] + data['156'] + data['1331'] + Math.abs(data['331']);
 
   return {
     name: 'Mua sắm vật tư & Công nợ phải trả',
@@ -119,75 +62,16 @@ export async function getCycle2Data(companyId, year = null) {
 export async function getCycle3Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['632', '156', '131', '511', '3331'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 632 - Giá vốn hàng bán
-  const query632 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '632%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows632 } = await pool.query(query632, year ? [companyId, year] : [companyId]);
-  data['632'] = parseFloat(rows632[0]?.total) || 0;
-  total += data['632'];
+  data['632'] = (summaryMap['632']?.debit || 0) + (summaryMap['632']?.credit || 0);
+  data['156'] = (summaryMap['156']?.debit || 0) + (summaryMap['156']?.credit || 0);
+  data['131'] = (summaryMap['131']?.debit || 0) - (summaryMap['131']?.credit || 0);
+  data['511'] = (summaryMap['511']?.debit || 0) + (summaryMap['511']?.credit || 0);
+  data['3331'] = (summaryMap['3331']?.debit || 0) - (summaryMap['3331']?.credit || 0);
 
-  // TK 156 - Hàng hóa xuất kho
-  const query156 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '156%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows156 } = await pool.query(query156, year ? [companyId, year] : [companyId]);
-  data['156'] = parseFloat(rows156[0]?.total) || 0;
-  total += data['156'];
-
-  // TK 131 - Phải thu khách hàng
-  const query131 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '131%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows131 } = await pool.query(query131, year ? [companyId, year] : [companyId]);
-  data['131'] = (parseFloat(rows131[0]?.debit_total) || 0) - (parseFloat(rows131[0]?.credit_total) || 0);
-  total += Math.abs(data['131']);
-
-  // TK 511 - Doanh thu bán hàng
-  const query511 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '511%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows511 } = await pool.query(query511, year ? [companyId, year] : [companyId]);
-  data['511'] = parseFloat(rows511[0]?.total) || 0;
-  total += data['511'];
-
-  // TK 3331 - Thuế GTGT phải nộp
-  const query3331 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '3331%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows3331 } = await pool.query(query3331, year ? [companyId, year] : [companyId]);
-  data['3331'] = (parseFloat(rows3331[0]?.debit_total) || 0) - (parseFloat(rows3331[0]?.credit_total) || 0);
-  total += Math.abs(data['3331']);
+  total += data['632'] + data['156'] + Math.abs(data['131']) + data['511'] + Math.abs(data['3331']);
 
   return {
     name: 'Bán hàng & Phải thu khách hàng',
@@ -204,22 +88,11 @@ export async function getCycle4Data(companyId, year = null) {
   let total = 0;
 
   const accounts = ['622', '641', '642', '334', '338'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
   for (const acc of accounts) {
-    const query = `
-      SELECT SUM(vd.amount) as total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE $2
-        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
-    `;
-    
-    const params = [companyId, `${acc}%`];
-    if (year) params.push(year);
-    
-    const { rows } = await pool.query(query, params);
-    data[acc] = parseFloat(rows[0]?.total) || 0;
+    const row = summaryMap[acc] || { debit: 0, credit: 0 };
+    data[acc] = row.debit + row.credit;
     total += data[acc];
   }
 
@@ -236,65 +109,15 @@ export async function getCycle4Data(companyId, year = null) {
 export async function getCycle5Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['211', '214', '1332', '331'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 211 - Tài sản cố định hữu hình
-  const query211 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '211%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows211 } = await pool.query(query211, year ? [companyId, year] : [companyId]);
-  data['211'] = parseFloat(rows211[0]?.total) || 0;
-  total += data['211'];
+  data['211'] = (summaryMap['211']?.debit || 0) + (summaryMap['211']?.credit || 0);
+  data['214'] = (summaryMap['214']?.debit || 0) - (summaryMap['214']?.credit || 0);
+  data['1332'] = (summaryMap['1332']?.debit || 0) + (summaryMap['1332']?.credit || 0);
+  data['331'] = (summaryMap['331']?.debit || 0) - (summaryMap['331']?.credit || 0);
 
-  // TK 214 - Hao mòn tài sản cố định
-  const query214 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '214%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows214 } = await pool.query(query214, year ? [companyId, year] : [companyId]);
-  data['214'] = (parseFloat(rows214[0]?.credit_total) || 0) - (parseFloat(rows214[0]?.debit_total) || 0);
-  total += Math.abs(data['214']);
-
-  // TK 1332 - Thuế GTGT khấu trừ TSCĐ
-  const query1332 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '1332%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows1332 } = await pool.query(query1332, year ? [companyId, year] : [companyId]);
-  data['1332'] = parseFloat(rows1332[0]?.total) || 0;
-  total += data['1332'];
-
-  // TK 331 - Phải trả cho người bán (TSCĐ)
-  const query331 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '331%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows331 } = await pool.query(query331, year ? [companyId, year] : [companyId]);
-  data['331'] = (parseFloat(rows331[0]?.debit_total) || 0) - (parseFloat(rows331[0]?.credit_total) || 0);
-  total += Math.abs(data['331']);
-
-  return {
-    name: 'Tài sản cố định',
+  total += data['211'] + Math.abs(data['214']) + data['1332'] + Math.abs(data['331']);
     data,
     total
   };
@@ -308,22 +131,11 @@ export async function getCycle6Data(companyId, year = null) {
   let total = 0;
 
   const accounts = ['154', '621', '622', '627'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
   for (const acc of accounts) {
-    const query = `
-      SELECT SUM(vd.amount) as total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE $2
-        ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $3` : ''}
-    `;
-    
-    const params = [companyId, `${acc}%`];
-    if (year) params.push(year);
-    
-    const { rows } = await pool.query(query, params);
-    data[acc] = parseFloat(rows[0]?.total) || 0;
+    const row = summaryMap[acc] || { debit: 0, credit: 0 };
+    data[acc] = row.debit + row.credit;
     total += data[acc];
   }
 
@@ -340,47 +152,14 @@ export async function getCycle6Data(companyId, year = null) {
 export async function getCycle7Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['341', '635', '335'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 341 - Vay và nợ thuê tài chính
-  const query341 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '341%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows341 } = await pool.query(query341, year ? [companyId, year] : [companyId]);
-  data['341'] = (parseFloat(rows341[0]?.debit_total) || 0) - (parseFloat(rows341[0]?.credit_total) || 0);
-  total += Math.abs(data['341']);
+  data['341'] = (summaryMap['341']?.debit || 0) - (summaryMap['341']?.credit || 0);
+  data['635'] = (summaryMap['635']?.debit || 0) + (summaryMap['635']?.credit || 0);
+  data['335'] = (summaryMap['335']?.debit || 0) + (summaryMap['335']?.credit || 0);
 
-  // TK 635 - Chi phí tài chính
-  const query635 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '635%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows635 } = await pool.query(query635, year ? [companyId, year] : [companyId]);
-  data['635'] = parseFloat(rows635[0]?.total) || 0;
-  total += data['635'];
-
-  // TK 335 - Chi phí phải trả
-  const query335 = `
-    SELECT SUM(vd.amount) as total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '335%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows335 } = await pool.query(query335, year ? [companyId, year] : [companyId]);
-  data['335'] = parseFloat(rows335[0]?.total) || 0;
-  total += data['335'];
+  total += Math.abs(data['341']) + data['635'] + data['335'];
 
   return {
     name: 'Vay & Chi phí tài chính',
@@ -395,36 +174,13 @@ export async function getCycle7Data(companyId, year = null) {
 export async function getCycle8Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['3331', '133'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 3331 - Thuế GTGT
-  const query3331 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '3331%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows3331 } = await pool.query(query3331, year ? [companyId, year] : [companyId]);
-  data['3331'] = (parseFloat(rows3331[0]?.debit_total) || 0) - (parseFloat(rows3331[0]?.credit_total) || 0);
-  total += Math.abs(data['3331']);
+  data['3331'] = (summaryMap['3331']?.debit || 0) - (summaryMap['3331']?.credit || 0);
+  data['133'] = (summaryMap['133']?.debit || 0) - (summaryMap['133']?.credit || 0);
 
-  // TK 133 - Thuế GTGT phát sinh
-  const query133 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '133%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows133 } = await pool.query(query133, year ? [companyId, year] : [companyId]);
-  data['133'] = (parseFloat(rows133[0]?.debit_total) || 0) - (parseFloat(rows133[0]?.credit_total) || 0);
-  total += Math.abs(data['133']);
+  total += Math.abs(data['3331']) + Math.abs(data['133']);
 
   return {
     name: 'Kế toán Thuế',
@@ -439,36 +195,13 @@ export async function getCycle8Data(companyId, year = null) {
 export async function getCycle9Data(companyId, year = null) {
   const data = {};
   let total = 0;
+  const accounts = ['911', '4212'];
+  const summaryMap = await getSummaryMap(companyId, accounts, year);
 
-  // TK 911 - Xác định kết quả kinh doanh
-  const query911 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '911%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows911 } = await pool.query(query911, year ? [companyId, year] : [companyId]);
-  data['911'] = (parseFloat(rows911[0]?.debit_total) || 0) - (parseFloat(rows911[0]?.credit_total) || 0);
-  total += Math.abs(data['911']);
+  data['911'] = (summaryMap['911']?.debit || 0) - (summaryMap['911']?.credit || 0);
+  data['4212'] = (summaryMap['4212']?.credit || 0) - (summaryMap['4212']?.debit || 0);
 
-  // TK 4212 - Lợi nhuận sau thuế chưa phân phối
-  const query4212 = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE '4212%'
-      ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $2` : ''}
-  `;
-  const { rows: rows4212 } = await pool.query(query4212, year ? [companyId, year] : [companyId]);
-  data['4212'] = (parseFloat(rows4212[0]?.credit_total) || 0) - (parseFloat(rows4212[0]?.debit_total) || 0);
-  total += Math.abs(data['4212']);
+  total += Math.abs(data['911']) + Math.abs(data['4212']);
 
   return {
     name: 'Khóa sổ kết chuyển',

@@ -13,6 +13,7 @@ import {
 } from '../controllers/report.controller.js';
 import { getCycleData } from '../services/cycle.service.js';
 import { getBalanceSheetData } from '../services/report.service.js';
+import { getForeignCurrencyReport } from '../services/multiCurrency.service.js';
 import { calculateBalances, getTotalDebit, getTotalCredit } from '../utils/accountingEngine.js';
 import { getCashFlowData } from '../services/cashFlowEngine.js';
 import { getFinancialNotesData } from '../services/financialNotesEngine.js';
@@ -166,6 +167,20 @@ router.get('/management', authenticate, checkCompanyAccess, async (req, res) => 
         reportDate: new Date().toISOString()
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Báo cáo ngoại tệ
+router.get('/foreign-currency', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    const month = req.query.month ? Number(req.query.month) : new Date().getMonth() + 1;
+
+    const data = await getForeignCurrencyReport(companyId, year, month);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

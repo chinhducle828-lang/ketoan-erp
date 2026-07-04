@@ -4,6 +4,8 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate, createVoucherSchema } from '../middleware/validation.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
+import { buildPostingUpdateValues } from '../services/voucherStatus.js';
+import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
 
 const router = express.Router();
 
@@ -41,6 +43,9 @@ router.get('/', authenticate, async (req, res) => {
         v.voucher_type as "type",
         v.currency,
         v.exchange_rate as "exchangeRate",
+        v.is_posted as "isPosted",
+        v.posted_at as "postedAt",
+        v.posted_by as "postedBy",
         COALESCE(
           JSON_AGG(
             JSON_BUILD_OBJECT(
@@ -73,16 +78,24 @@ router.post('/', authenticate, async (req, res) => {
   try {
     await client.query('BEGIN');
     const { company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, details } = req.body;
+    const postingValues = buildPostingUpdateValues(req.body.is_posted ?? req.body.isPosted, req.user?.id || null, new Date());
+
+    if (postingValues.is_posted && !['admin', 'ktt'].includes(req.user?.role)) {
+      throw new Error('Chỉ quản trị hoặc kế toán trưởng mới được ghi sổ chứng từ');
+    }
 
     // Kiểm tra khóa sổ trước khi thêm mới
     await checkLockDate(company_id, voucher_date);
 
     const vMasterQuery = `
-      INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+      INSERT INTO vouchers (
+        company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, created_by, is_posted, posted_at, posted_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
     `;
     const masterRes = await client.query(vMasterQuery, [
-      company_id, voucher_number, voucher_date, voucher_type, description, currency || 'VND', exchange_rate || 1, req.user?.id || null
+      company_id, voucher_number, voucher_date, voucher_type, description, currency || 'VND', exchange_rate || 1,
+      req.user?.id || null, postingValues.is_posted, postingValues.posted_at, postingValues.posted_by
     ]);
     const vId = masterRes.rows[0].id;
 
@@ -92,20 +105,31 @@ router.post('/', authenticate, async (req, res) => {
       let idx = 1;
 
       details.forEach((item) => {
-        valuesArr.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6})`);
-        queryArgs.push(vId, item.accountCode, item.entryType, item.amount, item.partnerId || null, item.itemId || null, item.quantity || 0);
-        idx += 7;
+        const normalized = buildMultiCurrencyDetail(item, exchange_rate || 1);
+        valuesArr.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8})`);
+        queryArgs.push(
+          vId,
+          normalized.accountCode || normalized.account_code,
+          normalized.entryType || normalized.entry_type,
+          normalized.amount,
+          normalized.partnerId || normalized.partner_id || null,
+          normalized.itemId || normalized.item_id || null,
+          normalized.quantity || 0,
+          normalized.amountOrigin ?? normalized.amount_origin ?? null,
+          normalized.currencyOrigin || normalized.currency_origin || 'VND'
+        );
+        idx += 9;
       });
 
       const bulkDetailQuery = `
-        INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, partner_id, item_id, quantity) 
+        INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, partner_id, item_id, quantity, amount_origin, currency_origin) 
         VALUES ${valuesArr.join(', ')}
       `;
       await client.query(bulkDetailQuery, queryArgs);
     }
 
     await client.query('COMMIT');
-    res.json({ success: true, message: 'Tạo chứng từ thành công!' });
+    res.status(201).json({ success: true, message: 'Tạo chứng từ thành công!' });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: err.message });
@@ -114,7 +138,32 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// 3. DELETE: XÓA CHỨNG TỪ CÓ KIỂM TRA KHÓA SỔ VÀ GHI AUDIT LOG
+// 3. POST: GHI SỔ CHỨNG TỪ
+router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+  try {
+    const voucherId = parseInt(req.params.id, 10);
+    const postingValues = buildPostingUpdateValues(true, req.user?.id || null, new Date());
+
+    const voucherRes = await pool.query('SELECT id, company_id, voucher_date FROM vouchers WHERE id = $1', [voucherId]);
+    if (voucherRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Chứng từ không tồn tại' });
+    }
+
+    const voucher = voucherRes.rows[0];
+    await checkLockDate(voucher.company_id, voucher.voucher_date);
+
+    const result = await pool.query(
+      'UPDATE vouchers SET is_posted = $1, posted_at = $2, posted_by = $3 WHERE id = $4 RETURNING id, is_posted, posted_at, posted_by',
+      [postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, voucherId]
+    );
+
+    res.json({ success: true, message: 'Đã ghi sổ chứng từ', voucher: result.rows[0] });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 4. DELETE: XÓA CHỨNG TỪ CÓ KIỂM TRA KHÓA SỔ VÀ GHI AUDIT LOG
 router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
   const client = await pool.connect();
   try {
