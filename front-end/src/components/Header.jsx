@@ -38,11 +38,9 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     const STOREFRONT_URL = getStorefrontURL();
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const roleCode = user?.roleId || user?.role;
-    const erpAccessToken = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (companyId) params.set('company_id', companyId);
     if (roleCode) params.set('role', roleCode);
-    if (erpAccessToken) params.set('erp_token', erpAccessToken);
     const href = `${STOREFRONT_URL}${params.toString() ? `?${params.toString()}` : ''}`;
     window.open(href, '_blank', 'noreferrer');
   };

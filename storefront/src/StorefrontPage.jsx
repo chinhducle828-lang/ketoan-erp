@@ -42,6 +42,12 @@ const publicApi = axios.create({
   withCredentials: false
 });
 
+// authApi uses credentials (HttpOnly refresh cookie) for server-side session flows
+const authApi = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true
+});
+
 const CATEGORY_OPTIONS = ['Tất cả', 'Gạch', 'Sơn', 'Xi măng', 'Thép', 'Ống nước'];
 const SORT_OPTIONS = [
   { value: 'featured', label: 'Nổi bật' },
@@ -112,6 +118,7 @@ export default function StorefrontPage() {
   const [selectedLang, setSelectedLang] = useState('VI');
   const [selectedCurrency, setSelectedCurrency] = useState('VND');
   const [storefrontToken, setStorefrontToken] = useState(() => localStorage.getItem('storefrontAccessToken') || '');
+  const [hasAdminSession, setHasAdminSession] = useState(false);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const adminImageInputRef = useRef(null);
@@ -170,41 +177,60 @@ export default function StorefrontPage() {
     }
 
     if (erpToken) {
-      setStorefrontToken(erpToken);
-      localStorage.setItem('storefrontAccessToken', erpToken);
-      setAdminMessage('Đã nhận phiên admin từ ERP.');
-      params.delete('erp_token');
-      const nextQuery = params.toString();
-      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
-      window.history.replaceState({}, '', nextUrl);
+      (async () => {
+        try {
+          await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
+          // remove token from URL to avoid leakage
+          params.delete('erp_token');
+          const nextQuery = params.toString();
+          const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+          window.history.replaceState({}, '', nextUrl);
+
+          // validate server-side session via cookie
+          try {
+            const { data } = await authApi.get('/api/auth/me');
+            const roleCode = data?.user?.role;
+              if (roleCode === 'admin') {
+                setAdminMessage('Phiên admin hợp lệ từ ERP.');
+                setHasAdminSession(true);
+              } else {
+                setAdminMessage('Phiên ERP hiện tại không phải admin. Vui lòng mở storefront từ tài khoản admin trên ERP.');
+                setHasAdminSession(false);
+              }
+          } catch (e) {
+            setAdminMessage('Phiên admin chưa được xác thực. Vui lòng mở storefront từ ERP bằng tài khoản admin.');
+            setHasAdminSession(false);
+          }
+        } catch (err) {
+          console.error('External login exchange failed:', err?.response?.data || err.message);
+          setAdminMessage('Không thể thiết lập phiên admin từ ERP. Vui lòng thử mở lại từ ERP.');
+        }
+      })();
     }
   }, []);
 
   useEffect(() => {
-    if (!isAdminRole || !storefrontToken) return;
+    if (!isAdminRole) return;
 
     const validateAdminSession = async () => {
       try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${storefrontToken}` }
-        });
+        const { data } = await authApi.get('/api/auth/me');
         const roleCode = data?.user?.role;
         if (roleCode !== 'admin') {
-          setStorefrontToken('');
-          localStorage.removeItem('storefrontAccessToken');
           setAdminMessage('Phiên ERP hiện tại không phải admin. Vui lòng mở storefront từ tài khoản admin trên ERP.');
+          setHasAdminSession(false);
         } else {
           setAdminMessage('Phiên admin hợp lệ từ ERP.');
+          setHasAdminSession(true);
         }
       } catch {
-        setStorefrontToken('');
-        localStorage.removeItem('storefrontAccessToken');
         setAdminMessage('Không nhận được phiên admin từ ERP. Vui lòng mở storefront từ ERP để thao tác quản trị.');
+        setHasAdminSession(false);
       }
     };
 
     validateAdminSession();
-  }, [isAdminRole, storefrontToken]);
+  }, [isAdminRole]);
 
   const loadItems = async (id) => {
     if (!id) return;
@@ -456,12 +482,13 @@ export default function StorefrontPage() {
     setAdminMessage('');
   };
 
-  const getAdminAuthConfig = () => ({
-    headers: { Authorization: `Bearer ${storefrontToken}` }
-  });
+  const getAdminAuthConfig = () => {
+    if (storefrontToken) return { headers: { Authorization: `Bearer ${storefrontToken}` } };
+    return { withCredentials: true };
+  };
 
   const loadWarehouseQueue = async () => {
-    if (!companyId || !storefrontToken) {
+    if (!companyId) {
       setWarehouseQueue([]);
       return;
     }
@@ -533,7 +560,7 @@ export default function StorefrontPage() {
 
   useEffect(() => {
     if (!(isWarehouseRole || isAdminRole || isSalesRole)) return;
-    if (!companyId || !storefrontToken) return;
+    if (!companyId) return;
 
     previousQueueRef.current = new Map();
     firstQueueLoadRef.current = true;
@@ -541,7 +568,7 @@ export default function StorefrontPage() {
     loadWarehouseQueue();
     const timer = setInterval(loadWarehouseQueue, 15000);
     return () => clearInterval(timer);
-  }, [companyId, storefrontToken, isWarehouseRole, isAdminRole, isSalesRole]);
+  }, [companyId, isWarehouseRole, isAdminRole, isSalesRole]);
 
   useEffect(() => {
     if (!rolePopup) return;
@@ -602,8 +629,8 @@ export default function StorefrontPage() {
     e.preventDefault();
     if (!canManageItems) return;
     if (!storefrontToken) {
-      setAdminMessage('Vui lòng đăng nhập admin trước khi quản lý sản phẩm.');
-      return;
+      // proceed using cookie-based session (external-login) if present on server
+      setAdminMessage('Vui lòng đảm bảo đã mở storefront từ ERP bằng tài khoản admin trước khi quản lý sản phẩm.');
     }
     if (!companyId) {
       setAdminMessage('Thiếu company_id, không thể lưu danh mục.');
@@ -649,8 +676,8 @@ export default function StorefrontPage() {
   };
 
   const handleAdminDeleteItem = async (itemCode) => {
-    if (!canManageItems || !storefrontToken) {
-      setAdminMessage('Bạn chưa có phiên admin để xóa sản phẩm.');
+    if (!canManageItems) {
+      setAdminMessage('Bạn chưa có quyền để xóa sản phẩm.');
       return;
     }
     if (!companyId) {
@@ -681,13 +708,13 @@ export default function StorefrontPage() {
   };
 
   const handleWarehouseComplete = async (order) => {
-    if (!companyId || !storefrontToken) return;
+    if (!companyId) return;
 
     try {
       await axios.post(
         `${API_BASE_URL}/api/logistics/mark-completed`,
         { companyId: Number(companyId), voucherId: Number(order.id) },
-        { headers: { Authorization: `Bearer ${storefrontToken}` } }
+        getAdminAuthConfig()
       );
       setRolePopup({
         id: `warehouse-completed-${Date.now()}`,
@@ -1147,7 +1174,7 @@ export default function StorefrontPage() {
 
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
               <h4 className="font-semibold text-slate-900">Phiên admin từ ERP</h4>
-              <p className="mt-2 text-sm text-slate-600">{storefrontToken ? 'Đã nhận phiên quản trị từ ERP, bạn có thể tạo/cập nhật danh mục.' : 'Chưa có phiên admin. Vui lòng mở storefront từ ERP bằng tài khoản admin để thao tác.'}</p>
+              <p className="mt-2 text-sm text-slate-600">{hasAdminSession ? 'Đã nhận phiên quản trị từ ERP, bạn có thể tạo/cập nhật danh mục.' : 'Chưa có phiên admin. Vui lòng mở storefront từ ERP bằng tài khoản admin để thao tác.'}</p>
               {adminMessage && <p className="mt-2 text-sm text-slate-500">{adminMessage}</p>}
             </div>
 
@@ -1189,7 +1216,7 @@ export default function StorefrontPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="submit" disabled={adminBusy || !storefrontToken} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60">{adminEditingCode ? 'Lưu cập nhật' : 'Tạo mới'}</button>
+                    <button type="submit" disabled={adminBusy || !hasAdminSession} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60">{adminEditingCode ? 'Lưu cập nhật' : 'Tạo mới'}</button>
                     <button type="button" onClick={resetAdminItemForm} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Làm mới form</button>
                   </div>
                 </form>
@@ -1265,7 +1292,7 @@ export default function StorefrontPage() {
               </label>
             </div>
 
-            {!storefrontToken ? (
+            {!hasAdminSession ? (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Chưa có phiên từ ERP. Hãy mở storefront từ tài khoản nhân viên kho trên ERP.</div>
             ) : warehouseLoading ? (
               <div className="mt-4 text-sm text-slate-500">Đang tải hàng đợi xuất kho...</div>
