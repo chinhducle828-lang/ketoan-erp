@@ -197,6 +197,30 @@ const buildItemsSelectExpressions = (itemColumns) => {
   };
 };
 
+const toAbsoluteMediaUrl = (req, rawValue) => {
+  const value = String(rawValue || '').trim();
+  if (!value) return null;
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  const basePath = value.startsWith('/') ? value : `/${value}`;
+  return `${req.protocol}://${req.get('host')}${basePath}`;
+};
+
+const normalizeImageUrlsField = (input) => {
+  if (Array.isArray(input)) return input;
+  if (!input) return [];
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [trimmed];
+    } catch {
+      return [trimmed];
+    }
+  }
+  return [];
+};
+
 router.get('/items', async (req, res) => {
   try {
     const companyId = req.query.company_id || req.query.companyId;
@@ -235,7 +259,24 @@ router.get('/items', async (req, res) => {
       [companyId]
     );
 
-    res.json(rows);
+    const normalizedRows = rows.map((row) => {
+      const imageUrl = toAbsoluteMediaUrl(req, row.image_url);
+      const imageUrls = normalizeImageUrlsField(row.image_urls)
+        .map((url) => toAbsoluteMediaUrl(req, url))
+        .filter(Boolean);
+
+      if (imageUrl && !imageUrls.includes(imageUrl)) {
+        imageUrls.unshift(imageUrl);
+      }
+
+      return {
+        ...row,
+        image_url: imageUrl,
+        image_urls: imageUrls
+      };
+    });
+
+    res.json(normalizedRows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
