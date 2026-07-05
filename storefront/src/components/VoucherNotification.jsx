@@ -1,12 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useVoucherNotifications } from '../hooks/useRealTime';
 import { Bell, X, FileText, Check } from 'lucide-react';
+import { playNotificationSound } from '../utils/notificationSound';
 
 // Voucher notification component
 export default function VoucherNotification() {
   const { notifications, markAsRead, clearNotifications } = useVoucherNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Show OS notification when tab is out of focus and new notification arrives
+  useEffect(() => {
+    if (unreadCount > prevUnreadCount && prevUnreadCount >= 0) {
+      // Play sound for in-app notification
+      playNotificationSound();
+      
+      // Show OS notification when tab is not visible
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        const latestNotification = notifications[0];
+        if (latestNotification) {
+          new Notification(latestNotification.title || 'Thông báo chứng từ', {
+            body: latestNotification.message || 'Bạn có một thông báo mới',
+            icon: '/favicon.svg',
+            tag: `voucher-${latestNotification.id}`,
+            data: { url: window.location.href }
+          });
+        }
+      }
+    }
+    setPrevUnreadCount(unreadCount);
+  }, [unreadCount, prevUnreadCount, notifications]);
 
   return (
     <div className="relative">

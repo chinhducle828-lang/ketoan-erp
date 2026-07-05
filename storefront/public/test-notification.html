@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Notification</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { margin: 10px 5px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+    .status { margin: 20px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Test Notification System</h1>
+  
+  <div class="status">
+    <strong>Permission Status:</strong> <span id="permissionStatus">Checking...</span>
+  </div>
+  
+  <button id="requestPermission">Request Permission</button>
+  <button id="testSound">Test Sound</button>
+  <button id="testOS">Test OS Notification</button>
+  <button id="autoTest">Auto Test All</button>
+  
+  <div id="log" style="margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+    <strong>Log:</strong>
+    <div id="logContent"></div>
+  </div>
+
+  <script>
+    const log = (msg) => {
+      const time = new Date().toLocaleTimeString();
+      document.getElementById('logContent').innerHTML += `<div>[${time}] ${msg}</div>`;
+      console.log(msg);
+    };
+
+    const updatePermissionStatus = () => {
+      const status = document.getElementById('permissionStatus');
+      if ('Notification' in window) {
+        status.textContent = Notification.permission;
+        status.style.color = Notification.permission === 'granted' ? 'green' : 'orange';
+      } else {
+        status.textContent = 'Not supported';
+        status.style.color = 'red';
+      }
+    };
+
+    // Test sound
+    document.getElementById('testSound').addEventListener('click', () => {
+      log('Testing sound...');
+      const audio = new Audio('/sounds/notification.mp3');
+      audio.volume = 0.5;
+      audio.play().then(() => {
+        log('✓ Sound playing...');
+      }).catch(e => {
+        log('✗ Audio play failed: ' + e.message);
+      });
+    });
+
+    // Test OS notification
+    document.getElementById('testOS').addEventListener('click', () => {
+      log('Testing OS notification...');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const notification = new Notification('Test Notification', {
+            body: 'Hệ thống thông báo đã hoạt động!',
+            icon: '/favicon.svg',
+            tag: 'test-notification-' + Date.now(),
+            data: { url: window.location.href }
+          });
+          
+          notification.onclick = () => {
+            log('✓ Notification clicked');
+            notification.close();
+          };
+          
+          notification.onclose = () => {
+            log('✓ Notification closed');
+          };
+          
+          log('✓ OS notification shown');
+        } catch (e) {
+          log('✗ Notification failed: ' + e.message);
+        }
+      } else {
+        log('✗ Permission not granted. Click "Request Permission" first.');
+      }
+    });
+
+    // Request permission
+    document.getElementById('requestPermission').addEventListener('click', async () => {
+      log('Requesting permission...');
+      try {
+        const permission = await Notification.requestPermission();
+        log('Permission result: ' + permission);
+        updatePermissionStatus();
+        
+        if (permission === 'granted') {
+          log('✓ Permission granted! Now you can test OS notifications.');
+          // Auto test after permission granted
+          setTimeout(() => {
+            document.getElementById('testOS').click();
+          }, 500);
+        }
+      } catch (e) {
+        log('✗ Permission request failed: ' + e.message);
+      }
+    });
+
+    // Auto test all
+    document.getElementById('autoTest').addEventListener('click', async () => {
+      log('=== Starting Auto Test ===');
+      
+      // Test 1: Sound
+      log('Test 1: Sound');
+      const audio = new Audio('/sounds/notification.mp3');
+      audio.volume = 0.5;
+      await audio.play().catch(e => log('Sound error: ' + e.message));
+      log('✓ Sound test complete');
+      
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // Test 2: OS Notification
+      log('Test 2: OS Notification');
+      if (Notification.permission === 'granted') {
+        new Notification('Auto Test', {
+          body: 'Đây là notification tự động',
+          icon: '/favicon.svg',
+          tag: 'auto-test-' + Date.now()
+        });
+        log('✓ OS notification sent');
+      } else {
+        log('✗ No permission for OS notification');
+      }
+      
+      log('=== Auto Test Complete ===');
+    });
+
+    // Initialize
+    updatePermissionStatus();
+    log('Test page loaded. Permission: ' + (Notification.permission || 'N/A'));
+  </script>
+</body>
+</html>
