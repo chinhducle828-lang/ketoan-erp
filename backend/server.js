@@ -5,10 +5,12 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs'; 
 import { fileURLToPath } from 'url';
+import http from 'http';
 
 // 1. Cấu hình PG Pool từ thư mục config
 import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
+import { initWebSocket } from './services/websocket.service.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -228,6 +230,85 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ====================================================================
+// ORDERS API - Lấy danh sách đơn hàng
+// ====================================================================
+app.get('/api/orders', async (req, res) => {
+  try {
+    const { company_id, status, limit = 50, offset = 0 } = req.query;
+    
+    let query = 'SELECT * FROM orders WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+    
+    if (company_id) {
+      paramCount++;
+      query += ` AND company_id = $${paramCount}`;
+      params.push(company_id);
+    }
+    
+    if (status) {
+      paramCount++;
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+    }
+    
+    paramCount++;
+    query += ` ORDER BY created_at DESC LIMIT $${paramCount}`;
+    params.push(parseInt(limit));
+    
+    paramCount++;
+    query += ` OFFSET $${paramCount}`;
+    params.push(parseInt(offset));
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      total: result.rows.length
+    });
+  } catch (err) {
+    console.error('Lỗi lấy danh sách đơn hàng:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Lỗi lấy danh sách đơn hàng',
+      error: err.message 
+    });
+  }
+});
+
+// Lấy chi tiết đơn hàng theo ID
+app.get('/api/orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy đơn hàng'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Lỗi lấy chi tiết đơn hàng:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi lấy chi tiết đơn hàng',
+      error: err.message
+    });
+  }
+});
+
 if (process.env.SERVE_STATIC_FRONTEND === 'true') {
   const possiblePaths = [
     path.join(__dirname, '..', 'front-end', 'dist'),
@@ -267,7 +348,16 @@ const PORT = process.env.PORT || 5000;
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 
 if (isMainModule) {
-  app.listen(PORT, () => console.log(`Máy chủ Kế toán bảo mật đang chạy tại cổng ${PORT}`));
+  // Tạo HTTP server để WebSocket có thể gắn vào
+  const server = http.createServer(app);
+  
+  // Khởi tạo Socket.io server
+  initWebSocket(server);
+  
+  server.listen(PORT, () => {
+    console.log(`✅ Máy chủ HTTP đang chạy tại cổng ${PORT}`);
+    console.log(`✅ WebSocket server đã được khởi tạo`);
+  });
 }
 
 export { app, dbInitPromise };
