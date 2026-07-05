@@ -5,6 +5,7 @@ import './index.css';
 import api from './services/api';
 import { canAccessStorefront } from './hooks/usePermissions';
 import { XCircle, AlertTriangle } from 'lucide-react';
+import { registerServiceWorker, isPushSupported } from './services/pushService';
 
 // Get URL parameters
 const getUrlParams = () => {
@@ -125,6 +126,15 @@ function Root() {
     };
     
     initialize();
+  }, []);
+
+  // Register service worker for push notifications on app load
+  useEffect(() => {
+    if (isPushSupported()) {
+      registerServiceWorker().catch((err) => {
+        console.warn('Service worker registration failed:', err);
+      });
+    }
   }, []);
 
   if (!authInitialized) {

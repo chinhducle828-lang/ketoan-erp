@@ -6,13 +6,14 @@
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
   const title = data.title || 'Ketoan ERP';
-  const options = {
+const options = {
     body: data.body || 'Bạn có một thông báo mới',
     icon: data.icon || '/favicon.svg',
     badge: data.badge || '/favicon.svg',
     data: data.data || {},
     tag: data.tag || 'default',
-    renotify: true
+    renotify: true,
+    sound: data.sound || '/sounds/notification.mp3'
   };
 
   event.waitUntil(
