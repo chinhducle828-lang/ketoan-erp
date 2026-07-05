@@ -1,12 +1,45 @@
 // Utility functions for formatting
 
 // Dynamic currency formatting based on selected currency
-export const formatPrice = (value, currency = 'VND') => {
+// exchangeRate: 1 USD = X VND (used to convert VND to USD)
+// If exchangeRate is not provided, it will be fetched from localStorage or use default
+export const formatPrice = (value, currency = 'VND', exchangeRate) => {
   const numValue = Number(value) || 0;
-  if (currency === 'USD') {
-    return `$${numValue.toFixed(2)}`;
+  
+  // Get exchange rate from localStorage if not provided
+  let rate = exchangeRate;
+  if (rate === undefined || rate === null) {
+    try {
+      const cached = localStorage.getItem('exchange_rate_vnd_usd');
+      if (cached) {
+        const { rate: cachedRate } = JSON.parse(cached);
+        rate = cachedRate;
+      }
+    } catch {
+      // ignore errors
+    }
+    rate = rate || 24000; // Default fallback
   }
+  
+  if (currency === 'USD' && rate > 0) {
+    // Convert VND to USD
+    const usdValue = numValue / rate;
+    return `$${usdValue.toFixed(2)}`;
+  }
+  
+  // Format as VND
   return `${numValue.toLocaleString('vi-VN')} ₫`;
+};
+
+// Convert price from VND to target currency
+export const convertPrice = (priceVND, targetCurrency, exchangeRate = 24000) => {
+  if (targetCurrency === 'VND') {
+    return priceVND;
+  }
+  if (targetCurrency === 'USD' && exchangeRate > 0) {
+    return priceVND / exchangeRate;
+  }
+  return priceVND;
 };
 
 // Translation function for multi-language support
