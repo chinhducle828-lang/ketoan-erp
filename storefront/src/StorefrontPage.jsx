@@ -48,6 +48,7 @@ import {
   parsePriceValue
 } from './utils/formatters';
 import { publicApi, authApi, API_BASE_URL, loadItems, createOrder, loadWarehouseQueue, adminItemApi, warehouseApi } from './utils/api';
+import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
   src,
@@ -941,6 +942,11 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
     return warehouseQueue.filter((order) => order.loading_status === warehouseStatusFilter);
   }, [warehouseQueue, warehouseStatusFilter]);
 
+  // Fetch exchange rate on component mount to populate localStorage
+  useEffect(() => {
+    fetchExchangeRate().catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (isSalesRole) {
       setShowMiniCart(true);
@@ -1186,7 +1192,7 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <p className="text-xs text-slate-500">Tạm tính hiện tại</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <p className="text-xs text-slate-500">Đơn đang theo dõi</p>
