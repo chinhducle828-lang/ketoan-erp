@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRealTimeBase } from './useRealTime-base';
 import wsService from '../services/websocket';
 

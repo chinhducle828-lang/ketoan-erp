@@ -1,6 +1,7 @@
 import { pool } from '../config/db.js';
 import { sendToUser, sendToRole, subscribe, unsubscribe } from '../services/webPush.service.js';
 import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
+import { getIO } from '../services/websocket.service.js';
 
 // POST /api/notifications/subscribe
 export const subscribeToPush = async (req, res) => {
@@ -107,6 +108,38 @@ export const markAsRead = async (req, res) => {
   }
 };
 
+// PUT /api/notifications/read-all
+export const markAllAsRead = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const companyId = req.query.company_id;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Thiếu company_id' });
+    }
+
+    let query = `
+      UPDATE notifications 
+      SET is_read = TRUE 
+      WHERE company_id = $1 AND is_read = FALSE
+    `;
+    const params = [companyId];
+
+    // Nếu không phải admin, chỉ đánh dấu đọc các notification thuộc role của họ
+    if (req.user.role !== 'admin') {
+      query += ` AND (recipient_role = $2 OR recipient_role IS NULL)`;
+      params.push(req.user.role);
+    }
+
+    await pool.query(query, params);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // POST /api/notifications/send (admin only)
 export const sendNotification = async (req, res) => {
   try {
@@ -124,6 +157,15 @@ export const sendNotification = async (req, res) => {
     `, [companyId, type || 'general', title, message, recipientRole]);
 
     const notification = result.rows[0];
+
+    // Send WebSocket realtime event
+    const io = getIO();
+    if (io) {
+      if (recipientRole) {
+        io.to(`role:${recipientRole}`).emit('notification:new', notification);
+      }
+      io.to(`company:${companyId}`).emit('notification:new', notification);
+    }
 
     // Send push notification (non-blocking)
     if (recipientRole) {
@@ -156,6 +198,12 @@ export const sendNotificationToUser = async (req, res) => {
     `, [req.user.company_ids?.[0], orderId || null, type || 'general', title, message]);
 
     const notification = result.rows[0];
+
+    // Send WebSocket realtime event to company room
+    const io = getIO();
+    if (io) {
+      io.to(`company:${notification.company_id}`).emit('notification:new', notification);
+    }
 
     // Send push notification (non-blocking)
     sendToUser(userId, notification).catch(err => 

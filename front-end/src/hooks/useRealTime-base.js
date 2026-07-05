@@ -5,16 +5,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { WebSocketBaseService } from '../services/websocket-base';
-
-// Singleton instance
-let wsBaseService = null;
-const getWsService = () => {
-  if (!wsBaseService) {
-    wsBaseService = new WebSocketBaseService();
-  }
-  return wsBaseService;
-};
+import wsService from '../services/websocket';
 
 // Base hook for real-time updates
 export function useRealTimeBase(companyId, userId, eventHandlers = {}) {
@@ -31,7 +22,6 @@ export function useRealTimeBase(companyId, userId, eventHandlers = {}) {
   useEffect(() => {
     if (!companyId || !userId) return;
 
-    const wsService = getWsService();
     wsService.connect(companyId, userId);
     wsService.joinCompany(companyId);
 
@@ -58,7 +48,6 @@ export function useRealTimeBase(companyId, userId, eventHandlers = {}) {
   // Manual reconnect
   const reconnect = useCallback(() => {
     if (companyId && userId) {
-      const wsService = getWsService();
       wsService.connect(companyId, userId);
     }
   }, [companyId, userId]);

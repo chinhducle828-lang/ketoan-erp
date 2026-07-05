@@ -1,8 +1,9 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { Building2, LogOut, User, Calendar, Bell } from 'lucide-react';
+import { Building2, LogOut, User, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import NotificationBell from './NotificationBell';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
@@ -155,9 +156,10 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
         </div>
 
         {user?.role !== 'nv_banhang' && (
-          <button className="relative p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100" title="Thông báo bán hàng">
-            <Bell size={18} />
-          </button>
+          <NotificationBell 
+            companyId={activeCompany?.id} 
+            userId={user?.id} 
+          />
         )}
 
         <button 

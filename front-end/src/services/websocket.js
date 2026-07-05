@@ -25,6 +25,10 @@ class WebSocketService extends WebSocketBaseService {
     this.socket.on('balanceUpdated', (data) => {
       this.emit('balanceUpdated', data);
     });
+
+    this.socket.on('notification:new', (data) => {
+      this.emit('notification:new', data);
+    });
   }
 }
 
