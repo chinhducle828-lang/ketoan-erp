@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getTotalDebit, getTotalCredit } from '../../utils/accountingEngine.js';
+// Accounting functions removed - now using API
 import { TrendingUp, TrendingDown, FileText, Download, RefreshCw } from 'lucide-react';
 
 // Mẫu B02-DN theo Thông tư 99/2025/TT-BTC

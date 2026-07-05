@@ -1,55 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useRealTimeBase } from './useRealTime-base';
 import wsService from '../services/websocket';
 
-// Hook for real-time updates
+// Hook for real-time updates (Storefront-specific)
 export function useRealTime(companyId, userId) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [vouchers, setVouchers] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (!companyId || !userId) return;
-
-    wsService.connect(companyId, userId);
-    wsService.joinCompany(companyId);
-
-    // Subscribe to connection status
-    const handleConnectionStatus = (data) => {
-      setIsConnected(data.connected);
-      setConnectionStatus(data.connected ? 'connected' : 'disconnected');
-    };
-
-    wsService.on('connectionStatus', handleConnectionStatus);
-
-    // Subscribe to voucher events
-    wsService.on('voucherCreated', handleVoucherCreated);
-    wsService.on('voucherUpdated', handleVoucherUpdated);
-
-    // Subscribe to order events
-    wsService.on('orderStatusChanged', handleOrderStatusChanged);
-
-    return () => {
-      wsService.off('connectionStatus', handleConnectionStatus);
-      wsService.off('voucherCreated', handleVoucherCreated);
-      wsService.off('voucherUpdated', handleVoucherUpdated);
-      wsService.off('orderStatusChanged', handleOrderStatusChanged);
-      wsService.leaveCompany(companyId);
-    };
-  }, [companyId, userId]);
-
-  // Handle voucher created
-  const handleVoucherCreated = useCallback((voucher) => {
-    setVouchers(prev => [voucher, ...prev]);
-  }, []);
-
-  // Handle voucher updated
-  const handleVoucherUpdated = useCallback((updatedVoucher) => {
-    setVouchers(prev => 
-      prev.map(v => v.id === updatedVoucher.id ? updatedVoucher : v)
-    );
-  }, []);
 
   // Handle order status changed
   const handleOrderStatusChanged = useCallback((order) => {
@@ -58,62 +13,15 @@ export function useRealTime(companyId, userId) {
     );
   }, []);
 
-  // Manual reconnect
-  const reconnect = useCallback(() => {
-    if (companyId && userId) {
-      wsService.connect(companyId, userId);
-    }
-  }, [companyId, userId]);
+  // Use base hook
+  const base = useRealTimeBase(companyId, userId, {
+    orderStatusChanged: handleOrderStatusChanged
+  });
 
   return {
-    isConnected,
-    connectionStatus,
-    vouchers,
+    ...base,
     orders,
-    reconnect,
-    setVouchers,
     setOrders
-  };
-}
-
-// Hook for voucher notifications
-export function useVoucherNotifications() {
-  const [notifications, setNotifications] = useState([]);
-
-  useEffect(() => {
-    const handleVoucherCreated = (voucher) => {
-      const notification = {
-        id: Date.now(),
-        type: 'voucher',
-        title: 'Chứng từ mới',
-        message: `Chứng từ ${voucher.voucherNumber} đã được tạo`,
-        timestamp: new Date(),
-        read: false
-      };
-      setNotifications(prev => [notification, ...prev.slice(0, 9)]);
-    };
-
-    wsService.on('voucherCreated', handleVoucherCreated);
-
-    return () => {
-      wsService.off('voucherCreated', handleVoucherCreated);
-    };
-  }, []);
-
-  const markAsRead = (id) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-  };
-
-  const clearNotifications = () => {
-    setNotifications([]);
-  };
-
-  return {
-    notifications,
-    markAsRead,
-    clearNotifications
   };
 }
 

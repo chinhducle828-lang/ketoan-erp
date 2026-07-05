@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { calculateBalances, getTotalDebit, getTotalCredit } from '../../utils/accountingEngine.js';
+// Accounting functions removed - now using API
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
 
 export default function IncomeStatement() {
@@ -71,24 +71,30 @@ export default function IncomeStatement() {
     }
   };
 
+  const getLedgerValue = (accountCode, entryType) => {
+    const key = accountCode;
+    if (!ledger[key]) return 0;
+    return entryType === 'credit' ? (ledger[key].patsinhCr || 0) : (ledger[key].patsinhDr || 0);
+  };
+
   const calculateMetrics = () => {
-    const revenue = getTotalCredit(ledger, '511');
-    const cogs = getTotalDebit(ledger, '632');
+    const revenue = getLedgerValue('511', 'credit');
+    const cogs = getLedgerValue('632', 'debit');
     const grossProfit = revenue - cogs;
-    const financialRevenue = getTotalCredit(ledger, '515');
+    const financialRevenue = getLedgerValue('515', 'credit');
     
     const operatingExpenses = {
-      '635': getTotalDebit(ledger, '635'),
-      '641': getTotalDebit(ledger, '641'),
-      '642': getTotalDebit(ledger, '642'),
+      '635': getLedgerValue('635', 'debit'),
+      '641': getLedgerValue('641', 'debit'),
+      '642': getLedgerValue('642', 'debit'),
     };
 
     const totalOperatingExpenses = Object.values(operatingExpenses).reduce((sum, val) => sum + val, 0);
     const operatingProfit = grossProfit + financialRevenue - totalOperatingExpenses;
-    const totalOtherIncome = getTotalCredit(ledger, '711');
-    const totalOtherExpenses = getTotalDebit(ledger, '811');
+    const totalOtherIncome = getLedgerValue('711', 'credit');
+    const totalOtherExpenses = getLedgerValue('811', 'debit');
     const profitBeforeTax = operatingProfit + (totalOtherIncome - totalOtherExpenses);
-    const incomeTaxExpense = getTotalDebit(ledger, '821');
+    const incomeTaxExpense = getLedgerValue('821', 'debit');
     const netProfit = profitBeforeTax - incomeTaxExpense;
 
     return {

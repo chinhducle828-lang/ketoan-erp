@@ -9,9 +9,9 @@ import {
   createProvisionEntries,
   processTaxTNCN,
   processTaxVAT,
-  getClosingData,
-  calculateProgressiveTax
+  getClosingData
 } from '../services/closing.service.js';
+import { calculateProgressiveTax } from '../utils/accountingEngine.js';
 import { getPeriodBalanceSummary } from '../services/summary.service.js';
 import { invalidateCache } from '../cache/redis.js';
 import { sendToRole } from '../services/webPush.service.js';

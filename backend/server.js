@@ -11,6 +11,7 @@ import http from 'http';
 import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
 import { initWebSocket } from './services/websocket.service.js';
+import { authenticate } from './middleware/auth.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -196,6 +197,7 @@ import maintenanceRouter from './routes/maintenance.js';
 import publicRoutes from './routes/publicRoutes.js';
 import logisticsRoutes from './routes/logisticsRoutes.js';
 import notificationsRouter from './routes/notifications.js';
+import accountingRouter from './routes/accounting.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -216,6 +218,7 @@ app.use('/api/maintenance', maintenanceRouter);
 app.use('/api/public', publicRoutes);
 app.use('/api/logistics', logisticsRoutes);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/accounting', accountingRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
@@ -231,9 +234,9 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ====================================================================
-// ORDERS API - Lấy danh sách đơn hàng
+// ORDERS API - Lấy danh sách đơn hàng (ĐÃ BẢO VỆ)
 // ====================================================================
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', authenticate, async (req, res) => {
   try {
     const { company_id, status, limit = 50, offset = 0 } = req.query;
     
@@ -278,8 +281,8 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// Lấy chi tiết đơn hàng theo ID
-app.get('/api/orders/:id', async (req, res) => {
+// Lấy chi tiết đơn hàng theo ID (ĐÃ BẢO VỆ)
+app.get('/api/orders/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     

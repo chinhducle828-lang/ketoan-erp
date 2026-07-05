@@ -4,6 +4,7 @@ import { getPeriodBalanceSummary } from './summary.service.js';
 import { getClosingRules } from '../config/businessRules.js';
 import { withLock, acquireLock, releaseLock } from './distributedLock.service.js';
 import { invalidateBalance } from './balanceCache.service.js';
+import { getTaxRateByRevenue } from '../utils/accountingEngine.js';
 
 const getClosingDate = (year, month) => `${year}-${String(month).padStart(2, '0')}-31`;
 
@@ -27,101 +28,6 @@ const getBalanceByPrefix = async (db, companyId, accountPrefix, month, year) => 
   };
 };
 
-/**
-  * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
-  * - 15%: Doanh thu ≤ 3 tỷ VNĐ
-  * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
-  * - 20%: Doanh thu trên 50 tỷ VNĐ
-  * @param {number} revenue - Doanh thu năm trước (VNĐ)
-  * @returns {number} - Thuế suất áp dụng
-  */
-export function getTaxRateByRevenue(revenue) {
-  const rules = getClosingRules();
-  const brackets = Array.isArray(rules.progressiveTaxBrackets)
-    ? rules.progressiveTaxBrackets
-    : [];
-
-  for (const bracket of brackets) {
-    const maxRevenue = bracket?.maxRevenue;
-    const rate = Number(bracket?.rate);
-    if (!Number.isFinite(rate)) continue;
-    if (maxRevenue === null || maxRevenue === undefined || revenue <= Number(maxRevenue)) {
-      return rate;
-    }
-  }
-
-  return Number(rules.defaultTaxRate ?? 0.2);
-}
-
-/**
-  * Tính thuế TNDN lũy tiến thực sự (Progressive Tax Calculation)
-  * Áp dụng thuế suất khác nhau cho từng phần doanh thu:
-  * - 15% cho phần doanh thu ≤ 3 tỷ
-  * - 17% cho phần doanh thu từ 3-50 tỷ
-  * - 20% cho phần doanh thu trên 50 tỷ
-  * @param {number} revenue - Doanh thu năm trước (VNĐ)
-  * @param {number} profit - Lợi nhuận trước thuế (VNĐ)
-  * @returns {Object} - { totalTax, appliedRate, breakdown: [{ threshold, amount, rate, tax }] }
-  */
-export function calculateProgressiveTax(revenue, profit) {
-  const rules = getClosingRules();
-  const brackets = Array.isArray(rules.progressiveTaxBrackets)
-    ? rules.progressiveTaxBrackets
-    : [
-        { maxRevenue: 3000000000, rate: 0.15 },
-        { maxRevenue: 50000000000, rate: 0.17 },
-        { maxRevenue: null, rate: 0.20 }
-      ];
-
-  if (profit <= 0) {
-    return { totalTax: 0, appliedRate: 0, breakdown: [] };
-  }
-
-  // Tính thuế lũy tiến dựa trên tỷ lệ lợi nhuận/doanh thu
-  // Giả sử lợi nhuận phân bố tương ứng với doanh thu
-  const effectiveRate = profit / revenue; // Tỷ lệ lợi nhuận trên doanh thu
-  
-  let remainingProfit = profit;
-  let totalTax = 0;
-  const breakdown = [];
-
-  for (const bracket of brackets) {
-    const maxRevenue = bracket?.maxRevenue;
-    const rate = Number(bracket?.rate);
-    
-    if (!Number.isFinite(rate)) continue;
-
-    // Xác định phần doanh thu tại mức thuế này
-    const profitAtThisBracket = maxRevenue === null || maxRevenue === undefined
-      ? remainingProfit
-      : Math.min(remainingProfit, maxRevenue * effectiveRate);
-
-    if (profitAtThisBracket > 0) {
-      const taxAtThisBracket = profitAtThisBracket * rate;
-      totalTax += taxAtThisBracket;
-      
-      breakdown.push({
-        threshold: maxRevenue,
-        amount: profitAtThisBracket,
-        rate: rate,
-        tax: taxAtThisBracket
-      });
-      
-      remainingProfit -= profitAtThisBracket;
-    }
-
-    if (remainingProfit <= 0) break;
-  }
-
-  // Tính thuế suất áp dụng trung bình
-  const appliedRate = profit > 0 ? totalTax / profit : 0;
-
-  return {
-    totalTax,
-    appliedRate,
-    breakdown
-  };
-}
 
 /**
   * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
@@ -656,34 +562,35 @@ export async function createProvisionEntries(companyId, month, year) {
 }
 
 /**
- * Xử lý thuế TNCN tự động
- * Tính toán thuế TNCN dựa trên số dư tài khoản 3331
+ * Xử lý thuế chung (Generic)
  * @param {number} companyId - ID công ty
  * @param {number} month - Tháng
  * @param {number} year - Năm
+ * @param {string} taxAccount - Tài khoản thuế phải nộp (VD: '3331', '33311')
+ * @param {string} description - Mô tả bút toán
+ * @param {string} resultField - Tên trường kết quả (VD: 'tax_payable', 'vat_payable')
  */
-export async function processTaxTNCN(companyId, month, year) {
+export async function processTaxGeneric(companyId, month, year, taxAccount, description, resultField) {
   const client = await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
-  const tncnPayableAccount = String(accounts.personalIncomeTaxPayable || '3331');
   const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
   try {
     await client.query('BEGIN');
     
-    // Lấy số dư TK 3331 (Thuế TNCN phải nộp)
-    const taxBalance = await getBalanceByPrefix(client, companyId, tncnPayableAccount, month, year);
+    // Lấy số dư tài khoản thuế
+    const taxBalance = await getBalanceByPrefix(client, companyId, taxAccount, month, year);
     const taxPayable = taxBalance.debit - taxBalance.credit;
     
     if (taxPayable > 0) {
-      // Tạo bút toán nộp thuế TNCN: Nợ TK 3331, Có TK 331
+      // Tạo bút toán nộp thuế: Nợ TK thuế, Có TK 331
       const closingDate = getClosingDate(year, month);
       await client.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, $2, $3, 'Nộp thuế TNCN')`,
-        [companyId, closingVoucherType, closingDate]
+         VALUES ($1, $2, $3, $4)`,
+        [companyId, closingVoucherType, closingDate, description]
       );
       
       const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
@@ -691,7 +598,7 @@ export async function processTaxTNCN(companyId, month, year) {
       await client.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
          VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
-        [voucherId, tncnPayableAccount, taxPayable, voucherId, taxPaymentOffsetAccount, taxPayable]
+        [voucherId, taxAccount, taxPayable, voucherId, taxPaymentOffsetAccount, taxPayable]
       );
     }
     
@@ -699,8 +606,8 @@ export async function processTaxTNCN(companyId, month, year) {
     
     return {
       success: true,
-      message: 'Xử lý thuế TNCN thành công',
-      tax_payable: taxPayable
+      message: `${description} thành công`,
+      [resultField]: taxPayable
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -711,56 +618,43 @@ export async function processTaxTNCN(companyId, month, year) {
 }
 
 /**
- * Xử lý thuế VAT tự động
- * Tính toán thuế VAT dựa trên số dư tài khoản 33311
+ * Xử lý thuế TNCN tự động (Wrapper)
+ * @param {number} companyId - ID công ty
+ * @param {number} month - Tháng
+ * @param {number} year - Năm
+ */
+export async function processTaxTNCN(companyId, month, year) {
+  const closingRules = getClosingRules();
+  const accounts = closingRules.accounts || {};
+  const tncnPayableAccount = String(accounts.personalIncomeTaxPayable || '3331');
+  
+  return processTaxGeneric(
+    companyId, 
+    month, 
+    year, 
+    tncnPayableAccount, 
+    'Nộp thuế TNCN', 
+    'tax_payable'
+  );
+}
+
+/**
+ * Xử lý thuế VAT tự động (Wrapper)
  * @param {number} companyId - ID công ty
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
 export async function processTaxVAT(companyId, month, year) {
-  const client = await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
-  const closingVoucherType = String(closingRules.voucherType || 'DauKy');
   const vatPayableAccount = String(accounts.vatPayable || '33311');
-  const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
-  try {
-    await client.query('BEGIN');
-    
-    // Lấy số dư TK 33311 (Thuế GTGT phải nộp)
-    const vatBalance = await getBalanceByPrefix(client, companyId, vatPayableAccount, month, year);
-    const vatPayable = vatBalance.debit - vatBalance.credit;
-    
-    if (vatPayable > 0) {
-      // Tạo bút toán nộp thuế VAT: Nợ TK 33311, Có TK 331
-      const closingDate = getClosingDate(year, month);
-      await client.query(
-        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
-         VALUES ($1, $2, $3, 'Nộp thuế GTGT')`,
-        [companyId, closingVoucherType, closingDate]
-      );
-      
-      const voucherId = (await client.query('SELECT LASTVAL()')).rows[0].lastval;
-      
-      await client.query(
-        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
-         VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
-        [voucherId, vatPayableAccount, vatPayable, voucherId, taxPaymentOffsetAccount, vatPayable]
-      );
-    }
-    
-    await client.query('COMMIT');
-    
-    return {
-      success: true,
-      message: 'Xử lý thuế VAT thành công',
-      vat_payable: vatPayable
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+  return processTaxGeneric(
+    companyId, 
+    month, 
+    year, 
+    vatPayableAccount, 
+    'Nộp thuế GTGT', 
+    'vat_payable'
+  );
 }
