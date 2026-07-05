@@ -9,8 +9,10 @@ import {
   createProvisionEntries,
   processTaxTNCN,
   processTaxVAT,
-  getClosingData
+  getClosingData,
+  calculateProgressiveTax
 } from '../services/closing.service.js';
+import { getPeriodBalanceSummary } from '../services/summary.service.js';
 import { invalidateCache } from '../cache/redis.js';
 import { sendToRole } from '../services/webPush.service.js';
 
@@ -66,15 +68,25 @@ export const previewClosing = async (req, res) => {
     
     // 3. Tính thuế TNDN
     const profitBeforeTax = closingData.account511.credit - totalCost;
+    let taxAmount = 0;
+    let taxBreakdown = [];
+    
     if (profitBeforeTax > 0) {
-      const taxRate = getTaxRateByRevenue(0); // Sử dụng mặc định nếu chưa có doanh thu năm trước
-      const taxAmount = profitBeforeTax * taxRate;
+      // Lấy doanh thu năm trước để tính thuế lũy tiến
+      const prevYearSummary = await getPeriodBalanceSummary(companyId, ['511'], year - 1);
+      const prevYearRevenue = prevYearSummary[0]?.credit || 0;
+      
+      // Tính thuế lũy tiến
+      const progressiveTax = calculateProgressiveTax(prevYearRevenue, profitBeforeTax);
+      taxAmount = progressiveTax.totalTax;
+      taxBreakdown = progressiveTax.breakdown;
       
       previewEntries.push({
         type: 'corporate_tax',
-        description: `Kết chuyển thuế TNDN (${taxRate * 100}%)`,
+        description: `Kết chuyển thuế TNDN (${(progressiveTax.appliedRate * 100).toFixed(2)}%)`,
         debit: { account: '821', amount: taxAmount },
-        credit: { account: '3334', amount: taxAmount }
+        credit: { account: '3334', amount: taxAmount },
+        breakdown: taxBreakdown
       });
     }
     
@@ -89,7 +101,8 @@ export const previewClosing = async (req, res) => {
           revenue: closingData.account511.credit,
           totalCost,
           profitBeforeTax,
-          taxAmount: profitBeforeTax > 0 ? profitBeforeTax * getTaxRateByRevenue(0) : 0
+          taxAmount,
+          taxBreakdown
         }
       }
     });

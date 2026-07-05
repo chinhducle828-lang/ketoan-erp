@@ -109,46 +109,46 @@ export default function TaxReporting() {
         </div>
       </div>
 
-      {/* PHÂN HỆ 2 & 3: THUẾ TNDN VÀ THUẾ TNCN */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* THUẾ THU NHẬP DOANH NGHIỆP */}
-        <div className="space-y-3">
-          <h2 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
-            <span className="w-1.5 h-3 bg-blue-500 rounded-sm inline-block"></span>
-            Thuế Thu Nhập Doanh Nghiệp (TK 3334)
-          </h2>
-          <div className="bg-white p-5 rounded-2xl border border-blue-50 shadow-sm flex flex-col justify-between h-[130px]">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-[10px] font-bold text-rose-500 uppercase flex items-center gap-0.5 tracking-wider">
-                  <ArrowUpRight size={12} /> Phát sinh (Có 3334)
-                </span>
-                <h4 className="text-lg font-extrabold text-slate-700 mt-1">
-                  {taxData.tndnPhaiNop.toLocaleString('vi-VN')} đ
-                </h4>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center justify-end gap-0.5 tracking-wider">
-                  <ArrowDownRight size={12} /> Đã nộp (Nợ 3334)
-                </span>
-                <h4 className="text-lg font-extrabold text-slate-700 mt-1">
-                  {taxData.tndnDaNop.toLocaleString('vi-VN')} đ
-                </h4>
-              </div>
-            </div>
-            
-            <div className="pt-2.5 border-t border-dashed border-slate-100 flex justify-between items-center text-xs">
-              <span className="text-slate-400 font-medium">Trạng thái nghĩa vụ (Lưỡng tính):</span>
-              <span className={`font-bold ${taxData.tndnPhaiNop > taxData.tndnDaNop ? 'text-rose-600' : 'text-emerald-600'}`}>
-                {taxData.tndnPhaiNop > taxData.tndnDaNop 
-                  ? `Còn phải nộp: ${(taxData.tndnPhaiNop - taxData.tndnDaNop).toLocaleString('vi-VN')} đ`
-                  : `Tạm nộp thừa (Dư Nợ): ${(taxData.tndnDaNop - taxData.tndnPhaiNop).toLocaleString('vi-VN')} đ`
-                }
-              </span>
-            </div>
-          </div>
-        </div>
+       {/* PHÂN HỆ 2 & 3: THUẾ TNDN VÀ THUẾ TNCN */}
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+         
+         {/* THUẾ THU NHẬP DOANH NGHIỆP */}
+         <div className="space-y-3">
+           <h2 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
+             <span className="w-1.5 h-3 bg-blue-500 rounded-sm inline-block"></span>
+             Thuế Thu Nhập Doanh Nghiệp (TK 3334)
+           </h2>
+           <div className="bg-white p-5 rounded-2xl border border-blue-50 shadow-sm flex flex-col justify-between h-[130px]">
+             <div className="flex justify-between items-start">
+               <div>
+                 <span className="text-[10px] font-bold text-rose-500 uppercase flex items-center gap-0.5 tracking-wider">
+                   <ArrowUpRight size={12} /> Phát sinh (Có 3334)
+                 </span>
+                 <h4 className="text-lg font-extrabold text-slate-700 mt-1">
+                   {taxData.tndnPhaiNop.toLocaleString('vi-VN')} đ
+                 </h4>
+               </div>
+               <div className="text-right">
+                 <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center justify-end gap-0.5 tracking-wider">
+                   <ArrowDownRight size={12} /> Đã nộp (Nợ 3334)
+                 </span>
+                 <h4 className="text-lg font-extrabold text-slate-700 mt-1">
+                   {taxData.tndnDaNop.toLocaleString('vi-VN')} đ
+                 </h4>
+               </div>
+             </div>
+             
+             <div className="pt-2.5 border-t border-dashed border-slate-100 flex justify-between items-center text-xs">
+               <span className="text-slate-400 font-medium">Trạng thái nghĩa vụ (Lưỡng tính):</span>
+               <span className={`font-bold ${taxData.tndnPhaiNop > taxData.tndnDaNop ? 'text-rose-600' : 'text-emerald-600'}`}>
+                 {taxData.tndnPhaiNop > taxData.tndnDaNop 
+                   ? `Còn phải nộp: ${(taxData.tndnPhaiNop - taxData.tndnDaNop).toLocaleString('vi-VN')} đ`
+                   : `Tạm nộp thừa (Dư Nợ): ${(taxData.tndnDaNop - taxData.tndnPhaiNop).toLocaleString('vi-VN')} đ`
+                 }
+               </span>
+             </div>
+           </div>
+         </div>
 
         {/* THUẾ THU NHẬP CÁ NHÂN */}
         <div className="space-y-3">
