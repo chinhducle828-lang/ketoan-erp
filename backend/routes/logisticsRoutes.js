@@ -8,6 +8,7 @@ import {
   registerStorefrontStreamClient
 } from '../services/storefrontRealtime.service.js';
 import { getLogisticsRules } from '../config/businessRules.js';
+import { sendToUser } from '../services/webPush.service.js';
 
 const router = express.Router();
 const LOGISTICS_ALLOWED_ROLES = ['admin', 'ktt', 'nv', 'nv_kho', 'nv_banhang'];
@@ -230,6 +231,24 @@ router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 
       });
     }
 
+    // Send notification (non-blocking)
+    try {
+      // Get order creator
+      const voucher = await pool.query('SELECT created_by FROM vouchers WHERE id = $1', [voucherId]);
+      if (voucher.rows[0]?.created_by) {
+        const notification = {
+          id: voucherId,
+          type: 'logistics',
+          title: 'Cập nhật trạng thái đơn hàng',
+          message: `Đơn ${transition.row.voucher_number} đã chuyển sang trạng thái: Hoàn thành`
+        };
+        
+        await sendToUser(voucher.rows[0].created_by, notification);
+      }
+    } catch (notifyError) {
+      console.warn('Push notification failed:', notifyError.message);
+    }
+
     await publishStorefrontOrderEvent(pool, {
       event: 'logistics_status_changed',
       companyId: Number(companyId),
@@ -268,6 +287,23 @@ router.post('/assign-truck', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
       return res.status(409).json({
         error: `Không thể phân xe khi đơn đang ở trạng thái ${transition.currentStatus || 'unknown'}.`
       });
+    }
+
+    // Send notification (non-blocking)
+    try {
+      const voucher = await pool.query('SELECT created_by FROM vouchers WHERE id = $1', [voucherId]);
+      if (voucher.rows[0]?.created_by) {
+        const notification = {
+          id: voucherId,
+          type: 'logistics',
+          title: 'Đơn hàng đã được phân xe',
+          message: `Đơn ${transition.row.voucher_number} đã được phân xe vận chuyển`
+        };
+        
+        await sendToUser(voucher.rows[0].created_by, notification);
+      }
+    } catch (notifyError) {
+      console.warn('Push notification failed:', notifyError.message);
     }
 
     await publishStorefrontOrderEvent(pool, {
@@ -317,6 +353,23 @@ router.post('/confirm-loaded', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES
     }
 
     await client.query('COMMIT');
+
+    // Send notification (non-blocking)
+    try {
+      const voucher = await pool.query('SELECT created_by FROM vouchers WHERE id = $1', [voucherId]);
+      if (voucher.rows[0]?.created_by) {
+        const notification = {
+          id: voucherId,
+          type: 'logistics',
+          title: 'Đơn hàng đang giao',
+          message: `Đơn ${transition.row.voucher_number} đã bốc hàng và đang giao`
+        };
+        
+        await sendToUser(voucher.rows[0].created_by, notification);
+      }
+    } catch (notifyError) {
+      console.warn('Push notification failed:', notifyError.message);
+    }
 
     await publishStorefrontOrderEvent(pool, {
       event: 'logistics_status_changed',

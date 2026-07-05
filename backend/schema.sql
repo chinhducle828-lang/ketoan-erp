@@ -228,6 +228,37 @@ CREATE INDEX IF NOT EXISTS idx_notifications_company ON notifications(company_id
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_role, is_read);
 
 -- ====================================================================
+-- BẢNG PUSH SUBSCRIPTIONS - LƯU TRỮ THÔNG TIN ĐĂNG KÝ PUSH NOTIFICATION
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    company_id INT REFERENCES companies(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subs_company ON push_subscriptions(company_id);
+CREATE INDEX IF NOT EXISTS idx_push_subs_updated ON push_subscriptions(updated_at);
+
+-- Cleanup expired subscriptions (run periodically)
+CREATE OR REPLACE FUNCTION cleanup_expired_push_subscriptions()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM push_subscriptions
+    WHERE updated_at < NOW() - INTERVAL '90 days'
+    AND id NOT IN (
+        SELECT user_id FROM sessions WHERE expires_at > NOW()
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================================
 -- BỔ SUNG BẢNG WORKFLOW KẾT CHUYỂN, TỔNG HỢP THÁNG VÀ PHIẾU KHO CHI TIẾT
 -- ====================================================================
 

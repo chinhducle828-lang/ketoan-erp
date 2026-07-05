@@ -12,6 +12,7 @@ import {
   getClosingData
 } from '../services/closing.service.js';
 import { invalidateCache } from '../cache/redis.js';
+import { sendToRole } from '../services/webPush.service.js';
 
 /**
  * Controller xử lý kết chuyển sổ
@@ -146,6 +147,20 @@ export const executeClosing = async (req, res) => {
       await invalidateCache(`balance-sheet:${companyId}:*`);
     } catch (cacheError) {
       console.error('Lỗi xóa cache:', cacheError);
+    }
+
+    // Send notification to KTT users (non-blocking)
+    try {
+      const notification = {
+        id: 0,
+        type: 'closing',
+        title: 'Kết chuyển sổ thành công',
+        message: `Kết chuyển tháng ${month}/${year} đã hoàn tất`
+      };
+      
+      await sendToRole('ktt', companyId, notification);
+    } catch (notifyError) {
+      console.warn('Push notification failed:', notifyError.message);
     }
     
     return res.json({

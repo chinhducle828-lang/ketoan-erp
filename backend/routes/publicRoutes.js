@@ -3,6 +3,7 @@ import { pool } from '../config/db.js';
 import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '../services/logistics.service.js';
 import { publishStorefrontOrderEvent } from '../services/storefrontRealtime.service.js';
 import { getBusinessRules, getSaleRules } from '../config/businessRules.js';
+import { sendToRole } from '../services/webPush.service.js';
 
 const router = express.Router();
 const SCHEMA_CACHE_TTL_MS = 30 * 1000;
@@ -557,7 +558,27 @@ router.post('/orders', async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Send notifications (non-blocking)
     try {
+      // 1. Save notification to DB
+      await pool.query(`
+        INSERT INTO notifications (company_id, order_id, type, title, message, recipient_role)
+        VALUES ($1, $2, 'order', 'Đơn hàng mới', $3, 'nv_banhang')
+      `, [companyId, voucherId, `Đơn hàng ${voucherNumber} vừa được tạo`]);
+
+      // 2. Send push notification to sales staff (fire and forget)
+      const notification = {
+        id: voucherId,
+        type: 'order',
+        title: 'Đơn hàng mới',
+        message: `Đơn hàng ${voucherNumber} vừa được tạo`
+      };
+      
+      sendToRole('nv_banhang', companyId, notification).catch(err => 
+        console.warn('Push notification failed:', err)
+      );
+
+      // 3. Publish SSE event (keep existing)
       await publishStorefrontOrderEvent(client, {
         event: 'order_created',
         companyId: Number(companyId),
@@ -569,7 +590,7 @@ router.post('/orders', async (req, res) => {
       });
     } catch (notifyError) {
       // Notification failure must not break order creation flow.
-      console.warn('storefront_orders notify failed:', notifyError.message);
+      console.warn('Notification failed:', notifyError.message);
     }
 
     res.status(201).json({

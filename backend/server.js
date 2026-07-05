@@ -193,6 +193,7 @@ import vouchersRouter from './routes/vouchers.js';
 import maintenanceRouter from './routes/maintenance.js';
 import publicRoutes from './routes/publicRoutes.js';
 import logisticsRoutes from './routes/logisticsRoutes.js';
+import notificationsRouter from './routes/notifications.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -212,6 +213,7 @@ app.use('/api/vouchers', vouchersRouter);
 app.use('/api/maintenance', maintenanceRouter);
 app.use('/api/public', publicRoutes);
 app.use('/api/logistics', logisticsRoutes);
+app.use('/api/notifications', notificationsRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================

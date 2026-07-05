@@ -93,7 +93,7 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
     expect(response.body.error).toContain('Lỗi định khoản bất cân đối');
   });
 
-  test('BẢO VỆ KHÓA SỔ: Hệ thống chặn can thiệp sửa/xóa dữ liệu nằm trong kỳ đã khóa (lock_date)', async () => {
+test('BẢO VỆ KHÓA SỔ: Hệ thống chặn can thiệp sửa/xóa dữ liệu nằm trong kỳ đã khóa (lock_date)', async () => {
     const response = await request(app)
       .post('/api/vouchers')
       .set('Authorization', `Bearer ${authToken}`)
@@ -110,5 +110,102 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('đã khóa sổ');
+  });
+});
+
+describe('Notification API Tests', () => {
+  jest.setTimeout(120000);
+  let authToken;
+  let testCompanyId;
+  let testAdminId;
+  const testAdminUsername = `notif_admin_${Date.now()}`;
+  const testAdminPassword = 'Password123!';
+
+  beforeAll(async () => {
+    await dbInitPromise;
+
+    // Tạo công ty test
+    const compRes = await pool.query(
+      `INSERT INTO companies (name, tax_code, address) 
+       VALUES ('Test Company for Notifications', '0110202699', 'Hanoi') 
+       RETURNING id`
+    );
+    testCompanyId = compRes.rows[0].id;
+
+    // Tạo admin test
+    const hashed = await bcrypt.hash(testAdminPassword, 10);
+    const userRes = await pool.query(
+      `INSERT INTO users (username, password, role, company_ids, staff_ids, must_change_password)
+       VALUES ($1, $2, 'admin', '{}', '{}', false)
+       RETURNING id`,
+      [testAdminUsername, hashed]
+    );
+    testAdminId = userRes.rows[0].id;
+
+    // Login
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ username: testAdminUsername, password: testAdminPassword });
+
+    authToken = loginRes.body.accessToken;
+  });
+
+  afterAll(async () => {
+    if (testCompanyId) {
+      await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
+    }
+    if (testAdminId) {
+      await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+    }
+  });
+
+  test('GET /api/notifications - Lấy danh sách thông báo', async () => {
+    const response = await request(app)
+      .get('/api/notifications')
+      .set('Authorization', `Bearer ${authToken}`)
+      .query({ company_id: testCompanyId });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(Array.isArray(response.body.data)).toBe(true);
+  });
+
+  test('POST /api/notifications/subscribe - Đăng ký nhận thông báo', async () => {
+    const response = await request(app)
+      .post('/api/notifications/subscribe')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        endpoint: 'https://fcm.googleapis.com/test-endpoint',
+        p256dh: 'test-p256dh-key',
+        auth: 'test-auth-key',
+        companyId: testCompanyId
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+  });
+
+  test('POST /api/notifications/unsubscribe - Hủy đăng ký', async () => {
+    // First subscribe
+    await request(app)
+      .post('/api/notifications/subscribe')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        endpoint: 'https://fcm.googleapis.com/test-unsubscribe',
+        p256dh: 'test-p256dh-key',
+        auth: 'test-auth-key',
+        companyId: testCompanyId
+      });
+
+    // Then unsubscribe
+    const response = await request(app)
+      .post('/api/notifications/unsubscribe')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        endpoint: 'https://fcm.googleapis.com/test-unsubscribe'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
   });
 });

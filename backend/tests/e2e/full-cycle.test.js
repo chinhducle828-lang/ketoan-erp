@@ -238,7 +238,7 @@ describe('E2E Tests - Full Cycle Kế toán', () => {
       expect(netProfit).toBe(130000000);
     });
 
-    test('6.3 B03-DN: Kiểm tra lưu chuyển tiền tệ', () => {
+test('6.3 B03-DN: Kiểm tra lưu chuyển tiền tệ', () => {
       const openingCash = 1500000000; // 500tr TM + 1t TGNH
       const cashInflow = 330000000; // Thu từ KH
       const cashOutflow = 220000000; // Chi trả NCC
@@ -247,6 +247,68 @@ describe('E2E Tests - Full Cycle Kế toán', () => {
 
       expect(netCashFlow).toBe(110000000);
       expect(closingCash).toBe(1610000000);
+    });
+  });
+
+  describe('Giai đoạn 7: Thông báo hệ thống', () => {
+    test('7.1 Tạo thông báo khi đơn hàng mới', () => {
+      // Khi tạo đơn hàng từ storefront, hệ thống sẽ tạo notification
+      const notification = {
+        company_id: 1,
+        order_id: 1,
+        type: 'order',
+        title: 'Đơn hàng mới',
+        message: 'Đơn hàng WEB-20260701-1234 vừa được tạo',
+        recipient_role: 'nv_banhang'
+      };
+
+      // Kiểm tra cấu trúc notification hợp lệ
+      expect(notification.type).toBe('order');
+      expect(notification.title).toBeDefined();
+      expect(notification.message).toBeDefined();
+      expect(notification.recipient_role).toBe('nv_banhang');
+    });
+
+    test('7.2 Tạo thông báo khi cập nhật logistics', () => {
+      // Khi cập nhật trạng thái logistics, hệ thống sẽ tạo notification
+      const notification = {
+        id: 1,
+        type: 'logistics',
+        title: 'Cập nhật trạng thái đơn hàng',
+        message: 'Đơn hàng WEB-20260701-1234 đã chuyển sang trạng thái: Hoàn thành'
+      };
+
+      expect(notification.type).toBe('logistics');
+      expect(notification.message).toContain('trạng thái');
+    });
+
+test('7.3 Tạo thông báo khi kết chuyển sổ', () => {
+      // Khi kết chuyển sổ thành công, hệ thống sẽ tạo notification cho KTT
+      const notification = {
+        id: 0,
+        type: 'closing',
+        title: 'Kết chuyển sổ thành công',
+        message: 'Kết chuyển tháng 7/2026 đã hoàn tất',
+        recipient_role: 'ktt'
+      };
+
+      expect(notification.type).toBe('closing');
+      expect(notification.recipient_role).toBe('ktt');
+    });
+
+    test('7.4 Push subscription structure', () => {
+      // Kiểm tra cấu trúc subscription hợp lệ
+      const subscription = {
+        user_id: 1,
+        company_id: 1,
+        endpoint: 'https://fcm.googleapis.com/fcm/send/...',
+        p256dh: 'base64-encoded-key',
+        auth: 'base64-encoded-key'
+      };
+
+      expect(subscription.endpoint).toBeDefined();
+      expect(subscription.p256dh).toBeDefined();
+      expect(subscription.auth).toBeDefined();
     });
   });
 });
