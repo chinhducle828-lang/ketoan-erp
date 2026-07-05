@@ -72,7 +72,7 @@ export default function VoucherNotification() {
                         {notification.message}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        {new Date(notification.timestamp).toLocaleTimeString('vi-VN')}
+                        {new Date(notification.created_at || notification.timestamp).toLocaleTimeString('vi-VN')}
                       </p>
                     </div>
                     {notification.read && (
