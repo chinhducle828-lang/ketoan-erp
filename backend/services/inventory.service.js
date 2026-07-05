@@ -1,5 +1,7 @@
 import { pool } from '../config/db.js';
 import { getInventoryRules } from '../config/businessRules.js';
+import { withLock } from './distributedLock.service.js';
+import { invalidateBalance } from './balanceCache.service.js';
 
 const getInventoryRuleContext = () => {
   const rules = getInventoryRules();
@@ -188,117 +190,149 @@ export async function calculateWeightedAverageCostForPeriod(companyId, month, ye
  * @param {number} year - Năm
  */
 export async function calculateFifoCostForPeriod(companyId, month, year) {
-  const ruleContext = getInventoryRuleContext();
-  // Xây dựng điều kiện WHERE cho tháng/năm
-  let whereClause = 'WHERE v.company_id = $1';
-  const params = [companyId];
-  let paramIndex = 2;
-  
-  if (month) {
-    whereClause += ` AND EXTRACT(MONTH FROM v.voucher_date) = $${paramIndex}`;
-    params.push(month);
-    paramIndex++;
-  }
-  
-  if (year) {
-    whereClause += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`;
-    params.push(year);
-    paramIndex++;
-  }
-  
-  // Lấy tất cả chứng từ nhập/xuất kho kèm thông tin vật tư
-  const query = `
-    SELECT v.id as voucher_id, v.voucher_date, v.voucher_type,
-           vd.id as detail_id, vd.item_id, vd.quantity, vd.amount, vd.account_code, vd.entry_type
-    FROM vouchers v
-    JOIN voucher_details vd ON v.id = vd.voucher_id
-    ${whereClause}
-    ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
-  `;
-  
-  const { rows } = await pool.query(query, params);
-  
-  // Tính giá vốn FIFO cho từng vật tư
-  const itemCosts = {};
-  
-  for (const row of rows) {
-    const itemId = row.item_id;
-    const quantity = parseFloat(row.quantity) || 0;
-    const amount = parseFloat(row.amount) || 0;
+  // Sử dụng distributed lock để tránh race condition
+  const lock = await withLock('fifo_calculation', async () => {
+    const client = await pool.connect();
+    const ruleContext = getInventoryRuleContext();
     
-    if (!itemCosts[itemId]) {
-      itemCosts[itemId] = {
-        totalQty: 0,
-        totalCostValue: 0,
-        lots: [] // FIFO lots
-      };
-    }
-    
-    if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
-      // Nhập kho - tạo lô mới theo FIFO
-      const unitCost = quantity > 0 ? amount / quantity : 0;
-      itemCosts[itemId].lots.push({
-        date: row.voucher_date,
-        quantity: quantity,
-        unit_cost: unitCost,
-        remaining_qty: quantity,
-        total_value: amount
-      });
-      itemCosts[itemId].totalQty += quantity;
-      itemCosts[itemId].totalCostValue += amount;
-    } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
-      // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
-      let qtyToDeduct = quantity;
-      let costValueToDeduct = 0;
+    try {
+      await client.query('BEGIN');
       
-      for (const lot of itemCosts[itemId].lots) {
-        if (qtyToDeduct <= 0) break;
-        
-        if (lot.remaining_qty > 0) {
-          const deductQty = Math.min(lot.remaining_qty, qtyToDeduct);
-          costValueToDeduct += deductQty * lot.unit_cost;
-          lot.remaining_qty -= deductQty;
-          qtyToDeduct -= deductQty;
-        }
-      }
-      
-      itemCosts[itemId].totalQty -= quantity;
-      itemCosts[itemId].totalCostValue -= costValueToDeduct;
-      
-      // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho.
-      await pool.query(
-        'UPDATE voucher_details SET amount = $1 WHERE id = $2',
-        [costValueToDeduct, row.detail_id]
+      // [PESSIMISTIC LOCK] Khóa monthly_balances để tránh race condition
+      await client.query(
+        'SELECT id FROM monthly_balances WHERE company_id = $1 AND year = $2 AND month = $3 FOR UPDATE',
+        [companyId, year, month]
       );
       
-      // Cập nhật vế đối ứng (DR) - giảm số tiền tương ứng
-      if (row.account_code === ruleContext.allocationCreditAccount || row.account_code === ruleContext.inventoryAccount) {
-        // Tìm chi tiết đối ứng trong cùng phiếu
-        const counterQuery = `
-          SELECT id, account_code, entry_type, amount 
-          FROM voucher_details 
-          WHERE voucher_id = $1 AND entry_type != $2
-        `;
-        const counterResult = await pool.query(counterQuery, [row.voucher_id, row.entry_type]);
+      // Xây dựng điều kiện WHERE cho tháng/năm
+      let whereClause = 'WHERE v.company_id = $1';
+      const params = [companyId];
+      let paramIndex = 2;
+      
+      if (month) {
+        whereClause += ` AND EXTRACT(MONTH FROM v.voucher_date) = $${paramIndex}`;
+        params.push(month);
+        paramIndex++;
+      }
+      
+      if (year) {
+        whereClause += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`;
+        params.push(year);
+        paramIndex++;
+      }
+      
+      // Lấy tất cả chứng từ nhập/xuất kho kèm thông tin vật tư
+      const query = `
+        SELECT v.id as voucher_id, v.voucher_date, v.voucher_type,
+               vd.id as detail_id, vd.item_id, vd.quantity, vd.amount, vd.account_code, vd.entry_type
+        FROM vouchers v
+        JOIN voucher_details vd ON v.id = vd.voucher_id
+        ${whereClause}
+        ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
+      `;
+      
+      const { rows } = await client.query(query, params);
+      
+      // Tính giá vốn FIFO cho từng vật tư
+      const itemCosts = {};
+      
+      for (const row of rows) {
+        const itemId = row.item_id;
+        const quantity = parseFloat(row.quantity) || 0;
+        const amount = parseFloat(row.amount) || 0;
         
-        for (const counterRow of counterResult.rows) {
-          if (counterRow.entry_type === 'DR') {
-            // Cập nhật vế DR (giảm kho)
-            await pool.query(
-              'UPDATE voucher_details SET amount = $1 WHERE id = $2',
-              [costValueToDeduct, counterRow.id]
-            );
+        if (!itemCosts[itemId]) {
+          itemCosts[itemId] = {
+            totalQty: 0,
+            totalCostValue: 0,
+            lots: [] // FIFO lots
+          };
+        }
+        
+        if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
+          // Nhập kho - tạo lô mới theo FIFO
+          const unitCost = quantity > 0 ? amount / quantity : 0;
+          itemCosts[itemId].lots.push({
+            date: row.voucher_date,
+            quantity: quantity,
+            unit_cost: unitCost,
+            remaining_qty: quantity,
+            total_value: amount
+          });
+          itemCosts[itemId].totalQty += quantity;
+          itemCosts[itemId].totalCostValue += amount;
+        } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
+          // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
+          let qtyToDeduct = quantity;
+          let costValueToDeduct = 0;
+          
+          for (const lot of itemCosts[itemId].lots) {
+            if (qtyToDeduct <= 0) break;
+            
+            if (lot.remaining_qty > 0) {
+              const deductQty = Math.min(lot.remaining_qty, qtyToDeduct);
+              costValueToDeduct += deductQty * lot.unit_cost;
+              lot.remaining_qty -= deductQty;
+              qtyToDeduct -= deductQty;
+            }
+          }
+          
+          itemCosts[itemId].totalQty -= quantity;
+          itemCosts[itemId].totalCostValue -= costValueToDeduct;
+          
+          // Cập nhật lại amount cho cả 2 vế của chứng từ xuất kho.
+          await client.query(
+            'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+            [costValueToDeduct, row.detail_id]
+          );
+          
+          // Cập nhật vế đối ứng (DR) - giảm số tiền tương ứng
+          if (row.account_code === ruleContext.allocationCreditAccount || row.account_code === ruleContext.inventoryAccount) {
+            // Tìm chi tiết đối ứng trong cùng phiếu
+            const counterQuery = `
+              SELECT id, account_code, entry_type, amount 
+              FROM voucher_details 
+              WHERE voucher_id = $1 AND entry_type != $2
+            `;
+            const counterResult = await client.query(counterQuery, [row.voucher_id, row.entry_type]);
+            
+            for (const counterRow of counterResult.rows) {
+              if (counterRow.entry_type === 'DR') {
+                // Cập nhật vế DR (giảm kho)
+                await client.query(
+                  'UPDATE voucher_details SET amount = $1 WHERE id = $2',
+                  [costValueToDeduct, counterRow.id]
+                );
+              }
+            }
           }
         }
       }
+      
+      await client.query('COMMIT');
+      
+      // Xóa cache balance sau khi tính toán
+      try {
+        await invalidateBalance(companyId, year, month);
+      } catch (cacheError) {
+        console.error('Lỗi xóa cache FIFO:', cacheError);
+      }
+      
+      return {
+        success: true,
+        message: `Đã tính toán giá vốn FIFO cho ${Object.keys(itemCosts).length} vật tư`,
+        itemCosts
+      };
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-  }
+  }, { companyId, ttl: 60000 });
   
-  return {
-    success: true,
-    message: `Đã tính toán giá vốn FIFO cho ${Object.keys(itemCosts).length} vật tư`,
-    itemCosts
-  };
+  return lock;
 }
 
 /**

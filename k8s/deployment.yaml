@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ketoan-backend
+  labels:
+    app: ketoan-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ketoan-backend
+  template:
+    metadata:
+      labels:
+        app: ketoan-backend
+    spec:
+      containers:
+      - name: backend
+        image: ketoan/backend:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: ketoan-secrets
+              key: db-host
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: ketoan-secrets
+              key: db-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ketoan-secrets
+              key: db-password
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: ketoan-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ketoan-frontend
+  labels:
+    app: ketoan-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ketoan-frontend
+  template:
+    metadata:
+      labels:
+        app: ketoan-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ketoan/frontend:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ketoan-storefront
+  labels:
+    app: ketoan-storefront
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ketoan-storefront
+  template:
+    metadata:
+      labels:
+        app: ketoan-storefront
+    spec:
+      containers:
+      - name: storefront
+        image: ketoan/storefront:latest
+        ports:
+        - containerPort: 3001
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
