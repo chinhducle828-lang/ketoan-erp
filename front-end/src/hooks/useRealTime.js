@@ -1,43 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useRealTimeBase } from './useRealTime-base';
 import wsService from '../services/websocket';
 
-// Hook for real-time updates
+// Hook for real-time updates (ERP-specific)
 export function useRealTime(companyId, userId) {
-  const [isConnected, setIsConnected] = useState(false);
   const [vouchers, setVouchers] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (!companyId || !userId) return;
-
-    wsService.connect(companyId, userId);
-    wsService.joinCompany(companyId);
-
-    // Subscribe to connection status
-    const handleConnectionStatus = (data) => {
-      setIsConnected(data.connected);
-      setConnectionStatus(data.connected ? 'connected' : 'disconnected');
-    };
-
-    wsService.on('connectionStatus', handleConnectionStatus);
-
-    // Subscribe to voucher events
-    wsService.on('voucherCreated', handleVoucherCreated);
-    wsService.on('voucherUpdated', handleVoucherUpdated);
-
-    // Subscribe to order events
-    wsService.on('orderStatusChanged', handleOrderStatusChanged);
-
-    return () => {
-      wsService.off('connectionStatus', handleConnectionStatus);
-      wsService.off('voucherCreated', handleVoucherCreated);
-      wsService.off('voucherUpdated', handleVoucherUpdated);
-      wsService.off('orderStatusChanged', handleOrderStatusChanged);
-      wsService.leaveCompany(companyId);
-    };
-  }, [companyId, userId]);
 
   // Handle voucher created
   const handleVoucherCreated = useCallback((voucher) => {
@@ -58,19 +26,17 @@ export function useRealTime(companyId, userId) {
     );
   }, []);
 
-  // Manual reconnect
-  const reconnect = useCallback(() => {
-    if (companyId && userId) {
-      wsService.connect(companyId, userId);
-    }
-  }, [companyId, userId]);
+  // Use base hook
+  const base = useRealTimeBase(companyId, userId, {
+    voucherCreated: handleVoucherCreated,
+    voucherUpdated: handleVoucherUpdated,
+    orderStatusChanged: handleOrderStatusChanged
+  });
 
   return {
-    isConnected,
-    connectionStatus,
+    ...base,
     vouchers,
     orders,
-    reconnect,
     setVouchers,
     setOrders
   };

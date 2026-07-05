@@ -336,6 +336,76 @@ export function calculateTax(profitBeforeTax, prevYearRevenue = 0) {
 }
 
 /**
+ * Tính thuế TNDN lũy tiến thực sự (Progressive Tax Calculation)
+ * Áp dụng thuế suất khác nhau cho từng phần doanh thu:
+ * - 15% cho phần doanh thu ≤ 3 tỷ
+ * - 17% cho phần doanh thu từ 3-50 tỷ
+ * - 20% cho phần doanh thu trên 50 tỷ
+ * @param {number} revenue - Doanh thu năm trước (VNĐ)
+ * @param {number} profit - Lợi nhuận trước thuế (VNĐ)
+ * @returns {Object} - { totalTax, appliedRate, breakdown: [{ threshold, amount, rate, tax }] }
+ */
+export function calculateProgressiveTax(revenue, profit) {
+  const closingRules = getClosingRules();
+  const brackets = Array.isArray(closingRules.progressiveTaxBrackets)
+    ? closingRules.progressiveTaxBrackets
+    : [
+        { maxRevenue: 3000000000, rate: 0.15 },
+        { maxRevenue: 50000000000, rate: 0.17 },
+        { maxRevenue: null, rate: 0.20 }
+      ];
+
+  if (profit <= 0) {
+    return { totalTax: 0, appliedRate: 0, breakdown: [] };
+  }
+
+  // Tính thuế lũy tiến dựa trên tỷ lệ lợi nhuận/doanh thu
+  // Giả sử lợi nhuận phân bố tương ứng với doanh thu
+  const effectiveRate = profit / revenue; // Tỷ lệ lợi nhuận trên doanh thu
+  
+  let remainingProfit = profit;
+  let totalTax = 0;
+  const breakdown = [];
+
+  for (const bracket of brackets) {
+    const maxRevenue = bracket?.maxRevenue;
+    const rate = Number(bracket?.rate);
+    
+    if (!Number.isFinite(rate)) continue;
+
+    // Xác định phần doanh thu tại mức thuế này
+    const profitAtThisBracket = maxRevenue === null || maxRevenue === undefined
+      ? remainingProfit
+      : Math.min(remainingProfit, maxRevenue * effectiveRate);
+
+    if (profitAtThisBracket > 0) {
+      const taxAtThisBracket = profitAtThisBracket * rate;
+      totalTax += taxAtThisBracket;
+      
+      breakdown.push({
+        threshold: maxRevenue,
+        amount: profitAtThisBracket,
+        rate: rate,
+        tax: taxAtThisBracket
+      });
+      
+      remainingProfit -= profitAtThisBracket;
+    }
+
+    if (remainingProfit <= 0) break;
+  }
+
+  // Tính thuế suất áp dụng trung bình
+  const appliedRate = profit > 0 ? totalTax / profit : 0;
+
+  return {
+    totalTax,
+    appliedRate,
+    breakdown
+  };
+}
+
+/**
  * Tính toán lợi nhuận trước thuế từ dữ liệu kế toán
  * @param {number} revenue - Doanh thu
  * @param {number} otherIncome - Thu nhập khác

@@ -1,5 +1,6 @@
 // Test tính thuế lũy tiến TNDN
-import { calculateProgressiveTax, getTaxRateByRevenue } from '../services/closing.service.js';
+import { calculateProgressiveTax } from '../services/closing.service.js';
+import { getTaxRateByRevenue } from '../utils/accountingEngine.js';
 
 console.log('🧪 === KIỂM TRA TÍNH THUẾ LŨY TIẾN TNDN ===\n');
 

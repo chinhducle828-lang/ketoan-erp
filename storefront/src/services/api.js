@@ -1,8 +1,8 @@
 import axios from 'axios';
 import wsService from './websocket';
 
-// API base configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// API base configuration - Use VITE_ prefix for Vite
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -10,13 +10,15 @@ const api = axios.create({
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // Important for HttpOnly cookies
 });
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // Try multiple token keys for compatibility
+    const token = localStorage.getItem('erp_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,8 +32,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear auth and redirect to ERP login
+      localStorage.removeItem('erp_token');
+      localStorage.removeItem('accessToken');
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('companyId');
+      localStorage.removeItem('userId');
+      
+      // Redirect to ERP login
+      const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
+      window.location.href = erpUrl;
     }
     return Promise.reject(error);
   }
