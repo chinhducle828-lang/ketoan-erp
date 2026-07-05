@@ -141,6 +141,74 @@ export default {
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: backend/README.md
+// START_OF_FILE
+# ERP Kế Toán Backend
+
+## Tổng quan
+
+Backend API cho hệ thống ERP kế toán, hỗ trợ rule-driven configuration cho các nghiệp vụ kế toán, kho, và vận hành.
+
+## Cài đặt
+
+```bash
+npm install
+```
+
+## Chạy server
+
+```bash
+npm start
+# hoặc
+node server.js
+```
+
+## Cấu hình Business Rules
+
+Hệ thống sử dụng biến môi trường `BUSINESS_RULES_JSON` để cấu hình các quy tắc nghiệp vụ.
+
+Xem chi tiết tại: [docs/BUSINESS_RULES.md](./docs/BUSINESS_RULES.md)
+
+## Test
+
+```bash
+# Chạy tất cả test
+npm test
+
+# Chạy test rule cụ thể
+npm test -- --testPathPatterns="businessRulesPhase3|inventoryService|closingService|cashFlowEngine"
+```
+
+## API Endpoints
+
+- `/api/vouchers` - Quản lý chứng từ kế toán
+- `/api/logistics` - Vận hành logistics (xuất kho)
+- `/api/inventory` - Quản lý kho
+- `/api/report` - Báo cáo tài chính
+- `/api/auth` - Xác thực người dùng
+
+## Phase 4 - Rule Engine Improvements
+
+### Đã hoàn thành:
+1. **Loại bỏ hard-code** trong `logisticsRoutes.js` - Thay thế `'XK'` bằng rule từ `getLogisticsRules()`
+2. **Chuẩn hoá key rule** - `accountingEngine.js` hỗ trợ cả `progressiveTaxBrackets` (mới) và `taxBracketsByRevenue` (legacy)
+3. **Thêm validation** - `validateBusinessRules()` kiểm tra cấu hình trước khi dùng
+4. **Cải thiện fallback** - Các hàm getter tự động fallback khi rule null/empty
+5. **Mở rộng test suite** - Thêm test cho inventory, closing, cashflow rules
+
+### Files đã chỉnh sửa:
+- `backend/config/businessRules.js` - Thêm `getLogisticsRules()`, `validateBusinessRules()`, fallback logic
+- `backend/routes/logisticsRoutes.js` - Loại bỏ hard-code voucher type
+- `backend/utils/accountingEngine.js` - Hỗ trợ cả 2 key tax brackets
+- `backend/server.js` - Thêm validation khi khởi động
+- `backend/tests/businessRulesPhase3.test.js` - Mở rộng test cases
+- `backend/tests/inventoryService.test.js` - Test mới
+- `backend/tests/closingService.test.js` - Test mới
+- `backend/tests/cashFlowEngine.test.js` - Test mới
+- `backend/docs/BUSINESS_RULES.md` - Tài liệu hướng dẫn
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: backend/schema.sql
 // START_OF_FILE
 -- ====================================================================
@@ -466,6 +534,7 @@ import { fileURLToPath } from 'url';
 
 // 1. Cấu hình PG Pool từ thư mục config
 import { pool } from './config/db.js';
+import { validateBusinessRules } from './config/businessRules.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -536,9 +605,30 @@ app.use(cookieParser());
 export const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30;
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
+// Validate BUSINESS_RULES_JSON on startup
+const validateRulesOnStartup = () => {
+  if (process.env.BUSINESS_RULES_JSON) {
+    try {
+      const parsed = JSON.parse(process.env.BUSINESS_RULES_JSON);
+      const errors = validateBusinessRules(parsed);
+      if (errors.length > 0) {
+        console.warn('⚠️ [CẢNH BÁO] Cấu hình BUSINESS_RULES_JSON có lỗi:');
+        errors.forEach(err => console.warn(`  - ${err}`));
+      } else {
+        console.log('✅ [XÁC NHẬN] BUSINESS_RULES_JSON hợp lệ.');
+      }
+    } catch (e) {
+      console.error('❌ [LỖI] BUSINESS_RULES_JSON không phải định dạng JSON hợp lệ:', e.message);
+    }
+  }
+};
+
 // Khởi tạo Database thông qua đọc file schema.sql bên ngoài
 const dbInitPromise = (async () => {
   try {
+    // Validate rules first
+    validateRulesOnStartup();
+    
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
@@ -1231,11 +1321,96 @@ export const resetBusinessRulesCache = () => {
 };
 
 export const getSaleRules = () => getBusinessRules().accounting.sale;
-export const getClosingRules = () => getBusinessRules().accounting.closing;
+export const getClosingRules = () => {
+  const rules = getBusinessRules().accounting.closing;
+  // Apply fallback for cost if null/empty
+  if (!rules?.accounts?.cost || !Array.isArray(rules.accounts.cost) || rules.accounts.cost.length === 0) {
+    return {
+      ...rules,
+      accounts: {
+        ...rules?.accounts,
+        cost: ['632', '641', '642']
+      }
+    };
+  }
+  return rules;
+};
 export const getGeneralAccountingRules = () => getBusinessRules().accounting.general;
-export const getInventoryRules = () => getBusinessRules().accounting.inventory;
-export const getCashFlowRules = () => getBusinessRules().reporting.cashFlow;
+export const getInventoryRules = () => {
+  const rules = getBusinessRules().accounting.inventory;
+  // Apply fallback for logisticsCost if null/empty
+  if (!rules?.accounts?.logisticsCost || !Array.isArray(rules.accounts.logisticsCost) || rules.accounts.logisticsCost.length === 0) {
+    return {
+      ...rules,
+      accounts: {
+        ...rules?.accounts,
+        logisticsCost: ['632', '641', '642']
+      }
+    };
+  }
+  return rules;
+};
+export const getCashFlowRules = () => {
+  const rules = getBusinessRules().reporting.cashFlow;
+  // Apply fallback for cashAccountPrefixes if null/empty
+  if (!rules?.cashAccountPrefixes || !Array.isArray(rules.cashAccountPrefixes) || rules.cashAccountPrefixes.length === 0) {
+    return {
+      ...rules,
+      cashAccountPrefixes: ['111', '112']
+    };
+  }
+  return rules;
+};
 export const getBalanceSheetRules = () => getBusinessRules().reporting.balanceSheet;
+
+// Logistics rules - for voucher type configuration
+export const getLogisticsRules = () => {
+  const rules = getBusinessRules();
+  return {
+    saleVoucherType: rules.voucher?.saleVoucherType || 'XK'
+  };
+};
+
+// Validation for BUSINESS_RULES_JSON configuration
+export const validateBusinessRules = (rules) => {
+  const errors = [];
+  
+  // Validate progressiveTaxBrackets
+  if (rules?.accounting?.closing?.progressiveTaxBrackets) {
+    const brackets = rules.accounting.closing.progressiveTaxBrackets;
+    if (!Array.isArray(brackets)) {
+      errors.push('accounting.closing.progressiveTaxBrackets must be an array');
+    } else {
+      brackets.forEach((bracket, idx) => {
+        if (typeof bracket.rate !== 'number' || !Number.isFinite(bracket.rate)) {
+          errors.push(`accounting.closing.progressiveTaxBrackets[${idx}].rate must be a valid number`);
+        }
+        if (bracket.maxRevenue !== null && bracket.maxRevenue !== undefined && 
+            (typeof bracket.maxRevenue !== 'number' || !Number.isFinite(bracket.maxRevenue))) {
+          errors.push(`accounting.closing.progressiveTaxBrackets[${idx}].maxRevenue must be a valid number or null`);
+        }
+      });
+    }
+  }
+  
+  // Validate inventory accounts
+  if (rules?.accounting?.inventory?.accounts) {
+    const accounts = rules.accounting.inventory.accounts;
+    if (accounts.logisticsCost && !Array.isArray(accounts.logisticsCost)) {
+      errors.push('accounting.inventory.accounts.logisticsCost must be an array');
+    }
+  }
+  
+  // Validate closing accounts
+  if (rules?.accounting?.closing?.accounts) {
+    const accounts = rules.accounting.closing.accounts;
+    if (accounts.cost && !Array.isArray(accounts.cost)) {
+      errors.push('accounting.closing.accounts.cost must be an array');
+    }
+  }
+  
+  return errors;
+};
 
 // END_OF_FILE
 ------------------------------------------------------------
@@ -2253,6 +2428,204 @@ export const invalidateReportCache = (companyId) => {
     }
   }
 };
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/docs/BUSINESS_RULES.md
+// START_OF_FILE
+# Business Rules Configuration Guide
+
+## Overview
+
+Hệ thống ERP Kế toán sử dụng cơ chế cấu hình rules linh hoạt thông qua biến môi trường `BUSINESS_RULES_JSON`. Cấu trúc này cho phép tùy chỉnh hành vi nghiệp vụ mà không cần thay đổi code.
+
+## Cấu trúc BUSINESS_RULES_JSON
+
+```json
+{
+  "pricing": {
+    "amountPrecision": 2,
+    "taxPrecision": 2,
+    "defaultTaxRate": 0.1,
+    "minOrderQuantity": 1
+  },
+  "voucher": {
+    "storefrontPrefix": "WEB",
+    "saleVoucherType": "XK"
+  },
+  "accounting": {
+    "general": {
+      "hermaphroditicAccounts": ["131", "331", "138", "338", "3334", "3335", "3381"]
+    },
+    "sale": {
+      "receivableAccount": "131",
+      "revenueAccount": "511",
+      "vatAccount": "3331",
+      "cogsAccount": "632",
+      "inventoryAccount": "156"
+    },
+    "closing": {
+      "voucherType": "DauKy",
+      "defaultTaxRate": 0.2,
+      "progressiveTaxBrackets": [
+        { "maxRevenue": 3000000000, "rate": 0.15 },
+        { "maxRevenue": 50000000000, "rate": 0.17 },
+        { "maxRevenue": null, "rate": 0.2 }
+      ],
+      "accounts": {
+        "revenue": "511",
+        "cost": ["632", "641", "642"],
+        "closing": "911"
+      },
+      "rates": {
+        "depreciationAnnualRate": 0.2,
+        "doubtfulDebtProvisionRate": 0.1
+      }
+    },
+    "inventory": {
+      "inboundVoucherType": "NK",
+      "outboundVoucherType": "XK",
+      "allocationVoucherType": "DauKy",
+      "accounts": {
+        "inventory": "156",
+        "logistics": "1562",
+        "logisticsCost": ["632", "641", "642"],
+        "allocationCredit": "632"
+      }
+    }
+  },
+  "reporting": {
+    "cashFlow": {
+      "cashAccountPrefixes": ["111", "112"],
+      "directMethod": {
+        "salesCounterpartPrefixes": ["511", "3331", "131"]
+      },
+      "indirectMethod": {
+        "revenuePrefixes": ["5"],
+        "expensePrefixes": ["6"]
+      }
+    },
+    "balanceSheet": {
+      "customerDualAccounts": {
+        "receivable": "131",
+        "customerAdvance": "312"
+      },
+      "taxAccounts": ["3331", "3334", "3339"]
+    }
+  }
+}
+```
+
+## Rule Groups
+
+### 1. Pricing Rules
+- `amountPrecision`: Độ chính xác số lượng (mặc định: 2)
+- `taxPrecision`: Độ chính xác thuế (mặc định: 2)
+- `defaultTaxRate`: Thuế suất mặc định (mặc định: 0.1 = 10%)
+- `minOrderQuantity`: Số lượng đặt hàng tối thiểu (mặc định: 1)
+
+### 2. Voucher Rules
+- `storefrontPrefix`: Tiền tố mã đơn hàng web (mặc định: "WEB")
+- `saleVoucherType`: Loại chứng từ bán hàng (mặc định: "XK")
+
+### 3. Accounting Rules
+
+#### General
+- `hermaphroditicAccounts`: Danh sách tài khoản lưỡng tính cần theo dõi chi tiết theo đối tác
+
+#### Sale
+- `receivableAccount`: Tài khoản phải thu khách hàng (mặc định: "131")
+- `revenueAccount`: Tài khoản doanh thu (mặc định: "511")
+- `vatAccount`: Tài khoản VAT (mặc định: "3331")
+- `cogsAccount`: Tài khoản giá vốn (mặc định: "632")
+- `inventoryAccount`: Tài khoản tồn kho (mặc định: "156")
+
+#### Closing
+- `voucherType`: Loại chứng từ kết chuyển (mặc định: "DauKy")
+- `defaultTaxRate`: Thuế suất mặc định TNDN (mặc định: 0.2)
+- `progressiveTaxBrackets`: Bảng thuế suất lũy tiến TNDN
+  - `maxRevenue`: Mức doanh thu tối đa (null = vô hạn)
+  - `rate`: Thuế suất áp dụng
+- `accounts`: Các tài khoản kết chuyển
+- `rates`: Các tỷ lệ tính toán (khấu hao, dự phòng...)
+
+#### Inventory
+- `inboundVoucherType`: Loại chứng từ nhập kho (mặc định: "NK")
+- `outboundVoucherType`: Loại chứng từ xuất kho (mặc định: "XK")
+- `allocationVoucherType`: Loại chứng từ phân bổ (mặc định: "DauKy")
+- `accounts`: Các tài khoản kho
+  - `inventory`: Tài khoản kho (mặc định: "156")
+  - `logistics`: Tài khoản logistics (mặc định: "1562")
+  - `logisticsCost`: Các tài khoản chi phí logistics (mặc định: ["632", "641", "642"])
+  - `allocationCredit`: Tài khoản có khi phân bổ (mặc định: "632")
+
+### 4. Reporting Rules
+
+#### Cash Flow
+- `cashAccountPrefixes`: Tiền tố tài khoản tiền mặt (mặc định: ["111", "112"])
+- `directMethod`: Cấu hình phương pháp trực tiếp
+- `indirectMethod`: Cấu hình phương pháp gián tiếp
+
+#### Balance Sheet
+- `customerDualAccounts`: Tài khoản công nợ khách hàng
+- `taxAccounts`: Các tài khoản thuế
+- `accountGroups`: Nhóm tài khoản theo tiền tố
+
+## Fallback Behavior
+
+Hệ thống tự động áp dụng giá trị mặc định khi:
+1. Rule không được cấu hình
+2. Rule có kiểu dữ liệu sai
+3. Rule là null hoặc mảng rỗng
+
+Ví dụ:
+- `logisticsCost: null` → fallback về `["632", "641", "642"]`
+- `cost: []` → fallback về `["632", "641", "642"]`
+- `saleVoucherType: ""` → fallback về `"XK"`
+
+## Validation
+
+Hệ thống sẽ log cảnh báo khi khởi động nếu:
+- `progressiveTaxBrackets` không phải mảng
+- `rate` không phải số hợp lệ
+- `maxRevenue` không phải số hoặc null
+- `logisticsCost` không phải mảng
+- `cost` không phải mảng
+
+## Usage Example
+
+### Trong code:
+```javascript
+import { getInventoryRules, getClosingRules, getCashFlowRules } from '../config/businessRules.js';
+
+// Lấy cấu hình kho
+const inventoryRules = getInventoryRules();
+const inventoryAccount = inventoryRules.accounts.inventory; // "156" hoặc giá trị override
+
+// Lấy cấu hình kết chuyển
+const closingRules = getClosingRules();
+const taxBrackets = closingRules.progressiveTaxBrackets;
+
+// Lấy cấu hình lưu chuyển tiền tệ
+const cashFlowRules = getCashFlowRules();
+const cashPrefixes = cashFlowRules.cashAccountPrefixes;
+```
+
+### Trong .env:
+```bash
+BUSINESS_RULES_JSON={"accounting":{"inventory":{"accounts":{"inventory":"1569"}}}}
+```
+
+## Risk & Rollback
+
+### Rủi ro còn lại:
+1. **Thay đổi rule ảnh hưởng tới dữ liệu đã có**: Cần chạy so sánh trước/sau khi thay đổi rule
+2. **Rule mới không tương thích**: Hệ thống sẽ dùng fallback, nhưng có thể gây kết quả không mong muốn
+
+### Phương án rollback:
+1. Xóa biến `BUSINESS_RULES_JSON` hoặc đặt lại giá trị cũ
+2. Khởi động lại server
+3. Chạy test để xác nhận hành vi trở lại bình thường
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -4662,10 +5035,17 @@ import {
   publishStorefrontOrderEvent,
   registerStorefrontStreamClient
 } from '../services/storefrontRealtime.service.js';
+import { getLogisticsRules } from '../config/businessRules.js';
 
 const router = express.Router();
 const LOGISTICS_ALLOWED_ROLES = ['admin', 'ktt', 'nv', 'nv_kho', 'nv_banhang'];
 ensureStorefrontRealtimeListener();
+
+// Get sale voucher type from rules (with fallback)
+const getSaleVoucherType = () => {
+  const rules = getLogisticsRules();
+  return String(rules.saleVoucherType || 'XK').trim() || 'XK';
+};
 
 const ensureCompanyAccess = async (req, companyId) => {
   if (!companyId) return { ok: false, message: 'Thiếu company_id' };
@@ -4676,6 +5056,7 @@ const ensureCompanyAccess = async (req, companyId) => {
 };
 
 const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, toStatus, patch = {} }) => {
+  const saleVoucherType = getSaleVoucherType();
   const patchKeys = Object.keys(patch);
   const patchSql = patchKeys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
   const values = patchKeys.map((key) => patch[key]);
@@ -4686,12 +5067,12 @@ const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, t
     SET ${patchSql ? `${patchSql}, ` : ''}loading_status = $${updateBaseIndex + 1}
     WHERE id = $${updateBaseIndex + 2}
       AND company_id = $${updateBaseIndex + 3}
-      AND voucher_type = 'XK'
-      AND loading_status = $${updateBaseIndex + 4}
+      AND voucher_type = $${updateBaseIndex + 4}
+      AND loading_status = $${updateBaseIndex + 5}
     RETURNING id, voucher_number, loading_status
   `;
 
-  const rs = await db.query(updateQuery, [...values, toStatus, voucherId, companyId, fromStatus]);
+  const rs = await db.query(updateQuery, [...values, toStatus, voucherId, companyId, saleVoucherType, fromStatus]);
   if (rs.rows.length > 0) {
     return { ok: true, row: rs.rows[0] };
   }
@@ -4699,9 +5080,9 @@ const transitionVoucherStatus = async ({ db, voucherId, companyId, fromStatus, t
   const statusRes = await db.query(
     `SELECT id, voucher_number, loading_status
      FROM vouchers
-     WHERE id = $1 AND company_id = $2 AND voucher_type = 'XK'
+     WHERE id = $1 AND company_id = $2 AND voucher_type = $3
      LIMIT 1`,
-    [voucherId, companyId]
+    [voucherId, companyId, saleVoucherType]
   );
 
   if (statusRes.rows.length === 0) {
@@ -4722,12 +5103,13 @@ router.get('/queue', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (
     const access = await ensureCompanyAccess(req, companyId);
     if (!access.ok) return res.status(403).json({ error: access.message });
 
+    const saleVoucherType = getSaleVoucherType();
     const { rows } = await pool.query(
       `SELECT v.id, v.voucher_number, v.description, v.voucher_date, v.loading_status, v.truck_id
        FROM vouchers v
-       WHERE v.company_id = $1 AND v.voucher_type = 'XK' AND v.loading_status = 'pending_loading'
+       WHERE v.company_id = $1 AND v.voucher_type = $2 AND v.loading_status = 'pending_loading'
        ORDER BY v.voucher_date DESC, v.id DESC`,
-      [companyId]
+      [companyId, saleVoucherType]
     );
     res.json(rows);
   } catch (error) {
@@ -4755,6 +5137,7 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
       return res.status(400).json({ error: 'Bộ lọc trạng thái không hợp lệ' });
     }
 
+    const saleVoucherType = getSaleVoucherType();
     const { rows } = await pool.query(
       `SELECT v.id,
               v.voucher_number,
@@ -4775,10 +5158,10 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
              AND COALESCE(vd.quantity, 0) > 0
        LEFT JOIN items i ON i.id = vd.item_id
        WHERE v.company_id = $1
-         AND v.voucher_type = 'XK'
-         AND v.loading_status = ANY($2::text[])
+         AND v.voucher_type = $2
+         AND v.loading_status = ANY($3::text[])
        ORDER BY v.voucher_date DESC, v.id DESC, i.code ASC`,
-      [companyId, statuses]
+      [companyId, saleVoucherType, statuses]
     );
 
     const ordersMap = new Map();
@@ -9611,7 +9994,7 @@ describe('phase 3 business-rules overrides', () => {
           hermaphroditicAccounts: ['777']
         },
         closing: {
-          taxBracketsByRevenue: [
+          progressiveTaxBrackets: [
             { maxRevenue: 1000, rate: 0.1 },
             { maxRevenue: null, rate: 0.2 }
           ]
@@ -9643,6 +10026,457 @@ describe('phase 3 business-rules overrides', () => {
   });
 });
 
+describe('logistics rules', () => {
+  test('returns default sale voucher type when no override', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule();
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('applies sale voucher type override from BUSINESS_RULES_JSON', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: 'CUSTOM_SALE'
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('CUSTOM_SALE');
+  });
+});
+
+describe('validation of BUSINESS_RULES_JSON', () => {
+  test('validates progressiveTaxBrackets with valid data', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 0.1 },
+            { maxRevenue: null, rate: 0.2 }
+          ]
+        }
+      }
+    });
+    expect(errors).toEqual([]);
+  });
+
+  test('validates progressiveTaxBrackets with invalid rate', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 'invalid' }
+          ]
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('rate must be a valid number');
+  });
+
+  test('validates progressiveTaxBrackets with invalid maxRevenue', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 'invalid', rate: 0.1 }
+          ]
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('maxRevenue must be a valid number or null');
+  });
+
+  test('validates logisticsCost must be array', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        inventory: {
+          accounts: {
+            logisticsCost: 'not-an-array'
+          }
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('logisticsCost must be an array');
+  });
+
+  test('validates closing cost must be array', async () => {
+    const { validateBusinessRules } = await loadBusinessRulesModule();
+    const errors = validateBusinessRules({
+      accounting: {
+        closing: {
+          accounts: {
+            cost: 'not-an-array'
+          }
+        }
+      }
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('cost must be an array');
+  });
+});
+
+describe('progressiveTaxBrackets support in accounting engine', () => {
+  test('uses progressiveTaxBrackets (new key) for tax calculation', async () => {
+    const { getTaxRateByRevenue } = await loadAccountingEngineModule({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 0.1 },
+            { maxRevenue: null, rate: 0.2 }
+          ]
+        }
+      }
+    });
+
+    expect(getTaxRateByRevenue(500)).toBe(0.1);
+    expect(getTaxRateByRevenue(5000)).toBe(0.2);
+  });
+
+  test('uses default tax rates when no brackets configured', async () => {
+    const { getTaxRateByRevenue } = await loadAccountingEngineModule();
+    expect(getTaxRateByRevenue(1000000000)).toBe(0.15);
+    expect(getTaxRateByRevenue(10000000000)).toBe(0.17);
+    expect(getTaxRateByRevenue(100000000000)).toBe(0.20);
+  });
+});
+
+describe('negative test cases for rule configuration', () => {
+  test('handles missing key gracefully in getLogisticsRules', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {}
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles null voucher type gracefully', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: null
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles empty string voucher type gracefully', async () => {
+    const { getLogisticsRules } = await loadBusinessRulesModule({
+      voucher: {
+        saleVoucherType: ''
+      }
+    });
+    expect(getLogisticsRules().saleVoucherType).toBe('XK');
+  });
+
+  test('handles malformed JSON in BUSINESS_RULES_JSON', async () => {
+    process.env.BUSINESS_RULES_JSON = 'not valid json';
+    const { getInventoryRules } = await loadBusinessRulesModule();
+    // Should use defaults
+    expect(getInventoryRules().inboundVoucherType).toBe('NK');
+  });
+});
+
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/tests/cashFlowEngine.test.js
+// START_OF_FILE
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+
+async function loadBusinessRulesModule(rulesOverride) {
+  if (rulesOverride === undefined) {
+    delete process.env.BUSINESS_RULES_JSON;
+  } else {
+    process.env.BUSINESS_RULES_JSON = JSON.stringify(rulesOverride);
+  }
+
+  jest.resetModules();
+  return import('../config/businessRules.js');
+}
+
+beforeEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+  jest.resetModules();
+});
+
+afterEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+});
+
+describe('cash flow rules with default values', () => {
+  test('returns default cash flow rules when no override', async () => {
+    const { getCashFlowRules } = await loadBusinessRulesModule();
+    
+    expect(getCashFlowRules().cashAccountPrefixes).toEqual(['111', '112']);
+    expect(getCashFlowRules().directMethod.salesCounterpartPrefixes).toEqual(['511', '3331', '131']);
+    expect(getCashFlowRules().directMethod.supplierPaymentCounterpartPrefixes).toEqual(['331', '152', '156', '242']);
+    expect(getCashFlowRules().indirectMethod.revenuePrefixes).toEqual(['5']);
+    expect(getCashFlowRules().indirectMethod.expensePrefixes).toEqual(['6']);
+  });
+
+  test('applies cash flow rules override from BUSINESS_RULES_JSON', async () => {
+    const { getCashFlowRules } = await loadBusinessRulesModule({
+      reporting: {
+        cashFlow: {
+          cashAccountPrefixes: ['1111', '1121'],
+          directMethod: {
+            salesCounterpartPrefixes: ['5111', '33311']
+          },
+          indirectMethod: {
+            revenuePrefixes: ['51', '52']
+          }
+        }
+      }
+    });
+
+    expect(getCashFlowRules().cashAccountPrefixes).toEqual(['1111', '1121']);
+    expect(getCashFlowRules().directMethod.salesCounterpartPrefixes).toEqual(['5111', '33311']);
+    expect(getCashFlowRules().indirectMethod.revenuePrefixes).toEqual(['51', '52']);
+  });
+});
+
+describe('cash flow rules edge cases', () => {
+  test('handles missing directMethod with fallback', async () => {
+    const { getCashFlowRules } = await loadBusinessRulesModule({
+      reporting: {
+        cashFlow: {
+          cashAccountPrefixes: ['111']
+        }
+      }
+    });
+
+    // Should have fallback for missing directMethod
+    expect(getCashFlowRules().directMethod.salesCounterpartPrefixes).toEqual(['511', '3331', '131']);
+  });
+
+  test('handles null cashAccountPrefixes with fallback', async () => {
+    const { getCashFlowRules } = await loadBusinessRulesModule({
+      reporting: {
+        cashFlow: {
+          cashAccountPrefixes: null
+        }
+      }
+    });
+
+    // Should have fallback
+    expect(getCashFlowRules().cashAccountPrefixes).toEqual(['111', '112']);
+  });
+
+  test('handles empty cashAccountPrefixes with fallback', async () => {
+    const { getCashFlowRules } = await loadBusinessRulesModule({
+      reporting: {
+        cashFlow: {
+          cashAccountPrefixes: []
+        }
+      }
+    });
+
+    // Should have fallback
+    expect(getCashFlowRules().cashAccountPrefixes).toEqual(['111', '112']);
+  });
+});
+
+describe('balance sheet rules with default values', () => {
+  test('returns default balance sheet rules when no override', async () => {
+    const { getBalanceSheetRules } = await loadBusinessRulesModule();
+    
+    expect(getBalanceSheetRules().customerDualAccounts.receivable).toBe('131');
+    expect(getBalanceSheetRules().customerDualAccounts.customerAdvance).toBe('312');
+    expect(getBalanceSheetRules().depreciation.sourcePrefix).toBe('214');
+    expect(getBalanceSheetRules().depreciation.displayAccountCode).toBe('223');
+    expect(getBalanceSheetRules().taxAccounts).toEqual(['3331', '3334', '3339']);
+  });
+
+  test('applies balance sheet rules override from BUSINESS_RULES_JSON', async () => {
+    const { getBalanceSheetRules } = await loadBusinessRulesModule({
+      reporting: {
+        balanceSheet: {
+          customerDualAccounts: {
+            receivable: '1319',
+            customerAdvance: '3129'
+          },
+          depreciation: {
+            sourcePrefix: '2149',
+            displayAccountCode: '2239'
+          },
+          taxAccounts: ['33319', '33349']
+        }
+      }
+    });
+
+    expect(getBalanceSheetRules().customerDualAccounts.receivable).toBe('1319');
+    expect(getBalanceSheetRules().customerDualAccounts.customerAdvance).toBe('3129');
+    expect(getBalanceSheetRules().depreciation.sourcePrefix).toBe('2149');
+    expect(getBalanceSheetRules().depreciation.displayAccountCode).toBe('2239');
+    expect(getBalanceSheetRules().taxAccounts).toEqual(['33319', '33349']);
+  });
+});
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/tests/closingService.test.js
+// START_OF_FILE
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+
+async function loadBusinessRulesModule(rulesOverride) {
+  if (rulesOverride === undefined) {
+    delete process.env.BUSINESS_RULES_JSON;
+  } else {
+    process.env.BUSINESS_RULES_JSON = JSON.stringify(rulesOverride);
+  }
+
+  jest.resetModules();
+  return import('../config/businessRules.js');
+}
+
+async function loadAccountingEngineModule(rulesOverride) {
+  if (rulesOverride === undefined) {
+    delete process.env.BUSINESS_RULES_JSON;
+  } else {
+    process.env.BUSINESS_RULES_JSON = JSON.stringify(rulesOverride);
+  }
+
+  jest.resetModules();
+  return import('../utils/accountingEngine.js');
+}
+
+beforeEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+  jest.resetModules();
+});
+
+afterEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+});
+
+describe('closing rules with default values', () => {
+  test('returns default closing rules when no override', async () => {
+    const { getClosingRules } = await loadBusinessRulesModule();
+    
+    expect(getClosingRules().voucherType).toBe('DauKy');
+    expect(getClosingRules().defaultTaxRate).toBe(0.2);
+    expect(getClosingRules().accounts.revenue).toBe('511');
+    expect(getClosingRules().accounts.cost).toEqual(['632', '641', '642']);
+    expect(getClosingRules().accounts.closing).toBe('911');
+    expect(getClosingRules().rates.depreciationAnnualRate).toBe(0.2);
+    expect(getClosingRules().rates.doubtfulDebtProvisionRate).toBe(0.1);
+  });
+
+  test('applies closing rules override from BUSINESS_RULES_JSON', async () => {
+    const { getClosingRules } = await loadBusinessRulesModule({
+      accounting: {
+        closing: {
+          voucherType: 'CLOSING',
+          defaultTaxRate: 0.25,
+          accounts: {
+            revenue: '5119',
+            cost: ['6329', '6419'],
+            closing: '9119'
+          },
+          rates: {
+            depreciationAnnualRate: 0.15,
+            doubtfulDebtProvisionRate: 0.08
+          }
+        }
+      }
+    });
+
+    expect(getClosingRules().voucherType).toBe('CLOSING');
+    expect(getClosingRules().defaultTaxRate).toBe(0.25);
+    expect(getClosingRules().accounts.revenue).toBe('5119');
+    expect(getClosingRules().accounts.cost).toEqual(['6329', '6419']);
+    expect(getClosingRules().accounts.closing).toBe('9119');
+    expect(getClosingRules().rates.depreciationAnnualRate).toBe(0.15);
+    expect(getClosingRules().rates.doubtfulDebtProvisionRate).toBe(0.08);
+  });
+});
+
+describe('tax calculation with progressiveTaxBrackets', () => {
+  test('calculates tax with custom progressive brackets', async () => {
+    const { getTaxRateByRevenue, calculateTax } = await loadAccountingEngineModule({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000000000, rate: 0.1 },
+            { maxRevenue: 5000000000, rate: 0.15 },
+            { maxRevenue: null, rate: 0.2 }
+          ]
+        }
+      }
+    });
+
+    expect(getTaxRateByRevenue(500000000)).toBe(0.1);
+    expect(getTaxRateByRevenue(2000000000)).toBe(0.15);
+    expect(getTaxRateByRevenue(10000000000)).toBe(0.2);
+  });
+
+  test('calculateTax returns zero for negative profit', async () => {
+    const { calculateTax } = await loadAccountingEngineModule();
+    
+    const result = calculateTax(-1000, 1000000000);
+    expect(result.taxAmount).toBe(0);
+    expect(result.taxRate).toBe(0);
+  });
+
+  test('calculateTax returns zero for zero profit', async () => {
+    const { calculateTax } = await loadAccountingEngineModule();
+    
+    const result = calculateTax(0, 1000000000);
+    expect(result.taxAmount).toBe(0);
+    expect(result.taxRate).toBe(0);
+  });
+
+  test('calculateTax calculates correctly for positive profit', async () => {
+    const { calculateTax } = await loadAccountingEngineModule({
+      accounting: {
+        closing: {
+          progressiveTaxBrackets: [
+            { maxRevenue: 1000, rate: 0.1 }
+          ]
+        }
+      }
+    });
+    
+    const result = calculateTax(1000, 500);
+    expect(result.taxRate).toBe(0.1);
+    expect(result.taxAmount).toBe(100);
+  });
+});
+
+describe('closing rules edge cases', () => {
+  test('handles missing cost array with fallback', async () => {
+    const { getClosingRules } = await loadBusinessRulesModule({
+      accounting: {
+        closing: {
+          accounts: {
+            revenue: '5119'
+            // Missing cost array
+          }
+        }
+      }
+    });
+
+    // Should have fallback
+    expect(getClosingRules().accounts.cost).toEqual(['632', '641', '642']);
+  });
+
+  test('handles null cost array with fallback', async () => {
+    const { getClosingRules } = await loadBusinessRulesModule({
+      accounting: {
+        closing: {
+          accounts: {
+            cost: null
+          }
+        }
+      }
+    });
+
+    // Should have fallback
+    expect(getClosingRules().accounts.cost).toEqual(['632', '641', '642']);
+  });
+});
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -9701,6 +10535,120 @@ describe('Helper Services', () => {
       const result = await getCompanyIdsForUser(adminUser);
       expect(result).toEqual([]);
     });
+  });
+});
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/tests/inventoryService.test.js
+// START_OF_FILE
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+
+async function loadBusinessRulesModule(rulesOverride) {
+  if (rulesOverride === undefined) {
+    delete process.env.BUSINESS_RULES_JSON;
+  } else {
+    process.env.BUSINESS_RULES_JSON = JSON.stringify(rulesOverride);
+  }
+
+  jest.resetModules();
+  return import('../config/businessRules.js');
+}
+
+beforeEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+  jest.resetModules();
+});
+
+afterEach(() => {
+  delete process.env.BUSINESS_RULES_JSON;
+});
+
+describe('inventory rules with default values', () => {
+  test('returns default inventory rules when no override', async () => {
+    const { getInventoryRules } = await loadBusinessRulesModule();
+    
+    expect(getInventoryRules().inboundVoucherType).toBe('NK');
+    expect(getInventoryRules().outboundVoucherType).toBe('XK');
+    expect(getInventoryRules().allocationVoucherType).toBe('DauKy');
+    expect(getInventoryRules().accounts.inventory).toBe('156');
+    expect(getInventoryRules().accounts.logistics).toBe('1562');
+    expect(getInventoryRules().accounts.logisticsCost).toEqual(['632', '641', '642']);
+  });
+
+  test('applies inventory rules override from BUSINESS_RULES_JSON', async () => {
+    const { getInventoryRules } = await loadBusinessRulesModule({
+      accounting: {
+        inventory: {
+          inboundVoucherType: 'INBOUND',
+          outboundVoucherType: 'OUTBOUND',
+          allocationVoucherType: 'ALLOC',
+          accounts: {
+            inventory: '1569',
+            logistics: '1568',
+            logisticsCost: ['6419', '6429'],
+            allocationCredit: '6419'
+          }
+        }
+      }
+    });
+
+    expect(getInventoryRules().inboundVoucherType).toBe('INBOUND');
+    expect(getInventoryRules().outboundVoucherType).toBe('OUTBOUND');
+    expect(getInventoryRules().allocationVoucherType).toBe('ALLOC');
+    expect(getInventoryRules().accounts.inventory).toBe('1569');
+    expect(getInventoryRules().accounts.logistics).toBe('1568');
+    expect(getInventoryRules().accounts.logisticsCost).toEqual(['6419', '6429']);
+    expect(getInventoryRules().accounts.allocationCredit).toBe('6419');
+  });
+
+  test('handles missing accounts gracefully with fallback', async () => {
+    const { getInventoryRules } = await loadBusinessRulesModule({
+      accounting: {
+        inventory: {
+          accounts: {
+            inventory: '1569'
+            // Missing other accounts
+          }
+        }
+      }
+    });
+
+    // Should have fallback for missing accounts
+    expect(getInventoryRules().accounts.logistics).toBe('1562');
+    expect(getInventoryRules().accounts.logisticsCost).toEqual(['632', '641', '642']);
+  });
+});
+
+describe('inventory rules edge cases', () => {
+  test('handles null logisticsCost array', async () => {
+    const { getInventoryRules } = await loadBusinessRulesModule({
+      accounting: {
+        inventory: {
+          accounts: {
+            logisticsCost: null
+          }
+        }
+      }
+    });
+
+    // Should fallback to default
+    expect(getInventoryRules().accounts.logisticsCost).toEqual(['632', '641', '642']);
+  });
+
+  test('handles empty logisticsCost array', async () => {
+    const { getInventoryRules } = await loadBusinessRulesModule({
+      accounting: {
+        inventory: {
+          accounts: {
+            logisticsCost: []
+          }
+        }
+      }
+    });
+
+    // Should fallback to default
+    expect(getInventoryRules().accounts.logisticsCost).toEqual(['632', '641', '642']);
   });
 });
 // END_OF_FILE
@@ -11455,9 +12403,12 @@ export function getTotalCredit(ledger, accountCode) {
  */
 export function getTaxRateByRevenue(revenue) {
   const closingRules = getClosingRules();
-  const brackets = Array.isArray(closingRules.taxBracketsByRevenue)
-    ? [...closingRules.taxBracketsByRevenue]
-    : [];
+  // Support both progressiveTaxBrackets (new) and taxBracketsByRevenue (legacy)
+  const brackets = Array.isArray(closingRules.progressiveTaxBrackets)
+    ? [...closingRules.progressiveTaxBrackets]
+    : Array.isArray(closingRules.taxBracketsByRevenue)
+      ? [...closingRules.taxBracketsByRevenue]
+      : [];
 
   if (brackets.length === 0) {
     if (revenue <= 3000000000) return 0.15;
@@ -21101,128 +22052,31 @@ import {
   User,
   X
 } from 'lucide-react';
-
-
-// Normalize API base URL: allow env override, ensure protocol, trim trailing slash,
-// and warn when using localhost from an HTTPS-served storefront (PNA/CORS issue).
-let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app';
-if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
-  API_BASE_URL = `https://${API_BASE_URL}`;
-}
-API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
-if (API_BASE_URL.includes('localhost') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
-  console.error('[STOREFRONT] VITE_API_BASE_URL points to localhost while storefront is served over HTTPS — requests will be blocked by browser Private Network Access. Set VITE_API_BASE_URL to your backend public URL.');
-}
-const ALLOW_ROLE_SWITCH = String(import.meta.env.VITE_ALLOW_ROLE_SWITCH || 'false').toLowerCase() === 'true';
-
-const publicApi = axios.create({
-  baseURL: `${API_BASE_URL}/api/public`,
-  withCredentials: false
-});
-
-// authApi uses credentials (HttpOnly refresh cookie) for server-side session flows
-const authApi = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true
-});
-
-const CATEGORY_OPTIONS = ['Tất cả', 'Gạch', 'Sơn', 'Xi măng', 'Thép', 'Ống nước'];
-const SORT_OPTIONS = [
-  { value: 'featured', label: 'Nổi bật' },
-  { value: 'priceAsc', label: 'Giá thấp → cao' },
-  { value: 'priceDesc', label: 'Giá cao → thấp' },
-  { value: 'newest', label: 'Mới nhất' }
-];
-
-const ROLE_OPTIONS = [
-  { value: 'guest', label: 'Khách vãng lai' },
-  { value: 'admin', label: 'Admin bán hàng' },
-  { value: 'nv_banhang', label: 'Nhân viên bán hàng' },
-  { value: 'nv_kho', label: 'Nhân viên kho' }
-];
-
-const ROLE_BADGE_CLASS = {
-  guest: 'bg-violet-100 text-violet-700 border-violet-200',
-  admin: 'bg-amber-100 text-amber-700 border-amber-200',
-  nv_banhang: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  nv_kho: 'bg-sky-100 text-sky-700 border-sky-200'
-};
-
-const ROLE_CAPABILITY_MAP = {
-  guest: {
-    canOrder: true,
-    canUseCart: true,
-    canManageItems: false,
-    canTrackQueue: false
-  },
-  admin: {
-    canOrder: false,
-    canUseCart: false,
-    canManageItems: true,
-    canTrackQueue: true
-  },
-  nv_banhang: {
-    canOrder: true,
-    canUseCart: true,
-    canManageItems: false,
-    canTrackQueue: true
-  },
-  nv_kho: {
-    canOrder: false,
-    canUseCart: false,
-    canManageItems: false,
-    canTrackQueue: true
-  }
-};
-
-const WAREHOUSE_STATUS_OPTIONS = [
-  { value: 'all', label: 'Tất cả trạng thái' },
-  { value: 'pending_loading', label: 'Chờ xuất kho' },
-  { value: 'assigned', label: 'Đã phân xe' },
-  { value: 'delivering', label: 'Đang giao hàng' }
-];
-
-const WAREHOUSE_STATUS_LABEL = {
-  pending_loading: 'Chờ xuất kho',
-  assigned: 'Đã phân xe',
-  delivering: 'Đang giao hàng',
-  completed: 'Đã hoàn thành'
-};
-
-const normalizeAbsoluteUrl = (value) => {
-  if (!value) return '';
-  let raw = String(value).trim();
-  if (!raw) return '';
-  if (!/^https?:\/\//i.test(raw)) {
-    raw = `https://${raw}`;
-  }
-  try {
-    const parsed = new URL(raw);
-    return parsed.toString().replace(/\/$/, '');
-  } catch {
-    return '';
-  }
-};
-
-const resolveMediaUrl = (value) => {
-  if (!value) return '';
-  const raw = String(value).trim();
-  if (!raw) return '';
-
-  if (/^(data:|blob:)/i.test(raw)) return raw;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  if (raw.startsWith('//')) return `https:${raw}`;
-
-  const normalizedPath = raw.replace(/^\.\//, '').replace(/^\/+/, '');
-  return `${API_BASE_URL}/${normalizedPath}`;
-};
-
-const formatDisplayDate = (value) => {
-  if (!value) return 'N/A';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'N/A';
-  return date.toLocaleDateString('vi-VN');
-};
+import {
+  ROLE_OPTIONS,
+  ROLE_BADGE_CLASS,
+  ROLE_CAPABILITY_MAP,
+  WAREHOUSE_STATUS_OPTIONS,
+  WAREHOUSE_STATUS_LABEL,
+  SORT_OPTIONS,
+  STOREFRONT_ROLE_KEY
+} from './constants';
+import {
+  formatPrice,
+  t,
+  formatDisplayDate,
+  resolveMediaUrl,
+  normalizeAbsoluteUrl,
+  buildErpLoginUrl,
+  buildBearerConfig,
+  isSessionAllowedForRole,
+  getRoleDisplayName,
+  isExplicitNonAdminRole,
+  getUnitPrice,
+  getOrderAmount,
+  parsePriceValue
+} from './utils/formatters';
+import { publicApi, authApi, API_BASE_URL, loadItems, createOrder, loadWarehouseQueue, adminItemApi, warehouseApi } from './utils/api';
 
 const ImageWithFallback = ({
   src,
@@ -21253,39 +22107,6 @@ const ImageWithFallback = ({
     />
   );
 };
-
-const buildErpLoginUrl = (baseUrl, companyId, role) => {
-  const url = new URL(baseUrl);
-  if (!url.pathname || url.pathname === '/') {
-    url.pathname = '/login';
-  }
-  if (companyId) url.searchParams.set('company_id', companyId);
-  if (role) url.searchParams.set('role', role);
-  return url.toString();
-};
-
-const buildBearerConfig = (token) => {
-  if (!token) return {};
-  return { headers: { Authorization: `Bearer ${token}` } };
-};
-
-const isSessionAllowedForRole = (targetRole, sessionRole) => {
-  if (!targetRole || targetRole === 'guest') return true;
-  if (!sessionRole) return false;
-  if (targetRole === 'admin') return sessionRole === 'admin';
-  if (targetRole === 'nv_kho') return sessionRole === 'nv_kho' || sessionRole === 'admin';
-  if (targetRole === 'nv_banhang') return sessionRole === 'nv_banhang' || sessionRole === 'admin';
-  return false;
-};
-
-const getRoleDisplayName = (role) => {
-  if (role === 'admin') return 'admin';
-  if (role === 'nv_kho') return 'nhân viên kho';
-  if (role === 'nv_banhang') return 'nhân viên bán hàng';
-  return 'người dùng';
-};
-
-const STOREFRONT_ROLE_KEY = 'storefrontRole';
 
 const getStoredRole = () => {
   if (typeof window === 'undefined') return 'guest';
@@ -21356,6 +22177,16 @@ export default function StorefrontPage() {
   const canManageItems = currentRoleCapabilities.canManageItems;
   const canTrackQueue = currentRoleCapabilities.canTrackQueue;
   const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
+
+  // Dynamic categories computed from items
+  const dynamicCategories = useMemo(() => {
+    const categorySet = new Set();
+    items.forEach(item => {
+      const category = String(item?.category || '').trim();
+      if (category) categorySet.add(category);
+    });
+    return ['Tất cả', ...Array.from(categorySet)];
+  }, [items]);
 
   const rollbackToGuest = (message) => {
     setStorefrontRole('guest');
@@ -21631,7 +22462,7 @@ export default function StorefrontPage() {
           if (canUseSession) {
             setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
           } else if (storefrontRole === 'admin') {
-            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
+            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đồng bộ phiên từ ERP.`);
           } else {
             setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(storefrontRole)}.`);
           }
@@ -21835,7 +22666,7 @@ export default function StorefrontPage() {
     const fromProducts = [...items]
       .sort((a, b) => getUnitPrice(a) - getUnitPrice(b))
       .slice(0, 2)
-      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${getUnitPrice(item).toLocaleString('vi-VN')} ₫.`);
+      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPrice(item), selectedCurrency)}.`);
 
     if (fromProducts.length > 0) {
       return fromProducts;
@@ -21845,7 +22676,7 @@ export default function StorefrontPage() {
       'Ưu đãi sẽ hiển thị ngay khi doanh nghiệp cập nhật mô tả sản phẩm trong ERP.',
       'Bạn có thể chỉnh nội dung này bằng mô tả trong danh mục sản phẩm.'
     ];
-  }, [items]);
+  }, [items, selectedCurrency]);
 
   const handleCheckoutSubmit = async (e) => {
     e.preventDefault();
@@ -22384,7 +23215,7 @@ export default function StorefrontPage() {
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <p className="text-xs text-slate-500">Tạm tính hiện tại</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900">{checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</p>
+                  <p className="mt-1 text-lg font-bold text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <p className="text-xs text-slate-500">Đơn đang theo dõi</p>
@@ -22410,7 +23241,7 @@ export default function StorefrontPage() {
                     <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                        <p className="text-xs text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
+                        <p className="text-xs text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm">-</button>
@@ -22432,7 +23263,7 @@ export default function StorefrontPage() {
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Tìm nhanh theo tên hoặc mã hàng"
+                    placeholder={t('search', selectedLang)}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-900 outline-none"
                   />
                 </label>
@@ -22441,14 +23272,14 @@ export default function StorefrontPage() {
                     {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   <label className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    <span>Giá tối đa: {priceMax.toLocaleString('vi-VN')} ₫</span>
+                    <span>{t('maxPrice', selectedLang)}: {formatPrice(priceMax, selectedCurrency)}</span>
                     <input type="range" min="500000" max="5000000" step="100000" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="mt-1 w-full accent-emerald-500" />
                   </label>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                {CATEGORY_OPTIONS.map((item) => (
+                {dynamicCategories.map((item) => (
                   <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>
                     {item}
                   </button>
@@ -22457,7 +23288,7 @@ export default function StorefrontPage() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 {filteredItems.length === 0 ? (
-                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Không có sản phẩm phù hợp. Thử thay đổi từ khóa hoặc bộ lọc.</div>
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">{t('noProducts', selectedLang)}</div>
                 ) : filteredItems.map((item) => {
                   const isWishlisted = wishlist.includes(item.id);
                   const previewImage = item.image_urls?.[0] || item.image_url;
@@ -22482,12 +23313,12 @@ export default function StorefrontPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
                           <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
-                          <p className="mt-1 text-sm font-bold text-slate-900">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
+                          <p className="mt-1 text-sm font-bold text-slate-900">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
                         </div>
                       </button>
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button onClick={() => openQuickView(item)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">Chi tiết</button>
-                        <button onClick={() => addToCart(item, 1)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">Thêm vào đơn</button>
+                        <button onClick={() => openQuickView(item)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">{t('details', selectedLang)}</button>
+                        <button onClick={() => addToCart(item, 1)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{t('addToOrder', selectedLang)}</button>
                       </div>
                     </div>
                   );
@@ -22509,13 +23340,13 @@ export default function StorefrontPage() {
                       <div key={entry.id} className="rounded-xl border border-emerald-100 bg-white p-2.5">
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
-                          <p className="text-xs font-semibold text-slate-700">{Number(entry.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                          <p className="text-xs font-semibold text-slate-700">{formatPrice(Number(entry.price_sell || 0), selectedCurrency)}</p>
                         </div>
                         <div className="mt-1.5 flex items-center gap-1.5">
                           <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
                           <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                           <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
-                          <div className="ml-auto text-xs font-semibold text-slate-700">{(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫</div>
+                          <div className="ml-auto text-xs font-semibold text-slate-700">{formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}</div>
                         </div>
                       </div>
                     ))
@@ -22524,15 +23355,15 @@ export default function StorefrontPage() {
                 <div className="mt-3 space-y-2 rounded-xl border border-emerald-100 bg-white p-3 text-sm">
                   <div className="flex items-center justify-between text-slate-600">
                     <span>Tạm tính</span>
-                    <span className="font-semibold text-slate-900">{cartSubtotal.toLocaleString('vi-VN')} ₫</span>
+                    <span className="font-semibold text-slate-900">{formatPrice(cartSubtotal, selectedCurrency)}</span>
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
                     <span>Giảm giá</span>
-                    <span className="font-semibold text-slate-900">{discountAmount.toLocaleString('vi-VN')} ₫</span>
+                    <span className="font-semibold text-slate-900">{formatPrice(discountAmount, selectedCurrency)}</span>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
                     <span className="font-semibold">Tổng tạm tính</span>
-                    <span className="text-lg font-black text-slate-900">{checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</span>
+                    <span className="text-lg font-black text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
                   </div>
                 </div>
               </div>
@@ -22543,13 +23374,13 @@ export default function StorefrontPage() {
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-sm font-semibold text-slate-900">{selectedItem.name}</p>
                     <p className="mt-1 text-xs text-slate-500">{selectedItem.code} - {selectedItem.unit || 'Đơn vị'}</p>
-                    <p className="mt-2 text-sm font-bold text-slate-900">{getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</p>
+                    <p className="mt-2 text-sm font-bold text-slate-900">{formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</p>
                     <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">
-                      Thêm vào giỏ ({checkoutForm.quantity || 1})
+                      {t('addToOrder', selectedLang)} ({checkoutForm.quantity || 1})
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-slate-500">Chọn một sản phẩm từ danh sách để xem nhanh.</p>
+                  <p className="mt-3 text-sm text-slate-500">{t('selectProduct', selectedLang)}</p>
                 )}
               </div>
 
@@ -22586,24 +23417,24 @@ export default function StorefrontPage() {
                   </div>
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />Tên khách</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />Số điện thoại</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />{t('customerName', selectedLang)}</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />{t('phone', selectedLang)}</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
                 </div>
-                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />Địa chỉ</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />{t('address', selectedLang)}</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1 text-sm text-slate-600"><span>Số lượng</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                  <label className="space-y-1 text-sm text-slate-600"><span>Giá trị</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span>{t('quantity', selectedLang)}</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                  <label className="space-y-1 text-sm text-slate-600"><span>{t('amount', selectedLang)}</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> Mã giảm giá</div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> {t('coupon', selectedLang)}</div>
                   <div className="mt-2.5 flex gap-2">
                     <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                    <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Áp dụng</button>
+                    <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('apply', selectedLang)}</button>
                   </div>
                   {couponMessage && <p className="mt-2 text-sm text-emerald-700">{couponMessage}</p>}
                 </div>
 
-                <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : 'Tạo hóa đơn POS'} <ArrowRight size={16} /></button>
+                <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={16} /></button>
               </form>
             </div>
 
@@ -22616,13 +23447,13 @@ export default function StorefrontPage() {
                 <div className="mt-3 grid gap-2">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">Ưu tiên nhập tên khách và số điện thoại để kho giao đúng địa chỉ.</div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">Gom nhiều mã hàng trong cùng hóa đơn để giảm thao tác.</div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {formatPrice(checkoutPreviewAmount, selectedCurrency)}</div>
                 </div>
               </div>
 
               <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
                 <h3 className="text-base font-bold text-slate-900">Vận chuyển nhanh</h3>
-                <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder="Mã bưu chính" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none" />
                 <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
                 <textarea
                   value={shippingNote}
@@ -22726,12 +23557,20 @@ export default function StorefrontPage() {
                     <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
                     <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <span className="text-sm text-slate-500">Giá bán</span>
-                      <span className="font-semibold text-slate-900">{getUnitPrice(quickViewItem).toLocaleString('vi-VN')} ₫</span>
+                      <span className="font-semibold text-slate-900">{formatPrice(getUnitPrice(quickViewItem), selectedCurrency)}</span>
                     </div>
                     {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
                     <div className="mt-4 flex gap-2">
                       <button onClick={() => { handleItemSelect(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">Xem chi tiết</button>
-                      <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">Thêm vào giỏ</button>
+                      {canUseCart ? (
+                        <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)}</button>
+                      ) : isAdminRole ? (
+                        <button onClick={() => { fillAdminFormFromItem(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-amber-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('edit', selectedLang)}</button>
+                      ) : isWarehouseRole ? (
+                        <button onClick={() => { handleViewStock(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('trackStock', selectedLang)}</button>
+                      ) : (
+                        <button onClick={() => setShowQuickView(false)} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700">Đóng</button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -22805,7 +23644,7 @@ export default function StorefrontPage() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 pt-5">
-            {CATEGORY_OPTIONS.map((item) => (
+            {dynamicCategories.map((item) => (
               <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-4 py-2 text-sm ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}`}>
                 {item}
               </button>
@@ -22860,7 +23699,7 @@ export default function StorefrontPage() {
                   <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div>
                       <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-sm text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
+                      <p className="text-sm text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-full bg-slate-100 px-2 py-1 text-sm">-</button>
@@ -22873,7 +23712,7 @@ export default function StorefrontPage() {
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-sm text-slate-600">
               <span>Tổng</span>
-              <span className="font-semibold text-slate-900">{cartSubtotal.toLocaleString('vi-VN')} ₫</span>
+              <span className="font-semibold text-slate-900">{formatPrice(cartSubtotal, selectedCurrency)}</span>
             </div>
           </div>
         )}
@@ -22892,7 +23731,7 @@ export default function StorefrontPage() {
                       <ShoppingBag size={14} /> {cartCount} món
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700">
-                      <Clock3 size={14} /> Tổng tạm tính {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫
+                      <Clock3 size={14} /> Tổng tạm tính {formatPrice(checkoutPreviewAmount, selectedCurrency)}
                     </div>
                   </div>
                 </div>
@@ -22940,14 +23779,14 @@ export default function StorefrontPage() {
                   <label className="space-y-2 rounded-[24px] border border-slate-200 bg-slate-100/90 p-4 text-sm text-slate-600">
                     <span>Giá tối đa</span>
                     <input type="range" min="500000" max="5000000" step="100000" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="w-full accent-emerald-500" />
-                    <p className="text-xs text-slate-500">Đến {priceMax.toLocaleString('vi-VN')} ₫</p>
+                    <p className="text-xs text-slate-500">Đến {formatPrice(priceMax, selectedCurrency)}</p>
                   </label>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-              {CATEGORY_OPTIONS.map((item) => (
+              {dynamicCategories.map((item) => (
                 <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-[24px] border px-4 py-4 text-left text-sm text-slate-700 transition ${activeCategory === item ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-200 bg-slate-100/90 hover:border-emerald-500'}`}>
                     <span className="block font-semibold text-slate-900">{item}</span>
                     <span className="mt-2 block text-xs text-slate-500">Khám phá danh mục {item === 'Tất cả' ? 'toàn bộ' : item.toLowerCase()}</span>
@@ -22957,7 +23796,7 @@ export default function StorefrontPage() {
 
             <div className={`grid gap-4 ${isSalesRole ? 'md:grid-cols-2 xl:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-3'}`}>
               {filteredItems.length === 0 ? (
-                <div className="col-span-full rounded-[24px] border border-dashed border-slate-200 bg-slate-50/90 p-8 text-center text-slate-500">Không có sản phẩm phù hợp. Thử thay đổi từ khóa hoặc bộ lọc.</div>
+                <div className="col-span-full rounded-[24px] border border-dashed border-slate-200 bg-slate-50/90 p-8 text-center text-slate-500">{t('noProducts', selectedLang)}</div>
               ) : filteredItems.map((item) => {
                 const isWishlisted = wishlist.includes(item.id);
                 return (
@@ -22983,13 +23822,13 @@ export default function StorefrontPage() {
                       <h4 className="text-base font-bold text-slate-900">{item.name}</h4>
                       <p className="mt-1 text-sm text-slate-500">{item.code} • {item.unit || 'Đơn vị'}</p>
                         </div>
-                        <p className="text-sm font-semibold text-emerald-300">{getUnitPrice(item).toLocaleString('vi-VN')} ₫</p>
+                        <p className="text-sm font-semibold text-emerald-300">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
                       </div>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      <button onClick={() => openQuickView(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-500/40">Chi tiết</button>
+                      <button onClick={() => openQuickView(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-500/40">{t('details', selectedLang)}</button>
                       {canUseCart ? (
-                        <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{isSalesRole ? 'Thêm vào đơn POS' : 'Đặt mua'}</button>
+                        <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{isSalesRole ? t('addToOrder', selectedLang) : t('buyNow', selectedLang)}</button>
                       ) : (
                         <button onClick={() => handleViewStock(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Xem tồn kho</button>
                       )}
@@ -23018,7 +23857,7 @@ export default function StorefrontPage() {
                       <p className="font-semibold text-slate-900">{selectedItem.name}</p>
                       <p className="mt-1 text-xs text-slate-500">{selectedItem.code} • {selectedItem.unit || 'Đơn vị'}</p>
                       <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                        <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</div>
                         <div className="rounded-lg border border-slate-200 bg-white p-2">Loại hàng: {selectedItem.category || 'Phổ biến'}</div>
                         <div className="rounded-lg border border-slate-200 bg-white p-2 sm:col-span-2">Tồn kho tham chiếu: {Number(selectedItem.opening_quantity || 0).toLocaleString('vi-VN')} {selectedItem.unit || 'đơn vị'}</div>
                       </div>
@@ -23055,7 +23894,7 @@ export default function StorefrontPage() {
                         <p className="font-semibold text-emerald-900">{cart.length} sản phẩm • {cartCount} món</p>
                       </div>
                       <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
-                        {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫
+                        {formatPrice(checkoutPreviewAmount, selectedCurrency)}
                       </div>
                     </div>
                   </div>
@@ -23070,14 +23909,14 @@ export default function StorefrontPage() {
                           <div key={entry.id} className="rounded-lg border border-slate-200 bg-white p-2">
                             <div className="flex items-center justify-between gap-2">
                               <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
-                              <p className="text-xs font-semibold text-slate-700">{Number(entry.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                              <p className="text-xs font-semibold text-slate-700">{formatPrice(Number(entry.price_sell || 0), selectedCurrency)}</p>
                             </div>
                             <div className="mt-1 flex items-center gap-1.5">
                               <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
                               <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                               <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
                               <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫
+                                {formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}
                               </div>
                             </div>
                           </div>
@@ -23095,7 +23934,7 @@ export default function StorefrontPage() {
                         <p className="font-semibold text-slate-900">{cart.length} sản phẩm trong giỏ</p>
                         <p className="mt-1 text-xs text-slate-500">Số lượng tổng: {cartCount} món</p>
                       </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</div>
+                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</div>
                     </div>
 
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 p-2.5">
@@ -23108,28 +23947,28 @@ export default function StorefrontPage() {
                                 <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
                                 <p className="text-xs text-slate-500">{entry.code} • {entry.unit || 'Đơn vị'}</p>
                               </div>
-                              <p className="text-xs font-semibold text-slate-700">{Number(entry.price_sell || 0).toLocaleString('vi-VN')} ₫</p>
+                              <p className="text-xs font-semibold text-slate-700">{formatPrice(Number(entry.price_sell || 0), selectedCurrency)}</p>
                             </div>
                             <div className="mt-1.5 flex items-center gap-1.5">
                               <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
                               <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
                               <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
                               <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {(getUnitPrice(entry) * entry.quantity).toLocaleString('vi-VN')} ₫
+                                {formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
                       <div className="mt-2 border-t border-slate-200 pt-2 text-right text-sm font-semibold text-slate-800">
-                        Thành tiền: {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫
+                        Thành tiền: {formatPrice(checkoutPreviewAmount, selectedCurrency)}
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div className="flex items-center gap-2 text-sm text-slate-600"><Truck size={15} /> Ước tính phí ship</div>
-                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder="Mã bưu chính" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
                     <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
                   </div>
                 </div>
@@ -23140,9 +23979,9 @@ export default function StorefrontPage() {
                       <div>
                         <p className="text-xs text-slate-500">Vật liệu chọn</p>
                         <p className="font-semibold text-slate-900">{selectedItem.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">Đơn giá: {getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫/{selectedItem.unit || 'đơn vị'}</p>
+                        <p className="mt-1 text-xs text-slate-500">Đơn giá: {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}/{selectedItem.unit || 'đơn vị'}</p>
                       </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{getUnitPrice(selectedItem).toLocaleString('vi-VN')} ₫</div>
+                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</div>
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 p-2.5">
                       <div className="text-sm text-slate-600">Số lượng cần mua</div>
@@ -23157,7 +23996,7 @@ export default function StorefrontPage() {
                         />
                         <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) + 1)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-sm text-slate-700">+</button>
                         <div className="ml-auto text-sm font-semibold text-slate-700">
-                          Thành tiền: {Number(checkoutForm.amount || 0).toLocaleString('vi-VN')} ₫
+                          Thành tiền: {formatPrice(Number(checkoutForm.amount || 0), selectedCurrency)}
                         </div>
                       </div>
                     </div>
@@ -23166,17 +24005,17 @@ export default function StorefrontPage() {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div className="flex items-center gap-2 text-sm text-emerald-300"><Clock3 size={15} /> Flash sale còn</div>
                     <div className="mt-1.5 text-xs text-slate-500">03:12:47</div>
-                    <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Thêm vào giỏ ({checkoutForm.quantity || 1})</button>
+                    <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)} ({checkoutForm.quantity || 1})</button>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div className="flex items-center gap-2 text-sm text-slate-600"><Truck size={15} /> Ước tính phí ship</div>
-                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder="Mã bưu chính" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
                     <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-500">Chọn một sản phẩm để xem thông tin chi tiết.</div>
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-500">{t('selectProduct', selectedLang)}</div>
               )}
             </div>
 
@@ -23214,23 +24053,23 @@ export default function StorefrontPage() {
                 </div>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />Tên khách</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />Số điện thoại</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />{t('customerName', selectedLang)}</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />{t('phone', selectedLang)}</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
               </div>
-              <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />Địa chỉ</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+              <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />{t('address', selectedLang)}</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-sm text-slate-600"><span>Số lượng</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                <label className="space-y-1 text-sm text-slate-600"><span>Giá trị</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-100/70 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <label className="space-y-1 text-sm text-slate-600"><span>{t('quantity', selectedLang)}</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
+                <label className="space-y-1 text-sm text-slate-600"><span>{t('amount', selectedLang)}</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-100/70 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> Mã giảm giá</div>
+                <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> {t('coupon', selectedLang)}</div>
                 <div className="mt-3 flex gap-2">
                   <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                  <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Áp dụng</button>
+                  <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('apply', selectedLang)}</button>
                 </div>
                 {couponMessage && <p className="mt-2 text-sm text-emerald-300">{couponMessage}</p>}
               </div>
-              <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : isSalesRole ? 'Tạo hóa đơn POS' : 'Đặt hàng ngay'} <ArrowRight size={16} /></button>
+              <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={16} /></button>
             </form>
           </div>
 
@@ -23244,7 +24083,7 @@ export default function StorefrontPage() {
                 <div className="mt-4 grid gap-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">Mẹo: nhập tên khách và số điện thoại để kho theo dõi giao hàng chính xác.</div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">Ưu tiên chốt đơn theo giỏ hàng để gom nhiều mã hàng trong cùng hóa đơn.</div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {checkoutPreviewAmount.toLocaleString('vi-VN')} ₫</div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {formatPrice(checkoutPreviewAmount, selectedCurrency)}</div>
                 </div>
               </>
             ) : (
@@ -23382,7 +24221,7 @@ export default function StorefrontPage() {
                     <div key={item.id || item.code} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{item.code} - {item.name}</p>
-                        <p className="text-xs text-slate-500">{getUnitPrice(item).toLocaleString('vi-VN')} ₫ • {item.unit || 'Đơn vị'} • SL nhập: {Number(item.opening_quantity || 0).toLocaleString('vi-VN')}</p>
+                        <p className="text-xs text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)} • {item.unit || 'Đơn vị'} • SL nhập: {Number(item.opening_quantity || 0).toLocaleString('vi-VN')}</p>
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">Sửa</button>
@@ -23539,13 +24378,17 @@ export default function StorefrontPage() {
                   <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
                   <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <span className="text-sm text-slate-500">Giá bán</span>
-                    <span className="font-semibold text-emerald-300">{getUnitPrice(quickViewItem).toLocaleString('vi-VN')} ₫</span>
+                    <span className="font-semibold text-emerald-300">{formatPrice(getUnitPrice(quickViewItem), selectedCurrency)}</span>
                   </div>
                   {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
                   <div className="mt-4 flex gap-2">
                     <button onClick={() => { handleItemSelect(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-700">Xem chi tiết</button>
                     {canUseCart ? (
-                      <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">Thêm vào giỏ</button>
+                      <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)}</button>
+                    ) : isAdminRole ? (
+                      <button onClick={() => { fillAdminFormFromItem(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-amber-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('edit', selectedLang)}</button>
+                    ) : isWarehouseRole ? (
+                      <button onClick={() => { handleViewStock(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('trackStock', selectedLang)}</button>
                     ) : (
                       <button onClick={() => setShowQuickView(false)} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700">Đóng</button>
                     )}
@@ -23559,7 +24402,235 @@ export default function StorefrontPage() {
     </div>
   );
 }
+// END_OF_FILE
+------------------------------------------------------------
 
+// FILE_PATH: storefront/src/components/AdminPanel.jsx
+// START_OF_FILE
+import React, { useState } from 'react';
+import { formatPrice } from '../utils/formatters';
+import { adminItemApi } from '../utils/api';
+
+const AdminPanel = ({
+  items,
+  setItems,
+  companyId,
+  storefrontToken,
+  t
+}) => {
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form, setForm] = useState({
+    name: '',
+    code: '',
+    price_sell: '',
+    unit: '',
+    category: '',
+    description: '',
+    image_url: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setForm({
+      name: item.name || '',
+      code: item.code || '',
+      price_sell: item.price_sell || '',
+      unit: item.unit || '',
+      category: item.category || '',
+      description: item.description || '',
+      image_url: item.image_url || ''
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (item) => {
+    if (!confirm(`Xóa sản phẩm ${item.name}?`)) return;
+    
+    try {
+      await adminItemApi.delete(item.code, companyId, storefrontToken);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi xóa sản phẩm');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const payload = {
+        ...form,
+        price_sell: Number(form.price_sell) || 0,
+        company_id: Number(companyId)
+      };
+
+      if (editingItem) {
+        await adminItemApi.update(editingItem.code, payload, storefrontToken);
+      } else {
+        await adminItemApi.create(payload, storefrontToken);
+      }
+
+      setShowForm(false);
+      setEditingItem(null);
+      setForm({
+        name: '',
+        code: '',
+        price_sell: '',
+        unit: '',
+        category: '',
+        description: '',
+        image_url: ''
+      });
+      setMessage('Lưu thành công');
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Lỗi lưu sản phẩm');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="p-4">
+      <div className="mb-4 flex justify-between">
+        <h3 className="text-lg font-semibold">Quản lý sản phẩm</h3>
+        <button
+          onClick={() => {
+            setEditingItem(null);
+            setForm({
+              name: '',
+              code: '',
+              price_sell: '',
+              unit: '',
+              category: '',
+              description: '',
+              image_url: ''
+            });
+            setShowForm(true);
+          }}
+          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold"
+        >
+          + Thêm mới
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6">
+            <h4 className="mb-4 text-lg font-semibold">
+              {editingItem ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}
+            </h4>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Tên sản phẩm"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                required
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <input
+                type="text"
+                placeholder="Mã sản phẩm"
+                value={form.code}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                required
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <input
+                type="number"
+                placeholder="Giá bán"
+                value={form.price_sell}
+                onChange={(e) => setForm((f) => ({ ...f, price_sell: e.target.value }))}
+                required
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <input
+                type="text"
+                placeholder="Đơn vị"
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <input
+                type="text"
+                placeholder="Danh mục"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <textarea
+                placeholder="Mô tả"
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                rows={2}
+              />
+              <input
+                type="text"
+                placeholder="URL ảnh"
+                value={form.image_url}
+                onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 rounded-lg bg-emerald-500 py-2 font-semibold"
+                >
+                  {submitting ? 'Đang lưu...' : 'Lưu'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 rounded-lg border border-slate-200 py-2"
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+            {message && <p className="mt-2 text-sm text-rose-600">{message}</p>}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+            <div>
+              <p className="font-semibold">{item.name}</p>
+              <p className="text-sm text-slate-500">{item.code}</p>
+              <p className="text-sm font-bold text-emerald-600">
+                {formatPrice(item.price_sell, 'VND')}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleEdit(item)}
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-sm"
+              >
+                Sửa
+              </button>
+              <button
+                onClick={() => handleDelete(item)}
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-sm"
+              >
+                Xóa
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default AdminPanel;
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -23649,6 +24720,1234 @@ export default function BackToERP() {
   );
 }
 
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/components/CheckoutForm.jsx
+// START_OF_FILE
+import React, { useState } from 'react';
+import { formatPrice, getUnitPrice, getOrderAmount } from '../utils/formatters';
+import { createOrder } from '../utils/api';
+
+const CheckoutForm = ({
+  cart,
+  onClearCart,
+  selectedCurrency,
+  t,
+  companyId,
+  onOrderSuccess
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [coupon, setCoupon] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price_sell) || 0) * item.quantity, 0);
+  const total = Math.max(0, subtotal - discount);
+
+  const applyCoupon = () => {
+    if (coupon === 'SAVE10') {
+      setDiscount(subtotal * 0.1);
+    } else {
+      setDiscount(0);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!cart.length) return;
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const orderPayload = {
+        companyId: Number(companyId),
+        items: cart.map((item) => ({
+          itemId: item.id,
+          quantity: item.quantity,
+          unitPrice: getUnitPrice(item)
+        })),
+        customerName,
+        phone,
+        address,
+        amount: total,
+        taxRate: 0.1
+      };
+
+      const result = await createOrder(orderPayload);
+setMessage(`Đặt hàng thành công. Mã chứng từ: ${result?.voucherNumber || result?.id || 'N/A'}`);
+      onClearCart();
+      setCustomerName('');
+      setPhone('');
+      setAddress('');
+      setCoupon('');
+      setDiscount(0);
+      
+      if (onOrderSuccess) {
+        onOrderSuccess(result);
+      }
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Có lỗi xảy ra khi đặt hàng.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!cart.length) {
+    return (
+      <div className="p-4 text-center text-slate-500">
+        {t('selectProduct', 'VI')}
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 p-4">
+      <h3 className="text-lg font-semibold text-slate-900">{t('checkout', 'VI')}</h3>
+      
+      <div>
+        <label className="block text-sm font-medium text-slate-700">{t('customerName', 'VI')}</label>
+        <input
+          type="text"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          required
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">{t('phone', 'VI')}</label>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">{t('address', 'VI')}</label>
+        <textarea
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          required
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+          rows={2}
+        />
+      </div>
+
+      <div className="border-t border-slate-200 pt-4">
+        <div className="flex justify-between text-sm">
+          <span>{t('subtotal', 'VI')}</span>
+          <span>{formatPrice(subtotal, selectedCurrency)}</span>
+        </div>
+        {discount > 0 && (
+          <div className="flex justify-between text-sm text-rose-600">
+            <span>{t('discount', 'VI')}</span>
+            <span>-{formatPrice(discount, selectedCurrency)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-lg font-bold">
+          <span>{t('total', 'VI')}</span>
+          <span>{formatPrice(total, selectedCurrency)}</span>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">{t('coupon', 'VI')}</label>
+        <div className="mt-1 flex gap-2">
+          <input
+            type="text"
+            value={coupon}
+            onChange={(e) => setCoupon(e.target.value)}
+            placeholder="SAVE10"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2"
+          />
+          <button
+            type="button"
+            onClick={applyCoupon}
+            className="rounded-lg bg-slate-100 px-4 py-2 text-sm"
+          >
+            {t('apply', 'VI')}
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="w-full rounded-xl bg-emerald-500 py-3 font-semibold text-slate-950 disabled:opacity-50"
+      >
+        {submitting ? t('processing', 'VI') : t('checkout', 'VI')}
+      </button>
+
+      {message && (
+        <p className={`text-center text-sm ${message.includes('thành công') ? 'text-emerald-600' : 'text-rose-600'}`}>
+          {message}
+        </p>
+      )}
+    </form>
+  );
+};
+
+export default CheckoutForm;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/components/ProductCard.jsx
+// START_OF_FILE
+import React from 'react';
+import { Heart, Package } from 'lucide-react';
+import { formatPrice, resolveMediaUrl } from '../utils/formatters';
+
+const ImageWithFallback = ({ src, alt, className, iconSize = 18, iconClassName = 'text-slate-400' }) => {
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  const resolvedSrc = resolveMediaUrl(src);
+  if (!resolvedSrc || hasError) {
+    return <Package size={iconSize} className={iconClassName} />;
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
+const ProductCard = ({ 
+  item, 
+  onAddToCart, 
+  onQuickView, 
+  onSelectItem,
+  onToggleWishlist,
+  isWishlisted,
+  selectedCurrency,
+  t,
+  canUseCart,
+  isSalesRole
+}) => {
+  const previewImage = item.image_urls?.[0] || item.image_url;
+
+  return (
+    <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-300 hover:bg-white">
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+          {item.category || 'Phổ biến'}
+        </span>
+        <button 
+          onClick={() => onToggleWishlist(item.id)} 
+          className={`rounded-full p-2 ${isWishlisted ? 'bg-rose-100 text-rose-600' : 'bg-white text-slate-500'}`}
+        >
+          <Heart size={15} />
+        </button>
+      </div>
+      
+      <button 
+        type="button" 
+        onClick={() => onSelectItem(item)} 
+        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left"
+      >
+        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          <ImageWithFallback
+            src={previewImage}
+            alt={item.name}
+            className="h-full w-full object-cover"
+            iconSize={18}
+            iconClassName="text-slate-400"
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+          <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
+          <p className="mt-1 text-sm font-bold text-slate-900">
+            {formatPrice(Number(item.price_sell || 0), selectedCurrency)}
+          </p>
+        </div>
+      </button>
+      
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button 
+          onClick={() => onQuickView(item)} 
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+        >
+          {t('details', 'VI')}
+        </button>
+        {canUseCart ? (
+          <button 
+            onClick={() => onAddToCart(item, 1)} 
+            className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950"
+          >
+            {isSalesRole ? t('addToOrder', 'VI') : t('buyNow', 'VI')}
+          </button>
+        ) : (
+          <button 
+            onClick={() => onQuickView(item)} 
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+          >
+            Xem tồn kho
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ProductCard;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/components/QuickViewModal.jsx
+// START_OF_FILE
+import React from 'react';
+import { X, ChevronLeft, ChevronRight, Heart, Package } from 'lucide-react';
+import { formatPrice, resolveMediaUrl, getUnitPrice, getOrderAmount } from '../utils/formatters';
+
+const ImageWithFallback = ({ src, alt, className, iconSize = 24, iconClassName = 'text-slate-400' }) => {
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  const resolvedSrc = resolveMediaUrl(src);
+  if (!resolvedSrc || hasError) {
+    return <Package size={iconSize} className={iconClassName} />;
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
+const QuickViewModal = ({
+  item,
+  onClose,
+  onAddToCart,
+  onToggleWishlist,
+  isWishlisted,
+  selectedCurrency,
+  t,
+  canUseCart,
+  canManageItems,
+  isSalesRole,
+  onEditItem
+}) => {
+  const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
+  const [quantity, setQuantity] = React.useState(1);
+
+  if (!item) return null;
+
+  const images = item.image_urls?.length ? item.image_urls : [item.image_url].filter(Boolean);
+  const currentImage = images[currentImageIndex] || null;
+
+  const nextImage = () => {
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }
+  };
+
+  const prevImage = () => {
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    }
+  };
+
+  const handleAddToCart = () => {
+    onAddToCart(item, quantity);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6">
+        <button 
+          onClick={onClose} 
+          className="absolute right-4 top-4 rounded-full p-2 text-slate-500 hover:bg-slate-100"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Image Carousel */}
+          <div className="relative">
+            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-slate-50">
+              <ImageWithFallback
+                src={currentImage}
+                alt={item.name}
+                className="h-full w-full object-cover"
+                iconSize={48}
+                iconClassName="text-slate-300"
+              />
+            </div>
+            {images.length > 1 && (
+              <>
+                <button 
+                  onClick={prevImage} 
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button 
+                  onClick={nextImage} 
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Product Details */}
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{item.name}</h2>
+            <p className="text-sm text-slate-500">{item.code}</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-600">
+              {formatPrice(getUnitPrice(item), selectedCurrency)}
+            </p>
+            
+            <div className="mt-4 space-y-2 text-sm">
+              <p><span className="font-medium">Danh mục:</span> {item.category || 'Khác'}</p>
+              <p><span className="font-medium">Đơn vị:</span> {item.unit || 'N/A'}</p>
+              <p><span className="font-medium">Mô tả:</span> {item.description || 'Không có mô tả'}</p>
+            </div>
+
+            {canUseCart && (
+              <div className="mt-4 flex items-center gap-2">
+                <label className="text-sm font-medium">Số lượng:</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-center"
+                />
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              {canUseCart ? (
+                <button 
+                  onClick={handleAddToCart} 
+                  className="flex-1 rounded-xl bg-emerald-500 py-2 font-semibold text-slate-950"
+                >
+                  {isSalesRole ? t('addToOrder', 'VI') : t('buyNow', 'VI')}
+                </button>
+              ) : (
+                <button 
+                  onClick={onClose} 
+                  className="flex-1 rounded-xl border border-slate-200 py-2 font-semibold"
+                >
+                  {t('trackStock', 'VI')}
+                </button>
+              )}
+              {canManageItems && (
+                <button 
+                  onClick={() => { onEditItem(item); onClose(); }} 
+                  className="rounded-xl border border-amber-200 bg-amber-50 py-2 px-4 font-semibold text-amber-700"
+                >
+                  {t('edit', 'VI')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default QuickViewModal;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/components/WarehouseTracker.jsx
+// START_OF_FILE
+import React, { useState } from 'react';
+import { formatDisplayDate, formatPrice } from '../utils/formatters';
+import { warehouseApi } from '../utils/api';
+
+const WarehouseTracker = ({
+  warehouseQueue,
+  warehouseLoading,
+  warehouseStatusFilter,
+  setWarehouseStatusFilter,
+  companyId,
+  storefrontToken,
+  t
+}) => {
+  const [actionLoading, setActionLoading] = useState({});
+
+  const handleAssignTruck = async (voucherId) => {
+    setActionLoading((prev) => ({ ...prev, [voucherId]: true }));
+    try {
+      await warehouseApi.assignTruck(companyId, voucherId, null, storefrontToken);
+      window.location.reload();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi phân xe');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [voucherId]: false }));
+    }
+  };
+
+  const handleConfirmLoaded = async (voucherId) => {
+    setActionLoading((prev) => ({ ...prev, [voucherId]: true }));
+    try {
+      await warehouseApi.confirmLoaded(companyId, voucherId, storefrontToken);
+      window.location.reload();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi xác nhận');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [voucherId]: false }));
+    }
+  };
+
+  const handleMarkCompleted = async (voucherId) => {
+    setActionLoading((prev) => ({ ...prev, [voucherId]: true }));
+    try {
+      await warehouseApi.markCompleted(companyId, voucherId, storefrontToken);
+      window.location.reload();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi hoàn thành');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [voucherId]: false }));
+    }
+  };
+
+  if (warehouseLoading) {
+    return <div className="p-4 text-center">{t('loading', 'VI')}</div>;
+  }
+
+  if (!warehouseQueue.length) {
+    return <div className="p-4 text-center text-slate-500">Không có đơn hàng nào</div>;
+  }
+
+  return (
+    <div className="p-4">
+      <div className="mb-4 flex items-center gap-2">
+        <label className="text-sm font-medium">Lọc trạng thái:</label>
+        <select
+          value={warehouseStatusFilter}
+          onChange={(e) => setWarehouseStatusFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-1"
+        >
+          <option value="all">Tất cả</option>
+          <option value="pending_loading">Chờ xuất kho</option>
+          <option value="assigned">Đã phân xe</option>
+          <option value="delivering">Đang giao</option>
+        </select>
+      </div>
+
+      <div className="space-y-3">
+        {warehouseQueue.map((order) => (
+          <div key={order.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex justify-between">
+<span className="font-semibold">Mã: {order.voucherNumber || order.id}</span>
+              <span className="text-sm text-slate-500">
+                {formatDisplayDate(order.createdAt)}
+              </span>
+            </div>
+            <p className="mt-1 text-sm">{order.customerName}</p>
+            <p className="text-sm font-bold text-emerald-600">
+              {formatPrice(order.amount, 'VND')}
+            </p>
+            
+            <div className="mt-2 flex gap-2">
+              {order.loading_status === 'pending_loading' && (
+                <button
+                  onClick={() => handleAssignTruck(order.id)}
+                  disabled={actionLoading[order.id]}
+                  className="rounded-lg bg-amber-100 px-3 py-1 text-sm"
+                >
+                  Phân xe
+                </button>
+              )}
+              {order.loading_status === 'assigned' && (
+                <button
+                  onClick={() => handleConfirmLoaded(order.id)}
+                  disabled={actionLoading[order.id]}
+                  className="rounded-lg bg-sky-100 px-3 py-1 text-sm"
+                >
+                  Xác nhận xuất kho
+                </button>
+              )}
+              {order.loading_status === 'delivering' && (
+                <button
+                  onClick={() => handleMarkCompleted(order.id)}
+                  disabled={actionLoading[order.id]}
+                  className="rounded-lg bg-emerald-100 px-3 py-1 text-sm"
+                >
+                  Hoàn thành
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default WarehouseTracker;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/constants/index.js
+// START_OF_FILE
+// Constants for Storefront
+export const ROLE_OPTIONS = [
+  { value: 'guest', label: 'Khách vãng lai' },
+  { value: 'admin', label: 'Admin bán hàng' },
+  { value: 'nv_banhang', label: 'Nhân viên bán hàng' },
+  { value: 'nv_kho', label: 'Nhân viên kho' }
+];
+
+export const ROLE_BADGE_CLASS = {
+  guest: 'bg-violet-100 text-violet-700 border-violet-200',
+  admin: 'bg-amber-100 text-amber-700 border-amber-200',
+  nv_banhang: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  nv_kho: 'bg-sky-100 text-sky-700 border-sky-200'
+};
+
+export const ROLE_CAPABILITY_MAP = {
+  guest: {
+    canOrder: true,
+    canUseCart: true,
+    canManageItems: false,
+    canTrackQueue: false
+  },
+  admin: {
+    canOrder: false,
+    canUseCart: false,
+    canManageItems: true,
+    canTrackQueue: true
+  },
+  nv_banhang: {
+    canOrder: true,
+    canUseCart: true,
+    canManageItems: false,
+    canTrackQueue: true
+  },
+  nv_kho: {
+    canOrder: false,
+    canUseCart: false,
+    canManageItems: false,
+    canTrackQueue: true
+  }
+};
+
+export const WAREHOUSE_STATUS_OPTIONS = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'pending_loading', label: 'Chờ xuất kho' },
+  { value: 'assigned', label: 'Đã phân xe' },
+  { value: 'delivering', label: 'Đang giao hàng' }
+];
+
+export const WAREHOUSE_STATUS_LABEL = {
+  pending_loading: 'Chờ xuất kho',
+  assigned: 'Đã phân xe',
+  delivering: 'Đang giao hàng',
+  completed: 'Đã hoàn thành'
+};
+
+export const SORT_OPTIONS = [
+  { value: 'featured', label: 'Nổi bật' },
+  { value: 'priceAsc', label: 'Giá thấp → cao' },
+  { value: 'priceDesc', label: 'Giá cao → thấp' },
+  { value: 'newest', label: 'Mới nhất' }
+];
+
+export const STOREFRONT_ROLE_KEY = 'storefrontRole';
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/hooks/useStorefrontData.js
+// START_OF_FILE
+import { useState, useEffect, useRef } from 'react';
+import { loadItems as fetchItems, loadWarehouseQueue as fetchQueue } from '../utils/api';
+import { STOREFRONT_ROLE_KEY } from '../constants';
+
+// Hook for managing items
+export const useItems = (companyId) => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadItems = async (id) => {
+    if (!id) return;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await fetchItems(id);
+      setItems(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Không thể tải danh sách sản phẩm.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (companyId) {
+      loadItems(companyId);
+    }
+  }, [companyId]);
+
+  return { items, loading, error, loadItems, setItems };
+};
+
+// Hook for managing cart
+export const useCart = () => {
+  const [cart, setCart] = useState(() => {
+    try {
+      const raw = localStorage.getItem('storefrontCart');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('storefrontCart', JSON.stringify(cart));
+  }, [cart]);
+
+  const addToCart = (item, qty = 1) => {
+    setCart((prev) => {
+      const existing = prev.find((entry) => entry.id === item.id);
+      if (existing) {
+        return prev.map((entry) => 
+          entry.id === item.id ? { ...entry, quantity: entry.quantity + qty } : entry
+        );
+      }
+      return [...prev, { ...item, quantity: qty }];
+    });
+  };
+
+  const updateCartQuantity = (itemId, delta) => {
+    setCart((prev) => prev.flatMap((entry) => {
+      if (entry.id !== itemId) return [entry];
+      const nextQty = entry.quantity + delta;
+      return nextQty > 0 ? [{ ...entry, quantity: nextQty }] : [];
+    }));
+  };
+
+  const clearCart = () => setCart([]);
+
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + (Number(item.price_sell) || 0) * item.quantity, 0);
+
+  return { cart, addToCart, updateCartQuantity, clearCart, cartCount, cartSubtotal };
+};
+
+// Hook for managing warehouse queue
+export const useWarehouseQueue = (companyId, canTrackQueue, storefrontToken) => {
+  const [warehouseQueue, setWarehouseQueue] = useState([]);
+  const [warehouseLoading, setWarehouseLoading] = useState(false);
+  const [warehouseStatusFilter, setWarehouseStatusFilter] = useState('all');
+  const previousQueueRef = useRef(new Map());
+  const firstQueueLoadRef = useRef(true);
+
+  const loadQueue = async ({ source = 'poll', keepLoadingState = true } = {}) => {
+    if (!companyId) {
+      setWarehouseQueue([]);
+      return;
+    }
+
+    if (keepLoadingState) {
+      setWarehouseLoading(true);
+    }
+    try {
+      const nextList = await fetchQueue(companyId, storefrontToken);
+      const nextMap = new Map(nextList.map((order) => [Number(order.id), order]));
+      previousQueueRef.current = nextMap;
+      firstQueueLoadRef.current = false;
+      setWarehouseQueue(nextList);
+    } catch (err) {
+      // Error handled by caller
+    } finally {
+      if (keepLoadingState) {
+        setWarehouseLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!canTrackQueue || !companyId) return;
+
+    previousQueueRef.current = new Map();
+    firstQueueLoadRef.current = true;
+
+    loadQueue();
+    const timer = setInterval(() => loadQueue({ source: 'poll', keepLoadingState: false }), 60000);
+    return () => clearInterval(timer);
+  }, [companyId, canTrackQueue]);
+
+  const warehouseFilteredQueue = warehouseStatusFilter === 'all' 
+    ? warehouseQueue 
+    : warehouseQueue.filter((order) => order.loading_status === warehouseStatusFilter);
+
+  return {
+    warehouseQueue,
+    warehouseLoading,
+    warehouseStatusFilter,
+    setWarehouseStatusFilter,
+    loadQueue,
+    warehouseFilteredQueue
+  };
+};
+
+// Hook for authentication
+export const useAuth = (storefrontRole, isAdminRole, isWarehouseRole, isSalesRole) => {
+  const [storefrontToken, setStorefrontToken] = useState(() => 
+    localStorage.getItem('storefrontAccessToken') || ''
+  );
+  const [hasAdminSession, setHasAdminSession] = useState(false);
+  const [authenticatingAdmin, setAuthenticatingAdmin] = useState(false);
+  const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
+  const [adminSessionChecked, setAdminSessionChecked] = useState(false);
+  const [sessionRole, setSessionRole] = useState('');
+  const [adminMessage, setAdminMessage] = useState('');
+
+  const getStoredRole = () => {
+    if (typeof window === 'undefined') return 'guest';
+    const current = window.sessionStorage.getItem(STOREFRONT_ROLE_KEY);
+    if (current) return current;
+    window.localStorage.removeItem(STOREFRONT_ROLE_KEY);
+    return 'guest';
+  };
+
+  const setStoredRole = (role) => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(STOREFRONT_ROLE_KEY, role);
+    window.localStorage.removeItem(STOREFRONT_ROLE_KEY);
+  };
+
+  return {
+    storefrontToken,
+    setStorefrontToken,
+    hasAdminSession,
+    setHasAdminSession,
+    authenticatingAdmin,
+    setAuthenticatingAdmin,
+    authBootstrapDone,
+    setAuthBootstrapDone,
+    adminSessionChecked,
+    setAdminSessionChecked,
+    sessionRole,
+    setSessionRole,
+    adminMessage,
+    setAdminMessage,
+    getStoredRole,
+    setStoredRole
+  };
+};
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/utils/api.js
+// START_OF_FILE
+import axios from 'axios';
+
+// API base URL configuration
+let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app';
+if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
+  API_BASE_URL = `https://${API_BASE_URL}`;
+}
+API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
+
+// Public API for unauthenticated requests
+export const publicApi = axios.create({
+  baseURL: `${API_BASE_URL}/api/public`,
+  withCredentials: false
+});
+
+// Auth API for authenticated requests
+export const authApi = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true
+});
+
+// Get ERP URL
+export const getERPUrl = () => {
+  const envUrl = normalizeAbsoluteUrl(import.meta.env.VITE_ERP_URL);
+  if (envUrl) return envUrl;
+
+  if (typeof window !== 'undefined') {
+    const fromQuery = normalizeAbsoluteUrl(new URLSearchParams(window.location.search).get('erp_url'));
+    if (fromQuery) return fromQuery;
+
+    const referrer = normalizeAbsoluteUrl(window.document?.referrer);
+    if (referrer) {
+      try {
+        const current = new URL(window.location.href);
+        const source = new URL(referrer);
+        if (source.origin !== current.origin) return source.origin;
+      } catch {
+        // ignore invalid referrer URL
+      }
+    }
+  }
+
+  return '';
+};
+
+// Normalize URL helper
+const normalizeAbsoluteUrl = (value) => {
+  if (!value) return '';
+  let raw = String(value).trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw}`;
+  }
+  try {
+    const parsed = new URL(raw);
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+};
+
+// Get admin auth config
+export const getAdminAuthConfig = (token) => {
+  if (token) return { headers: { Authorization: `Bearer ${token}` } };
+  return { withCredentials: true };
+};
+
+// Load items from API
+export const loadItems = async (id) => {
+  if (!id) return [];
+  try {
+    const { data } = await publicApi.get('/items', { params: { company_id: id } });
+    return data || [];
+  } catch (err) {
+    throw err;
+  }
+};
+
+// Create order
+export const createOrder = async (payload) => {
+  try {
+    const { data } = await publicApi.post('/orders', payload);
+    return data;
+  } catch (err) {
+    throw err;
+  }
+};
+
+// Load warehouse queue
+export const loadWarehouseQueue = async (companyId, token) => {
+  if (!companyId) return [];
+  try {
+    const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
+      params: { company_id: companyId },
+      ...getAdminAuthConfig(token)
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    throw err;
+  }
+};
+
+// Admin item operations
+export const adminItemApi = {
+  create: async (payload, token) => {
+    return axios.post(`${API_BASE_URL}/api/items`, payload, getAdminAuthConfig(token));
+  },
+  update: async (code, payload, token) => {
+    return axios.put(`${API_BASE_URL}/api/items/${encodeURIComponent(code)}`, payload, getAdminAuthConfig(token));
+  },
+  delete: async (code, companyId, token) => {
+    return axios.delete(`${API_BASE_URL}/api/items/${encodeURIComponent(code)}`, {
+      ...getAdminAuthConfig(token),
+      params: { company_id: Number(companyId) }
+    });
+  }
+};
+
+// Warehouse operations
+export const warehouseApi = {
+  assignTruck: async (companyId, voucherId, truckId, token) => {
+    return axios.post(`${API_BASE_URL}/api/logistics/assign-truck`, {
+      companyId: Number(companyId),
+      voucherId: Number(voucherId),
+      truckId: truckId || null
+    }, getAdminAuthConfig(token));
+  },
+  confirmLoaded: async (companyId, voucherId, token) => {
+    return axios.post(`${API_BASE_URL}/api/logistics/confirm-loaded`, {
+      companyId: Number(companyId),
+      voucherId: Number(voucherId)
+    }, getAdminAuthConfig(token));
+  },
+  markCompleted: async (companyId, voucherId, token) => {
+    return axios.post(`${API_BASE_URL}/api/logistics/mark-completed`, {
+      companyId: Number(companyId),
+      voucherId: Number(voucherId)
+    }, getAdminAuthConfig(token));
+  }
+};
+
+// Auth operations
+export const authOperations = {
+  externalLogin: async (erpToken, companyId, role) => {
+    return authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: companyId, role });
+  },
+  me: async (token) => {
+    if (token) {
+      return authApi.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    }
+    return authApi.get('/api/auth/me');
+  }
+};
+
+export { API_BASE_URL };
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: storefront/src/utils/formatters.js
+// START_OF_FILE
+// Utility functions for formatting
+
+// Dynamic currency formatting based on selected currency
+export const formatPrice = (value, currency = 'VND') => {
+  const numValue = Number(value) || 0;
+  if (currency === 'USD') {
+    return `$${numValue.toFixed(2)}`;
+  }
+  return `${numValue.toLocaleString('vi-VN')} ₫`;
+};
+
+// Translation function for multi-language support
+export const translations = {
+  VI: {
+    customerName: 'Tên khách',
+    phone: 'Số điện thoại',
+    address: 'Địa chỉ',
+    quantity: 'Số lượng',
+    amount: 'Giá trị',
+    coupon: 'Mã giảm giá',
+    apply: 'Áp dụng',
+    checkout: 'Tạo hóa đơn',
+    addToCart: 'Thêm vào giỏ',
+    addToOrder: 'Thêm vào đơn',
+    buyNow: 'Đặt mua',
+    details: 'Chi tiết',
+    edit: 'Sửa sản phẩm',
+    trackStock: 'Theo dõi hàng tồn',
+    search: 'Tìm kiếm sản phẩm...',
+    sort: 'Sắp xếp',
+    maxPrice: 'Giá tối đa',
+    all: 'Tất cả',
+    categories: 'Danh mục',
+    subtotal: 'Tạm tính',
+    discount: 'Giảm giá',
+    total: 'Tổng tạm tính',
+    freeShipping: 'Miễn phí vận chuyển',
+    enterPostalCode: 'Nhập mã bưu chính',
+    guest: 'Khách vãng lai',
+    admin: 'Admin bán hàng',
+    sales: 'Nhân viên bán hàng',
+    warehouse: 'Nhân viên kho',
+    posMode: 'POS Mode',
+    loading: 'Đang tải...',
+    noProducts: 'Không có sản phẩm phù hợp',
+    selectProduct: 'Chọn một sản phẩm để xem thông tin chi tiết',
+    orderSuccess: 'Đặt hàng thành công',
+    orderNumber: 'Mã chứng từ',
+    processing: 'Đang xử lý',
+    completed: 'Đã hoàn thành',
+    pending: 'Chờ xử lý'
+  },
+  EN: {
+    customerName: 'Customer Name',
+    phone: 'Phone Number',
+    address: 'Address',
+    quantity: 'Quantity',
+    amount: 'Amount',
+    coupon: 'Coupon Code',
+    apply: 'Apply',
+    checkout: 'Checkout',
+    addToCart: 'Add to Cart',
+    addToOrder: 'Add to Order',
+    buyNow: 'Buy Now',
+    details: 'Details',
+    edit: 'Edit Product',
+    trackStock: 'Track Stock',
+    search: 'Search products...',
+    sort: 'Sort',
+    maxPrice: 'Max Price',
+    all: 'All',
+    categories: 'Categories',
+    subtotal: 'Subtotal',
+    discount: 'Discount',
+    total: 'Total',
+    freeShipping: 'Free Shipping',
+    enterPostalCode: 'Enter postal code',
+    guest: 'Guest',
+    admin: 'Sales Admin',
+    sales: 'Sales Staff',
+    warehouse: 'Warehouse Staff',
+    posMode: 'POS Mode',
+    loading: 'Loading...',
+    noProducts: 'No products found',
+    selectProduct: 'Select a product to view details',
+    orderSuccess: 'Order placed successfully',
+    orderNumber: 'Order Number',
+    processing: 'Processing',
+    completed: 'Completed',
+    pending: 'Pending'
+  }
+};
+
+export const t = (key, lang = 'VI') => {
+  return translations[lang]?.[key] || translations['VI']?.[key] || key;
+};
+
+// Format display date
+export const formatDisplayDate = (value) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+  return date.toLocaleDateString('vi-VN');
+};
+
+// Parse price value
+export const parsePriceValue = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+
+  let raw = String(value).trim();
+  if (!raw) return 0;
+  raw = raw.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
+  if (!raw) return 0;
+
+  const lastDot = raw.lastIndexOf('.');
+  const lastComma = raw.lastIndexOf(',');
+
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastComma > lastDot) {
+      raw = raw.replace(/\./g, '').replace(/,/g, '.');
+    } else {
+      raw = raw.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    const fractionalDigits = raw.length - lastComma - 1;
+    if (fractionalDigits > 0 && fractionalDigits <= 2) {
+      raw = raw.replace(/,/g, '.');
+    } else {
+      raw = raw.replace(/,/g, '');
+    }
+  } else if (lastDot !== -1) {
+    const fractionalDigits = raw.length - lastDot - 1;
+    if (!(fractionalDigits > 0 && fractionalDigits <= 2)) {
+      raw = raw.replace(/\./g, '');
+    }
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// Get unit price
+export const getUnitPrice = (item) => parsePriceValue(item?.price_sell);
+
+// Get order amount
+export const getOrderAmount = (item, quantity) => 
+  Number((getUnitPrice(item) * Math.max(Number(quantity) || 1, 1)).toFixed(2));
+
+// Normalize URL
+export const normalizeAbsoluteUrl = (value) => {
+  if (!value) return '';
+  let raw = String(value).trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw}`;
+  }
+  try {
+    const parsed = new URL(raw);
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+};
+
+// Resolve media URL
+export const resolveMediaUrl = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  if (/^(data:|blob:)/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+
+  const normalizedPath = raw.replace(/^\.\//, '').replace(/^\/+/, '');
+  return `${import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app'}/${normalizedPath}`;
+};
+
+// Build ERP login URL
+export const buildErpLoginUrl = (baseUrl, companyId, role) => {
+  const url = new URL(baseUrl);
+  if (!url.pathname || url.pathname === '/') {
+    url.pathname = '/login';
+  }
+  if (companyId) url.searchParams.set('company_id', companyId);
+  if (role) url.searchParams.set('role', role);
+  return url.toString();
+};
+
+// Build bearer config
+export const buildBearerConfig = (token) => {
+  if (!token) return {};
+  return { headers: { Authorization: `Bearer ${token}` } };
+};
+
+// Check session allowed for role
+export const isSessionAllowedForRole = (targetRole, sessionRole) => {
+  if (!targetRole || targetRole === 'guest') return true;
+  if (!sessionRole) return false;
+  if (targetRole === 'admin') return sessionRole === 'admin';
+  if (targetRole === 'nv_kho') return sessionRole === 'nv_kho' || sessionRole === 'admin';
+  if (targetRole === 'nv_banhang') return sessionRole === 'nv_banhang' || sessionRole === 'admin';
+  return false;
+};
+
+// Get role display name
+export const getRoleDisplayName = (role) => {
+  if (role === 'admin') return 'admin';
+  if (role === 'nv_kho') return 'nhân viên kho';
+  if (role === 'nv_banhang') return 'nhân viên bán hàng';
+  return 'người dùng';
+};
+
+// Check explicit non-admin role
+export const isExplicitNonAdminRole = (roleCode) => {
+  const normalized = String(roleCode || '').trim().toLowerCase();
+  return normalized !== '' && normalized !== 'admin';
+};
 // END_OF_FILE
 ------------------------------------------------------------
 
