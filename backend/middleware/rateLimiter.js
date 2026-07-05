@@ -1,10 +1,12 @@
 /**
- * Rate Limiter Middleware
+ * Rate Limiter Middleware - Redis-based
  * Giới hạn số lượng request từ một IP trong khoảng thời gian nhất định
  * Bảo vệ các endpoint nhạy cảm khỏi brute force và DDoS
+ * Sử dụng Redis thay vì Map để đồng bộ giữa các server
  */
 
-const requestCounts = new Map();
+import { redis } from '../cache/redis.js';
+
 const WINDOW_MS = 15 * 60 * 1000; // 15 phút
 const MAX_REQUESTS = 100; // Tối đa 100 request trong 15 phút
 
@@ -16,12 +18,16 @@ const SENSITIVE_ENDPOINTS = {
 };
 
 /**
- * Middleware rate limiting tổng quát
+ * Middleware rate limiting tổng quát - Redis based
  */
-export function rateLimiter(req, res, next) {
+export async function rateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
-  const now = Date.now();
   
+  // Fallback nếu Redis không sẵn sàng
+  if (redis.status !== 'ready') {
+    return next();
+  }
+
   // Kiểm tra cấu hình đặc biệt cho endpoint nhạy cảm
   const sensitiveConfig = Object.entries(SENSITIVE_ENDPOINTS).find(([path]) => 
     req.path.startsWith(path)
@@ -31,37 +37,30 @@ export function rateLimiter(req, res, next) {
     ? { maxRequests: sensitiveConfig[1].maxRequests, windowMs: sensitiveConfig[1].windowMs }
     : { maxRequests: MAX_REQUESTS, windowMs: WINDOW_MS };
 
-  if (!requestCounts.has(ip)) {
-    requestCounts.set(ip, []);
-  }
-
-  const timestamps = requestCounts.get(ip).filter(ts => now - ts < config.windowMs);
+  const key = `rate_limit:${ip}:${req.path}`;
+  const windowSec = Math.ceil(config.windowMs / 1000);
   
-  if (timestamps.length >= config.maxRequests) {
-    const retryAfter = Math.ceil((config.windowMs - (now - timestamps[0])) / 1000);
-    console.warn(`⚠️ Rate limit exceeded for IP: ${ip} on ${req.path}`);
-    return res.status(429).json({
-      error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-      retryAfter: retryAfter,
-      retryAfterSeconds: retryAfter
-    });
-  }
-
-  timestamps.push(now);
-  requestCounts.set(ip, timestamps);
-
-  // Dọn dẹp entries cũ mỗi 15 phút
-  if (Math.random() < 0.01) { // 1% probability để tránh overhead
-    for (const [key, value] of requestCounts.entries()) {
-      const validTimestamps = value.filter(ts => now - ts < WINDOW_MS);
-      if (validTimestamps.length === 0) {
-        requestCounts.delete(key);
-      } else {
-        requestCounts.set(key, validTimestamps);
-      }
+  try {
+    // Sử dụng Redis atomic increment
+    const current = await redis.incr(key);
+    
+    if (current === 1) {
+      // Set TTL lần đầu
+      await redis.expire(key, windowSec);
     }
+    
+    if (current > config.maxRequests) {
+      const ttl = await redis.ttl(key);
+      console.warn(`⚠️ Rate limit exceeded for IP: ${ip} on ${req.path}`);
+      return res.status(429).json({
+        error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+        retryAfter: ttl
+      });
+    }
+  } catch (err) {
+    console.error('Rate limit error:', err);
   }
-
+  
   next();
 }
 
@@ -69,24 +68,33 @@ export function rateLimiter(req, res, next) {
  * Middleware rate limiting cho API endpoints
  * Sử dụng: app.use('/api', apiRateLimiter);
  */
-export function apiRateLimiter(req, res, next) {
+export async function apiRateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
-  const now = Date.now();
-
-  if (!requestCounts.has(`api:${ip}`)) {
-    requestCounts.set(`api:${ip}`, []);
-  }
-
-  const timestamps = requestCounts.get(`api:${ip}`).filter(ts => now - ts < 1000); // 1 giây
   
-  if (timestamps.length >= 30) { // Tối đa 30 request/giây
-    return res.status(429).json({
-      error: 'Quá nhiều yêu cầu API. Vui lòng giảm tần suất.'
-    });
+  // Fallback nếu Redis không sẵn sàng
+  if (redis.status !== 'ready') {
+    return next();
   }
 
-  timestamps.push(now);
-  requestCounts.set(`api:${ip}`, timestamps);
+  const key = `rate_limit:api:${ip}`;
+  const windowSec = 1; // 1 giây
+  
+  try {
+    const current = await redis.incr(key);
+    
+    if (current === 1) {
+      await redis.expire(key, windowSec);
+    }
+    
+    if (current > 30) { // Tối đa 30 request/giây
+      return res.status(429).json({
+        error: 'Quá nhiều yêu cầu API. Vui lòng giảm tần suất.'
+      });
+    }
+  } catch (err) {
+    console.error('API rate limit error:', err);
+  }
+  
   next();
 }
 

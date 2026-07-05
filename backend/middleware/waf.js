@@ -1,0 +1,131 @@
+import rateLimit from 'express-rate-limit';
+import slowDown from 'express-slow-down';
+
+// WAF configuration
+const WAF_CONFIG = {
+  rateLimit: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP'
+  },
+  speedLimit: {
+    windowMs: 15 * 60 * 1000,
+    delayAfter: 50,
+    delayMs: 500
+  }
+};
+
+// SQL Injection patterns
+const SQL_INJECTION_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE)\b)/gi,
+  /(--|#|\/\*|\*\/|;)/g,
+  /(\bOR\b|\bAND\b)\s+\d+\s*=\s*\d+/gi,
+  /(EXEC|EXECUTE|xp_cmdshell)/gi
+];
+
+// XSS patterns
+const XSS_PATTERNS = [
+  /<script[^>]*>.*?<\/script>/gi,
+  /javascript:/gi,
+  /on\w+\s*=/gi,
+  /<iframe/gi,
+  /<object/gi,
+  /<embed/gi
+];
+
+// Rate limiter middleware
+export const rateLimiter = rateLimit(WAF_CONFIG.rateLimit);
+
+// Speed limiter middleware
+export const speedLimiter = slowDown(WAF_CONFIG.speedLimit);
+
+// SQL Injection protection
+export const sqlInjectionProtection = (req, res, next) => {
+  const checkValue = (value) => {
+    if (typeof value === 'string') {
+      for (const pattern of SQL_INJECTION_PATTERNS) {
+        if (pattern.test(value)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Check query params
+  for (const [key, value] of Object.entries(req.query)) {
+    if (checkValue(value)) {
+      return res.status(400).json({ error: 'Invalid query parameter' });
+    }
+  }
+
+  // Check body
+  if (req.body && typeof req.body === 'object') {
+    for (const [key, value] of Object.entries(req.body)) {
+      if (checkValue(value)) {
+        return res.status(400).json({ error: 'Invalid request body' });
+      }
+    }
+  }
+
+  next();
+};
+
+// XSS protection
+export const xssProtection = (req, res, next) => {
+  const sanitizeValue = (value) => {
+    if (typeof value === 'string') {
+      for (const pattern of XSS_PATTERNS) {
+        if (pattern.test(value)) {
+          return res.status(400).json({ error: 'Invalid input detected' });
+        }
+      }
+    }
+    return true;
+  };
+
+  // Check body
+  if (req.body && typeof req.body === 'object') {
+    for (const [key, value] of Object.entries(req.body)) {
+      if (!sanitizeValue(value)) {
+        return;
+      }
+    }
+  }
+
+  next();
+};
+
+// IP whitelist
+export const ipWhitelist = (allowedIPs = []) => {
+  return (req, res, next) => {
+    const clientIP = req.ip || req.connection.remoteAddress;
+    
+    if (allowedIPs.length > 0 && !allowedIPs.includes(clientIP)) {
+      return res.status(403).json({ error: 'IP not allowed' });
+    }
+    
+    next();
+  };
+};
+
+// Security headers
+export const securityHeaders = (req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', "default-src 'self'");
+  next();
+};
+
+// Combined WAF middleware
+export const waf = [
+  rateLimiter,
+  speedLimiter,
+  sqlInjectionProtection,
+  xssProtection,
+  securityHeaders
+];
+
+export default waf;

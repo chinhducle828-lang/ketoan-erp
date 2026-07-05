@@ -24,7 +24,12 @@ const poolConfig = process.env.DATABASE_URL
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
     };
 
-const pool = new Pool(poolConfig);
+const pool = new Pool({
+  ...poolConfig,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
 pool.on('connect', () => {
   console.log('⚡ Hệ thống kết nối thành công Cơ sở dữ liệu PostgreSQL');

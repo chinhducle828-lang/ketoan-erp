@@ -1,44 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Viết đè trực tiếp cho thẻ body và các thẻ form theo chuẩn v3 */
-@layer base {
-  body {
-    @apply bg-slate-50 antialiased text-slate-800;
-    font-family: 'Be Vietnam Pro', 'Segoe UI', Tahoma, sans-serif;
-  }
+/* Custom styles */
+body {
+  @apply bg-slate-50 text-slate-800;
+}
 
-  input, select, textarea {
-    /* Chỉ transition các thuộc tính liên quan đến màu sắc để tối ưu performance */
-    @apply transition-colors duration-200;
-    /* Viền mặc định khi focus */
-    @apply focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500;
-  }
-
-  /* Thanh cuộn mềm mại giống phần mềm ERP chuyên nghiệp */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
-  }
-
-  *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 10px;
-  }
-
-  *::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }

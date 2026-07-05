@@ -2,6 +2,8 @@ import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 import { getPeriodBalanceSummary } from './summary.service.js';
 import { getClosingRules } from '../config/businessRules.js';
+import { withLock, acquireLock, releaseLock } from './distributedLock.service.js';
+import { invalidateBalance } from './balanceCache.service.js';
 
 const getClosingDate = (year, month) => `${year}-${String(month).padStart(2, '0')}-31`;
 
@@ -133,6 +135,13 @@ export function calculateProgressiveTax(revenue, profit) {
  * @param {number} year - Năm kết chuyển
  */
 export async function runClosingEntries(companyId, month, year) {
+  // Sử dụng distributed lock để đảm bảo chỉ một process chạy cho mỗi công ty
+  const lock = await acquireLock('closing', { companyId, ttl: 60000 });
+  
+  if (!lock) {
+    throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
+  }
+
   const client = await pool.connect();
   const closingRules = getClosingRules();
   const closingAccounts = closingRules.accounts || {};
@@ -156,6 +165,12 @@ export async function runClosingEntries(companyId, month, year) {
     await client.query(
       'SELECT id, lock_date FROM companies WHERE id = $1 FOR UPDATE NOWAIT',
       [companyId]
+    );
+    
+    // [PESSIMISTIC LOCK] Khóa monthly_balances để tránh race condition
+    await client.query(
+      'SELECT id FROM monthly_balances WHERE company_id = $1 AND year = $2 AND month = $3 FOR UPDATE',
+      [companyId, year, month]
     );
     
     // Kiểm tra xem đã kết chuyển kỳ này chưa
@@ -362,6 +377,7 @@ export async function runClosingEntries(companyId, month, year) {
     try {
       await invalidateCache(`dashboard:cashflow:${companyId}:*`);
       await invalidateCache(`balance-sheet:${companyId}:*`);
+      await invalidateBalance(companyId, year, month);
     } catch (cacheError) {
       console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
     }
@@ -383,6 +399,10 @@ export async function runClosingEntries(companyId, month, year) {
     throw error;
   } finally {
     client.release();
+    // Giải phóng distributed lock
+    if (lock) {
+      await releaseLock(lock);
+    }
   }
 }
 
