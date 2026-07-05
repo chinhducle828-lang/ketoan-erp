@@ -62,3 +62,6 @@ export const SORT_OPTIONS = [
 ];
 
 export const STOREFRONT_ROLE_KEY = 'storefrontRole';
+
+// Feature flag for role switching UI (dev only, defaults to false in production)
+export const ALLOW_ROLE_SWITCH = import.meta.env.VITE_ALLOW_ROLE_SWITCH === 'true';
