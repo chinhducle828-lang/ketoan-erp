@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.11.5",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
