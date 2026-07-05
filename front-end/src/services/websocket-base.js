@@ -32,6 +32,10 @@ export class WebSocketBaseService {
 
   // Initialize connection
   connect(companyId, userId) {
+    // Nếu đã kết nối, không disconnect để tránh ảnh hưởng component khác
+    if (this.socket && this.isConnected) {
+      return this.socket;
+    }
     if (this.socket) {
       this.disconnect();
     }

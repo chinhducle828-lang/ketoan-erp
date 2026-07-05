@@ -15,7 +15,7 @@ const getStorefrontURL = () => {
   return '';
 };
 
-export default function StorefrontAccessNotice() {
+export default function StorefrontAccessNotice({ skipAutoRedirect }) {
   const { user, token, activeCompany } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
 
@@ -37,12 +37,14 @@ export default function StorefrontAccessNotice() {
   }, [activeCompany?.id, token, user?.role, user?.roleId]);
 
   useEffect(() => {
+    // ✅ Nếu skipAutoRedirect = true, không tự động chuyển hướng
+    if (skipAutoRedirect) return;
     if (!storefrontHref || redirecting) return;
     setRedirecting(true);
 
     // Vào ERP bằng link nhưng role chỉ dùng storefront: tự điều hướng sang storefront.
     window.location.replace(storefrontHref);
-  }, [storefrontHref, redirecting]);
+  }, [storefrontHref, redirecting, skipAutoRedirect]);
 
   const openStorefront = () => {
     const url = storefrontHref;

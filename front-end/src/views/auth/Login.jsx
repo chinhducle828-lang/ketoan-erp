@@ -65,8 +65,10 @@ export default function Login({ onFirstRun }) {
         setPostLoginHref(href);
         if (postLoginRedirect === 'storefront_newtab' && href) {
           try { window.open(href, '_blank', 'noopener,noreferrer'); } catch { /* ignore */ }
-          // keep ERP session open — navigate to ERP home as well
-          navigate('/', { replace: true });
+          // ✅ Chỉ navigate về ERP nếu user có quyền ERP, tránh bug StorefrontAccessNotice tự động redirect
+          if (hasErpAccess) {
+            navigate('/', { replace: true });
+          }
           setShowPostLoginChoice(false);
         } else if (postLoginRedirect === 'storefront_replace' && href) {
           // replace current tab with storefront

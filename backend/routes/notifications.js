@@ -4,6 +4,7 @@ import {
   unsubscribeFromPush, 
   getNotifications, 
   markAsRead, 
+  markAllAsRead,
   sendNotification,
   sendNotificationToUser
 } from '../controllers/notification.controller.js';
@@ -25,6 +26,9 @@ router.get('/', getNotifications);
 
 // Mark notification as read
 router.put('/:id/read', markAsRead);
+
+// Mark all notifications as read
+router.put('/read-all', markAllAsRead);
 
 // Send notification to role (admin only)
 router.post('/send', requireRole(['admin']), sendNotification);

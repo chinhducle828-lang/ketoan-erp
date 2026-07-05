@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePushNotification } from '../hooks/usePushNotification';
+import { useRealTimeBase } from '../hooks/useRealTime-base';
+import wsService from '../services/websocket.js';
 
-export default function NotificationBell({ companyId }) {
+export default function NotificationBell({ companyId, userId }) {
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const { isSupported, permission, requestPermission, subscribe, isLoading } = usePushNotification();
 
-  // Load notifications
-  useEffect(() => {
+  // Auto-connect WebSocket via base hook
+  useRealTimeBase(companyId, userId);
+
+  // Load notifications from API
+  const loadNotifications = useCallback(() => {
     if (!companyId) return;
     
     fetch(`/api/notifications?company_id=${companyId}`)
@@ -15,6 +20,27 @@ export default function NotificationBell({ companyId }) {
       .then(data => {
         if (data.success) setNotifications(data.data || []);
       });
+  }, [companyId]);
+
+  // Load notifications on mount
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // WebSocket listener for real-time notification updates
+  useEffect(() => {
+    if (!companyId) return;
+
+    const handleNotificationNew = (notification) => {
+      // Prepend new notification to list
+      setNotifications(prev => [notification, ...prev]);
+    };
+
+    wsService.on('notification:new', handleNotificationNew);
+
+    return () => {
+      wsService.off('notification:new', handleNotificationNew);
+    };
   }, [companyId]);
 
   // Request permission button handler

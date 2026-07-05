@@ -1,20 +1,31 @@
 import webPush from 'web-push';
 
-// Initialize VAPID only if keys are provided
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webPush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:admin@ketoan-erp.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-} else {
-  console.warn('⚠️ VAPID keys not configured. Push notifications will not work until configured.');
+/**
+ * Lazy-init VAPID details - called on first push to ensure dotenv has loaded
+ * (ESM static imports hoist above dotenv.config())
+ */
+let vapidInitialized = false;
+function ensureVapidInitialized() {
+  if (vapidInitialized) return;
+  
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webPush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:admin@ketoan-erp.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    vapidInitialized = true;
+    console.log('✅ VAPID keys initialized for Web Push notifications');
+  } else {
+    console.warn('⚠️ VAPID keys not configured. Push notifications will not work.');
+  }
 }
 
 /**
  * Send push notification to a single subscription
  */
 export async function sendPushNotification(subscription, payload) {
+  ensureVapidInitialized();
   try {
     await webPush.sendNotification(subscription, JSON.stringify(payload));
     return { success: true };
