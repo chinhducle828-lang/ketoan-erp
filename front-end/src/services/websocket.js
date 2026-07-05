@@ -1,7 +1,19 @@
 import { io } from 'socket.io-client';
 
 // WebSocket client configuration
-const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:5000';
+// Use VITE_WS_URL for production, fallback to localhost for development
+const WS_URL = process.env.VITE_WS_URL || process.env.REACT_APP_WS_URL || 'http://localhost:5000';
+
+// Ensure wss:// protocol for production (https -> wss)
+const getWsUrl = () => {
+  const url = WS_URL;
+  if (url.startsWith('https://')) {
+    return url.replace('https://', 'wss://');
+  }
+  return url;
+};
+
+const WS_URL_FINAL = getWsUrl();
 
 class WebSocketService {
   constructor() {
@@ -19,7 +31,7 @@ class WebSocketService {
       this.disconnect();
     }
 
-    this.socket = io(WS_URL, {
+    this.socket = io(WS_URL_FINAL, {
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,

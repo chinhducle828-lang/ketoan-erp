@@ -3,6 +3,17 @@ import { io } from 'socket.io-client';
 // WebSocket client configuration
 const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:5000';
 
+// Ensure wss:// protocol for production (https -> wss)
+const getWsUrl = () => {
+  const url = WS_URL;
+  if (url.startsWith('https://')) {
+    return url.replace('https://', 'wss://');
+  }
+  return url;
+};
+
+const WS_URL_FINAL = getWsUrl();
+
 class WebSocketService {
   constructor() {
     this.socket = null;
@@ -19,7 +30,7 @@ class WebSocketService {
       this.disconnect();
     }
 
-    this.socket = io(WS_URL, {
+    this.socket = io(WS_URL_FINAL, {
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
@@ -83,14 +94,14 @@ class WebSocketService {
   // Join company room
   joinCompany(companyId) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('joinCompany', companyId);
+      this.socket.emit('join-company', companyId);
     }
   }
 
   // Leave company room
   leaveCompany(companyId) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('leaveCompany', companyId);
+      this.socket.emit('leave-company', companyId);
     }
   }
 
