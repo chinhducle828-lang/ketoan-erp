@@ -556,6 +556,24 @@ router.post('/orders', async (req, res) => {
       );
     }
 
+    // Tự động trừ số lượng tồn kho khi có giao dịch bán hàng
+    const itemsMetadata = await getItemsMetadata(client);
+    const hasOpeningQuantity = itemsMetadata.itemColumns.has('opening_quantity');
+    if (hasOpeningQuantity && lineItems.length > 0) {
+      const itemIdColumn = itemsMetadata.itemIdExpr;
+      const itemIdsToUpdate = lineItems.map(line => line.itemId);
+      
+      // Trừ số lượng cho từng sản phẩm trong đơn hàng
+      for (const line of lineItems) {
+        await client.query(
+          `UPDATE items 
+           SET opening_quantity = GREATEST(COALESCE(opening_quantity, 0) - $1, 0) 
+           WHERE ${itemIdColumn} = $2 AND company_id = $3`,
+          [line.quantity, line.itemId, companyId]
+        );
+      }
+    }
+
     await client.query('COMMIT');
 
     // Send notifications (non-blocking)
