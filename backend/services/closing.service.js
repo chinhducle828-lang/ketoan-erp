@@ -26,13 +26,13 @@ const getBalanceByPrefix = async (db, companyId, accountPrefix, month, year) => 
 };
 
 /**
- * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
- * - 15%: Doanh thu ≤ 3 tỷ VNĐ
- * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
- * - 20%: Doanh thu trên 50 tỷ VNĐ
- * @param {number} revenue - Doanh thu năm trước (VNĐ)
- * @returns {number} - Thuế suất áp dụng
- */
+  * Tính thuế suất TNDN theo mức lũy tiến dựa trên doanh thu năm trước
+  * - 15%: Doanh thu ≤ 3 tỷ VNĐ
+  * - 17%: Doanh thu từ trên 3 tỷ đến 50 tỷ VNĐ
+  * - 20%: Doanh thu trên 50 tỷ VNĐ
+  * @param {number} revenue - Doanh thu năm trước (VNĐ)
+  * @returns {number} - Thuế suất áp dụng
+  */
 export function getTaxRateByRevenue(revenue) {
   const rules = getClosingRules();
   const brackets = Array.isArray(rules.progressiveTaxBrackets)
@@ -52,9 +52,79 @@ export function getTaxRateByRevenue(revenue) {
 }
 
 /**
- * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
- * LỖI 4: Thuật toán kết chuyển tự động
- */
+  * Tính thuế TNDN lũy tiến thực sự (Progressive Tax Calculation)
+  * Áp dụng thuế suất khác nhau cho từng phần doanh thu:
+  * - 15% cho phần doanh thu ≤ 3 tỷ
+  * - 17% cho phần doanh thu từ 3-50 tỷ
+  * - 20% cho phần doanh thu trên 50 tỷ
+  * @param {number} revenue - Doanh thu năm trước (VNĐ)
+  * @param {number} profit - Lợi nhuận trước thuế (VNĐ)
+  * @returns {Object} - { totalTax, appliedRate, breakdown: [{ threshold, amount, rate, tax }] }
+  */
+export function calculateProgressiveTax(revenue, profit) {
+  const rules = getClosingRules();
+  const brackets = Array.isArray(rules.progressiveTaxBrackets)
+    ? rules.progressiveTaxBrackets
+    : [
+        { maxRevenue: 3000000000, rate: 0.15 },
+        { maxRevenue: 50000000000, rate: 0.17 },
+        { maxRevenue: null, rate: 0.20 }
+      ];
+
+  if (profit <= 0) {
+    return { totalTax: 0, appliedRate: 0, breakdown: [] };
+  }
+
+  // Tính thuế lũy tiến dựa trên tỷ lệ lợi nhuận/doanh thu
+  // Giả sử lợi nhuận phân bố tương ứng với doanh thu
+  const effectiveRate = profit / revenue; // Tỷ lệ lợi nhuận trên doanh thu
+  
+  let remainingProfit = profit;
+  let totalTax = 0;
+  const breakdown = [];
+
+  for (const bracket of brackets) {
+    const maxRevenue = bracket?.maxRevenue;
+    const rate = Number(bracket?.rate);
+    
+    if (!Number.isFinite(rate)) continue;
+
+    // Xác định phần doanh thu tại mức thuế này
+    const profitAtThisBracket = maxRevenue === null || maxRevenue === undefined
+      ? remainingProfit
+      : Math.min(remainingProfit, maxRevenue * effectiveRate);
+
+    if (profitAtThisBracket > 0) {
+      const taxAtThisBracket = profitAtThisBracket * rate;
+      totalTax += taxAtThisBracket;
+      
+      breakdown.push({
+        threshold: maxRevenue,
+        amount: profitAtThisBracket,
+        rate: rate,
+        tax: taxAtThisBracket
+      });
+      
+      remainingProfit -= profitAtThisBracket;
+    }
+
+    if (remainingProfit <= 0) break;
+  }
+
+  // Tính thuế suất áp dụng trung bình
+  const appliedRate = profit > 0 ? totalTax / profit : 0;
+
+  return {
+    totalTax,
+    appliedRate,
+    breakdown
+  };
+}
+
+/**
+  * KẾT CHUYỂN SỔ CUỐI KỲ - ERP KẾ TOÁN
+  * LỖI 4: Thuật toán kết chuyển tự động
+  */
 
 /**
  * Hàm thực hiện kết chuyển sổ cuối kỳ
@@ -199,6 +269,7 @@ export async function runClosingEntries(companyId, month, year) {
     // Nếu lỗ (netProfit < 0), gán bút toán thuế bằng 0
     let taxAmount = 0;
     let appliedTaxRate = Number(closingRules.defaultTaxRate ?? 0.2);
+    let taxBreakdown = [];
     
     if (netProfit > 0) {
       // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
@@ -206,9 +277,11 @@ export async function runClosingEntries(companyId, month, year) {
       const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1);
       const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
-      // Xác định thuế suất áp dụng
-      appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
-      taxAmount = netProfit * appliedTaxRate;
+      // Tính thuế lũy tiến thực sự
+      const progressiveTax = calculateProgressiveTax(prevYearRevenue, netProfit);
+      taxAmount = progressiveTax.totalTax;
+      appliedTaxRate = progressiveTax.appliedRate;
+      taxBreakdown = progressiveTax.breakdown;
       
       // Tạo bút toán thuế TNDN: Nợ TK 821, Có TK 3334
       const closingDate = getClosingDate(year, month);
