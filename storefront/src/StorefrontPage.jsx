@@ -1232,22 +1232,24 @@ export default function StorefrontPage() {
     <div className="page-shell h-screen overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       <div className="flex h-screen flex-col">
 
-        {/* ========== COMPACT HEADER (single row) ========== */}
-        <header className="flex-shrink-0 border-b border-slate-200/70 bg-white/95 px-3 py-1.5 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
+        {/* ========== UPDATED HEADER ========== */}
+        <header className="flex-shrink-0 border-b border-slate-200/70 bg-white/95 px-4 py-3 shadow-soft">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             {/* Left: role badge + company id */}
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 min-w-0">
+              <span className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                 {currentRole.label}
               </span>
-              <form onSubmit={handleCompanySubmit} className="flex items-center gap-1">
+              <form onSubmit={handleCompanySubmit} className="flex flex-wrap items-center gap-2">
                 <input
                   value={companyId}
                   onChange={(e) => setCompanyId(e.target.value)}
                   placeholder="Company ID"
-                  className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-900 outline-none"
+                  className="w-28 min-w-[110px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none shadow-sm"
                 />
-                <button type="submit" className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">Tải</button>
+                <button type="submit" className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
+                  Tải
+                </button>
               </form>
               {canTrackQueue && (
                 <WebSocketStatusHUD
@@ -1267,26 +1269,26 @@ export default function StorefrontPage() {
             </div>
 
             {/* Right: lang/currency + cart button */}
-            <div className="flex items-center gap-1.5">
-              <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VI</button>
-                <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>EN</button>
-                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VND</button>
-                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>USD</button>
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
+                <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VI</button>
+                <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>EN</button>
+                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VND</button>
+                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>USD</button>
               </div>
               {canUseCart && (
-                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">
-                  <ShoppingCart size={12} /> {cartCount > 0 ? `(${cartCount})` : ''}
+                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
+                  <ShoppingCart size={16} /> {cartCount > 0 ? `(${cartCount})` : ''}
                 </button>
               )}
               {ALLOW_ROLE_SWITCH && (
-                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                <div className="flex flex-wrap overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
                   {ROLE_OPTIONS.map((role) => (
                     <button
                       key={role.value}
                       type="button"
                       onClick={() => handleRoleChange(role.value)}
-                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}
                     >
                       {role.label}
                     </button>
