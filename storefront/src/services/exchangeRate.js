@@ -1,9 +1,11 @@
 // Exchange rate service - fetches VND/USD rate from Fixer API
-// API key: bc2dab9568cd48d859d8e803c4be6f30
 
-const API_KEY = import.meta.env.VITE_EXCHANGE_RATE_API_KEY || 'bc2dab9568cd48d859d8e803c4be6f30';
+const API_KEY = import.meta.env.VITE_EXCHANGE_RATE_API_KEY || '';
+const DEFAULT_EXCHANGE_RATE = Number(import.meta.env.VITE_DEFAULT_EXCHANGE_RATE || 24000);
 // Fixer API: base EUR, get VND rate, then convert to USD rate
-const API_URL = `https://data.fixer.io/api/latest?access_key=${API_KEY}&base=EUR&symbols=VND,USD`;
+const API_URL = API_KEY
+  ? `https://data.fixer.io/api/latest?access_key=${API_KEY}&base=EUR&symbols=VND,USD`
+  : null;
 
 // Cache key for localStorage
 const CACHE_KEY = 'exchange_rate_vnd_usd';
@@ -52,6 +54,10 @@ export const fetchExchangeRate = async () => {
     return cachedRate;
   }
 
+  if (!API_URL) {
+    return DEFAULT_EXCHANGE_RATE;
+  }
+
   try {
     const response = await fetch(API_URL);
     
@@ -77,8 +83,8 @@ export const fetchExchangeRate = async () => {
     throw new Error('Invalid rate data from API');
   } catch (error) {
     console.error('Failed to fetch exchange rate:', error);
-    // Return default rate (1 USD = 24000 VND) as fallback
-    return 24000;
+    // Return the configured fallback rate when the remote API is unavailable
+    return DEFAULT_EXCHANGE_RATE;
   }
 };
 

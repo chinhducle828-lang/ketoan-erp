@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { calculateBalances } from '../../utils/accountingEngine.js'; 
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { BookOpenCheck, Loader2 } from 'lucide-react';
 
 export default function WorkInProcess() {
@@ -29,7 +30,7 @@ export default function WorkInProcess() {
       voucherDate: new Date().toISOString().split('T')[0],
       type: 'NK', // Phiếu Nhập Kho
       description: `Nhập kho thành phẩm hoàn thành sản xuất`,
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       exchangeRate: 1,
       details: [
         { accountCode: '155', entryType: 'DR', amount: amount },

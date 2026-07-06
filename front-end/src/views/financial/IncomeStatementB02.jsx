@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 // Accounting functions removed - now using API
 import { TrendingUp, TrendingDown, FileText, Download, RefreshCw } from 'lucide-react';
@@ -129,7 +130,7 @@ export default function IncomeStatementB02() {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       minimumFractionDigits: 0
     }).format(value || 0);
   };

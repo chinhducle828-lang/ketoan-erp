@@ -1,9 +1,12 @@
 // Utility functions for formatting
 
+const DEFAULT_CURRENCY = import.meta.env.VITE_DEFAULT_CURRENCY || 'VND';
+const DEFAULT_EXCHANGE_RATE = Number(import.meta.env.VITE_DEFAULT_EXCHANGE_RATE || 24000);
+
 // Dynamic currency formatting based on selected currency
 // exchangeRate: 1 USD = X VND (used to convert VND to USD)
 // If exchangeRate is not provided, it will be fetched from localStorage or use default
-export const formatPrice = (value, currency = 'VND', exchangeRate) => {
+export const formatPrice = (value, currency = DEFAULT_CURRENCY, exchangeRate) => {
   const numValue = Number(value) || 0;
   
   // Get exchange rate from localStorage if not provided
@@ -18,7 +21,7 @@ export const formatPrice = (value, currency = 'VND', exchangeRate) => {
     } catch {
       // ignore errors
     }
-    rate = rate || 24000; // Default fallback
+    rate = rate || DEFAULT_EXCHANGE_RATE; // Default fallback
   }
   
   if (currency === 'USD' && rate > 0) {
@@ -32,7 +35,7 @@ export const formatPrice = (value, currency = 'VND', exchangeRate) => {
 };
 
 // Convert price from VND to target currency
-export const convertPrice = (priceVND, targetCurrency, exchangeRate = 24000) => {
+export const convertPrice = (priceVND, targetCurrency, exchangeRate = DEFAULT_EXCHANGE_RATE) => {
   if (targetCurrency === 'VND') {
     return priceVND;
   }

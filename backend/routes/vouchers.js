@@ -6,6 +6,7 @@ import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
 import { buildPostingUpdateValues } from '../services/voucherStatus.js';
 import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
+import { checkCompanyActive } from '../middleware/waf.js';
 
 const router = express.Router();
 
@@ -73,7 +74,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // 2. POST: TẠO MỚI CHỨNG TỪ ĐA DÒNG, ĐA TIỀN TỆ
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, checkCompanyActive, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -84,7 +85,7 @@ router.post('/', authenticate, async (req, res) => {
       throw new Error('Chỉ quản trị hoặc kế toán trưởng mới được ghi sổ chứng từ');
     }
 
-    // Kiểm tra khóa sổ trước khi thêm mới
+    // FIX 1: Kiểm tra khóa sổ trước khi thêm mới (prevents post-close modifications)
     await checkLockDate(company_id, voucher_date);
 
     const vMasterQuery = `

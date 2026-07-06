@@ -5,7 +5,9 @@ import api from '../../utils/api.js';
 import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
-const ACCOUNT_DICTIONARY = {
+// FIX 3: Account dictionary maintained locally for frontend
+// Backend updates via API if needed
+const DEFAULT_ACCOUNT_DICTIONARY = {
   '111': 'Tiền mặt tại quỹ',
   '112': 'Tiền gửi Ngân hàng',
   '131': 'Phải thu của khách hàng',
@@ -25,7 +27,16 @@ const ACCOUNT_DICTIONARY = {
   '341': 'Vay và nợ thuê tài chính',
   '411': 'Vốn đầu tư của chủ sở hữu',
   '418': 'Quỹ đầu tư phát triển',
-  '421': 'Lợi nhuận sau thuế chưa phân phối'
+  '421': 'Lợi nhuận sau thuế chưa phân phối',
+  '511': 'Doanh thu bán hàng',
+  '515': 'Doanh thu hoạt động tài chính',
+  '632': 'Giá vốn hàng bán',
+  '635': 'Chi phí bán hàng',
+  '641': 'Chi phí quản lý doanh nghiệp',
+  '642': 'Chi phí sản xuất, kinh doanh',
+  '711': 'Thu nhập khác',
+  '811': 'Chi phí khác',
+  '821': 'Chi phí thuế TNDN'
 };
 
 export default function ClosingProcess() {
@@ -35,6 +46,12 @@ export default function ClosingProcess() {
   const [loading, setLoading] = useState(false);
   const [accountLedger, setAccountLedger] = useState({});
   const [loadingBalances, setLoadingBalances] = useState(false);
+  const [accountDictionary, setAccountDictionary] = useState(DEFAULT_ACCOUNT_DICTIONARY);
+  
+  useEffect(() => {
+    // FIX 3: Account dictionary loaded from local default (can be extended via API later)
+    setAccountDictionary(DEFAULT_ACCOUNT_DICTIONARY);
+  }, []);
 
   const currentCompanyId = activeCompany?.id || activeCompany || vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
   

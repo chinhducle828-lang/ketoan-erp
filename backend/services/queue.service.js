@@ -5,6 +5,7 @@
 
 import { Queue, Worker } from 'bullmq';
 import { redis } from '../cache/redis.js';
+import { getOrderIngestionRules } from '../config/businessRules.js';
 
 // Tạo queue cho các tác vụ nặng
 const fifoQueue = new Queue('fifo-calculation', {
@@ -33,7 +34,9 @@ const closingQueue = new Queue('closing-workflow', {
   }
 });
 
-const orderIngestionQueue = new Queue('order-ingestion', {
+const { queueName: orderIngestionQueueName } = getOrderIngestionRules();
+
+const orderIngestionQueue = new Queue(orderIngestionQueueName, {
   connection: redis,
   defaultJobOptions: {
     attempts: 3,

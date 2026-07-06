@@ -1,9 +1,12 @@
 import { Worker } from 'bullmq';
 import { redis } from '../cache/redis.js';
+import { getOrderIngestionRules } from '../config/businessRules.js';
 import { ingestOrderToVoucher } from '../services/orderIngestion.service.js';
 
+const { queueName: orderIngestionQueueName } = getOrderIngestionRules();
+
 export const orderIngestionWorker = new Worker(
-  'order-ingestion',
+  orderIngestionQueueName,
   async (job) => {
     const { order, userId } = job.data;
     if (!order || !order.company_id || !order.order_number) {
