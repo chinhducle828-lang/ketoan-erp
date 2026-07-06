@@ -1,4 +1,4 @@
-const STOREFRONT_ONLY_ROLES = ['nv_banhang', 'nv_kho'];
+const STOREFRONT_ONLY_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
 
 export const shouldClearExistingSessions = (role) => {
   const normalizedRole = String(role || '').trim().toLowerCase();
