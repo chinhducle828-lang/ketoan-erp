@@ -14,21 +14,27 @@ import StockIndicator from './StockIndicator';
  */
 export default function ProductCard({
   product,
-  onAddToCart,
+  onAction,
+  actionLabel = 'Thêm',
+  actionClassName = 'touch-target flex-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:bg-indigo-800 transition flex items-center justify-center gap-1',
   onViewDetails,
+  onSecondaryAction,
   isInWishlist = false,
-  onToggleWishlist
+  onToggleWishlist,
+  secondaryLabel = 'Xem',
+  secondaryClassName = 'touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 active:bg-slate-300 transition'
 }) {
-  const unitPrice = product?.price_sell || 0;
-  const stockQuantity = product?.opening_quantity || 0;
+  const unitPrice = Number(product?.price_sell) || 0;
+  const stockQuantity = Number(product?.opening_quantity) || 0;
+  const imageSrc = product?.image_urls?.[0] || product?.image_url;
 
   return (
     <div className="product-card flex flex-col">
       {/* Product Image */}
       <div className="relative aspect-square bg-slate-100 cursor-pointer" onClick={() => onViewDetails(product)}>
-        {product?.image_url ? (
+        {imageSrc ? (
           <img
-            src={product.image_url}
+            src={imageSrc}
             alt={product.name}
             className="w-full h-full object-cover"
             loading="lazy"
@@ -95,20 +101,23 @@ export default function ProductCard({
           {/* Action Buttons */}
           <div className="flex gap-2">
             <button
-              onClick={() => onViewDetails(product)}
-              className="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 active:bg-slate-300 transition"
-              title="Xem chi tiết"
+              onClick={() => (onSecondaryAction ?? onViewDetails)?.(product)}
+              className={secondaryClassName}
+              title={secondaryLabel}
             >
               <Eye size={16} />
+              <span>{secondaryLabel}</span>
             </button>
-            <button
-              onClick={() => onAddToCart(product)}
-              className="touch-target flex-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:bg-indigo-800 transition flex items-center justify-center gap-1"
-              title="Thêm vào giỏ hàng"
-            >
-              <ShoppingCart size={16} />
-              <span>Thêm</span>
-            </button>
+            {onAction && (
+              <button
+                onClick={() => onAction(product)}
+                className={actionClassName}
+                title={actionLabel}
+              >
+                <ShoppingCart size={16} />
+                <span>{actionLabel}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

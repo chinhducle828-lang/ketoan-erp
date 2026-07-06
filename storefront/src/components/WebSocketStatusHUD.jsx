@@ -14,6 +14,7 @@ import { Wifi, WifiOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
  * @param {Function} props.onReconnect - Reconnect handler
  */
 export default function WebSocketStatusHUD({
+  className = '',
   isConnected = false,
   isConnecting = false,
   lastSync = null,
@@ -66,7 +67,7 @@ export default function WebSocketStatusHUD({
   const status = getStatusConfig();
 
   return (
-    <div className={`fixed bottom-4 left-4 z-40 ${status.bg} ${status.border} border rounded-lg shadow-md p-3 transition-all duration-300`}>
+    <div className={`fixed bottom-4 left-4 z-40 ${status.bg} ${status.border} border rounded-lg shadow-md p-3 transition-all duration-300 ${className}`}>
       <div className="flex items-center gap-3">
         {/* Connection Status Icon */}
         <div className={`${status.color}`}>

@@ -22,6 +22,10 @@ import {
   User,
   X
 } from 'lucide-react';
+import FloatingCartBar from './components/FloatingCartBar';
+import ProductCard from './components/ProductCard';
+import QuickViewModal from './components/QuickViewModal';
+import WebSocketStatusHUD from './components/WebSocketStatusHUD';
 import {
   ROLE_OPTIONS,
   ROLE_BADGE_CLASS,
@@ -125,6 +129,11 @@ export default function StorefrontPage() {
     quantity: '1',
     amount: ''
   });
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [isRealtimeConnecting, setIsRealtimeConnecting] = useState(false);
+  const [lastRealtimeSync, setLastRealtimeSync] = useState(null);
+  const [pendingRealtimeOrders, setPendingRealtimeOrders] = useState(0);
+  const checkoutSectionRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState('VI');
   const [selectedCurrency, setSelectedCurrency] = useState('VND');
@@ -504,6 +513,17 @@ export default function StorefrontPage() {
     }));
   };
 
+  const removeCartItem = (itemId) => {
+    setCart((prev) => prev.filter((entry) => entry.id !== itemId));
+  };
+
+  const handleMobileCheckout = () => {
+    setShowMiniCart(false);
+    if (checkoutSectionRef.current) {
+      checkoutSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const addToCart = (item, qty = 1) => {
     if (!canUseCart) {
       setError('Vai trò hiện tại không thực hiện đặt đơn trực tiếp trên storefront.');
@@ -592,7 +612,7 @@ export default function StorefrontPage() {
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPrice(item) * item.quantity, 0), [cart]);
-  const discountAmount = couponCode.toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
+  const discountAmount = couponCode.trim().toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
   const hasCheckoutCart = cart.length > 0;
@@ -823,6 +843,9 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
       streamRef.current = null;
     }
 
+    setIsRealtimeConnecting(true);
+    setIsRealtimeConnected(false);
+
     const streamUrl = new URL(`${API_BASE_URL}/api/logistics/stream`);
     streamUrl.searchParams.set('company_id', String(companyId));
     if (storefrontToken) {
@@ -837,6 +860,12 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
 
     const refreshFromRealtime = () => {
       loadWarehouseQueue({ source: 'realtime', keepLoadingState: false });
+    };
+
+    eventSource.onopen = () => {
+      setIsRealtimeConnecting(false);
+      setIsRealtimeConnected(true);
+      setLastRealtimeSync(new Date().toISOString());
     };
 
     eventSource.addEventListener('order_created', (rawEvent) => {
@@ -897,7 +926,21 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
     });
 
     eventSource.onerror = () => {
+      setIsRealtimeConnecting(false);
+      setIsRealtimeConnected(false);
       // Keep lightweight polling as fallback when stream reconnects.
+    };
+
+    eventSource.onmessage = (rawEvent) => {
+      setLastRealtimeSync(new Date().toISOString());
+      try {
+        const data = JSON.parse(String(rawEvent?.data || '{}'));
+        if (data.pendingOrders !== undefined) {
+          setPendingRealtimeOrders(Number(data.pendingOrders));
+        }
+      } catch {
+        // ignore invalid event data
+      }
     };
 
     return () => {
@@ -1097,6 +1140,13 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
         <div className="mx-auto max-w-7xl px-4 py-5 lg:px-8 lg:py-7">
+          <WebSocketStatusHUD
+            className="hidden md:block"
+            isConnected={isRealtimeConnected}
+            isConnecting={isRealtimeConnecting}
+            lastSync={lastRealtimeSync}
+            pendingOrders={pendingRealtimeOrders}
+          />
           <header className="overflow-hidden rounded-[30px] border border-emerald-100 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)] lg:p-6">
             <div className="flex flex-col gap-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1209,7 +1259,25 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
             </div>
           )}
 
-          <section className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_1fr]">
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Sản phẩm khả dụng</p>
+              <p className="mt-3 text-3xl font-black text-slate-900">{filteredItems.length}</p>
+              <p className="mt-2 text-sm text-slate-500">Danh sách sản phẩm đang được hiển thị.</p>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">Số lượng trong giỏ</p>
+              <p className="mt-3 text-3xl font-black text-slate-900">{cartCount}</p>
+              <p className="mt-2 text-sm text-slate-500">Phù hợp cho thao tác thanh toán nhanh.</p>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">Đơn chờ đồng bộ</p>
+              <p className="mt-3 text-3xl font-black text-slate-900">{pendingRealtimeOrders}</p>
+              <p className="mt-2 text-sm text-slate-500">Đơn đang chờ cập nhật từ backend.</p>
+            </div>
+          </div>
+
+          <section className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_0.95fr]">
             <div className="space-y-4 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_36px_-24px_rgba(15,23,42,0.35)]">
               <div className="grid gap-3 lg:grid-cols-[1.45fr_0.55fr]">
                 <label className="relative block">
@@ -1245,36 +1313,20 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
                   <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">{t('noProducts', selectedLang)}</div>
                 ) : filteredItems.map((item) => {
                   const isWishlisted = wishlist.includes(item.id);
-                  const previewImage = item.image_urls?.[0] || item.image_url;
                   return (
-                    <div key={item.id} className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-300 hover:bg-white">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{item.category || 'Phổ biến'}</span>
-                        <button onClick={() => toggleWishlist(item.id)} className={`rounded-full p-2 ${isWishlisted ? 'bg-rose-100 text-rose-600' : 'bg-white text-slate-500'}`}>
-                          <Heart size={15} />
-                        </button>
-                      </div>
-                      <button type="button" onClick={() => handleItemSelect(item)} className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left">
-                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                          <ImageWithFallback
-                            src={previewImage}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                            iconSize={18}
-                            iconClassName="text-slate-400"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
-                          <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
-                          <p className="mt-1 text-sm font-bold text-slate-900">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
-                        </div>
-                      </button>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button onClick={() => openQuickView(item)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">{t('details', selectedLang)}</button>
-                        <button onClick={() => addToCart(item, 1)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{t('addToOrder', selectedLang)}</button>
-                      </div>
-                    </div>
+                    <ProductCard
+                      key={item.id}
+                      product={item}
+                      onViewDetails={openQuickView}
+                      onSecondaryAction={canUseCart ? undefined : handleViewStock}
+                      onAction={(currentItem) => addToCart(currentItem, 1)}
+                      actionLabel={t('addToOrder', selectedLang)}
+                      actionClassName="touch-target flex-1 bg-emerald-500 text-slate-950 rounded-lg text-xs font-semibold hover:bg-emerald-600 transition flex items-center justify-center gap-2"
+                      secondaryLabel={t('details', selectedLang)}
+                      secondaryClassName="touch-target flex-1 bg-white text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2"
+                      onToggleWishlist={(itemId) => toggleWishlist(itemId)}
+                      isInWishlist={isWishlisted}
+                    />
                   );
                 })}
               </div>
@@ -1449,96 +1501,54 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
           )}
 
           {showQuickView && quickViewItem && (
-            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-[2px]">
-              <div className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-400/30">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-slate-900">Xem nhanh</h3>
-                  <button onClick={() => setShowQuickView(false)} className="rounded-full bg-slate-100 p-2 text-slate-600"><X size={16} /></button>
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
-                  <div className="space-y-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
-                    <div className="relative rounded-[20px] border border-slate-200 bg-white p-3">
-                      <ImageWithFallback
-                        src={quickViewCurrentImage}
-                        alt={quickViewItem.name}
-                        className="mx-auto h-40 w-full rounded-[18px] object-cover"
-                        iconSize={32}
-                        iconClassName="mx-auto my-16 text-slate-400"
-                      />
-                      {quickViewImages.length > 1 && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={showQuickViewPrevImage}
-                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
-                          >
-                            <ChevronLeft size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={showQuickViewNextImage}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
-                          >
-                            <ChevronRight size={16} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    {quickViewImages.length > 1 && (
-                      <div className="grid grid-cols-4 gap-2">
-                        {quickViewImages.map((src, index) => (
-                          <button
-                            type="button"
-                            key={`${src}-${index}`}
-                            onClick={() => setQuickViewImageIndex(index)}
-                            className={`overflow-hidden rounded-2xl border ${quickViewImageIndex === index ? 'border-emerald-500' : 'border-slate-200'}`}
-                          >
-                            <ImageWithFallback
-                              src={src}
-                              alt={`Ảnh ${index + 1}`}
-                              className="h-14 w-full object-cover"
-                              iconSize={14}
-                              iconClassName="mx-auto text-slate-400"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-700">{quickViewItem.category || 'Phổ biến'}</p>
-                    <h4 className="mt-2 text-2xl font-black text-slate-900">{quickViewItem.name}</h4>
-                    <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
-                    <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <span className="text-sm text-slate-500">Giá bán</span>
-                      <span className="font-semibold text-slate-900">{formatPrice(getUnitPrice(quickViewItem), selectedCurrency)}</span>
-                    </div>
-                    {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
-                    <div className="mt-4 flex gap-2">
-                      <button onClick={() => { handleItemSelect(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">Xem chi tiết</button>
-                      {canUseCart ? (
-                        <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)}</button>
-                      ) : isAdminRole ? (
-                        <button onClick={() => { fillAdminFormFromItem(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-amber-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('edit', selectedLang)}</button>
-                      ) : isWarehouseRole ? (
-                        <button onClick={() => { handleViewStock(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('trackStock', selectedLang)}</button>
-                      ) : (
-                        <button onClick={() => setShowQuickView(false)} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700">Đóng</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <QuickViewModal
+              item={quickViewItem}
+              onClose={() => setShowQuickView(false)}
+              onAddToCart={(item, qty) => addToCart(item, qty)}
+              onToggleWishlist={(itemId) => toggleWishlist(itemId)}
+              isWishlisted={wishlist.includes(quickViewItem.id)}
+              selectedCurrency={selectedCurrency}
+              t={t}
+              canUseCart={canUseCart}
+              canManageItems={canManageItems}
+              isSalesRole={isSalesRole}
+              onEditItem={fillAdminFormFromItem}
+            />
           )}
         </div>
       </div>
+      <FloatingCartBar
+        cart={cart}
+        onUpdateQuantity={updateCartQuantity}
+        onRemoveItem={removeCartItem}
+        onCheckout={handleMobileCheckout}
+        onClose={() => setShowMiniCart(false)}
+        subtotal={cartSubtotal}
+        itemCount={cartCount}
+      />
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+        <WebSocketStatusHUD
+          className="hidden md:block"
+          isConnected={isRealtimeConnected}
+          isConnecting={isRealtimeConnecting}
+          lastSync={lastRealtimeSync}
+          pendingOrders={pendingRealtimeOrders}
+          onReconnect={() => {
+            if (streamRef.current) streamRef.current.close();
+            setTimeout(() => {
+              if (companyId) {
+                setIsRealtimeConnecting(true);
+                setIsRealtimeConnected(false);
+                loadWarehouseQueue({ source: 'poll', keepLoadingState: false });
+              }
+            }, 200);
+          }}
+        />
         <header className="rounded-[28px] border border-slate-200/70 bg-white/90 p-6 shadow-2xl shadow-slate-300/20 backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
@@ -1754,40 +1764,19 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
               ) : filteredItems.map((item) => {
                 const isWishlisted = wishlist.includes(item.id);
                 return (
-                  <div key={item.id} className={`group rounded-[24px] border bg-slate-100/90 p-4 transition ${isSalesRole ? 'border-emerald-200 hover:border-emerald-400' : 'border-slate-200 hover:border-emerald-500/40'}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs uppercase tracking-[0.2em] text-emerald-300">{item.category || 'Phổ biến'}</span>
-                      <button onClick={() => toggleWishlist(item.id)} className={`rounded-full p-2 ${isWishlisted ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-100 text-slate-500'}`}>
-                        <Heart size={16} />
-                      </button>
-                    </div>
-                    <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-100/70 p-6 text-center">
-                      <ImageWithFallback
-                        src={item.image_urls?.[0] || item.image_url}
-                        alt={item.name}
-                        className="mx-auto h-32 w-full max-w-[220px] rounded-[24px] object-cover"
-                        iconSize={28}
-                        iconClassName="mx-auto text-emerald-300"
-                      />
-                    </div>
-                    <div className="mt-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                      <h4 className="text-base font-bold text-slate-900">{item.name}</h4>
-                      <p className="mt-1 text-sm text-slate-500">{item.code} • {item.unit || 'Đơn vị'}</p>
-                        </div>
-                        <p className="text-sm font-semibold text-emerald-300">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      <button onClick={() => openQuickView(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-500/40">{t('details', selectedLang)}</button>
-                      {canUseCart ? (
-                        <button onClick={() => addToCart(item, 1)} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{isSalesRole ? t('addToOrder', selectedLang) : t('buyNow', selectedLang)}</button>
-                      ) : (
-                        <button onClick={() => handleViewStock(item)} className="rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Xem tồn kho</button>
-                      )}
-                    </div>
-                  </div>
+                  <ProductCard
+                    key={item.id}
+                    product={item}
+                    onViewDetails={openQuickView}
+                    onSecondaryAction={canUseCart ? undefined : handleViewStock}
+                    onAction={canUseCart ? (currentItem) => addToCart(currentItem, 1) : undefined}
+                    actionLabel={isSalesRole ? t('addToOrder', selectedLang) : t('buyNow', selectedLang)}
+                    actionClassName="touch-target flex-1 bg-emerald-500 text-slate-950 rounded-lg text-xs font-semibold hover:bg-emerald-600 transition flex items-center justify-center gap-2"
+                    secondaryLabel={canUseCart ? t('details', selectedLang) : 'Xem tồn kho'}
+                    secondaryClassName="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition flex items-center justify-center gap-2"
+                    onToggleWishlist={(itemId) => toggleWishlist(itemId)}
+                    isInWishlist={isWishlisted}
+                  />
                 );
               })}
             </div>
@@ -2270,89 +2259,30 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
         )}
 
         {showQuickView && quickViewItem && (
-          <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-50/90 p-4">
-            <div className="w-full max-w-2xl rounded-[28px] border border-slate-200/70 bg-slate-100 p-5 shadow-2xl shadow-slate-300/20">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-slate-900">Xem nhanh</h3>
-                <button onClick={() => setShowQuickView(false)} className="rounded-full bg-slate-100 p-2 text-slate-600"><X size={16} /></button>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
-                <div className="space-y-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/90 p-4 text-center">
-                  <div className="relative rounded-[20px] border border-slate-200 bg-white p-3">
-                    <ImageWithFallback
-                      src={quickViewCurrentImage}
-                      alt={quickViewItem.name}
-                      className="mx-auto h-40 w-full rounded-[18px] object-cover"
-                      iconSize={32}
-                      iconClassName="mx-auto my-16 text-emerald-300"
-                    />
-                    {quickViewImages.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={showQuickViewPrevImage}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={showQuickViewNextImage}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-700"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {quickViewImages.length > 1 && (
-                    <div className="grid grid-cols-4 gap-2">
-                      {quickViewImages.map((src, index) => (
-                        <button
-                          type="button"
-                          key={`${src}-${index}`}
-                          onClick={() => setQuickViewImageIndex(index)}
-                          className={`overflow-hidden rounded-2xl border ${quickViewImageIndex === index ? 'border-emerald-500' : 'border-slate-200'}`}
-                        >
-                          <ImageWithFallback
-                            src={src}
-                            alt={`Ảnh ${index + 1}`}
-                            className="h-14 w-full object-cover"
-                            iconSize={14}
-                            iconClassName="mx-auto text-slate-400"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">{quickViewItem.category || 'Phổ biến'}</p>
-                  <h4 className="mt-2 text-2xl font-black text-slate-900">{quickViewItem.name}</h4>
-                  <p className="mt-2 text-sm leading-7 text-slate-500">{quickViewDescription}</p>
-                  <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <span className="text-sm text-slate-500">Giá bán</span>
-                    <span className="font-semibold text-emerald-300">{formatPrice(getUnitPrice(quickViewItem), selectedCurrency)}</span>
-                  </div>
-                  {quickViewImages.length > 1 && <p className="mt-3 text-xs text-slate-500">Đang xem ảnh {quickViewImageIndex + 1}/{quickViewImages.length}</p>}
-                  <div className="mt-4 flex gap-2">
-                    <button onClick={() => { handleItemSelect(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-700">Xem chi tiết</button>
-                    {canUseCart ? (
-                      <button onClick={() => { addToCart(quickViewItem, 1); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)}</button>
-                    ) : isAdminRole ? (
-                      <button onClick={() => { fillAdminFormFromItem(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-amber-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('edit', selectedLang)}</button>
-                    ) : isWarehouseRole ? (
-                      <button onClick={() => { handleViewStock(quickViewItem); setShowQuickView(false); }} className="flex-1 rounded-2xl bg-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-950">{t('trackStock', selectedLang)}</button>
-                    ) : (
-                      <button onClick={() => setShowQuickView(false)} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700">Đóng</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <QuickViewModal
+            item={quickViewItem}
+            onClose={() => setShowQuickView(false)}
+            onAddToCart={(item, qty) => addToCart(item, qty)}
+            onToggleWishlist={(itemId) => toggleWishlist(itemId)}
+            isWishlisted={wishlist.includes(quickViewItem.id)}
+            selectedCurrency={selectedCurrency}
+            t={t}
+            canUseCart={canUseCart}
+            canManageItems={canManageItems}
+            isSalesRole={isSalesRole}
+            onEditItem={fillAdminFormFromItem}
+          />
         )}
       </div>
+      <FloatingCartBar
+        cart={cart}
+        onUpdateQuantity={updateCartQuantity}
+        onRemoveItem={removeCartItem}
+        onCheckout={handleMobileCheckout}
+        onClose={() => setShowMiniCart(false)}
+        subtotal={cartSubtotal}
+        itemCount={cartCount}
+      />
     </div>
   );
 }

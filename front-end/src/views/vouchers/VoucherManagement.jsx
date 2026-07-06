@@ -152,9 +152,25 @@ export default function VoucherManagement() {
     return VOUCHER_TYPES.find(t => t.value === type) || { label: type, color: 'bg-gray-50 text-gray-700' };
   };
 
+  const getVoucherStatusBadge = (voucher) => {
+    const isLocked = voucher.locked || voucher.isLocked || voucher.lock_date || voucher.lockDate;
+    if (isLocked) {
+      return <span className="status-badge status-locked">Đã Khóa Sổ</span>;
+    }
+    if (voucher.isPosted) {
+      return <span className="status-badge status-posted">Đã Ghi Sổ</span>;
+    }
+    return <span className="status-badge status-draft">Sổ Tạm</span>;
+  };
+
   const formatAmount = (amount) => {
     return Math.round(amount)?.toLocaleString('vi-VN');
   };
+
+  const totalVouchers = filteredVouchers.length;
+  const postedCount = filteredVouchers.filter(v => v.isPosted).length;
+  const lockedCount = filteredVouchers.filter(v => v.locked || v.isLocked || v.lock_date || v.lockDate).length;
+  const draftCount = totalVouchers - postedCount - lockedCount;
 
   // Keyboard shortcuts for ERP power users
   const handleSearchFocus = () => {
@@ -384,24 +400,43 @@ export default function VoucherManagement() {
         </div>
       )}
 
-      {/* Bộ lọc */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)... [F2]"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm"
-          />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-500">Tổng chứng từ</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{totalVouchers}</p>
+          <p className="mt-2 text-sm text-slate-500">Số chứng từ sau khi lọc.</p>
         </div>
-        <select
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-          className="border border-slate-200 p-2 rounded-lg text-sm"
-        >
+        <div className="rounded-3xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-500">Đã ghi sổ</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{postedCount}</p>
+          <p className="mt-2 text-sm text-slate-500">Chứng từ đã hoàn tất.</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-500">Chưa hoàn tất</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{draftCount}</p>
+          <p className="mt-2 text-sm text-slate-500">Đang chờ kiểm duyệt hoặc chỉnh sửa.</p>
+        </div>
+      </div>
+
+      {/* Bộ lọc */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)... [F2]"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-2xl text-sm outline-none"
+            />
+          </div>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none sm:w-auto"
+          >
           <option value="">Tất cả loại</option>
           {VOUCHER_TYPES.map(t => (
             <option key={t.value} value={t.value}>{t.label}</option>
@@ -410,9 +445,9 @@ export default function VoucherManagement() {
       </div>
 
       {/* Danh sách chứng từ - Sovereign Table with High Density */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sovereign-table">
+          <table className="min-w-full text-left text-xs sovereign-table">
             <thead className="bg-slate-50 text-slate-500 font-bold">
               <tr>
                 <th className="p-1.5 px-3">Ngày</th>
@@ -421,6 +456,7 @@ export default function VoucherManagement() {
                 <th className="p-1.5 px-3">Tiền tệ</th>
                 <th className="p-1.5 px-3">Diễn giải</th>
                 <th className="p-1.5 px-3">Định khoản</th>
+                <th className="p-1.5 px-3">Trạng thái</th>
                 <th className="p-1.5 px-3 text-right">Tổng tiền</th>
                 <th className="p-1.5 px-3 text-center">Thao tác</th>
               </tr>
@@ -463,6 +499,7 @@ export default function VoucherManagement() {
                           ))}
                         </div>
                       </td>
+                      <td className="p-1.5 px-3">{getVoucherStatusBadge(v)}</td>
                       <td className="p-1.5 px-3 text-right tabular-nums font-mono font-bold text-slate-700 whitespace-nowrap">
                         {formatAmount(totalAmount)}
                       </td>

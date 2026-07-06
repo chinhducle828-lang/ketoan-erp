@@ -16,6 +16,7 @@ import { isStorefrontOnlyRole } from './constants/storefrontRoles.js';
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
+import ResponsiveContainer from './components/ResponsiveContainer.jsx';
 import CompanyRouteWrapper from './components/CompanyRouteWrapper.jsx';
 
 export default function App() {
@@ -69,14 +70,16 @@ export default function App() {
             element={
               <div className="flex h-screen bg-slate-50 overflow-hidden">
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                  <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/gd-kinhdoanh/dashboard" replace />} />
-                      <Route path="/dashboard" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'dashboard').component} requiresActiveCompany={true} moduleId="dashboard" />} />
-                      <Route path="/reports" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'income-statement').component} requiresActiveCompany={true} moduleId="income-statement" />} />
-                      <Route path="/balance-sheet" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'balance-sheet').component} requiresActiveCompany={true} moduleId="balance-sheet" />} />
-                      <Route path="/cash-flow" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'cash-flow').component} requiresActiveCompany={true} moduleId="cash-flow" />} />
-                    </Routes>
+                  <main className="flex-1 overflow-y-auto bg-slate-50">
+                    <ResponsiveContainer className="py-6">
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/gd-kinhdoanh/dashboard" replace />} />
+                        <Route path="/dashboard" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'dashboard').component} requiresActiveCompany={true} moduleId="dashboard" />} />
+                        <Route path="/reports" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'income-statement').component} requiresActiveCompany={true} moduleId="income-statement" />} />
+                        <Route path="/balance-sheet" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'balance-sheet').component} requiresActiveCompany={true} moduleId="balance-sheet" />} />
+                        <Route path="/cash-flow" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'cash-flow').component} requiresActiveCompany={true} moduleId="cash-flow" />} />
+                      </Routes>
+                    </ResponsiveContainer>
                   </main>
                 </div>
               </div>
@@ -122,10 +125,11 @@ export default function App() {
                     onToggleSidebar={() => setSidebarOpen(open => !open)}
                   />
                   
-                  <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                    <Routes>
-                      {/* Trang chủ mặc định nhảy vào Khai báo số dư */}
-                      <Route path="/" element={<Navigate to={defaultPath} replace />} />
+                  <main className="flex-1 overflow-y-auto bg-slate-50">
+                    <ResponsiveContainer className="py-6">
+                      <Routes>
+                        {/* Trang chủ mặc định nhảy vào Khai báo số dư */}
+                        <Route path="/" element={<Navigate to={defaultPath} replace />} />
                       
                       {/* 🚀 TỰ ĐỘNG KHAI BÁO TUYẾN ĐƯỜNG (DYNAMIC ROUTING) */}
                       {MODULES_REGISTER.map(mod => (
