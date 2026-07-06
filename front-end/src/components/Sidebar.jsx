@@ -38,7 +38,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex bg-slate-900 text-slate-400 border-r border-slate-800 flex-col h-screen sticky top-0 left-0 shrink-0 transition-all duration-300 ${
+      <aside className={`hidden md:flex bg-slate-900 text-slate-400 border-r border-slate-800 flex-col h-full shrink-0 transition-all duration-300 ${
         isOpen ? 'w-64' : 'w-20'
       }`}>
         <div className="h-16 flex items-center gap-2 px-4 border-b border-slate-800 bg-slate-950">
@@ -104,7 +104,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black/40" onClick={onRequestClose} />
-          <div className="relative w-64 bg-slate-900 text-slate-400 border-r border-slate-800 flex flex-col h-screen">
+          <div className="relative w-64 bg-slate-900 text-slate-400 border-r border-slate-800 flex flex-col h-full">
             <div className="h-16 flex items-center gap-2 px-4 border-b border-slate-800 bg-slate-950">
               <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
                 <Terminal size={18} />
