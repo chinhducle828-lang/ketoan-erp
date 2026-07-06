@@ -8,6 +8,7 @@ const mockPool = {
 };
 
 const mockCanAccessCompany = jest.fn(async () => true);
+const mockPublishStorefrontOrderEvent = jest.fn().mockResolvedValue({ success: true });
 
 jest.unstable_mockModule('../../config/db.js', () => ({
   pool: mockPool,
@@ -46,7 +47,7 @@ jest.unstable_mockModule('../../config/businessRules.js', () => ({
 }));
 
 jest.unstable_mockModule('../../services/storefrontRealtime.service.js', () => ({
-  publishStorefrontOrderEvent: jest.fn().mockResolvedValue({ success: true }),
+  publishStorefrontOrderEvent: mockPublishStorefrontOrderEvent,
   ensureStorefrontRealtimeListener: jest.fn(),
 }));
 

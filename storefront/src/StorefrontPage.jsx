@@ -32,6 +32,10 @@ import {
   ROLE_CAPABILITY_MAP,
   WAREHOUSE_STATUS_OPTIONS,
   WAREHOUSE_STATUS_LABEL,
+  WAREHOUSE_STATUS_BADGE_CLASS,
+  WAREHOUSE_STATUS_CARD_CLASS,
+  WAREHOUSE_STATUS_TYPES,
+  WAREHOUSE_STATUS_SUMMARY_KEYS,
   SORT_OPTIONS,
   STOREFRONT_ROLE_KEY,
   ALLOW_ROLE_SWITCH
@@ -789,13 +793,13 @@ export default function StorefrontPage() {
       if (!firstQueueLoadRef.current && source !== 'realtime') {
         const addedPendingOrders = nextList.filter((order) => {
           const id = Number(order.id);
-          return !previousMap.has(id) && order.loading_status === 'pending_loading';
+          return !previousMap.has(id) && order.loading_status === WAREHOUSE_STATUS_TYPES.pendingLoading;
         });
 
         const completedOrders = nextList.filter((order) => {
           const id = Number(order.id);
           const previous = previousMap.get(id);
-          return previous && previous.loading_status !== 'completed' && order.loading_status === 'completed';
+          return previous && previous.loading_status !== WAREHOUSE_STATUS_TYPES.completed && order.loading_status === WAREHOUSE_STATUS_TYPES.completed;
         });
 
         if ((isAdminRole || isWarehouseRole) && addedPendingOrders.length > 0) {
@@ -909,10 +913,14 @@ export default function StorefrontPage() {
         payload = {};
       }
 
-      if (isAdminRole || isWarehouseRole) {
+      const targetRoles = Array.isArray(payload?.targetRoles) ? payload.targetRoles : [];
+      const shouldNotifyCurrentRole = targetRoles.length === 0 || targetRoles.includes(storefrontRole) || (storefrontRole === 'admin' && targetRoles.includes('admin'));
+
+      if (shouldNotifyCurrentRole) {
+        const title = isWarehouseRole ? 'Đơn mới chờ xuất kho' : isSalesRole ? 'Đơn mới từ bán hàng' : 'Đơn mới từ bán hàng';
         setRolePopup({
           id: `rt-order-created-${Date.now()}`,
-          title: isWarehouseRole ? 'Đơn mới chờ xuất kho' : 'Đơn mới từ bán hàng',
+          title,
           message: `${payload.voucherNumber || 'Đơn web'} vừa được tạo lúc ${new Date().toLocaleTimeString('vi-VN')}.`
         });
       }
@@ -932,8 +940,10 @@ export default function StorefrontPage() {
       const voucherNumber = payload?.voucherNumber || 'Đơn hàng';
       const loadingStatus = String(payload?.loadingStatus || '').trim();
       const statusLabel = WAREHOUSE_STATUS_LABEL[loadingStatus] || loadingStatus || 'được cập nhật';
+      const targetRoles = Array.isArray(payload?.targetRoles) ? payload.targetRoles : [];
+      const shouldNotifyCurrentRole = targetRoles.length === 0 || targetRoles.includes(storefrontRole) || (storefrontRole === 'admin' && targetRoles.includes('admin'));
 
-      if (isAdminRole || isWarehouseRole) {
+      if (shouldNotifyCurrentRole) {
         setRolePopup({
           id: `rt-status-${Date.now()}`,
           title: 'Cập nhật trạng thái đơn',
@@ -941,7 +951,7 @@ export default function StorefrontPage() {
         });
       }
 
-      if (isSalesRole && loadingStatus === 'completed' && Number.isFinite(voucherId)) {
+      if (isSalesRole && loadingStatus === WAREHOUSE_STATUS_TYPES.completed && Number.isFinite(voucherId)) {
         const trackedIds = salesOrderIdsRef.current || [];
         if (trackedIds.includes(voucherId)) {
           const remaining = trackedIds.filter((id) => Number(id) !== voucherId);
@@ -1001,6 +1011,29 @@ export default function StorefrontPage() {
     if (warehouseStatusFilter === 'all') return warehouseQueue;
     return warehouseQueue.filter((order) => order.loading_status === warehouseStatusFilter);
   }, [warehouseQueue, warehouseStatusFilter]);
+
+  const queueStatusSummary = useMemo(() => {
+    const summary = Object.fromEntries(WAREHOUSE_STATUS_SUMMARY_KEYS.map((status) => [status, 0]));
+
+    warehouseQueue.forEach((order) => {
+      const status = String(order?.loading_status || '').trim();
+      if (summary[status] !== undefined) {
+        summary[status] += 1;
+      }
+    });
+
+    return summary;
+  }, [warehouseQueue]);
+
+  const getStatusBadgeClass = (status) => {
+    const normalizedStatus = String(status || '').trim();
+    return WAREHOUSE_STATUS_BADGE_CLASS[normalizedStatus] || WAREHOUSE_STATUS_BADGE_CLASS.default;
+  };
+
+  const getStatusCardClass = (status) => {
+    const normalizedStatus = String(status || '').trim();
+    return WAREHOUSE_STATUS_CARD_CLASS[normalizedStatus] || WAREHOUSE_STATUS_CARD_CLASS.default;
+  };
 
   // Fetch exchange rate on component mount to populate localStorage
   useEffect(() => {
@@ -1158,7 +1191,7 @@ export default function StorefrontPage() {
 
     try {
       const currentStatus = String(order?.loading_status || '').trim();
-      if (currentStatus === 'pending_loading') {
+      if (currentStatus === WAREHOUSE_STATUS_TYPES.pendingLoading) {
         await authApi.post(
           '/api/logistics/assign-truck',
           { companyId: Number(companyId), voucherId: Number(order.id), truckId: order?.truck_id || null },
@@ -1166,7 +1199,7 @@ export default function StorefrontPage() {
         );
       }
 
-      if (currentStatus === 'assigned' || currentStatus === 'pending_loading') {
+      if (currentStatus === WAREHOUSE_STATUS_TYPES.assigned || currentStatus === WAREHOUSE_STATUS_TYPES.pendingLoading) {
         await authApi.post(
           '/api/logistics/confirm-loaded',
           { companyId: Number(companyId), voucherId: Number(order.id) },
@@ -1405,15 +1438,24 @@ export default function StorefrontPage() {
 
                 {/* Recent Orders preview */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <h3 className="text-xs font-bold text-slate-900">{t('orderTrackingSales', selectedLang)}</h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-bold text-slate-900">{t('orderTrackingSales', selectedLang)}</h3>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                      Mới: {queueStatusSummary[WAREHOUSE_STATUS_TYPES.pendingLoading]}
+                    </span>
+                  </div>
                   {warehouseQueue.length === 0 ? (
                     <p className="mt-1 text-[10px] text-slate-500">{t('noOrdersInQueue', selectedLang)}</p>
                   ) : (
                     <div className="mt-1.5 space-y-1">
                       {warehouseQueue.slice(0, 4).map((order) => (
-                        <div key={`sales-track-${order.id}`} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                          <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
-                          <p className="text-[9px] text-slate-500">{WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
+                        <div key={`sales-track-${order.id}`} className={`rounded-lg border p-1.5 ${getStatusCardClass(order.loading_status)}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
+                            <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusBadgeClass(order.loading_status)}`}>
+                              {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1564,19 +1606,21 @@ export default function StorefrontPage() {
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xs font-bold text-slate-900">{t('orderTracking', selectedLang)}</h3>
-                    <span className="text-[10px] text-slate-500">{warehouseQueue.length} {t('pendingOrders', selectedLang)}</span>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                      Mới: {queueStatusSummary[WAREHOUSE_STATUS_TYPES.pendingLoading]}
+                    </span>
                   </div>
                   <div className="max-h-36 space-y-1 overflow-y-auto">
                     {warehouseQueue.length === 0 ? (
                       <p className="py-2 text-center text-[10px] text-slate-500">{t('noOrders', selectedLang)}</p>
                     ) : (
                       warehouseQueue.slice(0, 8).map((order) => (
-                        <div key={`admin-track-${order.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div key={`admin-track-${order.id}`} className={`flex items-center justify-between rounded-lg border px-2 py-1 ${getStatusCardClass(order.loading_status)}`}>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
                             <p className="text-[9px] text-slate-500">{getOrderDisplayDate(order)}</p>
                           </div>
-                          <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
+                          <span className={`ml-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusBadgeClass(order.loading_status)}`}>
                             {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
                           </span>
                         </div>
@@ -1630,9 +1674,14 @@ export default function StorefrontPage() {
                     <div className="rounded-2xl border border-sky-200 bg-white p-3">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="text-xs font-bold text-slate-900">{t('warehouseTracking', selectedLang)}</h3>
-                        <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">
-                          {warehouseQueue.filter(o => o.loading_status !== 'completed').length} {t('pendingOrders', selectedLang)}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                            Mới: {queueStatusSummary[WAREHOUSE_STATUS_TYPES.pendingLoading]}
+                          </span>
+                          <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">
+                            {warehouseQueue.filter((o) => o.loading_status !== WAREHOUSE_STATUS_TYPES.completed).length} {t('pendingOrders', selectedLang)}
+                          </span>
+                        </div>
                       </div>
                       {warehouseLoading ? (
                         <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-[10px] text-slate-500">{t('loadingQueue', selectedLang)}</div>
@@ -1647,11 +1696,11 @@ export default function StorefrontPage() {
                                 key={order.id}
                                 type="button"
                                 onClick={() => setSelectedWarehouseOrder(order)}
-                                className={`w-full rounded-lg border p-2 text-left transition ${isSelected ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/50'}`}
+                                className={`w-full rounded-lg border p-2 text-left transition ${isSelected ? 'border-sky-400 bg-sky-50 shadow-sm' : `${getStatusCardClass(order.loading_status)} hover:border-sky-200 hover:bg-sky-50/50`}`}
                               >
                                 <div className="flex items-center justify-between gap-1.5">
                                   <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
-                                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : order.loading_status === 'assigned' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusBadgeClass(order.loading_status)}`}>
                                     {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
                                   </span>
                                 </div>
@@ -1668,7 +1717,7 @@ export default function StorefrontPage() {
                       <div className="rounded-2xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white p-3">
                         <div className="flex items-center justify-between mb-1.5">
                           <h4 className="text-xs font-bold text-slate-900">{selectedWarehouseOrder.voucherNumber || `Đơn #${selectedWarehouseOrder.id}`}</h4>
-                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${selectedWarehouseOrder.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : selectedWarehouseOrder.loading_status === 'assigned' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusBadgeClass(selectedWarehouseOrder.loading_status)}`}>
                             {WAREHOUSE_STATUS_LABEL[selectedWarehouseOrder.loading_status] || selectedWarehouseOrder.loading_status}
                           </span>
                         </div>
@@ -1683,7 +1732,7 @@ export default function StorefrontPage() {
                             <p className="text-[10px] text-slate-500">{t('noOrderLines', selectedLang)}</p>
                           )}
                         </div>
-                        {selectedWarehouseOrder.loading_status !== 'completed' && (
+                        {selectedWarehouseOrder.loading_status !== WAREHOUSE_STATUS_TYPES.completed && (
                           <button type="button" onClick={() => handleWarehouseComplete(selectedWarehouseOrder)} className="mt-2 w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-[10px] font-semibold text-slate-950 hover:bg-emerald-400">
                             {t('completeWarehouseOrder', selectedLang)}
                           </button>
