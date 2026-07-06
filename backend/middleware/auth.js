@@ -22,6 +22,19 @@ export const authenticate = async (req, res, next) => {
     );
     
     if (q.rows.length === 0) {
+      // Diagnostic: check if a session exists but expired or missing
+      try {
+        const diag = await pool.query('SELECT id, created_at, expires_at, ip_address, device_info FROM sessions WHERE token = $1 LIMIT 1', [token]);
+        if (diag.rows.length > 0) {
+          const s = diag.rows[0];
+          console.warn(`Session rejected for user=${req.user.id} token present but invalid/expired. sessionId=${s.id} expires_at=${s.expires_at} device=${s.device_info}`);
+        } else {
+          console.warn(`Session missing for user=${req.user.id} token not found in sessions table.`);
+        }
+      } catch (e) {
+        console.warn('Session diagnostic query failed:', e?.message || e);
+      }
+
       return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã bị đăng nhập từ nơi khác.' });
     }
     next();
