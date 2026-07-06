@@ -12,14 +12,24 @@ import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
 import { initWebSocket } from './services/websocket.service.js';
 import { authenticate } from './middleware/auth.js';
-import './workers/orderIngestionWorker.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+const isTestEnv = process.env.KETOAN_TEST === '1'
+  || (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'testing')
+  || process.env.JEST_WORKER_ID !== undefined
+  || process.argv.some(arg => /jest/i.test(String(arg)))
+  || process.execArgv.some(arg => /jest/i.test(String(arg)))
+  || String(process.env.npm_lifecycle_event || '').toLowerCase() === 'test';
+
 const app = express();
+
+if (!isTestEnv) {
+  import('./workers/orderIngestionWorker.js');
+}
 
 // KÍCH HOẠT TRUST PROXY: Bắt buộc cấu hình để lấy Real IP của Client qua Proxy bảo mật
 app.set('trust proxy', true);
@@ -102,7 +112,7 @@ const validateRulesOnStartup = () => {
 };
 
 // Khởi tạo Database thông qua đọc file schema.sql bên ngoài
-const dbInitPromise = (async () => {
+const initializeDatabase = async () => {
   try {
     // Validate rules first
     validateRulesOnStartup();
@@ -177,7 +187,11 @@ const dbInitPromise = (async () => {
   } catch (error) {
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);
   }
-})();
+};
+
+export const dbInitPromise = isTestEnv
+  ? Promise.resolve()
+  : initializeDatabase();
 
 // ====================================================================
 // ✅ ĐỒNG BỘ SANG NAMED IMPORT CHO TOÀN BỘ ROUTES

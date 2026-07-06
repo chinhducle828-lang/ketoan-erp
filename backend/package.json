@@ -8,11 +8,12 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo 'Backend API-only deployment: Skipping frontend build'",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:core": "node test-erp-core.js"
+    "test": "set KETOAN_TEST=1&& set NODE_ENV=test&& node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
+    "test:watch": "set KETOAN_TEST=1&& set NODE_ENV=test&& node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:core": "set KETOAN_TEST=1&& set NODE_ENV=test&& node test-erp-core.js"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^4.18.3",
     "cookie-parser": "^1.4.7",
@@ -20,12 +21,13 @@
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "express-slow-down": "^3.1.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.11.5",
     "socket.io": "^4.8.3",
-    "@socket.io/redis-adapter": "^8.3.0",
     "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },

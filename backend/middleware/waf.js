@@ -110,6 +110,29 @@ export const ipWhitelist = (allowedIPs = []) => {
   };
 };
 
+export const checkCompanyActive = async (req, res, next) => {
+  const companyId = req.body?.company_id || req.body?.companyId || req.query?.company_id || req.query?.companyId;
+  if (!companyId) {
+    return res.status(400).json({ error: 'company_id is required' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT active FROM companies WHERE id = $1', [companyId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    if (rows[0].active === false || rows[0].active === 'false') {
+      return res.status(403).json({ error: 'Company is not active' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error checking company active status:', error);
+    res.status(500).json({ error: 'Failed to verify company status' });
+  }
+};
+
 // Security headers
 export const securityHeaders = (req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
