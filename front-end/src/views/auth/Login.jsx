@@ -125,10 +125,10 @@ export default function Login({ onFirstRun }) {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-3 sm:p-4">
       <div className="w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 shadow-2xl shadow-black/40 backdrop-blur xl:grid xl:grid-cols-2">
         {/* Left panel - hero (hidden on mobile) */}
-        <div className="relative hidden bg-gradient-to-br from-emerald-600/20 via-slate-900 to-slate-950 p-6 lg:p-8 xl:flex xl:flex-col xl:justify-between">
+        <div className="relative bg-gradient-to-br from-emerald-600/20 via-slate-900 to-slate-950 p-6 lg:p-8 xl:flex xl:flex-col xl:justify-between">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(16,185,129,0.3),_transparent_55%)]" />
           <div className="relative space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
               <Sparkles size={14} />
               ERP + Commerce Platform
             </div>
@@ -136,19 +136,19 @@ export default function Login({ onFirstRun }) {
               <h1 className="text-3xl font-black leading-tight text-white lg:text-4xl">
                 Quản lý bán hàng, kho và kế toán
               </h1>
-              <p className="max-w-md text-sm leading-relaxed text-slate-400">
+              <p className="max-w-md text-sm leading-relaxed text-slate-300">
                 Từ đăng nhập nội bộ tới web bán hàng riêng, mọi dữ liệu đều được nối vào quy trình kế toán chuẩn.
               </p>
             </div>
           </div>
           <div className="relative mt-6 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs font-semibold text-white">Truy cập nhanh</p>
-            <div className="mt-2 flex items-center justify-between gap-2 text-sm text-slate-300">
-              <span className="text-xs">Phân hệ bán hàng riêng</span>
+            <p className="text-xs font-bold text-white">Truy cập nhanh</p>
+            <div className="mt-2 flex items-center justify-between gap-2 text-sm text-slate-200">
+              <span className="text-xs font-medium">Phân hệ bán hàng riêng</span>
               <button
                 type="button"
                 onClick={openStorefront}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
               >
                 Mở ngay <ExternalLink size={12} />
               </button>
@@ -158,19 +158,19 @@ export default function Login({ onFirstRun }) {
 
         {/* Right panel - login form */}
         <div className="flex flex-col justify-center p-5 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-sm">
-            {/* Header */}
-            <div className="mb-6 text-center xl:text-left">
-              <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 xl:mx-0">
-                <Sparkles size={20} />
+            <div className="mx-auto w-full max-w-sm">
+              {/* Header */}
+              <div className="mb-6 text-center xl:text-left">
+                <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 xl:mx-0">
+                  <Sparkles size={20} />
+                </div>
+                <h2 className="text-xl font-black text-white sm:text-2xl">Đăng nhập hệ thống</h2>
+                <p className="mt-1 text-xs font-medium text-slate-300">Truy cập khu vực kế toán và vận hành doanh nghiệp</p>
               </div>
-              <h2 className="text-xl font-bold text-white sm:text-2xl">Đăng nhập hệ thống</h2>
-              <p className="mt-1 text-xs text-slate-500">Truy cập khu vực kế toán và vận hành doanh nghiệp</p>
-            </div>
 
             {/* Error */}
             {error && (
-              <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-medium text-rose-300">
+              <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-300">
                 {error}
               </div>
             )}
@@ -190,7 +190,7 @@ export default function Login({ onFirstRun }) {
                     placeholder="Tên người dùng"
                     value={form.username}
                     onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 disabled:opacity-60"
+                    className="w-full rounded-xl border border-slate-600 bg-slate-950 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
                   />
                 </div>
                 <div className="relative">
@@ -205,14 +205,14 @@ export default function Login({ onFirstRun }) {
                     placeholder="Mật khẩu"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 disabled:opacity-60"
+                    className="w-full rounded-xl border border-slate-600 bg-slate-950 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
                   />
                 </div>
               </div>
 
               {/* Redirect options */}
-              <fieldset className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-                <legend className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <fieldset className="space-y-2 rounded-xl border border-slate-700 bg-slate-950/50 p-3">
+                <legend className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Sau khi đăng nhập
                 </legend>
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-800/50">
@@ -225,8 +225,8 @@ export default function Login({ onFirstRun }) {
                     className="mt-0.5 accent-emerald-500"
                   />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium text-slate-300">Về ERP</span>
-                    <span className="text-[10px] text-slate-600">Tiếp tục làm việc trên hệ thống kế toán</span>
+                    <span className="text-xs font-bold text-slate-200">Về ERP</span>
+                    <span className="text-[10px] text-slate-400">Tiếp tục làm việc trên hệ thống kế toán</span>
                   </div>
                 </label>
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-800/50">
@@ -239,8 +239,8 @@ export default function Login({ onFirstRun }) {
                     className="mt-0.5 accent-emerald-500"
                   />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium text-slate-300">Mở Web Bán Hàng (tab mới)</span>
-                    <span className="text-[10px] text-slate-600">Giữ phiên ERP, mở storefront ở tab riêng</span>
+                    <span className="text-xs font-bold text-slate-200">Mở Web Bán Hàng (tab mới)</span>
+                    <span className="text-[10px] text-slate-400">Giữ phiên ERP, mở storefront ở tab riêng</span>
                   </div>
                 </label>
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-800/50">
@@ -253,8 +253,8 @@ export default function Login({ onFirstRun }) {
                     className="mt-0.5 accent-emerald-500"
                   />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium text-slate-300">Chuyển sang Web Bán Hàng</span>
-                    <span className="text-[10px] text-slate-600">Mở storefront, đóng tab ERP hiện tại</span>
+                    <span className="text-xs font-bold text-slate-200">Chuyển sang Web Bán Hàng</span>
+                    <span className="text-[10px] text-slate-400">Mở storefront, đóng tab ERP hiện tại</span>
                   </div>
                 </label>
               </fieldset>
@@ -281,14 +281,14 @@ export default function Login({ onFirstRun }) {
             {/* Post-login choice modal */}
             {showPostLoginChoice && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-                  <h3 className="text-base font-bold text-white">Bạn muốn làm gì tiếp theo?</h3>
-                  <p className="mt-1 text-xs text-slate-400">Chọn nơi sẽ tiếp tục sau khi đăng nhập.</p>
+                <div className="w-full max-w-sm rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl">
+                  <h3 className="text-base font-black text-white">Bạn muốn làm gì tiếp theo?</h3>
+                  <p className="mt-1 text-xs font-medium text-slate-300">Chọn nơi sẽ tiếp tục sau khi đăng nhập.</p>
                   <div className="mt-4 space-y-2">
                     <button
                       onClick={() => { setShowPostLoginChoice(false); navigate('/', { replace: true }); }}
                       disabled={!showPostLoginChoice.canStayErp}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-left text-sm font-bold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <div className="flex flex-col gap-0.5">
                         <span>Ở lại ERP</span>
@@ -299,30 +299,30 @@ export default function Login({ onFirstRun }) {
                     </button>
                     <button
                       onClick={() => { if (postLoginHref) { window.open(postLoginHref, '_blank', 'noopener,noreferrer'); } else { alert('Chưa cấu hình URL cửa hàng.'); } }}
-                      className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                      className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>Mở Web Bán Hàng</span>
                         <ExternalLink size={14} />
                       </div>
-                      <span className="block text-[10px] font-normal text-slate-700">(tab mới, giữ phiên ERP)</span>
+                      <span className="block text-[10px] font-semibold text-slate-700">(tab mới, giữ phiên ERP)</span>
                     </button>
                     <button
                       onClick={() => { if (postLoginHref) { window.location.href = postLoginHref; } else { alert('Chưa cấu hình URL cửa hàng.'); } }}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-slate-800"
+                      className="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-slate-800"
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>Chuyển sang Web Bán Hàng</span>
                         <ArrowRight size={14} />
                       </div>
-                      <span className="block text-[10px] font-normal text-slate-500">(thay tab hiện tại)</span>
+                      <span className="block text-[10px] font-semibold text-slate-400">(thay tab hiện tại)</span>
                     </button>
                   </div>
                   <div className="mt-4 text-center">
                     <button
                       type="button"
                       onClick={() => setShowPostLoginChoice(false)}
-                      className="text-xs text-slate-500 hover:text-slate-300"
+                      className="text-xs font-semibold text-slate-400 hover:text-slate-300"
                     >
                       Đóng
                     </button>
@@ -332,12 +332,12 @@ export default function Login({ onFirstRun }) {
             )}
 
             {/* Footer actions */}
-            <div className="mt-5 space-y-2 border-t border-slate-800 pt-4 text-center">
+            <div className="mt-5 space-y-2 border-t border-slate-700 pt-4 text-center">
               {isStorefrontOnlyRole && (
                 <button
                   type="button"
                   onClick={handleLogoutAndSwitch}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+                  className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-700"
                 >
                   Đăng xuất & đăng nhập ERP khác
                 </button>
@@ -345,7 +345,7 @@ export default function Login({ onFirstRun }) {
               <button
                 type="button"
                 onClick={openStorefront}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:text-emerald-300"
               >
                 <ExternalLink size={12} />
                 Mở phân hệ bán hàng web riêng
@@ -353,7 +353,7 @@ export default function Login({ onFirstRun }) {
               <button
                 type="button"
                 onClick={onFirstRun}
-                className="block w-full text-xs font-medium text-slate-600 hover:text-slate-400"
+                className="block w-full text-xs font-semibold text-slate-400 hover:text-slate-300"
               >
                 Chưa có hệ thống? Đăng ký quản trị viên
               </button>
