@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { FileText, Trash2, Loader2, Plus, Search, Filter, X } from 'lucide-react';
 import api from '../../utils/api.js';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -25,22 +26,12 @@ export default function VoucherManagement() {
   const [partners, setPartners] = useState([]);
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [form, setForm] = useState({
-    voucherType: 'PKT',
-    date: new Date().toISOString().split('T')[0],
-    desc: '',
-    partnerId: '',
-    currency: 'VND',
-    exchangeRate: 1,
-    details: [
-      { accountCode: '', entryType: 'DR', amount: '', partnerId: '', itemId: '', quantity: '' }
-    ]
-  });
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     if (activeCompany) {
       const companyId = activeCompany?.id ?? activeCompany;
-      api.get(`/api/partners?company_id=${companyId}`)
+      api.get(`/api/partners/list?company_id=${companyId}`)
          .then(res => setPartners(res.data))
          .catch(() => {});
       api.get(`/api/items?company_id=${companyId}`)
@@ -161,12 +152,62 @@ export default function VoucherManagement() {
     return VOUCHER_TYPES.find(t => t.value === type) || { label: type, color: 'bg-gray-50 text-gray-700' };
   };
 
+  const getVoucherStatusBadge = (voucher) => {
+    const isLocked = voucher.locked || voucher.isLocked || voucher.lock_date || voucher.lockDate;
+    if (isLocked) {
+      return <span className="status-badge status-locked">Đã Khóa Sổ</span>;
+    }
+    if (voucher.isPosted) {
+      return <span className="status-badge status-posted">Đã Ghi Sổ</span>;
+    }
+    return <span className="status-badge status-draft">Sổ Tạm</span>;
+  };
+
   const formatAmount = (amount) => {
     return Math.round(amount)?.toLocaleString('vi-VN');
   };
 
+  const totalVouchers = filteredVouchers.length;
+  const postedCount = filteredVouchers.filter(v => v.isPosted).length;
+  const lockedCount = filteredVouchers.filter(v => v.locked || v.isLocked || v.lock_date || v.lockDate).length;
+  const draftCount = totalVouchers - postedCount - lockedCount;
+
+  // Keyboard shortcuts for ERP power users
+  const handleSearchFocus = () => {
+    searchInputRef.current?.focus();
+  };
+
+  const handleCreateNew = () => {
+    setShowForm(true);
+    resetForm();
+  };
+
+  const handlePostDocument = () => {
+    if (showForm) {
+      const formElement = document.querySelector('form');
+      if (formElement) {
+        formElement.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    if (showForm) {
+      setShowForm(false);
+      resetForm();
+    }
+  };
+
+  useKeyboardShortcuts({
+    onSearch: handleSearchFocus,
+    onCreate: handleCreateNew,
+    onPost: handlePostDocument,
+    onCancel: handleCancel,
+    enabled: true
+  });
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -179,9 +220,10 @@ export default function VoucherManagement() {
         <button
           onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
+          title="[Alt+N] Tạo chứng từ mới"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới'}
+          {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới [Alt+N]'}
         </button>
       </div>
 
@@ -314,7 +356,7 @@ export default function VoucherManagement() {
                       className="border p-2 rounded-lg text-sm flex-1 min-w-[140px]"
                     >
                       <option value="">Vật tư</option>
-                      {items.map(i => <option key={i.id} value={i.id}>{i.item_name}</option>)}
+                      {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                     <input
                       type="number"
@@ -344,58 +386,80 @@ export default function VoucherManagement() {
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}
-                Ghi Sổ Chứng Từ
+                Ghi Sổ Chứng Từ [Ctrl+S]
               </button>
               <button
                 type="button"
                 onClick={() => { setShowForm(false); resetForm(); }}
                 className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50"
               >
-                Hủy
+                Hủy [Esc]
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Bộ lọc */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm"
-          />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-500">Tổng chứng từ</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{totalVouchers}</p>
+          <p className="mt-2 text-sm text-slate-500">Số chứng từ sau khi lọc.</p>
         </div>
-        <select
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-          className="border border-slate-200 p-2 rounded-lg text-sm"
-        >
+        <div className="rounded-3xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-500">Đã ghi sổ</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{postedCount}</p>
+          <p className="mt-2 text-sm text-slate-500">Chứng từ đã hoàn tất.</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-500">Chưa hoàn tất</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{draftCount}</p>
+          <p className="mt-2 text-sm text-slate-500">Đang chờ kiểm duyệt hoặc chỉnh sửa.</p>
+        </div>
+      </div>
+
+      {/* Bộ lọc */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)... [F2]"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-2xl text-sm outline-none"
+            />
+          </div>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none sm:w-auto"
+          >
           <option value="">Tất cả loại</option>
           {VOUCHER_TYPES.map(t => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
       </div>
+    </div>
 
-      {/* Danh sách chứng từ */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Danh sách chứng từ - Sovereign Table with High Density */}
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="min-w-full text-left text-xs sovereign-table">
             <thead className="bg-slate-50 text-slate-500 font-bold">
               <tr>
-                <th className="p-3">Ngày</th>
-                <th className="p-3">Số CT</th>
-                <th className="p-3">Loại</th>
-                <th className="p-3">Tiền tệ</th>
-                <th className="p-3">Diễn giải</th>
-                <th className="p-3">Định khoản</th>
-                <th className="p-3 text-right">Tổng tiền</th>
-                <th className="p-3 text-center">Thao tác</th>
+                <th className="p-1.5 px-3">Ngày</th>
+                <th className="p-1.5 px-3">Số CT</th>
+                <th className="p-1.5 px-3">Loại</th>
+                <th className="p-1.5 px-3">Tiền tệ</th>
+                <th className="p-1.5 px-3">Diễn giải</th>
+                <th className="p-1.5 px-3">Định khoản</th>
+                <th className="p-1.5 px-3">Trạng thái</th>
+                <th className="p-1.5 px-3 text-right">Tổng tiền</th>
+                <th className="p-1.5 px-3 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -412,18 +476,18 @@ export default function VoucherManagement() {
                   const totalAmount = v.details?.reduce((sum, d) => sum + Math.round(d.amount || 0), 0) || 0;
                   return (
                     <tr key={v.id} className="border-b hover:bg-slate-50/50 transition">
-                      <td className="p-3 font-mono whitespace-nowrap">{v.voucherDate?.split('T')[0]}</td>
-                      <td className="p-3 font-mono font-bold text-slate-700">{v.voucherNumber}</td>
-                      <td className="p-3">
+                      <td className="p-1.5 px-3 font-mono whitespace-nowrap">{v.voucherDate?.split('T')[0]}</td>
+                      <td className="p-1.5 px-3 font-mono font-bold text-slate-700">{v.voucherNumber}</td>
+                      <td className="p-1.5 px-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black ${typeInfo.color}`}>
                           {typeInfo.label}
                         </span>
                       </td>
-                      <td className="p-3 font-mono text-xs">{v.currency}</td>
-                      <td className="p-3 text-slate-600 max-w-xs truncate" title={v.description}>
+                      <td className="p-1.5 px-3 font-mono text-xs">{v.currency}</td>
+                      <td className="p-1.5 px-3 text-slate-600 max-w-xs truncate" title={v.description}>
                         {v.description}
                       </td>
-                      <td className="p-3">
+                      <td className="p-1.5 px-3">
                         <div className="space-y-0.5 max-h-20 overflow-y-auto">
                           {v.details?.map((d, i) => (
                             <div key={i} className="font-mono text-[10px] whitespace-nowrap">
@@ -436,10 +500,11 @@ export default function VoucherManagement() {
                           ))}
                         </div>
                       </td>
-                      <td className="p-3 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                      <td className="p-1.5 px-3">{getVoucherStatusBadge(v)}</td>
+                      <td className="p-1.5 px-3 text-right tabular-nums font-mono font-bold text-slate-700 whitespace-nowrap">
                         {formatAmount(totalAmount)}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-1.5 px-3 text-center">
                         <button
                           onClick={() => handleDelete(v.id)}
                           className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition"

@@ -186,7 +186,8 @@ router.get('/stream', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async 
 
     const unregister = registerStorefrontStreamClient({
       companyId: Number(companyId),
-      res
+      res,
+      role: req.user?.storefront_role || req.user?.role || 'all'
     });
 
     const keepAlive = setInterval(() => {
@@ -254,7 +255,8 @@ router.post('/mark-completed', authenticate, requireRole(['admin', 'ktt', 'nv', 
       companyId: Number(companyId),
       voucherId: Number(voucherId),
       voucherNumber: transition.row.voucher_number,
-      loadingStatus: transition.row.loading_status
+      loadingStatus: transition.row.loading_status,
+      targetRoles: ['admin', 'nv_banhang', 'nv_kho']
     });
 
     res.json({ success: true, order: transition.row, message: 'Đơn hàng đã được xác nhận hoàn thành xuất kho.' });
@@ -311,7 +313,8 @@ router.post('/assign-truck', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
       companyId: Number(companyId),
       voucherId: Number(voucherId),
       voucherNumber: transition.row.voucher_number,
-      loadingStatus: transition.row.loading_status
+      loadingStatus: transition.row.loading_status,
+      targetRoles: ['admin', 'nv_banhang', 'nv_kho']
     });
 
     res.json({ success: true, order: transition.row });
@@ -376,7 +379,8 @@ router.post('/confirm-loaded', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES
       companyId: Number(companyId),
       voucherId: Number(voucherId),
       voucherNumber: transition.row.voucher_number,
-      loadingStatus: transition.row.loading_status
+      loadingStatus: transition.row.loading_status,
+      targetRoles: ['admin', 'nv_banhang', 'nv_kho']
     });
 
     res.json({ success: true, order: transition.row });

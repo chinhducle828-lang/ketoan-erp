@@ -2,20 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Viết đè trực tiếp cho thẻ body và các thẻ form theo chuẩn v3 */
+:root, body, #root {
+  min-height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========================================
+   UNIFIED DESIGN TOKEN SYSTEM
+   ERP (Sovereign) & Storefront (Transient)
+   ======================================== */
+
+:root {
+  /* Light Mode Default */
+  --color-bg-base: #F1F5F9;
+  --color-bg-surface: #FFFFFF;
+  --color-border-subtle: #E2E8F0;
+  --color-primary: #6366F1;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+}
+
+/* Dark Mode for ERP */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base: #030712;
+    --color-bg-surface: #0B0F19;
+    --color-border-subtle: #1F2937;
+    --color-primary: #6366F1;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #EF4444;
+  }
+}
+
+/* Manual dark mode class override */
+.dark {
+  --color-bg-base: #030712;
+  --color-bg-surface: #0B0F19;
+  --color-border-subtle: #1F2937;
+}
+
+/* ========================================
+   GLOBAL BASE STYLES
+   ======================================== */
+
 @layer base {
   body {
-    @apply bg-slate-50 font-sans antialiased text-slate-800;
+    background-color: var(--color-bg-base);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #1e293b;
   }
 
   input, select, textarea {
-    /* Chỉ transition các thuộc tính liên quan đến màu sắc để tối ưu performance */
-    @apply transition-colors duration-200;
-    /* Viền mặc định khi focus */
-    @apply focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500;
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
   }
 
-  /* Thanh cuộn mềm mại giống phần mềm ERP chuyên nghiệp */
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    border-color: #6366F1;
+  }
+
+  /* Tabular Numbers for Financial Data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  /* Professional Scrollbar */
   * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
@@ -37,5 +101,80 @@
 
   *::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+  }
+}
+
+/* ========================================
+   ERP SOVEREIGN MODE - High Density
+   ======================================== */
+
+@layer components {
+  /* Sovereign Table - High Density */
+  .sovereign-table {
+    @apply w-full text-left text-xs;
+  }
+
+  .sovereign-table thead {
+    @apply bg-slate-50 text-slate-500 font-bold sticky top-0 z-10;
+    position: sticky;
+  }
+
+  .sovereign-table th {
+    @apply p-1.5 px-3;
+  }
+
+  .sovereign-table td {
+    @apply p-1.5 px-3;
+  }
+
+  .sovereign-table tbody tr {
+    @apply border-b hover:bg-slate-50/50 transition;
+  }
+
+  /* Amount Cell - Right Aligned with Tabular Numbers */
+  .amount-cell {
+    @apply text-right tabular-nums font-mono font-bold text-slate-700 whitespace-nowrap;
+  }
+
+  /* Status Badges */
+  .status-badge {
+    @apply px-2 py-0.5 rounded text-[10px] font-black border;
+  }
+
+  .status-posted {
+    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20;
+  }
+
+  .status-draft {
+    @apply bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20;
+  }
+
+  .status-locked {
+    @apply bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20;
+  }
+}
+
+/* ========================================
+   STOREFRONT TRANSIENT MODE - Mobile First
+   ======================================== */
+
+@layer components {
+  /* Touch Target - Minimum 44px */
+  .touch-target {
+    @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+  }
+
+  /* Floating Action Bar */
+  .floating-action-bar {
+    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-50;
+  }
+
+  /* Stock Indicators */
+  .stock-high {
+    @apply text-emerald-600 font-semibold;
+  }
+
+  .stock-low {
+    @apply text-amber-600 font-semibold;
   }
 }

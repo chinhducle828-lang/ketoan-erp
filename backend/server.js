@@ -12,6 +12,7 @@ import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
 import { initWebSocket } from './services/websocket.service.js';
 import { authenticate } from './middleware/auth.js';
+import './workers/orderIngestionWorker.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -198,6 +199,7 @@ import publicRoutes from './routes/publicRoutes.js';
 import logisticsRoutes from './routes/logisticsRoutes.js';
 import notificationsRouter from './routes/notifications.js';
 import accountingRouter from './routes/accounting.js';
+import integrationRouter from './routes/integration/index.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -219,6 +221,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/logistics', logisticsRoutes);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/accounting', accountingRouter);
+app.use('/api/integration', integrationRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
@@ -316,6 +319,7 @@ if (process.env.SERVE_STATIC_FRONTEND === 'true') {
   const possiblePaths = [
     path.join(__dirname, '..', 'front-end', 'dist'),
     path.join(__dirname, '..', 'dist'),
+    path.join(__dirname, '..', 'storefront', 'dist'),
     path.join(__dirname, 'dist'),
     '/front-end/dist',
     '/app/front-end/dist'

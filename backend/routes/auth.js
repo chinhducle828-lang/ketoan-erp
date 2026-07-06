@@ -21,6 +21,7 @@ import {
 
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
+import { shouldClearExistingSessions } from '../services/sessionPolicy.js';
 import {
   registerAdminSchema,
   loginSchema,
@@ -90,14 +91,42 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     const hashedRefresh = hashToken(refreshToken);
     const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
+    // Insert ERP session token (accessToken)
     try {
-      await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      if (shouldClearExistingSessions(user.role)) {
+        await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      }
       await pool.query(
         'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)', 
         [user.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
       );
     } catch (err) {
       console.error('Không thể lưu session:', err.message);
+    }
+
+    // If user is a storefront-only role, also mint a long-lived storefront token immediately
+    let storefrontToken = null;
+    if (['nv_banhang', 'nv_kho'].includes(String(user.role || '').trim())) {
+      try {
+        const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
+        storefrontToken = jwt.sign(
+          { id: user.id, username: user.username, role: user.role, storefront_role: user.role, company_ids: companyIds },
+          process.env.JWT_SECRET,
+          { expiresIn: `${STOREFRONT_TOKEN_EXPIRE_DAYS}d` }
+        );
+
+        const storefrontRefresh = createRefreshToken();
+        const storefrontHashed = hashToken(storefrontRefresh);
+        const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+
+        await pool.query(
+          'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)',
+          [user.id, storefrontToken, storefrontHashed, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
+        );
+      } catch (err) {
+        console.error('Không thể tạo session storefront:', err.message);
+        storefrontToken = null;
+      }
     }
 
     // GHI AUDIT LOG: Theo dõi lịch sử đăng nhập hệ thống
@@ -283,7 +312,17 @@ router.post('/admin-reset-password', authenticate, requireRole(['admin']), safeV
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// External login: accept an erp_token (JWT) from storefront and create a server-side session
+// Check if a session role is allowed for a target storefront role
+const isSessionAllowedForStorefrontRole = (targetRole, sessionRole) => {
+  if (!targetRole || targetRole === 'guest') return true;
+  if (!sessionRole) return false;
+  if (targetRole === 'admin') return sessionRole === 'admin';
+  if (targetRole === 'nv_kho') return sessionRole === 'nv_kho' || sessionRole === 'admin';
+  if (targetRole === 'nv_banhang') return sessionRole === 'nv_banhang' || sessionRole === 'admin';
+  return false;
+};
+
+// External login: accept an erp_token (JWT) from storefront and create a dedicated storefront session
 router.post('/external-login', async (req, res) => {
   try {
     const { erp_token, company_id, role } = req.body;
@@ -297,38 +336,56 @@ router.post('/external-login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid erp_token' });
     }
 
-    // Create a session record similar to login flow
-    const accessToken = erp_token; // reuse token as access token (short-lived)
+    // Validate role match: the role in the URL/request must be compatible with the token's role
+    const requestedRole = role || 'guest';
+    if (!isSessionAllowedForStorefrontRole(requestedRole, payload.role)) {
+      return res.status(403).json({ 
+        error: `Tài khoản ${payload.role} không phù hợp với quyền ${requestedRole} trên storefront` 
+      });
+    }
+
+    // Create a dedicated storefront JWT with 7-day expiry (not reusing the 15-min ERP token)
+    const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
+    const storefrontToken = jwt.sign(
+      { 
+        id: payload.id, 
+        username: payload.username, 
+        role: payload.role,
+        storefront_role: requestedRole,
+        company_ids: payload.company_ids || []
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: `${STOREFRONT_TOKEN_EXPIRE_DAYS}d` }
+    );
+
+    // Create a session with the long-lived storefront token
+    // Do NOT delete existing sessions (preserves other active storefront tabs)
     const refreshToken = createRefreshToken();
     const hashedRefresh = hashToken(refreshToken);
-    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+    const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
     try {
-      await pool.query('DELETE FROM sessions WHERE user_id = $1', [payload.id]);
       await pool.query(
         'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1,$2,$3,now(),$4,$5,$6)',
-        [payload.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
+        [payload.id, storefrontToken, hashedRefresh, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
       );
     } catch (err) {
-      console.error('Failed to save external session:', err.message);
+      console.error('Failed to save storefront session:', err.message);
       return res.status(500).json({ error: 'Failed to create session' });
     }
 
-    // Set HttpOnly refresh cookie so browser is authenticated for ERP
-    res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
-
-    // Optionally, you can log an audit entry for external login
+    // Log audit entry
     try {
       await pool.query(
         `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [payload.id, 'EXTERNAL_LOGIN', 'USERS', null, JSON.stringify({ from: 'storefront', company_id, role }), req.ip]
+        [payload.id, 'STOREFRONT_LOGIN', 'USERS', null, JSON.stringify({ company_id, role: requestedRole }), req.ip]
       );
     } catch (e) {
-      console.warn('Failed to write audit log for external login:', e.message);
+      console.warn('Failed to write audit log for storefront login:', e.message);
     }
 
-    return res.json({ success: true });
+    return res.json({ success: true, storefrontToken });
   } catch (err) {
     console.error('External login error:', err);
     return res.status(500).json({ error: 'Server error' });

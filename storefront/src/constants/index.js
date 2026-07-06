@@ -18,7 +18,7 @@ export const ROLE_CAPABILITY_MAP = {
     canOrder: true,
     canUseCart: true,
     canManageItems: false,
-    canTrackQueue: false
+    canTrackQueue: false  // Guest không cần đồng bộ queue - không có auth
   },
   admin: {
     canOrder: false,
@@ -47,11 +47,36 @@ export const WAREHOUSE_STATUS_OPTIONS = [
   { value: 'delivering', label: 'Đang giao hàng' }
 ];
 
+export const WAREHOUSE_STATUS_TYPES = {
+  pendingLoading: 'pending_loading',
+  assigned: 'assigned',
+  delivering: 'delivering',
+  completed: 'completed'
+};
+
+export const WAREHOUSE_STATUS_SUMMARY_KEYS = Object.values(WAREHOUSE_STATUS_TYPES);
+
 export const WAREHOUSE_STATUS_LABEL = {
   pending_loading: 'Chờ xuất kho',
   assigned: 'Đã phân xe',
   delivering: 'Đang giao hàng',
   completed: 'Đã hoàn thành'
+};
+
+export const WAREHOUSE_STATUS_BADGE_CLASS = {
+  pending_loading: 'border-amber-200 bg-amber-50 text-amber-700',
+  assigned: 'border-sky-200 bg-sky-50 text-sky-700',
+  delivering: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  default: 'border-slate-200 bg-slate-50 text-slate-700'
+};
+
+export const WAREHOUSE_STATUS_CARD_CLASS = {
+  pending_loading: 'border-amber-200 bg-amber-50/70',
+  assigned: 'border-sky-200 bg-sky-50/70',
+  delivering: 'border-indigo-200 bg-indigo-50/70',
+  completed: 'border-emerald-200 bg-emerald-50/70',
+  default: 'border-slate-200 bg-white'
 };
 
 export const SORT_OPTIONS = [
@@ -60,6 +85,14 @@ export const SORT_OPTIONS = [
   { value: 'priceDesc', label: 'Giá cao → thấp' },
   { value: 'newest', label: 'Mới nhất' }
 ];
+
+export const ORDER_STATUS_TYPES = {
+  pending: 'pending',
+  processing: 'processing',
+  shipping: 'shipping',
+  completed: 'completed',
+  cancelled: 'cancelled'
+};
 
 export const STOREFRONT_ROLE_KEY = 'storefrontRole';
 

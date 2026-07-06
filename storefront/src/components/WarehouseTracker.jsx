@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { formatDisplayDate, formatPrice } from '../utils/formatters';
 import { warehouseApi } from '../utils/api';
+import { WAREHOUSE_STATUS_OPTIONS, WAREHOUSE_STATUS_TYPES } from '../constants';
 
 const WarehouseTracker = ({
   warehouseQueue,
@@ -66,10 +67,11 @@ const WarehouseTracker = ({
           onChange={(e) => setWarehouseStatusFilter(e.target.value)}
           className="rounded-lg border border-slate-200 px-3 py-1"
         >
-          <option value="all">Tất cả</option>
-          <option value="pending_loading">Chờ xuất kho</option>
-          <option value="assigned">Đã phân xe</option>
-          <option value="delivering">Đang giao</option>
+          {WAREHOUSE_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -88,7 +90,7 @@ const WarehouseTracker = ({
             </p>
             
             <div className="mt-2 flex gap-2">
-              {order.loading_status === 'pending_loading' && (
+              {order.loading_status === WAREHOUSE_STATUS_TYPES.pendingLoading && (
                 <button
                   onClick={() => handleAssignTruck(order.id)}
                   disabled={actionLoading[order.id]}
@@ -97,7 +99,7 @@ const WarehouseTracker = ({
                   Phân xe
                 </button>
               )}
-              {order.loading_status === 'assigned' && (
+              {order.loading_status === WAREHOUSE_STATUS_TYPES.assigned && (
                 <button
                   onClick={() => handleConfirmLoaded(order.id)}
                   disabled={actionLoading[order.id]}
@@ -106,7 +108,7 @@ const WarehouseTracker = ({
                   Xác nhận xuất kho
                 </button>
               )}
-              {order.loading_status === 'delivering' && (
+              {order.loading_status === WAREHOUSE_STATUS_TYPES.delivering && (
                 <button
                   onClick={() => handleMarkCompleted(order.id)}
                   disabled={actionLoading[order.id]}

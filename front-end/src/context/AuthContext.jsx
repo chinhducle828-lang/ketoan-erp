@@ -13,6 +13,17 @@ export function AuthProvider({ children }) {
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
 
+  // Lắng nghe sự kiện token hết hạn từ response interceptor
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      localStorage.removeItem('accessToken');
+      setUser(null);
+      setActiveCompany(null);
+    };
+    window.addEventListener('erp:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('erp:auth-expired', handleAuthExpired);
+  }, []);
+
   useEffect(() => {
     const initSession = async () => {
       try {
