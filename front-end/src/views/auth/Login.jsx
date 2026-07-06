@@ -21,7 +21,7 @@ const getStorefrontURL = () => {
 };
 
 export default function Login({ onFirstRun }) {
-  const { login, logout, user } = useAuth();
+  const { login, logout, user, token, activeCompany } = useAuth();
   const navigate = useNavigate();
   const storefrontUrl = getStorefrontURL();
   const roleCode = user?.roleId || user?.role;
@@ -110,7 +110,16 @@ export default function Login({ onFirstRun }) {
       return;
     }
 
-    window.open(storefrontUrl, '_blank', 'noopener,noreferrer');
+    const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
+    const role = user?.roleId || user?.role || '';
+    const erpToken = token || localStorage.getItem('accessToken') || '';
+    const params = new URLSearchParams();
+    if (companyId) params.set('company_id', companyId);
+    if (role) params.set('role', role);
+    if (erpToken) params.set('erp_token', erpToken);
+    if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
+    const href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
+    window.open(href, '_blank', 'noopener,noreferrer');
   };
 
   return (
