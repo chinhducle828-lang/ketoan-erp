@@ -1271,13 +1271,13 @@ export default function StorefrontPage() {
             {/* Right: lang/currency + cart button */}
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
-                <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VI</button>
-                <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>EN</button>
-                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VND</button>
-                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>USD</button>
+                <button type="button" onClick={() => setSelectedLang('VI')} className={`min-w-[64px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VI</button>
+                <button type="button" onClick={() => setSelectedLang('EN')} className={`min-w-[64px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>EN</button>
+                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`min-w-[70px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VND</button>
+                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`min-w-[70px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>USD</button>
               </div>
               {canUseCart && (
-                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
+                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
                   <ShoppingCart size={16} /> {cartCount > 0 ? `(${cartCount})` : ''}
                 </button>
               )}
@@ -1288,7 +1288,7 @@ export default function StorefrontPage() {
                       key={role.value}
                       type="button"
                       onClick={() => handleRoleChange(role.value)}
-                      className={`rounded-xl px-3 py-2 text-xs font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}
+                      className={`min-w-[72px] rounded-xl px-4 py-2 text-sm font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}
                     >
                       {role.label}
                     </button>
