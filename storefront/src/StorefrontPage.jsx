@@ -1167,13 +1167,15 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
       <>
         <div className="page-shell bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
           <div className="content-shell py-6">
-            <WebSocketStatusHUD
-              className="hidden md:block"
-              isConnected={isRealtimeConnected}
-              isConnecting={isRealtimeConnecting}
-              lastSync={lastRealtimeSync}
-              pendingOrders={pendingRealtimeOrders}
-            />
+            {canTrackQueue && (
+              <WebSocketStatusHUD
+                className="hidden md:block"
+                isConnected={isRealtimeConnected}
+                isConnecting={isRealtimeConnecting}
+                lastSync={lastRealtimeSync}
+                pendingOrders={pendingRealtimeOrders}
+              />
+            )}
             <header className="overflow-hidden rounded-[30px] border border-emerald-100 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)] lg:p-6">
             <div className="flex flex-col gap-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1560,23 +1562,25 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
   return (
     <div className="page-shell bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       <div className="content-shell py-6">
-        <WebSocketStatusHUD
-          className="hidden md:block"
-          isConnected={isRealtimeConnected}
-          isConnecting={isRealtimeConnecting}
-          lastSync={lastRealtimeSync}
-          pendingOrders={pendingRealtimeOrders}
-          onReconnect={() => {
-            if (streamRef.current) streamRef.current.close();
-            setTimeout(() => {
-              if (companyId) {
-                setIsRealtimeConnecting(true);
-                setIsRealtimeConnected(false);
-                loadWarehouseQueue({ source: 'poll', keepLoadingState: false });
-              }
-            }, 200);
-          }}
-        />
+        {canTrackQueue && (
+          <WebSocketStatusHUD
+            className="hidden md:block"
+            isConnected={isRealtimeConnected}
+            isConnecting={isRealtimeConnecting}
+            lastSync={lastRealtimeSync}
+            pendingOrders={pendingRealtimeOrders}
+            onReconnect={() => {
+              if (streamRef.current) streamRef.current.close();
+              setTimeout(() => {
+                if (companyId) {
+                  setIsRealtimeConnecting(true);
+                  setIsRealtimeConnected(false);
+                  loadWarehouseQueue({ source: 'poll', keepLoadingState: false });
+                }
+              }, 200);
+            }}
+          />
+        )}
         <header className="rounded-[28px] border border-slate-200/70 bg-white/90 p-6 shadow-2xl shadow-slate-300/20 backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
