@@ -37,17 +37,13 @@ import {
   t,
   formatDisplayDate,
   resolveMediaUrl,
-  normalizeAbsoluteUrl,
   buildErpLoginUrl,
   buildBearerConfig,
   isSessionAllowedForRole,
   getRoleDisplayName,
-  isExplicitNonAdminRole,
-  getUnitPrice,
-  getOrderAmount,
-  parsePriceValue
+  isExplicitNonAdminRole
 } from './utils/formatters';
-import { publicApi, authApi, API_BASE_URL, loadItems, createOrder, loadWarehouseQueue, adminItemApi, warehouseApi } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
@@ -171,29 +167,6 @@ export default function StorefrontPage() {
   const isExplicitNonAdminRole = (roleCode) => {
     const normalized = String(roleCode || '').trim().toLowerCase();
     return normalized !== '' && normalized !== 'admin';
-  };
-
-  const getERPUrl = () => {
-    const envUrl = normalizeAbsoluteUrl(import.meta.env.VITE_ERP_URL);
-    if (envUrl) return envUrl;
-
-    if (typeof window !== 'undefined') {
-      const fromQuery = normalizeAbsoluteUrl(new URLSearchParams(window.location.search).get('erp_url'));
-      if (fromQuery) return fromQuery;
-
-      const referrer = normalizeAbsoluteUrl(window.document?.referrer);
-      if (referrer) {
-        try {
-          const current = new URL(window.location.href);
-          const source = new URL(referrer);
-          if (source.origin !== current.origin) return source.origin;
-        } catch {
-          // ignore invalid referrer URL
-        }
-      }
-    }
-
-    return '';
   };
 
   // If admin session is missing, keep user on storefront and show guidance instead of auto-redirect.
@@ -757,7 +730,7 @@ export default function StorefrontPage() {
       setWarehouseLoading(true);
     }
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
+      const { data } = await authApi.get('/api/logistics/queue-details', {
         params: { company_id: companyId },
         ...getAdminAuthConfig()
       });
@@ -1027,14 +1000,14 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
       adminImageFiles.forEach((file) => payload.append('images', file));
 
       if (adminEditingCode) {
-        await axios.put(
-          `${API_BASE_URL}/api/items/${encodeURIComponent(adminEditingCode)}`,
+        await authApi.put(
+          `/api/items/${encodeURIComponent(adminEditingCode)}`,
           payload,
           getAdminAuthConfig()
         );
         setAdminMessage('Cập nhật sản phẩm thành công.');
       } else {
-        await axios.post(`${API_BASE_URL}/api/items`, payload, getAdminAuthConfig());
+        await authApi.post('/api/items', payload, getAdminAuthConfig());
         setAdminMessage('Tạo sản phẩm mới thành công.');
       }
 
@@ -1060,8 +1033,8 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
     setAdminBusy(true);
     setAdminMessage('');
     try {
-      await axios.delete(
-        `${API_BASE_URL}/api/items/${encodeURIComponent(itemCode)}`,
+      await authApi.delete(
+        `/api/items/${encodeURIComponent(itemCode)}`,
         {
           ...getAdminAuthConfig(),
           params: { company_id: Number(companyId) }
@@ -1085,23 +1058,23 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
     try {
       const currentStatus = String(order?.loading_status || '').trim();
       if (currentStatus === 'pending_loading') {
-        await axios.post(
-          `${API_BASE_URL}/api/logistics/assign-truck`,
+        await authApi.post(
+          '/api/logistics/assign-truck',
           { companyId: Number(companyId), voucherId: Number(order.id), truckId: order?.truck_id || null },
           getAdminAuthConfig()
         );
       }
 
       if (currentStatus === 'assigned' || currentStatus === 'pending_loading') {
-        await axios.post(
-          `${API_BASE_URL}/api/logistics/confirm-loaded`,
+        await authApi.post(
+          '/api/logistics/confirm-loaded',
           { companyId: Number(companyId), voucherId: Number(order.id) },
           getAdminAuthConfig()
         );
       }
 
-      await axios.post(
-        `${API_BASE_URL}/api/logistics/mark-completed`,
+      await authApi.post(
+        '/api/logistics/mark-completed',
         { companyId: Number(companyId), voucherId: Number(order.id) },
         getAdminAuthConfig()
       );
