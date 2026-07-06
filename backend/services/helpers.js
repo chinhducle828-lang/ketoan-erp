@@ -38,6 +38,18 @@ export const canAccessCompany = async (user, companyId) => {
   if (!companyId) return false;
   if (user.role === 'admin') return true;
 
+  // If the token payload already contains company_ids (e.g. storefront long-lived token),
+  // allow access based on that payload to avoid unnecessary DB lookups and to support
+  // external-login flows which may not have synced user_companies rows yet.
+  if (Array.isArray(user.company_ids) && user.company_ids.length > 0) {
+    try {
+      const normalized = user.company_ids.map((c) => Number(c));
+      if (normalized.includes(Number(companyId))) return true;
+    } catch {
+      // fall through to DB check on parse errors
+    }
+  }
+
   const result = await pool.query(
     'SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2 LIMIT 1',
     [user.id, companyId]
