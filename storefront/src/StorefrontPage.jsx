@@ -980,6 +980,20 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
     fetchExchangeRate().catch(() => {});
   }, []);
 
+  // Listen for auth token expiry from the axios interceptor
+  useEffect(() => {
+    const handleAuthExpired = (event) => {
+      setStorefrontToken('');
+      setHasAdminSession(false);
+      setSessionRole('');
+      if (event?.detail?.message) {
+        setAdminMessage(event.detail.message);
+      }
+    };
+    window.addEventListener('storefront:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('storefront:auth-expired', handleAuthExpired);
+  }, []);
+
   useEffect(() => {
     if (isSalesRole) {
       setShowMiniCart(true);
