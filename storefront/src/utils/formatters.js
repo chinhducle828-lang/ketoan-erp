@@ -81,7 +81,9 @@ export const translations = {
     orderNumber: 'Mã chứng từ',
     processing: 'Đang xử lý',
     completed: 'Đã hoàn thành',
-    pending: 'Chờ xử lý'
+    pending: 'Chờ xử lý',
+    selectedProduct: 'Sản phẩm đang chọn',
+    unit: 'Đơn vị'
   },
   EN: {
     customerName: 'Customer Name',
@@ -120,7 +122,9 @@ export const translations = {
     orderNumber: 'Order Number',
     processing: 'Processing',
     completed: 'Completed',
-    pending: 'Pending'
+    pending: 'Pending',
+    selectedProduct: 'Selected Product',
+    unit: 'Unit'
   }
 };
 
