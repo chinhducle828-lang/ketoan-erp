@@ -83,7 +83,7 @@ function UnauthorizedAccess({ userRole }) {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-slate-50">
+    <div className="flex items-center justify-center min-h-screen bg-slate-50">
       <div className="text-center p-8 bg-white rounded-xl shadow-sm max-w-md">
         <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <XCircle className="w-8 h-8 text-rose-600" />
@@ -144,7 +144,7 @@ function Root() {
 
   if (!authInitialized) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-sm text-slate-600">Đang khởi tạo phiên làm việc...</p>
@@ -155,7 +155,7 @@ function Root() {
 
   if (authError) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center p-6 bg-white rounded-xl shadow-sm max-w-md">
           <p className="text-sm text-rose-600 mb-4">Lỗi xác thực: {authError}</p>
           <button 

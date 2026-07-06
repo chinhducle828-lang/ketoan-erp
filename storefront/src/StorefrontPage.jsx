@@ -1138,16 +1138,17 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
 
   if (isSalesRole) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
-        <div className="mx-auto max-w-7xl px-4 py-5 lg:px-8 lg:py-7">
-          <WebSocketStatusHUD
-            className="hidden md:block"
-            isConnected={isRealtimeConnected}
-            isConnecting={isRealtimeConnecting}
-            lastSync={lastRealtimeSync}
-            pendingOrders={pendingRealtimeOrders}
-          />
-          <header className="overflow-hidden rounded-[30px] border border-emerald-100 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)] lg:p-6">
+      <>
+        <div className="page-shell bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
+          <div className="content-shell py-5 lg:py-7">
+            <WebSocketStatusHUD
+              className="hidden md:block"
+              isConnected={isRealtimeConnected}
+              isConnecting={isRealtimeConnecting}
+              lastSync={lastRealtimeSync}
+              pendingOrders={pendingRealtimeOrders}
+            />
+            <header className="overflow-hidden rounded-[30px] border border-emerald-100 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)] lg:p-6">
             <div className="flex flex-col gap-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
@@ -1526,12 +1527,13 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
         subtotal={cartSubtotal}
         itemCount={cartCount}
       />
-    );
+    </>
+  );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+    <div className="page-shell bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+      <div className="content-shell py-6">
         <WebSocketStatusHUD
           className="hidden md:block"
           isConnected={isRealtimeConnected}

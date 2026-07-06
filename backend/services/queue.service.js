@@ -33,9 +33,41 @@ const closingQueue = new Queue('closing-workflow', {
   }
 });
 
+const orderIngestionQueue = new Queue('order-ingestion', {
+  connection: redis,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000
+    },
+    removeOnComplete: true,
+    removeOnFail: 100,
+    timeout: 120000
+  }
+});
+
 // Queue scheduler để xử lý delayed jobs
 const fifoScheduler = new QueueScheduler('fifo-calculation', { connection: redis });
 const closingScheduler = new QueueScheduler('closing-workflow', { connection: redis });
+const orderIngestionScheduler = new QueueScheduler('order-ingestion', { connection: redis });
+
+/**
+ * Thêm job nhập đơn hàng vào queue
+ * @param {Object} data - { order, userId }
+ * @returns {Promise<Job>}
+ */
+export async function addOrderIngestionJob(data) {
+  if (redis.status !== 'ready') {
+    throw new Error('Redis chưa sẵn sàng để enqueue job');
+  }
+
+  return await orderIngestionQueue.add('ingest-order', data, {
+    jobId: `order:${data.order.company_id}:${data.order.order_number}`,
+    removeOnComplete: true,
+    removeOnFail: 100
+  });
+}
 
 /**
  * Thêm job tính FIFO vào queue

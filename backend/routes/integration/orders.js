@@ -2,7 +2,7 @@ import express from 'express';
 import { pool } from '../../config/db.js';
 import { authenticate } from '../../middleware/auth.js';
 import { publishToCompany } from '../../services/websocket.service.js';
-import { getInventoryRules } from '../../config/businessRules.js';
+import { addOrderIngestionJob } from '../../services/queue.service.js';
 
 const router = express.Router();
 
@@ -12,149 +12,51 @@ const router = express.Router();
  */
 
 /**
- * Get sales voucher type from business rules
- */
-const getSalesVoucherType = () => {
-  const rules = getInventoryRules();
-  return String(rules.salesVoucherType || 'XK');
-};
-
-/**
- * Get inventory account from business rules
- */
-const getInventoryAccount = () => {
-  const rules = getInventoryRules();
-  const accounts = rules.accounts || {};
-  return String(accounts.inventory || '156');
-};
-
-/**
- * Get sales account from business rules
- */
-const getSalesAccount = () => {
-  const rules = getInventoryRules();
-  const accounts = rules.accounts || {};
-  return String(accounts.sales || '511');
-};
-
-/**
- * POST: Tạo chứng từ từ đơn hàng storefront
- * Maps storefront order to ERP draft voucher
+ * POST: Tạo đơn hàng storefront vào queue xử lý bất đồng bộ
  */
 router.post('/orders', authenticate, async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    
     const {
       company_id,
       order_number,
       order_date,
       customer_id,
       items,
-      total_amount,
       description
     } = req.body;
-    
-    // Validate required fields
-    if (!company_id || !order_number || !order_date || !items || items.length === 0) {
+
+    if (!company_id || !order_number || !order_date || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
         error: 'Thiếu thông tin bắt buộc: company_id, order_number, order_date, items'
       });
     }
-    
-    // Create draft voucher (is_posted = false)
-    const voucherType = getSalesVoucherType();
-    const inventoryAccount = getInventoryAccount();
-    const salesAccount = getSalesAccount();
-    
-    // Insert voucher master
-    const voucherRes = await client.query(
-      `INSERT INTO vouchers (
-        company_id, voucher_type, voucher_date, voucher_number, 
-        description, currency, exchange_rate, created_by, is_posted
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [
+
+    const job = await addOrderIngestionJob({
+      order: {
         company_id,
-        voucherType,
-        order_date,
         order_number,
-        description || `Đơn hàng từ storefront: ${order_number}`,
-        'VND',
-        1,
-        req.user?.id || null,
-        false // Draft voucher
-      ]
-    );
-    
-    const voucherId = voucherRes.rows[0].id;
-    
-    // Calculate total for double-entry validation
-    let totalDebit = 0;
-    let totalCredit = 0;
-    
-    // Insert voucher details
-    for (const item of items) {
-      const { item_id, quantity, unit_price, amount } = item;
-      
-      // Debit: Inventory account (reduce stock)
-      if (quantity > 0 && amount > 0) {
-        totalDebit += parseFloat(amount);
-        
-        await client.query(
-          `INSERT INTO voucher_details (
-            voucher_id, account_code, entry_type, amount, quantity, item_id, partner_id
-          ) VALUES ($1, $2, 'DR', $3, $4, $5, $6)`,
-          [voucherId, inventoryAccount, amount, quantity, item_id, customer_id]
-        );
-      }
-    }
-    
-    // Credit: Sales account
-    if (totalDebit > 0) {
-      totalCredit = totalDebit;
-      
-      await client.query(
-        `INSERT INTO voucher_details (
-          voucher_id, account_code, entry_type, amount, partner_id
-        ) VALUES ($1, $2, 'CR', $3, $4)`,
-        [voucherId, salesAccount, totalCredit, customer_id]
-      );
-    }
-    
-    await client.query('COMMIT');
-    
-    // Emit WebSocket event for real-time updates
-    try {
-      publishToCompany(company_id, 'orderCreated', {
-        orderId: voucherId,
-        orderNumber: order_number,
-        status: 'draft',
-        timestamp: new Date().toISOString()
-      });
-    } catch (wsError) {
-      console.error('WebSocket notification error:', wsError);
-    }
-    
-    res.status(201).json({
-      success: true,
-      message: 'Tạo chứng từ từ đơn hàng thành công',
-      voucher_id: voucherId,
-      voucher_number: order_number,
-      status: 'draft'
+        order_date,
+        customer_id,
+        items,
+        description
+      },
+      userId: req.user?.id || null
     });
-    
+
+    res.status(202).json({
+      success: true,
+      message: 'Đơn hàng đã được nhận vào queue xử lý',
+      jobId: job.id,
+      status: 'queued'
+    });
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Lỗi tạo chứng từ từ đơn hàng:', error);
+    console.error('Lỗi enqueue đơn hàng storefront:', error);
     res.status(500).json({
       success: false,
-      error: 'Lỗi tạo chứng từ từ đơn hàng',
+      error: 'Không thể đưa đơn vào queue xử lý',
       details: error.message
     });
-  } finally {
-    client.release();
   }
 });
 

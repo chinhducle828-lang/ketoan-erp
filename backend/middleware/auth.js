@@ -1,6 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/db.js'; // Đường dẫn chuẩn xác từ middleware sang config/db.js
 
+const normalizeCompanyId = (companyId) => {
+  if (Array.isArray(companyId)) return companyId[0];
+  return companyId;
+};
+
 // 1. Middleware Xác thực người dùng & Kiểm tra Phiên làm việc
 export const authenticate = async (req, res, next) => {
   const tokenFromHeader = req.headers.authorization?.split(' ')[1];
@@ -67,13 +72,14 @@ export const requireRootAdmin = async (req, res, next) => {
 
 // 3. Middleware Cách ly dữ liệu giữa các Công ty (Row-Level Security)
 export const checkCompanyAccess = async (req, res, next) => {
-  const targetCompanyId =
+  const targetCompanyId = normalizeCompanyId(
     req.body.companyId ||
     req.body.company_id ||
     req.query.company_id ||
     req.query.companyId ||
     req.params.company_id ||
-    req.params.companyId;
+    req.params.companyId
+  );
   
   if (!targetCompanyId) {
     return res.status(400).json({ error: 'Yêu cầu không hợp lệ. Thiếu thông tin định danh công ty (companyId)!' });

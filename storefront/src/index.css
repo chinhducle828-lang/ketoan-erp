@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  font-size: clamp(0.95rem, 0.92rem + 0.2vw, 1rem);
+}
+
+:root, body, #root {
+  min-height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
 /* ========================================
    UNIFIED DESIGN TOKEN SYSTEM
    ERP (Sovereign) & Storefront (Transient)
@@ -98,6 +111,14 @@
 @layer components {
   .touch-target {
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+  }
+
+  .page-shell {
+    @apply min-h-screen w-full flex flex-col;
+  }
+
+  .content-shell {
+    @apply w-full max-w-[min(100%,1600px)] mx-auto px-4 sm:px-6 lg:px-8 flex-1;
   }
 
   .floating-action-bar {
