@@ -7,10 +7,15 @@ import { invalidateCompanyCache } from '../controllers/erpController.js';
 
 const router = express.Router();
 
+const normalizeCompanyId = (companyId) => {
+  if (Array.isArray(companyId)) return companyId[0];
+  return companyId;
+};
+
 // 1. API lấy số dư đầu kỳ
 router.get('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
-    const targetCompanyId = req.query.company_id;
+    const targetCompanyId = normalizeCompanyId(req.query.company_id);
     const fiscalYear = req.query.year ? Number(req.query.year) : 2026;
 
     const result = await pool.query(
@@ -38,7 +43,7 @@ router.get('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess,
 // 2. API cập nhật số dư đầu kỳ lịch sử
 router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
-    const targetCompanyId = req.query.company_id || req.body.companyId;
+    const targetCompanyId = normalizeCompanyId(req.query.company_id || req.body.companyId);
     const { accountCode, debitBalance, creditBalance, fiscalYear, partnerId } = req.body;
     const finalYear = fiscalYear ? Number(fiscalYear) : 2026;
 
@@ -71,7 +76,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess
 // 2. API Khóa / Mở khóa sổ số dư đầu kỳ
 router.post('/toggle-lock', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
-    const targetCompanyId = req.query.company_id;
+    const targetCompanyId = normalizeCompanyId(req.query.company_id);
     const { lockStatus, fiscalYear } = req.body;
     const finalYear = fiscalYear ? Number(fiscalYear) : 2026;
 

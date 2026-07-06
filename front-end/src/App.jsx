@@ -38,7 +38,7 @@ export default function App() {
   // ✅ ĐÃ HOÀN THIỆN: Màn hình chờ đồng bộ an toàn khi F5 ứng dụng
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 gap-3">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-3">
         <div className="w-9 h-9 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         <span className="text-xs text-slate-400 font-semibold tracking-wide animate-pulse">
           Đang đồng bộ chuỗi phiên an toàn...
@@ -107,7 +107,7 @@ export default function App() {
               <StorefrontAccessNotice />
             ) : (
               // Giao diện Layout tổng thể sau khi Login thành công
-              <div className="flex h-screen bg-slate-50 overflow-hidden">
+              <div className="flex min-h-screen bg-slate-50 overflow-hidden">
                 <Sidebar 
                   mobileOpen={mobileSidebarOpen} 
                   onRequestClose={() => setMobileSidebarOpen(false)}
@@ -149,6 +149,7 @@ export default function App() {
                       {/* Bắt các URL gõ sai quay về trang chủ */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
+                  </ResponsiveContainer>
                   </main>
                 </div>
               </div>

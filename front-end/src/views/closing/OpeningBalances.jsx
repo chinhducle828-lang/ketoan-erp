@@ -78,9 +78,15 @@ export default function OpeningBalances() {
   const fetchPartners = async () => {
     try {
       const res = await api.get(`/partners?company_id=${activeCompany.id}`);
-      setPartners(res.data || []);
+      const partnerList = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+      setPartners(partnerList);
     } catch (error) {
       console.error('Lỗi tải danh sách đối tác:', error);
+      setPartners([]);
     }
   };
 
@@ -96,7 +102,7 @@ export default function OpeningBalances() {
     try {
       setLoading(true);
       const currentYear = fiscalYear || 2026;
-      const res = await api.get(`/opening-balances?company_id=${activeCompany.id}&year=${currentYear}`);
+      const res = await api.get('/opening-balances', { params: { year: currentYear } });
 
       if (res.data && res.data.length > 0) {
         const dbMap = new Map(res.data.map(item => [item.account_code || item.accountCode, item]));
@@ -283,7 +289,7 @@ export default function OpeningBalances() {
       )}
 
       {/* 2. BẢNG SỐ DƯ 2 CỘT TÀI SẢN & NGUỒN VỐN */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         {PAGE_STRUCTURE.map((block) => (
           <div key={block.key} className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
             <div className="bg-[#1e293b] px-4 py-3 flex justify-between items-center text-white">
@@ -352,7 +358,7 @@ export default function OpeningBalances() {
                                         className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-400"
                                       >
                                         <option value="">-- Chọn đối tác --</option>
-                                        {partners.map(p => (
+                                        {(Array.isArray(partners) ? partners : []).map(p => (
                                           <option key={p.id} value={p.id}>
                                             {p.partner_name} ({p.partner_code})
                                           </option>

@@ -47,7 +47,8 @@ api.interceptors.request.use(
     if (activeCompanyData) {
       try {
         const company = JSON.parse(activeCompanyData);
-        if (company && company.id) {
+        const hasCompanyIdParam = config.params?.company_id || config.params?.companyId || /[?&](company_id|companyId)=/.test(config.url || '');
+        if (company && company.id && !hasCompanyIdParam) {
           config.headers['X-Company-Id'] = company.id;
           config.params = {
             ...config.params,

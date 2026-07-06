@@ -443,6 +443,7 @@ export default function VoucherManagement() {
           ))}
         </select>
       </div>
+    </div>
 
       {/* Danh sách chứng từ - Sovereign Table with High Density */}
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">

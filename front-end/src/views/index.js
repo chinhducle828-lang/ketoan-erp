@@ -50,7 +50,7 @@ export const MODULES_REGISTER = [
     name: 'Bán hàng tại quầy',
     icon: ShoppingCart,
     component: React.lazy(() => import('./auth/StorefrontAccessNotice.jsx')),
-    allowedRoles: ['admin', 'ktt', 'nv_banhang'],
+    allowedRoles: ['admin'], // Non-accounting module, chỉ admin mới được xem trong ERP
     requiresActiveCompany: true
   },
   {
@@ -66,7 +66,7 @@ export const MODULES_REGISTER = [
     name: 'Hóa đơn bán hàng Excel',
     icon: Layers,
     component: React.lazy(() => import('./sales/AutoSalesExcel.jsx')),
-    allowedRoles: ['admin', 'ktt', 'nv'],
+    allowedRoles: ['admin'], // Non-accounting module, chỉ admin mới được xem
     requiresActiveCompany: true
   },
   {
@@ -146,7 +146,7 @@ export const MODULES_REGISTER = [
     name: 'Logistics / Giao Hàng',
     icon: Truck,
     component: React.lazy(() => import('./logistics/LogisticsDashboard.jsx')),
-    allowedRoles: ['admin', 'ktt', 'nv'],
+    allowedRoles: ['admin'], // Non-accounting logistics module, chỉ admin được xem
     requiresActiveCompany: true
   },
   {
@@ -154,7 +154,7 @@ export const MODULES_REGISTER = [
     name: 'Màn Hình Bãi Xúc',
     icon: Boxes,
     component: React.lazy(() => import('./logistics/LoadingDock.jsx')),
-    allowedRoles: ['admin', 'ktt', 'nv'],
+    allowedRoles: ['admin'], // Non-accounting logistics module, chỉ admin được xem
     requiresActiveCompany: true
   },
   {

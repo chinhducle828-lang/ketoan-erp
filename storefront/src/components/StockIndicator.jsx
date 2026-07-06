@@ -1,6 +1,6 @@
 import React from 'react';
 import { Package, AlertTriangle } from 'lucide-react';
-import { STOCK_THRESHOLDS, UI_TEXT } from '../../constants/storefront';
+import { STOCK_THRESHOLDS, UI_TEXT } from '../constants/storefront';
 
 /**
  * Visual Stock Indicator Component

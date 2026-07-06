@@ -12,6 +12,7 @@ import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
 import { initWebSocket } from './services/websocket.service.js';
 import { authenticate } from './middleware/auth.js';
+import './workers/orderIngestionWorker.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);

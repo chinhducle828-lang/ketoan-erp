@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+:root, body, #root {
+  min-height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
 /* ========================================
    UNIFIED DESIGN TOKEN SYSTEM
    ERP (Sovereign) & Storefront (Transient)

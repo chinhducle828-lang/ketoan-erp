@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react';
-import { TOAST_DEFAULTS, ANIMATION } from '../../constants/storefront';
+import { TOAST_DEFAULTS, ANIMATION } from '../constants/storefront';
 
 /**
  * Toast Notification Component
