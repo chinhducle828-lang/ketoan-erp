@@ -43,7 +43,7 @@ import {
   getRoleDisplayName,
   isExplicitNonAdminRole
 } from './utils/formatters';
-import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi, setAuthenticating } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
@@ -279,6 +279,7 @@ export default function StorefrontPage() {
 
     if (erpToken) {
       (async () => {
+        setAuthenticating(true);
         setAuthenticatingAdmin(true);
         setAdminSessionChecked(false);
         try {
@@ -354,6 +355,7 @@ export default function StorefrontPage() {
             setSessionRole('');
           }
         } finally {
+          setAuthenticating(false);
           setAuthenticatingAdmin(false);
           setAdminSessionChecked(true);
           setAuthBootstrapDone(true);
@@ -370,6 +372,7 @@ export default function StorefrontPage() {
 
     const validateAdminSession = async () => {
       try {
+        setAuthenticating(true);
         setAuthenticatingAdmin(true);
         setAdminSessionChecked(false);
         const meRequest = storefrontToken
@@ -423,6 +426,7 @@ export default function StorefrontPage() {
           }
         }
       } finally {
+        setAuthenticating(false);
         setAuthenticatingAdmin(false);
         setAdminSessionChecked(true);
       }
