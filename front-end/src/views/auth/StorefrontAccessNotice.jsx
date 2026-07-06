@@ -42,8 +42,17 @@ export default function StorefrontAccessNotice({ skipAutoRedirect }) {
     if (!storefrontHref || redirecting) return;
     setRedirecting(true);
 
-    // Vào ERP bằng link nhưng role chỉ dùng storefront: tự điều hướng sang storefront.
-    window.location.replace(storefrontHref);
+    // Vào ERP bằng link nhưng role chỉ dùng storefront: mở storefront trong tab mới
+    // Sử dụng window.open thay vì window.location.replace để tránh vòng tròn chuyển hướng
+    try {
+      const popup = window.open(storefrontHref, '_blank', 'noopener,noreferrer');
+      if (!popup) {
+        // Nếu popup bị chặn, fallback sang cửa sổ mới
+        window.location.href = storefrontHref;
+      }
+    } catch (e) {
+      window.location.href = storefrontHref;
+    }
   }, [storefrontHref, redirecting, skipAutoRedirect]);
 
   const openStorefront = () => {
