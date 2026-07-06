@@ -3,7 +3,7 @@
  * Xử lý bất đồng bộ các tác vụ nặng (FIFO, Closing, etc.)
  */
 
-import { Queue, Worker, QueueScheduler } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { redis } from '../cache/redis.js';
 
 // Tạo queue cho các tác vụ nặng
@@ -47,11 +47,8 @@ const orderIngestionQueue = new Queue('order-ingestion', {
   }
 });
 
-// Queue scheduler để xử lý delayed jobs
-const fifoScheduler = new QueueScheduler('fifo-calculation', { connection: redis });
-const closingScheduler = new QueueScheduler('closing-workflow', { connection: redis });
-const orderIngestionScheduler = new QueueScheduler('order-ingestion', { connection: redis });
-
+// In BullMQ v5+, QueueScheduler functionality is built into Queue itself.
+// Delayed jobs are handled automatically by the Queue.
 /**
  * Thêm job nhập đơn hàng vào queue
  * @param {Object} data - { order, userId }
