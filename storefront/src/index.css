@@ -8,7 +8,7 @@
    ======================================== */
 
 :root {
-  /* Light Mode Default (Storefront Warm Slate) */
+  /* Storefront Warm Slate Light */
   --color-bg-base: #F8FAFC;
   --color-bg-surface: #FFFFFF;
   --color-border-subtle: #E2E8F0;
@@ -18,7 +18,7 @@
   --color-danger: #EF4444;
 }
 
-/* Dark Mode for ERP */
+/* Dark Mode for legacy ERP look */
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg-base: #030712;
@@ -31,7 +31,6 @@
   }
 }
 
-/* Manual dark mode class override */
 .dark {
   --color-bg-base: #030712;
   --color-bg-surface: #0B0F19;
@@ -48,7 +47,7 @@
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    color: #1e293b;
+    color: #0f172a;
   }
 
   input, select, textarea {
@@ -59,26 +58,20 @@
 
   input:focus, select:focus, textarea:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
-    border-color: #4F46E5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.18);
+    border-color: var(--color-primary);
   }
 
-  /* Tabular Numbers for Financial Data */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 
-  /* Smooth transitions */
   * {
     transition-property: background-color, border-color, color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
-  }
-
-  /* Professional Scrollbar */
-  * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
@@ -94,7 +87,7 @@
 
   *::-webkit-scrollbar-thumb {
     background: #cbd5e1;
-    border-radius: 10px;
+    border-radius: 9999px;
   }
 
   *::-webkit-scrollbar-thumb:hover {
@@ -102,32 +95,40 @@
   }
 }
 
-/* ========================================
-   STOREFRONT TRANSIENT MODE - Mobile First
-   ======================================== */
-
 @layer components {
-  /* Touch Target - Minimum 44px */
   .touch-target {
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
   }
 
-  /* Floating Action Bar */
   .floating-action-bar {
-    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-50;
+    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-50;
   }
 
-  /* Stock Indicators */
   .stock-high {
-    @apply text-emerald-600 font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 text-xs font-semibold;
   }
 
   .stock-low {
-    @apply text-amber-600 font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-700 text-xs font-semibold;
   }
 
-  /* Product Card */
   .product-card {
-    @apply bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow;
+    @apply rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold border;
+  }
+
+  .status-posted {
+    @apply bg-emerald-50 text-emerald-700 border-emerald-200;
+  }
+
+  .status-draft {
+    @apply bg-amber-50 text-amber-700 border-amber-200;
+  }
+
+  .status-locked {
+    @apply bg-slate-100 text-slate-600 border-slate-200;
   }
 }

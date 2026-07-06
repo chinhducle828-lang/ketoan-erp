@@ -107,6 +107,7 @@
 
   .sovereign-table thead {
     @apply bg-slate-50 text-slate-500 font-bold sticky top-0 z-10;
+    position: sticky;
   }
 
   .sovereign-table th {
