@@ -318,6 +318,7 @@ if (process.env.SERVE_STATIC_FRONTEND === 'true') {
   const possiblePaths = [
     path.join(__dirname, '..', 'front-end', 'dist'),
     path.join(__dirname, '..', 'dist'),
+    path.join(__dirname, '..', 'storefront', 'dist'),
     path.join(__dirname, 'dist'),
     '/front-end/dist',
     '/app/front-end/dist'
