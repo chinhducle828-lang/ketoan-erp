@@ -21,6 +21,7 @@ import {
 
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
+import { shouldClearExistingSessions } from '../services/sessionPolicy.js';
 import {
   registerAdminSchema,
   loginSchema,
@@ -91,7 +92,9 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
     try {
-      await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      if (shouldClearExistingSessions(user.role)) {
+        await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      }
       await pool.query(
         'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)', 
         [user.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
