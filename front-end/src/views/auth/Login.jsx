@@ -64,6 +64,15 @@ export default function Login({ onFirstRun }) {
     try {
       const response = await login(form.username, form.password);
       if (response && (response.success || response.accessToken)) {
+            // If backend returned a dedicated storefront token for storefront-only roles,
+            // persist it so storefront app can use it immediately without extra exchange.
+            if (response.storefrontToken) {
+              try {
+                localStorage.setItem('storefrontAccessToken', response.storefrontToken);
+              } catch (e) {
+                // ignore storage errors
+              }
+            }
             const roleToCheck = response.user?.roleId || response.user?.role || (user && (user.roleId || user.role));
             const hasErpAccess = MODULES_REGISTER.some((m) => Array.isArray(m.allowedRoles) && m.allowedRoles.includes(roleToCheck));
 
