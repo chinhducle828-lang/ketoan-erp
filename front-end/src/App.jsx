@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { MODULES_REGISTER } from './views/index.js';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Import các trang Auth
 import Login from './views/auth/Login.jsx';
@@ -14,8 +16,6 @@ import { isStorefrontOnlyRole } from './constants/storefrontRoles.js';
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
-
-// Import Wrapper bảo vệ phân hệ (Thay thế vai trò MainContent cũ)
 import CompanyRouteWrapper from './components/CompanyRouteWrapper.jsx';
 
 export default function App() {
@@ -152,6 +152,18 @@ export default function App() {
           }
         />
       </Routes>
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
     </BrowserRouter>
   );
 }

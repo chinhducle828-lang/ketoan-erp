@@ -198,6 +198,7 @@ import publicRoutes from './routes/publicRoutes.js';
 import logisticsRoutes from './routes/logisticsRoutes.js';
 import notificationsRouter from './routes/notifications.js';
 import accountingRouter from './routes/accounting.js';
+import integrationRouter from './routes/integration/index.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -219,6 +220,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/logistics', logisticsRoutes);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/accounting', accountingRouter);
+app.use('/api/integration', integrationRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
