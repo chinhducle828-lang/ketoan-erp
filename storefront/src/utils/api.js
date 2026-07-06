@@ -32,20 +32,22 @@ authApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth data
+      // Clear expired auth tokens silently - no redirect
+      const hadToken = localStorage.getItem('storefrontAccessToken');
+      localStorage.removeItem('storefrontAccessToken');
       localStorage.removeItem('erp_token');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('token');
-      localStorage.removeItem('companyId');
-      localStorage.removeItem('userId');
       
-      // Only redirect to ERP if we were already authenticated (not during initial auth)
-      // This prevents the "rollback" issue when logging in from ERP to storefront
-      if (!isAuthenticating) {
-        const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
-        window.location.href = erpUrl;
+      // If a storefront token was cleared, dispatch custom event so the UI can react
+      if (hadToken) {
+        try {
+          window.dispatchEvent(new CustomEvent('storefront:auth-expired', { detail: { message: 'Phiên đăng nhập đã hết hạn. Tiếp tục sử dụng chế độ khách.' } }));
+        } catch (e) { /* ignore dispatch errors */ }
       }
-      // If we're in the initial auth phase, let the error propagate to the component
+      
+      // Do NOT redirect to ERP - let the component handle the 401 gracefully
+      // The EventSource stream and polling will continue using cookies as fallback
     }
     return Promise.reject(error);
   }
