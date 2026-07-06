@@ -19,6 +19,7 @@ const getUrlParams = () => {
 };
 
 // Initialize authentication from URL params
+// StorefrontPage sẽ xử lý external-login call, main.jsx chỉ lưu params từ URL
 const initAuth = async () => {
   const { erp_token, company_id, role, erp_url } = getUrlParams();
   
@@ -26,42 +27,16 @@ const initAuth = async () => {
     // Set authenticating flag to prevent 401 redirect during initial auth
     setAuthenticating(true);
     try {
-      // Call external login to establish session
-      const response = await api.post('/auth/external-login', {
-        erp_token,
-        company_id,
-        role
-      });
+      // Chỉ lưu URL params vào localStorage, không gọi API
+      // StorefrontPage sẽ gọi external-login qua Effect A
+      localStorage.setItem('url_erp_token', erp_token);
+      if (company_id) localStorage.setItem('companyId', company_id);
+      if (role) localStorage.setItem('userRole', role);
+      if (erp_url) localStorage.setItem('erpUrl', erp_url);
       
-      if (response.data?.success) {
-        // Store auth data for use in App
-        localStorage.setItem('erp_token', erp_token);
-        if (company_id) localStorage.setItem('companyId', company_id);
-        if (role) localStorage.setItem('userRole', role);
-        if (erp_url) localStorage.setItem('erpUrl', erp_url);
-        
-        // Get user info from the established session
-        const meResponse = await api.get('/auth/me');
-        if (meResponse.data?.user) {
-          localStorage.setItem('userId', meResponse.data.user.id);
-          localStorage.setItem('userName', meResponse.data.user.username);
-          // Update role from server if not provided in URL
-          if (meResponse.data.user.role && !role) {
-            localStorage.setItem('userRole', meResponse.data.user.role);
-          }
-        }
-        
-        return true;
-      }
-    } catch (error) {
-      console.error('External login failed:', error);
-      // Clear any existing auth
-      localStorage.removeItem('erp_token');
-      localStorage.removeItem('companyId');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('userRole');
+      return true;
     } finally {
-      // Clear authenticating flag after auth attempt completes
+      // Clear authenticating flag
       setAuthenticating(false);
     }
   }

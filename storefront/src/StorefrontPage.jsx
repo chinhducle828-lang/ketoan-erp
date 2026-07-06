@@ -859,7 +859,17 @@ export default function StorefrontPage() {
 
   useEffect(() => {
     if (!canTrackQueue || !companyId) return;
-    if (!hasAdminSession && !storefrontToken) return; // Chờ session hợp lệ
+
+    if (!storefrontToken) {
+      setIsRealtimeConnecting(true);
+      setIsRealtimeConnected(false);
+      // Set timeout: nếu 15s không có token, chuyển sang "Mất kết nối"
+      const timeout = setTimeout(() => {
+        setIsRealtimeConnecting(false);
+        setIsRealtimeConnected(false);
+      }, 15000);
+      return () => clearTimeout(timeout);
+    }
 
     if (streamRef.current) {
       streamRef.current.close();
@@ -951,20 +961,14 @@ export default function StorefrontPage() {
     eventSource.onerror = (err) => {
       setIsRealtimeConnecting(false);
       setIsRealtimeConnected(false);
+      setLastRealtimeSync(null);
       
-      // Check if the error is an auth failure (401) by checking the event source readyState
-      // EventSource auto-closes on 401, so we detect token expiry and clean up
-      if (storefrontToken && eventSource.readyState === EventSource.CLOSED) {
-        // Token likely expired - clear it and fall back to cookie-based polling
-        const wasTokenCleared = localStorage.getItem('storefrontAccessToken');
-        if (wasTokenCleared) {
-          localStorage.removeItem('storefrontAccessToken');
-          setStorefrontToken('');
-          // Don't redirect - just fall back to cookie-based polling quietly
-          setAdminMessage('Phiên admin đã hết hạn. Chuyển sang chế độ polling dự phòng.');
-        }
-      }
-      // Keep lightweight polling as fallback when stream reconnects.
+      // Không tự động xóa storefrontToken khi EventSource lỗi
+      // Vì EventSource có thể lỗi do network glitch tạm thời
+      // Session validation (Effect B) sẽ xử lý token expiry riêng
+      // Khi token thực sự hết hạn, EventSource tự động reconnect sẽ thất bại
+      // và Effect B sẽ phát hiện và xóa token nếu cần
+      // Polling fallback vẫn chạy song song bất kể trạng thái WebSocket
     };
 
     eventSource.onmessage = (rawEvent) => {
@@ -985,7 +989,7 @@ export default function StorefrontPage() {
         streamRef.current = null;
       }
     };
-  }, [companyId, canTrackQueue, storefrontToken, hasAdminSession, isAdminRole, isWarehouseRole, isSalesRole]);
+  }, [companyId, canTrackQueue, storefrontToken, isAdminRole, isWarehouseRole, isSalesRole]);
 
   useEffect(() => {
     if (!rolePopup) return;
@@ -1219,6 +1223,12 @@ export default function StorefrontPage() {
                   isConnecting={isRealtimeConnecting}
                   lastSync={lastRealtimeSync}
                   pendingOrders={pendingRealtimeOrders}
+                  onReconnect={() => {
+                    // Trigger reconnect by forcing WebSocket effect to re-run
+                    if (storefrontToken) {
+                      setStorefrontToken(prev => prev);
+                    }
+                  }}
                 />
               )}
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { Lock, User, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
@@ -33,6 +33,29 @@ export default function Login({ onFirstRun }) {
   const [localLoading, setLocalLoading] = useState(false);
   const [showPostLoginChoice, setShowPostLoginChoice] = useState(false);
   const [postLoginHref, setPostLoginHref] = useState('');
+  const [tokenTimestamp, setTokenTimestamp] = useState(null);
+
+  // Consolidated redirect handler — single source of truth for all post-login navigation
+  const handleRedirect = useCallback((href, mode, hasErpAccess) => {
+    if (mode === 'storefront_newtab' && href) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+      if (hasErpAccess) {
+        navigate('/', { replace: true });
+      }
+    } else if (mode === 'storefront_replace' && href) {
+      // Redirect current tab directly — eliminates race condition of open+setTimeout(close)
+      window.location.href = href;
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
+  // Check if the erp_token obtained at login is still fresh enough
+  const isTokenExpired = useCallback(() => {
+    if (!tokenTimestamp) return true;
+    // Token issued > 10 minutes ago → likely expired (15 min TTL)
+    return Date.now() - tokenTimestamp > 10 * 60 * 1000;
+  }, [tokenTimestamp]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,6 +66,9 @@ export default function Login({ onFirstRun }) {
       if (response && (response.success || response.accessToken)) {
             const roleToCheck = response.user?.roleId || response.user?.role || (user && (user.roleId || user.role));
             const hasErpAccess = MODULES_REGISTER.some((m) => Array.isArray(m.allowedRoles) && m.allowedRoles.includes(roleToCheck));
+
+        // Record token issue time for expiration checks
+        setTokenTimestamp(Date.now());
 
         let href = '';
         if (storefrontUrl) {
@@ -61,22 +87,11 @@ export default function Login({ onFirstRun }) {
 
         setPostLoginHref(href);
         if (postLoginRedirect === 'storefront_newtab' && href) {
-          try { window.open(href, '_blank', 'noopener,noreferrer'); } catch { /* ignore */ }
-          if (hasErpAccess) {
-            navigate('/', { replace: true });
-          }
-          setShowPostLoginChoice(false);
+          handleRedirect(href, 'storefront_newtab', hasErpAccess);
         } else if (postLoginRedirect === 'storefront_replace' && href) {
-          const newTab = window.open(href, '_blank', 'noopener,noreferrer');
-          if (newTab) {
-            setTimeout(() => window.close(), 1000);
-          } else {
-            window.location.href = href;
-          }
-          setShowPostLoginChoice(false);
+          handleRedirect(href, 'storefront_replace', hasErpAccess);
         } else if (postLoginRedirect === 'erp') {
-          navigate('/', { replace: true });
-          setShowPostLoginChoice(false);
+          handleRedirect('', 'erp', hasErpAccess);
         } else {
           setShowPostLoginChoice({ open: true, canStayErp: Boolean(hasErpAccess) });
         }
@@ -286,7 +301,7 @@ export default function Login({ onFirstRun }) {
                   <p className="mt-1 text-xs font-medium text-slate-300">Chọn nơi sẽ tiếp tục sau khi đăng nhập.</p>
                   <div className="mt-4 space-y-2">
                     <button
-                      onClick={() => { setShowPostLoginChoice(false); navigate('/', { replace: true }); }}
+                      onClick={() => { setShowPostLoginChoice(false); handleRedirect('', 'erp', showPostLoginChoice.canStayErp); }}
                       disabled={!showPostLoginChoice.canStayErp}
                       className="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-left text-sm font-bold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
@@ -298,7 +313,11 @@ export default function Login({ onFirstRun }) {
                       </div>
                     </button>
                     <button
-                      onClick={() => { if (postLoginHref) { window.open(postLoginHref, '_blank', 'noopener,noreferrer'); } else { alert('Chưa cấu hình URL cửa hàng.'); } }}
+                      onClick={() => {
+                        if (!postLoginHref) { alert('Chưa cấu hình URL cửa hàng.'); return; }
+                        if (isTokenExpired()) { setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'); return; }
+                        handleRedirect(postLoginHref, 'storefront_newtab', showPostLoginChoice.canStayErp);
+                      }}
                       className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -308,7 +327,11 @@ export default function Login({ onFirstRun }) {
                       <span className="block text-[10px] font-semibold text-slate-700">(tab mới, giữ phiên ERP)</span>
                     </button>
                     <button
-                      onClick={() => { if (postLoginHref) { window.location.href = postLoginHref; } else { alert('Chưa cấu hình URL cửa hàng.'); } }}
+                      onClick={() => {
+                        if (!postLoginHref) { alert('Chưa cấu hình URL cửa hàng.'); return; }
+                        if (isTokenExpired()) { setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'); return; }
+                        handleRedirect(postLoginHref, 'storefront_replace', showPostLoginChoice.canStayErp);
+                      }}
                       className="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-slate-800"
                     >
                       <div className="flex items-center justify-center gap-2">
