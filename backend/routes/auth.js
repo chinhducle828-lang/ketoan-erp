@@ -91,6 +91,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     const hashedRefresh = hashToken(refreshToken);
     const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
+    // Insert ERP session token (accessToken)
     try {
       if (shouldClearExistingSessions(user.role)) {
         await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
@@ -101,6 +102,31 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
       );
     } catch (err) {
       console.error('Không thể lưu session:', err.message);
+    }
+
+    // If user is a storefront-only role, also mint a long-lived storefront token immediately
+    let storefrontToken = null;
+    if (['nv_banhang', 'nv_kho'].includes(String(user.role || '').trim())) {
+      try {
+        const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
+        storefrontToken = jwt.sign(
+          { id: user.id, username: user.username, role: user.role, storefront_role: user.role, company_ids: companyIds },
+          process.env.JWT_SECRET,
+          { expiresIn: `${STOREFRONT_TOKEN_EXPIRE_DAYS}d` }
+        );
+
+        const storefrontRefresh = createRefreshToken();
+        const storefrontHashed = hashToken(storefrontRefresh);
+        const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+
+        await pool.query(
+          'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)',
+          [user.id, storefrontToken, storefrontHashed, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
+        );
+      } catch (err) {
+        console.error('Không thể tạo session storefront:', err.message);
+        storefrontToken = null;
+      }
     }
 
     // GHI AUDIT LOG: Theo dõi lịch sử đăng nhập hệ thống
