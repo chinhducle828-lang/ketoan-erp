@@ -809,14 +809,8 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
       firstQueueLoadRef.current = false;
       setWarehouseQueue(nextList);
     } catch (err) {
-      // Xử lý 401/403 âm thầm - tải queue không cần thiết cho mọi role
-      const status = err.response?.status;
-      if (status !== 401 && status !== 403) {
-        if (isWarehouseRole || isAdminRole) {
-          setError(err.response?.data?.error || 'Không thể tải danh sách chờ xuất kho.');
-        }
-      }
-      // Nếu 401/403, chỉ log nhẹ và tiếp tục - polling sẽ tự động chạy lại
+      // Xử lý 401/403 âm thầm - không hiển thị lỗi, trả về mảng rỗng
+      // Các endpoint này yêu cầu auth, nếu không có session thì silently bỏ qua
     } finally {
       if (keepLoadingState) {
         setWarehouseLoading(false);
@@ -1172,7 +1166,7 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
     return (
       <>
         <div className="page-shell bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
-          <div className="content-shell py-5 lg:py-7">
+          <div className="content-shell py-6">
             <WebSocketStatusHUD
               className="hidden md:block"
               isConnected={isRealtimeConnected}
