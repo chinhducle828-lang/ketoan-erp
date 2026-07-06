@@ -809,9 +809,14 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
       firstQueueLoadRef.current = false;
       setWarehouseQueue(nextList);
     } catch (err) {
-      if (isWarehouseRole) {
-        setError(err.response?.data?.error || 'Không thể tải danh sách chờ xuất kho.');
+      // Xử lý 401/403 âm thầm - tải queue không cần thiết cho mọi role
+      const status = err.response?.status;
+      if (status !== 401 && status !== 403) {
+        if (isWarehouseRole || isAdminRole) {
+          setError(err.response?.data?.error || 'Không thể tải danh sách chờ xuất kho.');
+        }
       }
+      // Nếu 401/403, chỉ log nhẹ và tiếp tục - polling sẽ tự động chạy lại
     } finally {
       if (keepLoadingState) {
         setWarehouseLoading(false);

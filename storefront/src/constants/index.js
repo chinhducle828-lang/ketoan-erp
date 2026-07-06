@@ -18,7 +18,7 @@ export const ROLE_CAPABILITY_MAP = {
     canOrder: true,
     canUseCart: true,
     canManageItems: false,
-    canTrackQueue: false
+    canTrackQueue: true  // Luôn đồng bộ kể cả khi không có session admin
   },
   admin: {
     canOrder: false,
