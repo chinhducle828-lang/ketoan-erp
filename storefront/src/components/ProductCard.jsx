@@ -1,107 +1,117 @@
 import React from 'react';
-import { Heart, Package } from 'lucide-react';
-import { formatPrice, resolveMediaUrl } from '../utils/formatters';
+import { ShoppingCart, Heart, Eye, Package } from 'lucide-react';
+import StockIndicator from './StockIndicator';
 
-const ImageWithFallback = ({ src, alt, className, iconSize = 18, iconClassName = 'text-slate-400' }) => {
-  const [hasError, setHasError] = React.useState(false);
-
-  React.useEffect(() => {
-    setHasError(false);
-  }, [src]);
-
-  const resolvedSrc = resolveMediaUrl(src);
-  if (!resolvedSrc || hasError) {
-    return <Package size={iconSize} className={iconClassName} />;
-  }
-
-  return (
-    <img
-      src={resolvedSrc}
-      alt={alt}
-      className={className}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setHasError(true)}
-    />
-  );
-};
-
-const ProductCard = ({ 
-  item, 
-  onAddToCart, 
-  onQuickView, 
-  onSelectItem,
-  onToggleWishlist,
-  isWishlisted,
-  selectedCurrency,
-  t,
-  canUseCart,
-  isSalesRole
-}) => {
-  const previewImage = item.image_urls?.[0] || item.image_url;
+/**
+ * Product Card Component for Storefront
+ * Mobile-optimized with 44px touch targets and visual stock indicators
+ * 
+ * @param {Object} product - Product data
+ * @param {Function} onAddToCart - Add to cart handler
+ * @param {Function} onViewDetails - View details handler
+ * @param {boolean} isInWishlist - Whether product is in wishlist
+ * @param {Function} onToggleWishlist - Wishlist toggle handler
+ */
+export default function ProductCard({
+  product,
+  onAddToCart,
+  onViewDetails,
+  isInWishlist = false,
+  onToggleWishlist
+}) {
+  const unitPrice = product?.price_sell || 0;
+  const stockQuantity = product?.opening_quantity || 0;
 
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-300 hover:bg-white">
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-          {item.category || 'Phổ biến'}
-        </span>
-        <button 
-          onClick={() => onToggleWishlist(item.id)} 
-          className={`rounded-full p-2 ${isWishlisted ? 'bg-rose-100 text-rose-600' : 'bg-white text-slate-500'}`}
-        >
-          <Heart size={15} />
-        </button>
-      </div>
-      
-      <button 
-        type="button" 
-        onClick={() => onSelectItem(item)} 
-        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left"
-      >
-        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-          <ImageWithFallback
-            src={previewImage}
-            alt={item.name}
-            className="h-full w-full object-cover"
-            iconSize={18}
-            iconClassName="text-slate-400"
+    <div className="product-card flex flex-col">
+      {/* Product Image */}
+      <div className="relative aspect-square bg-slate-100 cursor-pointer" onClick={() => onViewDetails(product)}>
+        {product?.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
           />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
-          <p className="truncate text-xs text-slate-500">{item.code} - {item.unit || 'Đơn vị'}</p>
-          <p className="mt-1 text-sm font-bold text-slate-900">
-            {formatPrice(Number(item.price_sell || 0), selectedCurrency)}
-          </p>
-        </div>
-      </button>
-      
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button 
-          onClick={() => onQuickView(item)} 
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-        >
-          {t('details', 'VI')}
-        </button>
-        {canUseCart ? (
-          <button 
-            onClick={() => onAddToCart(item, 1)} 
-            className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950"
-          >
-            {isSalesRole ? t('addToOrder', 'VI') : t('buyNow', 'VI')}
-          </button>
         ) : (
-          <button 
-            onClick={() => onQuickView(item)} 
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-          >
-            Xem tồn kho
-          </button>
+          <div className="w-full h-full flex items-center justify-center">
+            <Package size={48} className="text-slate-300" />
+          </div>
         )}
+        
+        {/* Wishlist Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleWishlist(product.id);
+          }}
+          className="touch-target absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-md hover:bg-white transition"
+          title={isInWishlist ? 'Xóa khỏi yêu thích' : 'Thêm vào yêu thích'}
+        >
+          <Heart 
+            size={18} 
+            className={isInWishlist ? 'fill-rose-500 text-rose-500' : 'text-slate-400'} 
+          />
+        </button>
+
+        {/* Stock Indicator Badge */}
+        <div className="absolute top-2 left-2">
+          <StockIndicator quantity={stockQuantity} />
+        </div>
+      </div>
+
+      {/* Product Info */}
+      <div className="flex-1 p-3 flex flex-col">
+        <h3 
+          className="text-sm font-bold text-slate-800 mb-1 line-clamp-2 cursor-pointer hover:text-indigo-600 transition"
+          onClick={() => onViewDetails(product)}
+        >
+          {product.name}
+        </h3>
+        
+        <p className="text-[10px] text-slate-500 font-mono mb-2">
+          {product.code}
+        </p>
+
+        {product?.description && (
+          <p className="text-xs text-slate-600 mb-2 line-clamp-2 flex-1">
+            {product.description}
+          </p>
+        )}
+
+        {/* Price and Actions */}
+        <div className="mt-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-lg font-bold text-indigo-600">
+                {unitPrice.toLocaleString('vi-VN')}đ
+              </p>
+              {product?.unit && (
+                <p className="text-[10px] text-slate-500">/{product.unit}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => onViewDetails(product)}
+              className="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 active:bg-slate-300 transition"
+              title="Xem chi tiết"
+            >
+              <Eye size={16} />
+            </button>
+            <button
+              onClick={() => onAddToCart(product)}
+              className="touch-target flex-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:bg-indigo-800 transition flex items-center justify-center gap-1"
+              title="Thêm vào giỏ hàng"
+            >
+              <ShoppingCart size={16} />
+              <span>Thêm</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default ProductCard;
+}

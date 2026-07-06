@@ -2,14 +2,132 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles */
-body {
-  @apply bg-slate-50 text-slate-800;
+/* ========================================
+   UNIFIED DESIGN TOKEN SYSTEM
+   ERP (Sovereign) & Storefront (Transient)
+   ======================================== */
+
+:root {
+  /* Light Mode Default (Storefront Warm Slate) */
+  --color-bg-base: #F8FAFC;
+  --color-bg-surface: #FFFFFF;
+  --color-border-subtle: #E2E8F0;
+  --color-primary: #4F46E5;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+/* Dark Mode for ERP */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base: #030712;
+    --color-bg-surface: #0B0F19;
+    --color-border-subtle: #1F2937;
+    --color-primary: #6366F1;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #EF4444;
+  }
+}
+
+/* Manual dark mode class override */
+.dark {
+  --color-bg-base: #030712;
+  --color-bg-surface: #0B0F19;
+  --color-border-subtle: #1F2937;
+}
+
+/* ========================================
+   GLOBAL BASE STYLES
+   ======================================== */
+
+@layer base {
+  body {
+    background-color: var(--color-bg-base);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #1e293b;
+  }
+
+  input, select, textarea {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+    border-color: #4F46E5;
+  }
+
+  /* Tabular Numbers for Financial Data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  /* Smooth transitions */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Professional Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+/* ========================================
+   STOREFRONT TRANSIENT MODE - Mobile First
+   ======================================== */
+
+@layer components {
+  /* Touch Target - Minimum 44px */
+  .touch-target {
+    @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+  }
+
+  /* Floating Action Bar */
+  .floating-action-bar {
+    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-50;
+  }
+
+  /* Stock Indicators */
+  .stock-high {
+    @apply text-emerald-600 font-semibold;
+  }
+
+  .stock-low {
+    @apply text-amber-600 font-semibold;
+  }
+
+  /* Product Card */
+  .product-card {
+    @apply bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow;
+  }
 }

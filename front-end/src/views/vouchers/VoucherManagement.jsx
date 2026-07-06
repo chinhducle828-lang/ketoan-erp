@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { FileText, Trash2, Loader2, Plus, Search, Filter, X } from 'lucide-react';
 import api from '../../utils/api.js';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -25,17 +26,7 @@ export default function VoucherManagement() {
   const [partners, setPartners] = useState([]);
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [form, setForm] = useState({
-    voucherType: 'PKT',
-    date: new Date().toISOString().split('T')[0],
-    desc: '',
-    partnerId: '',
-    currency: 'VND',
-    exchangeRate: 1,
-    details: [
-      { accountCode: '', entryType: 'DR', amount: '', partnerId: '', itemId: '', quantity: '' }
-    ]
-  });
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     if (activeCompany) {
@@ -165,8 +156,42 @@ export default function VoucherManagement() {
     return Math.round(amount)?.toLocaleString('vi-VN');
   };
 
+  // Keyboard shortcuts for ERP power users
+  const handleSearchFocus = () => {
+    searchInputRef.current?.focus();
+  };
+
+  const handleCreateNew = () => {
+    setShowForm(true);
+    resetForm();
+  };
+
+  const handlePostDocument = () => {
+    if (showForm) {
+      const formElement = document.querySelector('form');
+      if (formElement) {
+        formElement.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    if (showForm) {
+      setShowForm(false);
+      resetForm();
+    }
+  };
+
+  useKeyboardShortcuts({
+    onSearch: handleSearchFocus,
+    onCreate: handleCreateNew,
+    onPost: handlePostDocument,
+    onCancel: handleCancel,
+    enabled: true
+  });
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -179,9 +204,10 @@ export default function VoucherManagement() {
         <button
           onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
+          title="[Alt+N] Tạo chứng từ mới"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới'}
+          {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới [Alt+N]'}
         </button>
       </div>
 
@@ -344,14 +370,14 @@ export default function VoucherManagement() {
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}
-                Ghi Sổ Chứng Từ
+                Ghi Sổ Chứng Từ [Ctrl+S]
               </button>
               <button
                 type="button"
                 onClick={() => { setShowForm(false); resetForm(); }}
                 className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50"
               >
-                Hủy
+                Hủy [Esc]
               </button>
             </div>
           </form>
@@ -363,8 +389,9 @@ export default function VoucherManagement() {
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)..."
+            placeholder="Tìm kiếm chứng từ (số, diễn giải, tài khoản)... [F2]"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm"
@@ -382,20 +409,20 @@ export default function VoucherManagement() {
         </select>
       </div>
 
-      {/* Danh sách chứng từ */}
+      {/* Danh sách chứng từ - Sovereign Table with High Density */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs sovereign-table">
             <thead className="bg-slate-50 text-slate-500 font-bold">
               <tr>
-                <th className="p-3">Ngày</th>
-                <th className="p-3">Số CT</th>
-                <th className="p-3">Loại</th>
-                <th className="p-3">Tiền tệ</th>
-                <th className="p-3">Diễn giải</th>
-                <th className="p-3">Định khoản</th>
-                <th className="p-3 text-right">Tổng tiền</th>
-                <th className="p-3 text-center">Thao tác</th>
+                <th className="p-1.5 px-3">Ngày</th>
+                <th className="p-1.5 px-3">Số CT</th>
+                <th className="p-1.5 px-3">Loại</th>
+                <th className="p-1.5 px-3">Tiền tệ</th>
+                <th className="p-1.5 px-3">Diễn giải</th>
+                <th className="p-1.5 px-3">Định khoản</th>
+                <th className="p-1.5 px-3 text-right">Tổng tiền</th>
+                <th className="p-1.5 px-3 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -412,18 +439,18 @@ export default function VoucherManagement() {
                   const totalAmount = v.details?.reduce((sum, d) => sum + Math.round(d.amount || 0), 0) || 0;
                   return (
                     <tr key={v.id} className="border-b hover:bg-slate-50/50 transition">
-                      <td className="p-3 font-mono whitespace-nowrap">{v.voucherDate?.split('T')[0]}</td>
-                      <td className="p-3 font-mono font-bold text-slate-700">{v.voucherNumber}</td>
-                      <td className="p-3">
+                      <td className="p-1.5 px-3 font-mono whitespace-nowrap">{v.voucherDate?.split('T')[0]}</td>
+                      <td className="p-1.5 px-3 font-mono font-bold text-slate-700">{v.voucherNumber}</td>
+                      <td className="p-1.5 px-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black ${typeInfo.color}`}>
                           {typeInfo.label}
                         </span>
                       </td>
-                      <td className="p-3 font-mono text-xs">{v.currency}</td>
-                      <td className="p-3 text-slate-600 max-w-xs truncate" title={v.description}>
+                      <td className="p-1.5 px-3 font-mono text-xs">{v.currency}</td>
+                      <td className="p-1.5 px-3 text-slate-600 max-w-xs truncate" title={v.description}>
                         {v.description}
                       </td>
-                      <td className="p-3">
+                      <td className="p-1.5 px-3">
                         <div className="space-y-0.5 max-h-20 overflow-y-auto">
                           {v.details?.map((d, i) => (
                             <div key={i} className="font-mono text-[10px] whitespace-nowrap">
@@ -436,10 +463,10 @@ export default function VoucherManagement() {
                           ))}
                         </div>
                       </td>
-                      <td className="p-3 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                      <td className="p-1.5 px-3 text-right tabular-nums font-mono font-bold text-slate-700 whitespace-nowrap">
                         {formatAmount(totalAmount)}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-1.5 px-3 text-center">
                         <button
                           onClick={() => handleDelete(v.id)}
                           className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition"
