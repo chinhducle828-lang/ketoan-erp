@@ -3,7 +3,16 @@
 @tailwind utilities;
 
 :root {
-  font-size: clamp(0.95rem, 0.92rem + 0.2vw, 1rem);
+  font-size: clamp(1rem, 1rem + 0.22vw, 1.15rem);
+  --ui-font-base: 1rem;
+  --ui-font-lg: 1.16rem;
+  --ui-font-xl: 1.4rem;
+  --ui-line-height: 1.75;
+  --ui-radius: 1rem;
+  --ui-radius-md: 0.75rem;
+  --ui-border-subtle: 1px solid var(--color-border-subtle);
+  --ui-shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --ui-shadow-card: 0 18px 50px rgba(15, 23, 42, 0.12);
 }
 
 :root, body, #root {
@@ -24,6 +33,7 @@
   /* Storefront Warm Slate Light */
   --color-bg-base: #F8FAFC;
   --color-bg-surface: #FFFFFF;
+  --color-text-base: #0f172a;
   --color-border-subtle: #E2E8F0;
   --color-primary: #4F46E5;
   --color-success: #10B981;
@@ -36,6 +46,7 @@
   :root {
     --color-bg-base: #030712;
     --color-bg-surface: #0B0F19;
+    --color-text-base: #e2e8f0;
     --color-border-subtle: #1F2937;
     --color-primary: #6366F1;
     --color-success: #10B981;
@@ -47,6 +58,7 @@
 .dark {
   --color-bg-base: #030712;
   --color-bg-surface: #0B0F19;
+  --color-text-base: #e2e8f0;
   --color-border-subtle: #1F2937;
 }
 
@@ -55,24 +67,56 @@
    ======================================== */
 
 @layer base {
-  body {
-    background-color: var(--color-bg-base);
-    font-family: 'Inter', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    color: #0f172a;
+  html {
+    font-size: clamp(1rem, 1rem + 0.22vw, 1.15rem);
+    scroll-behavior: smooth;
   }
 
-  input, select, textarea {
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-base);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: var(--ui-font-base);
+    line-height: var(--ui-line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-size: var(--ui-font-base);
+    min-height: 3rem;
+    border-radius: var(--ui-radius-md);
+    line-height: 1.5;
+  }
+
+  input,
+  select,
+  textarea {
     transition-property: background-color, border-color, color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
+    padding: 0.8rem 0.9rem;
+    border: var(--ui-border-subtle);
   }
 
-  input:focus, select:focus, textarea:focus {
+  input:focus,
+  select:focus,
+  textarea:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.18);
     border-color: var(--color-primary);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: -0.01em;
   }
 
   .tabular-nums {

@@ -11,6 +11,19 @@
   flex-direction: column;
 }
 
+:root {
+  font-size: clamp(1rem, 1rem + 0.25vw, 1.12rem);
+  --ui-font-base: 1rem;
+  --ui-font-lg: 1.15rem;
+  --ui-font-xl: 1.3rem;
+  --ui-line-height: 1.75;
+  --ui-radius: 1rem;
+  --ui-radius-md: 0.75rem;
+  --ui-border-subtle: 1px solid var(--color-border-subtle);
+  --ui-shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --ui-shadow-card: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
 /* ========================================
    UNIFIED DESIGN TOKEN SYSTEM
    ERP (Sovereign) & Storefront (Transient)
@@ -20,6 +33,7 @@
   /* Light Mode Default */
   --color-bg-base: #F1F5F9;
   --color-bg-surface: #FFFFFF;
+  --color-text-base: #0f172a;
   --color-border-subtle: #E2E8F0;
   --color-primary: #6366F1;
   --color-success: #10B981;
@@ -32,6 +46,7 @@
   :root {
     --color-bg-base: #030712;
     --color-bg-surface: #0B0F19;
+    --color-text-base: #e2e8f0;
     --color-border-subtle: #1F2937;
     --color-primary: #6366F1;
     --color-success: #10B981;
@@ -44,6 +59,7 @@
 .dark {
   --color-bg-base: #030712;
   --color-bg-surface: #0B0F19;
+  --color-text-base: #e2e8f0;
   --color-border-subtle: #1F2937;
 }
 
@@ -52,34 +68,64 @@
    ======================================== */
 
 @layer base {
-  body {
-    background-color: var(--color-bg-base);
-    font-family: 'Inter', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    color: #1e293b;
+  html {
+    font-size: clamp(1rem, 1rem + 0.25vw, 1.12rem);
+    scroll-behavior: smooth;
   }
 
-  input, select, textarea {
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-base);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: var(--ui-font-base);
+    line-height: var(--ui-line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-size: var(--ui-font-base);
+    min-height: 3rem;
+    border-radius: var(--ui-radius-md);
+    line-height: 1.5;
+  }
+
+  input,
+  select,
+  textarea {
     transition-property: background-color, border-color, color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
+    padding: 0.75rem 0.85rem;
+    border: var(--ui-border-subtle);
   }
 
-  input:focus, select:focus, textarea:focus {
+  input:focus,
+  select:focus,
+  textarea:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
     border-color: #6366F1;
   }
 
-  /* Tabular Numbers for Financial Data */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: -0.01em;
+  }
+
   .tabular-nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 
-  /* Professional Scrollbar */
   * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
