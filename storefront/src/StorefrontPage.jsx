@@ -380,6 +380,16 @@ export default function StorefrontPage() {
     if (!authBootstrapDone) return;
     if (!(isAdminRole || isWarehouseRole || isSalesRole)) return;
 
+    // Wait for storefrontToken to be available if it was set from URL params
+    // This prevents a race condition where Effect B runs before Effect A finishes
+    // setting the token state from the URL erp_token parameter.
+    const urlParams = new URLSearchParams(window.location.search);
+    const erpTokenFromUrl = urlParams.get('erp_token');
+    if (erpTokenFromUrl && !storefrontToken) {
+      // Token from URL hasn't been processed by Effect A yet - wait for next render
+      return;
+    }
+
     const validateAdminSession = async () => {
       try {
         setAuthenticating(true);
@@ -443,7 +453,7 @@ export default function StorefrontPage() {
     };
 
     validateAdminSession();
-  }, [authBootstrapDone, isAdminRole, isWarehouseRole, isSalesRole, storefrontRole]);
+  }, [authBootstrapDone, isAdminRole, isWarehouseRole, isSalesRole, storefrontRole, storefrontToken]);
 
   const loadItems = async (id) => {
     if (!id) return;

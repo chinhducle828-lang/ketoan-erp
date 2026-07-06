@@ -32,22 +32,26 @@ authApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear expired auth tokens silently - no redirect
+      // Only clear token if the request was actually using a Bearer token.
+      // Cookie-based requests (without Authorization header) that get 401
+      // should NOT clear the token, as they are unrelated to token auth.
+      const hadBearerHeader = error.config?.headers?.Authorization?.startsWith('Bearer ');
       const hadToken = localStorage.getItem('storefrontAccessToken');
-      localStorage.removeItem('storefrontAccessToken');
-      localStorage.removeItem('erp_token');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('token');
       
-      // If a storefront token was cleared, dispatch custom event so the UI can react
-      if (hadToken) {
+      if (hadBearerHeader && hadToken) {
+        // Token-based request failed with 401 - token is expired/invalid
+        localStorage.removeItem('storefrontAccessToken');
+        localStorage.removeItem('erp_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('token');
+        
         try {
           window.dispatchEvent(new CustomEvent('storefront:auth-expired', { detail: { message: 'Phiên đăng nhập đã hết hạn. Tiếp tục sử dụng chế độ khách.' } }));
         } catch (e) { /* ignore dispatch errors */ }
       }
-      
-      // Do NOT redirect to ERP - let the component handle the 401 gracefully
-      // The EventSource stream and polling will continue using cookies as fallback
+      // If no Bearer header was used, this is a cookie-based session 401.
+      // Do NOT clear the storefront token - it may still be valid.
+      // The component will handle the 401 gracefully via its own logic.
     }
     return Promise.reject(error);
   }
