@@ -1322,12 +1322,12 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
-                <h3 className="text-base font-bold text-slate-900">Sản phẩm đang chọn</h3>
+                <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.35)]">
+                <h3 className="text-base font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
                 {selectedItem ? (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-sm font-semibold text-slate-900">{selectedItem.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{selectedItem.code} - {selectedItem.unit || 'Đơn vị'}</p>
+                    <p className="mt-1 text-xs text-slate-500">{selectedItem.code} - {selectedItem.unit || t('unit', selectedLang)}</p>
                     <p className="mt-2 text-sm font-bold text-slate-900">{formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</p>
                     <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">
                       {t('addToOrder', selectedLang)} ({checkoutForm.quantity || 1})
@@ -1884,7 +1884,7 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs text-slate-500">Vật liệu đã chọn</p>
+                        <p className="text-xs text-slate-500">{t('selectedProduct', selectedLang)}</p>
                         <p className="font-semibold text-slate-900">{cart.length} sản phẩm trong giỏ</p>
                         <p className="mt-1 text-xs text-slate-500">Số lượng tổng: {cartCount} món</p>
                       </div>
@@ -1931,7 +1931,7 @@ message: `${order.voucherNumber || 'Đơn hàng'} đã được cập nhật ho�
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs text-slate-500">Vật liệu chọn</p>
+                        <p className="text-xs text-slate-500">{t('selectedProduct', selectedLang)}</p>
                         <p className="font-semibold text-slate-900">{selectedItem.name}</p>
                         <p className="mt-1 text-xs text-slate-500">Đơn giá: {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}/{selectedItem.unit || 'đơn vị'}</p>
                       </div>
