@@ -33,6 +33,7 @@ const isOutboundMovement = (row, outboundVoucherType) => row.voucher_type === ou
 
 /**
  * Tính giá vốn xuất kho bằng phương pháp FIFO
+ * Hỗ trợ tính toán cho tồn kho âm (negative inventory)
  * @param {number} companyId - ID công ty
  * @param {number} itemId - ID vật tư
  * @param {string} targetDate - Ngày tính giá (định dạng YYYY-MM-DD)
@@ -57,6 +58,8 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
   const inventoryLots = [];
   let totalQty = 0;
   let totalCostValue = 0;
+  let negativeInventoryQty = 0; // Theo dõi số lượng tồn âm
+  let negativeInventoryCost = 0; // Theo dõi chi phí cho tồn âm
   
   for (const row of rows) {
     const qty = parseFloat(row.quantity) || 0;
@@ -64,15 +67,36 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
     
     if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
       // Nhập kho - tạo lô mới
-      inventoryLots.push({
-        date: row.voucher_date,
-        quantity: qty,
-        unit_cost: val / qty,
-        remaining_qty: qty,
-        total_value: val
-      });
-      totalQty += qty;
-      totalCostValue += val;
+      // Nếu đang có tồn âm, ưu tiên bù trừ trước
+      if (negativeInventoryQty > 0) {
+        const deductQty = Math.min(qty, negativeInventoryQty);
+        negativeInventoryQty -= deductQty;
+        negativeInventoryCost -= deductQty * (val / qty);
+        
+        // Nếu còn lại, tạo lô mới
+        const remainingQty = qty - deductQty;
+        if (remainingQty > 0) {
+          inventoryLots.push({
+            date: row.voucher_date,
+            quantity: remainingQty,
+            unit_cost: val / qty,
+            remaining_qty: remainingQty,
+            total_value: (val / qty) * remainingQty
+          });
+          totalQty += remainingQty;
+          totalCostValue += (val / qty) * remainingQty;
+        }
+      } else {
+        inventoryLots.push({
+          date: row.voucher_date,
+          quantity: qty,
+          unit_cost: val / qty,
+          remaining_qty: qty,
+          total_value: val
+        });
+        totalQty += qty;
+        totalCostValue += val;
+      }
     } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
       // Xuất kho - trừ dần từ các lô cũ nhất
       let qtyToDeduct = qty;
@@ -89,6 +113,19 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
         }
       }
       
+      // Xử lý tồn kho âm: nếu xuất nhiều hơn tồn kho
+      if (qtyToDeduct > 0) {
+        // Tồn âm: dùng giá trị cuối cùng của lot cuối cùng hoặc giá vốn 0
+        const lastLotUnitCost = inventoryLots.length > 0 
+          ? inventoryLots[inventoryLots.length - 1].unit_cost 
+          : 0;
+        
+        // Ghi nhận tồn âm
+        negativeInventoryQty += qtyToDeduct;
+        negativeInventoryCost += qtyToDeduct * lastLotUnitCost;
+        costValueToDeduct += qtyToDeduct * lastLotUnitCost;
+      }
+      
       totalQty -= qty;
       totalCostValue -= costValueToDeduct;
     }
@@ -98,7 +135,13 @@ export async function calculateFifoCost(companyId, itemId, targetDate) {
     current_quantity: totalQty,
     total_inventory_value: totalCostValue,
     average_unit_cost: totalQty > 0 ? totalCostValue / totalQty : 0,
-    lots: inventoryLots
+    lots: inventoryLots,
+    // Thông tin tồn kho âm
+    negative_inventory: {
+      quantity: negativeInventoryQty,
+      cost_value: negativeInventoryCost,
+      is_negative: negativeInventoryQty > 0
+    }
   };
 }
 
@@ -251,16 +294,37 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
         
         if (isInboundMovement(row, ruleContext.inboundVoucherType)) {
           // Nhập kho - tạo lô mới theo FIFO
-          const unitCost = quantity > 0 ? amount / quantity : 0;
-          itemCosts[itemId].lots.push({
-            date: row.voucher_date,
-            quantity: quantity,
-            unit_cost: unitCost,
-            remaining_qty: quantity,
-            total_value: amount
-          });
-          itemCosts[itemId].totalQty += quantity;
-          itemCosts[itemId].totalCostValue += amount;
+          // Nếu đang có tồn âm, ưu tiên bù trừ trước
+          if (itemCosts[itemId].negativeQty > 0) {
+            const deductQty = Math.min(quantity, itemCosts[itemId].negativeQty);
+            itemCosts[itemId].negativeQty -= deductQty;
+            itemCosts[itemId].negativeCost -= deductQty * (amount / quantity);
+            
+            const remainingQty = quantity - deductQty;
+            if (remainingQty > 0) {
+              const unitCost = remainingQty > 0 ? amount / quantity : 0;
+              itemCosts[itemId].lots.push({
+                date: row.voucher_date,
+                quantity: remainingQty,
+                unit_cost: unitCost,
+                remaining_qty: remainingQty,
+                total_value: unitCost * remainingQty
+              });
+              itemCosts[itemId].totalQty += remainingQty;
+              itemCosts[itemId].totalCostValue += unitCost * remainingQty;
+            }
+          } else {
+            const unitCost = quantity > 0 ? amount / quantity : 0;
+            itemCosts[itemId].lots.push({
+              date: row.voucher_date,
+              quantity: quantity,
+              unit_cost: unitCost,
+              remaining_qty: quantity,
+              total_value: amount
+            });
+            itemCosts[itemId].totalQty += quantity;
+            itemCosts[itemId].totalCostValue += amount;
+          }
         } else if (isOutboundMovement(row, ruleContext.outboundVoucherType)) {
           // Xuất kho - trừ dần từ các lô cũ nhất (FIFO)
           let qtyToDeduct = quantity;
@@ -275,6 +339,19 @@ export async function calculateFifoCostForPeriod(companyId, month, year) {
               lot.remaining_qty -= deductQty;
               qtyToDeduct -= deductQty;
             }
+          }
+          
+          // Xử lý tồn kho âm: nếu xuất nhiều hơn tồn kho
+          if (qtyToDeduct > 0) {
+            // Tồn âm: dùng giá trị cuối cùng của lot cuối cùng hoặc giá vốn 0
+            const lastLotUnitCost = itemCosts[itemId].lots.length > 0 
+              ? itemCosts[itemId].lots[itemCosts[itemId].lots.length - 1].unit_cost 
+              : 0;
+            
+            // Ghi nhận tồn âm
+            itemCosts[itemId].negativeQty = (itemCosts[itemId].negativeQty || 0) + qtyToDeduct;
+            itemCosts[itemId].negativeCost = (itemCosts[itemId].negativeCost || 0) + (qtyToDeduct * lastLotUnitCost);
+            costValueToDeduct += qtyToDeduct * lastLotUnitCost;
           }
           
           itemCosts[itemId].totalQty -= quantity;

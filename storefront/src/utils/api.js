@@ -7,6 +7,14 @@ if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://'))
 }
 API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
 
+// Track if we're in the initial authentication phase to prevent unwanted redirects
+let isAuthenticating = false;
+
+// Export function to control authentication state
+export const setAuthenticating = (value) => {
+  isAuthenticating = value;
+};
+
 // Public API for unauthenticated requests
 export const publicApi = axios.create({
   baseURL: `${API_BASE_URL}/api/public`,
@@ -18,6 +26,36 @@ export const authApi = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true
 });
+
+// Add response interceptor to authApi to handle 401 errors gracefully
+authApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Only clear token if the request was actually using a Bearer token.
+      // Cookie-based requests (without Authorization header) that get 401
+      // should NOT clear the token, as they are unrelated to token auth.
+      const hadBearerHeader = error.config?.headers?.Authorization?.startsWith('Bearer ');
+      const hadToken = localStorage.getItem('storefrontAccessToken');
+      
+      if (hadBearerHeader && hadToken) {
+        // Token-based request failed with 401 - token is expired/invalid
+        localStorage.removeItem('storefrontAccessToken');
+        localStorage.removeItem('erp_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('token');
+        
+        try {
+          window.dispatchEvent(new CustomEvent('storefront:auth-expired', { detail: { message: 'Phiên đăng nhập đã hết hạn. Tiếp tục sử dụng chế độ khách.' } }));
+        } catch (e) { /* ignore dispatch errors */ }
+      }
+      // If no Bearer header was used, this is a cookie-based session 401.
+      // Do NOT clear the storefront token - it may still be valid.
+      // The component will handle the 401 gracefully via its own logic.
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Get ERP URL
 export const getERPUrl = () => {

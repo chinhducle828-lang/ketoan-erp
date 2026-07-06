@@ -604,7 +604,8 @@ router.post('/orders', async (req, res) => {
         voucherNumber,
         amount,
         taxAmount,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        targetRoles: ['admin', 'nv_banhang', 'nv_kho']
       });
     } catch (notifyError) {
       // Notification failure must not break order creation flow.

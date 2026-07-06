@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useRealTime } from '../hooks/useRealTime';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { formatCurrency, formatNumber, getAlignmentClass } from '../utils/format.js';
 
 // Virtual scrolling table component
 export default function VirtualTable({ 
@@ -74,6 +75,15 @@ export default function VirtualTable({
     if (column.render) {
       return column.render(value, row);
     }
+    
+    // Auto-format currency/numeric columns
+    if (column.type === 'currency') {
+      return formatCurrency(value, { currency: column.currency || 'VND' });
+    }
+    if (column.type === 'number') {
+      return formatNumber(value, column.decimals);
+    }
+    
     return value;
   };
 
@@ -136,7 +146,7 @@ export default function VirtualTable({
               {columns.map(column => (
                 <div
                   key={column.key}
-                  className="px-3 text-sm flex items-center"
+                  className={`px-3 text-sm flex items-center ${getAlignmentClass(column.type)}`}
                   style={{ width: column.width || 'auto', flex: column.flex || 1 }}
                 >
                   {renderCell(row, column)}

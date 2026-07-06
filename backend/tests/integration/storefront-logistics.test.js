@@ -8,6 +8,7 @@ const mockPool = {
 };
 
 const mockCanAccessCompany = jest.fn(async () => true);
+const mockPublishStorefrontOrderEvent = jest.fn().mockResolvedValue({ success: true });
 
 jest.unstable_mockModule('../../config/db.js', () => ({
   pool: mockPool,
@@ -36,7 +37,7 @@ jest.unstable_mockModule('../../config/businessRules.js', () => ({
 }));
 
 jest.unstable_mockModule('../../services/storefrontRealtime.service.js', () => ({
-  publishStorefrontOrderEvent: jest.fn().mockResolvedValue({ success: true }),
+  publishStorefrontOrderEvent: mockPublishStorefrontOrderEvent,
   ensureStorefrontRealtimeListener: jest.fn(),
   registerStorefrontStreamClient: jest.fn(),
 }));
@@ -107,6 +108,13 @@ describe('Storefront Logistics - Quản lý vận hành', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.order.loading_status).toBe('delivering');
     expect(client.release).toHaveBeenCalledTimes(1);
+    expect(mockPublishStorefrontOrderEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        event: 'logistics_status_changed',
+        targetRoles: ['admin', 'nv_banhang', 'nv_kho']
+      })
+    );
   });
 
 test('POST /api/logistics/assign-truck workflow validation', () => {

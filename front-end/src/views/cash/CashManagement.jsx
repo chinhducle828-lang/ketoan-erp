@@ -25,7 +25,7 @@ export default function CashManagement() {
   useEffect(() => {
     if (activeCompany) {
       const companyId = activeCompany?.id ?? activeCompany;
-      api.get(`/api/partners?company_id=${companyId}`)
+      api.get(`/partners?company_id=${companyId}`)
          .then(res => setPartners(res.data))
          .catch(() => {});
     }

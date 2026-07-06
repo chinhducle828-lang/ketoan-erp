@@ -11,6 +11,8 @@ const normalizeCompanyId = (companyId) => {
   return String(companyId).trim();
 };
 
+const normalizeRole = (role) => String(role || '').trim().toLowerCase();
+
 const formatSseMessage = ({ event, payload }) => {
   const safeEvent = String(event || 'message').trim() || 'message';
   const data = JSON.stringify(payload || {});
@@ -27,12 +29,33 @@ const writeSse = (res, event, payload) => {
 
 const broadcastLocal = (payload) => {
   const companyKey = normalizeCompanyId(payload?.companyId);
-  const targets = new Set([
-    ...(subscribersByCompany.get(companyKey) || []),
-    ...(subscribersByCompany.get('*') || [])
-  ]);
+  const targetRoles = Array.isArray(payload?.targetRoles)
+    ? payload.targetRoles.map(normalizeRole).filter(Boolean)
+    : [];
 
-  if (targets.size === 0) return;
+  const candidateBuckets = [];
+  const companyBuckets = subscribersByCompany.get(companyKey);
+  if (companyBuckets) {
+    candidateBuckets.push(...companyBuckets.entries());
+  }
+
+  const wildcardBuckets = subscribersByCompany.get('*');
+  if (wildcardBuckets) {
+    candidateBuckets.push(...wildcardBuckets.entries());
+  }
+
+  if (candidateBuckets.length === 0) return;
+
+  const targets = new Set();
+  for (const [bucketRole, bucket] of candidateBuckets) {
+    const normalizedBucketRole = normalizeRole(bucketRole);
+    const shouldDeliver = targetRoles.length === 0 || normalizedBucketRole === 'all' || targetRoles.includes(normalizedBucketRole);
+    if (!shouldDeliver) continue;
+
+    for (const res of bucket || []) {
+      targets.add(res);
+    }
+  }
 
   for (const res of targets) {
     writeSse(res, payload?.event || 'storefront_event', payload);
@@ -89,31 +112,47 @@ export const ensureStorefrontRealtimeListener = () => {
 };
 
 export const publishStorefrontOrderEvent = async (db, payload) => {
+  const targetRoles = Array.isArray(payload?.targetRoles)
+    ? payload.targetRoles.filter((role) => typeof role === 'string' && role.trim())
+    : ['admin', 'nv_banhang', 'nv_kho'];
+
   const safePayload = {
     event: String(payload?.event || 'storefront_event'),
     companyId: payload?.companyId,
+    targetRoles,
     ...payload
   };
+
+  safePayload.targetRoles = Array.isArray(safePayload.targetRoles)
+    ? safePayload.targetRoles.filter((role) => typeof role === 'string' && role.trim())
+    : ['admin', 'nv_banhang', 'nv_kho'];
 
   await db.query('SELECT pg_notify($1, $2)', [CHANNEL, JSON.stringify(safePayload)]);
 };
 
-export const registerStorefrontStreamClient = ({ companyId, res }) => {
+export const registerStorefrontStreamClient = ({ companyId, res, role }) => {
   const companyKey = normalizeCompanyId(companyId);
-  const bucket = subscribersByCompany.get(companyKey) || new Set();
+  const normalizedRole = normalizeRole(role) || 'all';
+  const companyBuckets = subscribersByCompany.get(companyKey) || new Map();
+  const bucket = companyBuckets.get(normalizedRole) || new Set();
   bucket.add(res);
-  subscribersByCompany.set(companyKey, bucket);
+  companyBuckets.set(normalizedRole, bucket);
+  subscribersByCompany.set(companyKey, companyBuckets);
 
   writeSse(res, 'connected', {
     event: 'connected',
     companyId: companyKey,
+    role: normalizedRole,
     connectedAt: new Date().toISOString()
   });
 
   return () => {
-    const currentBucket = subscribersByCompany.get(companyKey);
+    const currentBuckets = subscribersByCompany.get(companyKey);
+    if (!currentBuckets) return;
+    const currentBucket = currentBuckets.get(normalizedRole);
     if (!currentBucket) return;
     currentBucket.delete(res);
-    if (currentBucket.size === 0) subscribersByCompany.delete(companyKey);
+    if (currentBucket.size === 0) currentBuckets.delete(normalizedRole);
+    if (currentBuckets.size === 0) subscribersByCompany.delete(companyKey);
   };
 };

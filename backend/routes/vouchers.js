@@ -179,16 +179,8 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
     }
     const voucher = voucherRes.rows[0];
     
-    // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date)
-    const companyRes = await client.query('SELECT lock_date FROM companies WHERE id = $1', [voucher.company_id]);
-    if (companyRes.rows.length > 0 && companyRes.rows[0].lock_date) {
-      const lockDate = new Date(companyRes.rows[0].lock_date);
-      const voucherDate = new Date(voucher.voucher_date);
-      if (voucherDate <= lockDate) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Không thể xóa! Chứng từ nằm trong giai đoạn đã khóa sổ kế toán.' });
-      }
-    }
+    // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
+    await checkLockDate(voucher.company_id, voucher.voucher_date);
     
     // 3. Truy vấn các dòng định khoản chi tiết Nợ/Có liên quan (Detail)
     const detailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
@@ -223,6 +215,104 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Lỗi khi thực hiện xóa và sao lưu log chứng từ:', err);
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 5. PUT: CẬP NHẬT CHỨNG TỪ (CÓ KIỂM TRA KHÓA SỔ)
+router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const voucherId = parseInt(req.params.id, 10);
+    const { voucher_number, voucher_date, description, currency, exchange_rate, details } = req.body;
+    
+    // 1. Truy vấn thông tin chứng từ hiện tại
+    const voucherRes = await client.query('SELECT * FROM vouchers WHERE id = $1', [voucherId]);
+    if (voucherRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Chứng từ kế toán không tồn tại' });
+    }
+    const voucher = voucherRes.rows[0];
+    
+    // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
+    await checkLockDate(voucher.company_id, voucher_date || voucher.voucher_date);
+    
+    // 3. Lưu trữ trạng thái cũ để ghi audit log
+    const oldDetailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
+    const oldSnapshotValues = {
+      ...voucher,
+      details: oldDetailsRes.rows
+    };
+    
+    // 4. Cập nhật thông tin chứng từ master
+    await client.query(
+      `UPDATE vouchers 
+       SET voucher_number = COALESCE($1, voucher_number),
+           voucher_date = COALESCE($2, voucher_date),
+           description = COALESCE($3, description),
+           currency = COALESCE($4, currency),
+           exchange_rate = COALESCE($5, exchange_rate)
+       WHERE id = $6`,
+      [voucher_number, voucher_date, description, currency, exchange_rate, voucherId]
+    );
+    
+    // 5. Xóa và tạo lại chi tiết chứng từ nếu có
+    if (details) {
+      await client.query('DELETE FROM voucher_details WHERE voucher_id = $1', [voucherId]);
+      
+      const valuesArr = [];
+      const queryArgs = [];
+      let idx = 1;
+      
+      details.forEach((item) => {
+        const normalized = buildMultiCurrencyDetail(item, exchange_rate || 1);
+        valuesArr.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8})`);
+        queryArgs.push(
+          voucherId,
+          normalized.accountCode || normalized.account_code,
+          normalized.entryType || normalized.entry_type,
+          normalized.amount,
+          normalized.partnerId || normalized.partner_id || null,
+          normalized.itemId || normalized.item_id || null,
+          normalized.quantity || 0,
+          normalized.amountOrigin ?? normalized.amount_origin ?? null,
+          normalized.currencyOrigin || normalized.currency_origin || 'VND'
+        );
+        idx += 9;
+      });
+      
+      if (valuesArr.length > 0) {
+        const bulkDetailQuery = `
+          INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, partner_id, item_id, quantity, amount_origin, currency_origin) 
+          VALUES ${valuesArr.join(', ')}
+        `;
+        await client.query(bulkDetailQuery, queryArgs);
+      }
+    }
+    
+    // 6. Ghi audit log
+    await client.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        req.user?.id || null,
+        'UPDATE',
+        'VOUCHERS',
+        JSON.stringify(oldSnapshotValues),
+        JSON.stringify({ ...req.body, id: voucherId }),
+        req.ip
+      ]
+    );
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Cập nhật chứng từ thành công!' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Lỗi khi cập nhật chứng từ:', err);
     res.status(400).json({ error: err.message });
   } finally {
     client.release();

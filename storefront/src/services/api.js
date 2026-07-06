@@ -4,6 +4,14 @@ import wsService from './websocket';
 // API base configuration - Use VITE_ prefix for Vite
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Track if we're in the initial authentication phase to prevent unwanted redirects
+let isAuthenticating = false;
+
+// Export function to control authentication state
+export const setAuthenticating = (value) => {
+  isAuthenticating = value;
+};
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -32,16 +40,25 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth and redirect to ERP login
-      localStorage.removeItem('erp_token');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('token');
-      localStorage.removeItem('companyId');
-      localStorage.removeItem('userId');
+      // Determine if this was a Bearer-token request or cookie-based request
+      const hadBearerHeader = error.config?.headers?.Authorization?.startsWith('Bearer ');
       
-      // Redirect to ERP login
-      const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
-      window.location.href = erpUrl;
+      if (hadBearerHeader) {
+        // Token-based request failed - token is expired/invalid
+        localStorage.removeItem('erp_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('token');
+        localStorage.removeItem('storefrontAccessToken');
+      }
+      // For cookie-based requests (without Bearer), do NOT clear tokens
+      // The component will handle the 401 gracefully via its own logic
+      
+      // Only redirect to ERP if this was NOT during initial auth
+      // AND the request used a Bearer token (proves it wasn't a session timeout)
+      if (!isAuthenticating && hadBearerHeader) {
+        const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
+        window.location.href = erpUrl;
+      }
     }
     return Promise.reject(error);
   }

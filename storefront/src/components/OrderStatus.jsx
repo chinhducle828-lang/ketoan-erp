@@ -1,43 +1,44 @@
 import React from 'react';
 import { useOrderStatus } from '../hooks/useRealTime';
 import { Package, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { ORDER_STATUS_TYPES } from '../constants';
 
 // Order status component with real-time updates
-export default function OrderStatus({ orderId, initialStatus = 'pending' }) {
+export default function OrderStatus({ orderId, initialStatus = ORDER_STATUS_TYPES.pending }) {
   const { orderUpdates } = useOrderStatus();
   const order = orderUpdates[orderId] || { status: initialStatus };
 
   const getStatusConfig = (status) => {
     const configs = {
-      pending: {
+      [ORDER_STATUS_TYPES.pending]: {
         icon: Clock,
         color: 'text-yellow-500',
         bg: 'bg-yellow-50',
         label: 'Chờ xử lý',
         progress: 10
       },
-      processing: {
+      [ORDER_STATUS_TYPES.processing]: {
         icon: Package,
         color: 'text-blue-500',
         bg: 'bg-blue-50',
         label: 'Đang xử lý',
         progress: 50
       },
-      shipping: {
+      [ORDER_STATUS_TYPES.shipping]: {
         icon: Truck,
         color: 'text-indigo-500',
         bg: 'bg-indigo-50',
         label: 'Đang giao',
         progress: 75
       },
-      completed: {
+      [ORDER_STATUS_TYPES.completed]: {
         icon: CheckCircle,
         color: 'text-emerald-500',
         bg: 'bg-emerald-50',
         label: 'Hoàn thành',
         progress: 100
       },
-      cancelled: {
+      [ORDER_STATUS_TYPES.cancelled]: {
         icon: XCircle,
         color: 'text-rose-500',
         bg: 'bg-rose-50',
@@ -45,7 +46,7 @@ export default function OrderStatus({ orderId, initialStatus = 'pending' }) {
         progress: 0
       }
     };
-    return configs[status] || configs.pending;
+    return configs[status] || configs[ORDER_STATUS_TYPES.pending];
   };
 
   const config = getStatusConfig(order.status);

@@ -2,14 +2,154 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles */
-body {
-  @apply bg-slate-50 text-slate-800;
+:root {
+  font-size: clamp(0.95rem, 0.92rem + 0.2vw, 1rem);
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+:root, body, #root {
+  min-height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========================================
+   UNIFIED DESIGN TOKEN SYSTEM
+   ERP (Sovereign) & Storefront (Transient)
+   ======================================== */
+
+:root {
+  /* Storefront Warm Slate Light */
+  --color-bg-base: #F8FAFC;
+  --color-bg-surface: #FFFFFF;
+  --color-border-subtle: #E2E8F0;
+  --color-primary: #4F46E5;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+}
+
+/* Dark Mode for legacy ERP look */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base: #030712;
+    --color-bg-surface: #0B0F19;
+    --color-border-subtle: #1F2937;
+    --color-primary: #6366F1;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #EF4444;
+  }
+}
+
+.dark {
+  --color-bg-base: #030712;
+  --color-bg-surface: #0B0F19;
+  --color-border-subtle: #1F2937;
+}
+
+/* ========================================
+   GLOBAL BASE STYLES
+   ======================================== */
+
+@layer base {
+  body {
+    background-color: var(--color-bg-base);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #0f172a;
+  }
+
+  input, select, textarea {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.18);
+    border-color: var(--color-primary);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+@layer components {
+  .touch-target {
+    @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+  }
+
+  .page-shell {
+    @apply min-h-screen w-full flex flex-col;
+  }
+
+  .content-shell {
+    @apply w-full max-w-[min(100%,1600px)] mx-auto px-4 sm:px-6 lg:px-8 flex-1;
+  }
+
+  .floating-action-bar {
+    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-50;
+  }
+
+  .stock-high {
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 text-xs font-semibold;
+  }
+
+  .stock-low {
+    @apply inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-700 text-xs font-semibold;
+  }
+
+  .product-card {
+    @apply rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold border;
+  }
+
+  .status-posted {
+    @apply bg-emerald-50 text-emerald-700 border-emerald-200;
+  }
+
+  .status-draft {
+    @apply bg-amber-50 text-amber-700 border-amber-200;
+  }
+
+  .status-locked {
+    @apply bg-slate-100 text-slate-600 border-slate-200;
+  }
 }
