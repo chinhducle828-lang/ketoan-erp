@@ -836,6 +836,7 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
 
   useEffect(() => {
     if (!canTrackQueue || !companyId) return;
+    if (!hasAdminSession && !storefrontToken) return; // Chờ session hợp lệ
 
     if (streamRef.current) {
       streamRef.current.close();
@@ -961,7 +962,7 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
         streamRef.current = null;
       }
     };
-  }, [companyId, canTrackQueue, storefrontToken, isAdminRole, isWarehouseRole, isSalesRole]);
+  }, [companyId, canTrackQueue, storefrontToken, hasAdminSession, isAdminRole, isWarehouseRole, isSalesRole]);
 
   useEffect(() => {
     if (!rolePopup) return;
