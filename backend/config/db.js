@@ -10,6 +10,13 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const { Pool } = pg;
 
 // 🚀 TỐI ƯU HÓA: Tự động dùng DATABASE_URL của Railway nếu tồn tại
+const isTestEnv = process.env.KETOAN_TEST === '1'
+  || (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'testing')
+  || process.env.JEST_WORKER_ID !== undefined
+  || process.argv.some(arg => /jest/i.test(String(arg)))
+  || process.execArgv.some(arg => /jest/i.test(String(arg)))
+  || String(process.env.npm_lifecycle_event || '').toLowerCase() === 'test';
+
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
@@ -32,7 +39,9 @@ const pool = new Pool({
 });
 
 pool.on('connect', () => {
-  console.log('⚡ Hệ thống kết nối thành công Cơ sở dữ liệu PostgreSQL');
+  if (!isTestEnv) {
+    console.log('⚡ Hệ thống kết nối thành công Cơ sở dữ liệu PostgreSQL');
+  }
 });
 
 pool.on('error', (err) => {

@@ -5,13 +5,12 @@
  */
 
 import { Router } from 'express';
-import { pool } from '../config/db.js';
+import { getClosingRules } from '../config/businessRules.js';
 import { 
   calculateBalances, 
   getClosingBalance, 
   getTotalDebit, 
   getTotalCredit,
-  getTaxRateByRevenue,
   calculateProfitBeforeTax
 } from '../utils/accountingEngine.js';
 
@@ -135,8 +134,8 @@ router.post('/total-credit', (req, res) => {
 
 /**
  * GET /api/accounting/tax-rate/:revenue
- * Get tax rate based on revenue
- * Params: revenue (number)
+ * Get the current corporate income tax rate.
+ * Revenue is accepted for compatibility but a flat rate is used per business rules.
  */
 router.get('/tax-rate/:revenue', (req, res) => {
   try {
@@ -145,8 +144,9 @@ router.get('/tax-rate/:revenue', (req, res) => {
     if (isNaN(revenue)) {
       return res.status(400).json({ error: 'revenue must be a number' });
     }
-    
-    const taxRate = getTaxRateByRevenue(revenue);
+
+    const closingRules = getClosingRules();
+    const taxRate = Number(closingRules.defaultTaxRate ?? 0.2);
     
     res.json({
       success: true,
