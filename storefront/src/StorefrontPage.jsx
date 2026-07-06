@@ -925,9 +925,22 @@ message: `${completedForSales[0].voucherNumber || 'Đơn hàng'} đã được k
       refreshFromRealtime();
     });
 
-    eventSource.onerror = () => {
+    eventSource.onerror = (err) => {
       setIsRealtimeConnecting(false);
       setIsRealtimeConnected(false);
+      
+      // Check if the error is an auth failure (401) by checking the event source readyState
+      // EventSource auto-closes on 401, so we detect token expiry and clean up
+      if (storefrontToken && eventSource.readyState === EventSource.CLOSED) {
+        // Token likely expired - clear it and fall back to cookie-based polling
+        const wasTokenCleared = localStorage.getItem('storefrontAccessToken');
+        if (wasTokenCleared) {
+          localStorage.removeItem('storefrontAccessToken');
+          setStorefrontToken('');
+          // Don't redirect - just fall back to cookie-based polling quietly
+          setAdminMessage('Phiên admin đã hết hạn. Chuyển sang chế độ polling dự phòng.');
+        }
+      }
       // Keep lightweight polling as fallback when stream reconnects.
     };
 
