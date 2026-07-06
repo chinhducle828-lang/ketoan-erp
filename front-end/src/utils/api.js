@@ -30,6 +30,28 @@ const api = axios.create({
   }
 });
 
+// Response Interceptor: Xử lý 401 toàn hệ thống - không redirect, giữ trạng thái đồng bộ
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const hadToken = localStorage.getItem('accessToken');
+      if (hadToken) {
+        // Token expired - clear local state but keep page functional
+        localStorage.removeItem('accessToken');
+        // Dispatch event so AuthContext and other components can react
+        try {
+          window.dispatchEvent(new CustomEvent('erp:auth-expired', {
+            detail: { message: 'Phiên đăng nhập đã hết hạn. Hệ thống tiếp tục hoạt động ở chế độ chỉ đọc.' }
+          }));
+        } catch (e) { /* ignore */ }
+      }
+      // Không redirect - giữ nguyên trang, cho phép refresh token hoặc đăng nhập lại
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Request Interceptor: Đính kèm mã định danh pháp nhân hạch toán và token bảo mật
 api.interceptors.request.use(
   (config) => {
