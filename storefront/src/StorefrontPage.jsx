@@ -1164,96 +1164,113 @@ export default function StorefrontPage() {
     }
   };
 
-  if (isSalesRole) {
-    return (
-      <>
-        <div className="page-shell bg-[radial-gradient(circle_at_top_left,_#ecfdf5,_#f8fafc_45%,_#f1f5f9_85%)] text-slate-900">
-          <div className="content-shell py-4">
-            {canTrackQueue && (
-              <WebSocketStatusHUD
-                className="hidden md:block"
-                isConnected={isRealtimeConnected}
-                isConnecting={isRealtimeConnecting}
-                lastSync={lastRealtimeSync}
-                pendingOrders={pendingRealtimeOrders}
-              />
-            )}
-            <header className="rounded-[28px] border border-emerald-100 bg-white/95 p-4 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.35)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    <Sparkles size={12} /> {t('posMode', selectedLang)}
-                  </div>
-                  <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                    {currentRole.label}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                    <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-lg px-2 py-1 text-xs font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VI</button>
-                    <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-lg px-2 py-1 text-xs font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>EN</button>
-                  </div>
-                  <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950">
-                    <ShoppingCart size={14} /> {cartCount > 0 ? `(${cartCount})` : ''}
-                  </button>
-                </div>
-              </div>
+  // ──────────────────────────────────────────────────────────────
+  // UNIFIED SINGLE-PAGE LAYOUT for all roles
+  // No early returns — one layout adapts via role conditionals.
+  // ──────────────────────────────────────────────────────────────
 
-              <form onSubmit={handleCompanySubmit} className="mt-2 flex gap-2">
+  return (
+    <div className="page-shell h-screen overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+      <div className="flex h-screen flex-col">
+
+        {/* ========== COMPACT HEADER (single row) ========== */}
+        <header className="flex-shrink-0 border-b border-slate-200/70 bg-white/95 px-3 py-1.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            {/* Left: role badge + company id */}
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                {currentRole.label}
+              </span>
+              <form onSubmit={handleCompanySubmit} className="flex items-center gap-1">
                 <input
                   value={companyId}
                   onChange={(e) => setCompanyId(e.target.value)}
                   placeholder="Company ID"
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none"
+                  className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-900 outline-none"
                 />
-                <button type="submit" className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950">Tải</button>
+                <button type="submit" className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">Tải</button>
               </form>
-            </header>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
-                <p className="text-[10px] text-emerald-700">{t('cartItems', selectedLang)}</p>
-                <p className="text-base font-bold text-emerald-900">{cartCount}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-2.5">
-                <p className="text-[10px] text-slate-500">{t('currentSubtotal', selectedLang)}</p>
-                <p className="text-base font-bold text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-2.5">
-                <p className="text-[10px] text-slate-500">{t('ordersTracking', selectedLang)}</p>
-                <p className="text-base font-bold text-slate-900">{warehouseQueue.length}</p>
-              </div>
+              {canTrackQueue && (
+                <WebSocketStatusHUD
+                  className="hidden md:inline-flex"
+                  isConnected={isRealtimeConnected}
+                  isConnecting={isRealtimeConnecting}
+                  lastSync={lastRealtimeSync}
+                  pendingOrders={pendingRealtimeOrders}
+                />
+              )}
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-              <div className="space-y-3">
-                <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
-                  <label className="relative block">
-                    <Search className="pointer-events-none absolute left-3 top-2 text-slate-400" size={16} />
-                    <input
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder={t('search', selectedLang)}
-                      className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 outline-none"
-                    />
-                  </label>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs text-slate-900 outline-none">
-                    {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {dynamicCategories.map((item) => (
-                    <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>
-                      {item}
+            {/* Right: lang/currency + cart button */}
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VI</button>
+                <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>EN</button>
+                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>VND</button>
+                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}>USD</button>
+              </div>
+              {canUseCart && (
+                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">
+                  <ShoppingCart size={12} /> {cartCount > 0 ? `(${cartCount})` : ''}
+                </button>
+              )}
+              {ALLOW_ROLE_SWITCH && (
+                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  {ROLE_OPTIONS.map((role) => (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => handleRoleChange(role.value)}
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'hover:bg-white'}`}
+                    >
+                      {role.label}
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        </header>
 
-                <div className="grid gap-2 md:grid-cols-2">
-                  {filteredItems.length === 0 ? (
-                    <div className="col-span-full rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">{t('noProducts', selectedLang)}</div>
-                  ) : filteredItems.map((item) => {
+        {/* ========== MAIN CONTENT GRID ========== */}
+        <div className="flex-1 overflow-hidden grid gap-3 p-3" style={{ gridTemplateColumns: '1fr 380px', height: 'calc(100vh - 44px)' }}>
+
+          {/* ─── LEFT PANEL: Products ─── */}
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-sm">
+            {/* Search + Sort row */}
+            <div className="flex-shrink-0 flex items-center gap-2 border-b border-slate-100 p-2.5">
+              <label className="relative flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={isSalesRole ? 'Tìm nhanh theo tên/mã hàng...' : 'Tìm sản phẩm...'}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-2.5 text-xs text-slate-900 outline-none"
+                />
+              </label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none">
+                {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+
+            {/* Categories pills */}
+            <div className="flex-shrink-0 flex flex-wrap gap-1 border-b border-slate-100 px-2.5 py-2">
+              {dynamicCategories.map((item) => (
+                <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            {/* Product List (scrollable) */}
+            <div className="flex-1 overflow-y-auto p-2.5">
+              {loading ? (
+                <div className="flex items-center justify-center h-full text-xs text-slate-500">Đang tải...</div>
+              ) : filteredItems.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-xs text-slate-500">{t('noProducts', selectedLang)}</div>
+              ) : (
+                <div className={`grid gap-2 ${isSalesRole ? 'grid-cols-2' : 'grid-cols-2 xl:grid-cols-3'}`}>
+                  {filteredItems.map((item) => {
                     const isWishlisted = wishlist.includes(item.id);
                     return (
                       <ProductCard
@@ -1261,26 +1278,34 @@ export default function StorefrontPage() {
                         product={item}
                         onViewDetails={openQuickView}
                         onSecondaryAction={canUseCart ? undefined : handleViewStock}
-                        onAction={(currentItem) => addToCart(currentItem, 1)}
-                        actionLabel={t('addToOrder', selectedLang)}
-                        actionClassName="touch-target flex-1 bg-emerald-500 text-slate-950 rounded-lg text-xs font-semibold hover:bg-emerald-600 transition"
-                        secondaryLabel={t('details', selectedLang)}
-                        secondaryClassName="touch-target flex-1 bg-white text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-100 transition"
+                        onAction={canUseCart ? (currentItem) => addToCart(currentItem, 1) : undefined}
+                        actionLabel={isSalesRole ? t('addToOrder', selectedLang) : t('buyNow', selectedLang)}
+                        actionClassName="touch-target flex-1 bg-emerald-500 text-slate-950 rounded-lg text-[10px] font-semibold hover:bg-emerald-600 transition flex items-center justify-center gap-1.5"
+                        secondaryLabel={canUseCart ? t('details', selectedLang) : 'Xem tồn kho'}
+                        secondaryClassName="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-semibold hover:bg-slate-200 transition flex items-center justify-center gap-1.5"
                         onToggleWishlist={(itemId) => toggleWishlist(itemId)}
                         isInWishlist={isWishlisted}
                       />
                     );
                   })}
                 </div>
-              </div>
+              )}
+            </div>
+          </div>
 
-              <aside className="space-y-3 xl:sticky xl:top-4 self-start">
+          {/* ─── RIGHT PANEL: Role-specific ─── */}
+          <aside className="overflow-y-auto space-y-2.5 pr-0.5">
+
+            {/* SALES ROLE — Cart + Checkout */}
+            {isSalesRole && (
+              <>
+                {/* Cart Items */}
                 <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-slate-900">{t('quickCart', selectedLang)}</h3>
                     <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{cartCount} {t('cartItems', selectedLang)}</span>
                   </div>
-                  <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                  <div className="max-h-[30vh] space-y-1.5 overflow-y-auto pr-1">
                     {cart.length === 0 ? (
                       <p className="text-xs text-slate-500">{t('emptyCart', selectedLang)}</p>
                     ) : (
@@ -1300,50 +1325,60 @@ export default function StorefrontPage() {
                       ))
                     )}
                   </div>
-                  <div className="mt-2 space-y-1 rounded-lg border border-emerald-100 bg-white p-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>{t('subtotal', selectedLang)}</span>
-                      <span className="font-semibold text-slate-900">{formatPrice(cartSubtotal, selectedCurrency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-1 text-slate-700">
-                      <span className="font-semibold">{t('total', selectedLang)}</span>
-                      <span className="text-sm font-black text-slate-900">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
-                    </div>
-                  </div>
                 </div>
 
+                {/* Checkout Form */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <h3 className="text-xs font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
-                  {selectedItem ? (
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-                      <p className="text-xs font-semibold text-slate-900">{selectedItem.name}</p>
-                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {selectedItem.unit || t('unit', selectedLang)}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-900">{formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</p>
-                      <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-2 w-full rounded-lg bg-emerald-500 px-2 py-1.5 text-[10px] font-semibold text-slate-950">
-                        {t('addToOrder', selectedLang)} ({checkoutForm.quantity || 1})
-                      </button>
+                  <h3 className="text-sm font-bold text-slate-900">{t('checkout', selectedLang)}</h3>
+                  {error && <div className="mt-2 rounded-lg border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] text-rose-700">{error}</div>}
+                  {success && <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-2 text-[10px] text-emerald-700"><CheckCircle2 size={12} />{success}</div>}
+
+                  <form onSubmit={handleCheckoutSubmit} className="mt-2 space-y-2">
+                    {hasCheckoutCart && (
+                      <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-2 text-[10px] text-emerald-700">
+                        Đơn hàng gồm {cart.length} sản phẩm ({cartCount} món).
+                      </div>
+                    )}
+                    <div className="grid gap-2">
+                      <label className="space-y-0.5 text-[10px] text-slate-600">
+                        <span className="flex items-center gap-1"><User size={10} />{t('customerName', selectedLang)}</span>
+                        <input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                      </label>
+                      <label className="space-y-0.5 text-[10px] text-slate-600">
+                        <span className="flex items-center gap-1"><Phone size={10} />{t('phone', selectedLang)}</span>
+                        <input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                      </label>
+                      <label className="space-y-0.5 text-[10px] text-slate-600">
+                        <span className="flex items-center gap-1"><MapPin size={10} />{t('address', selectedLang)}</span>
+                        <input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                      </label>
                     </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-500">{t('selectProduct', selectedLang)}</p>
-                  )}
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-900">
+                      <span>{t('total', selectedLang)}</span>
+                      <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><BadgePercent size={10} /> {t('coupon', selectedLang)}</div>
+                      <div className="mt-1 flex gap-1">
+                        <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-900 outline-none" />
+                        <button type="button" onClick={handleCouponApply} className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">{t('apply', selectedLang)}</button>
+                      </div>
+                      {couponMessage && <p className="mt-1 text-[10px] text-emerald-700">{couponMessage}</p>}
+                    </div>
+                    <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
+                      {submitting ? 'Đang tạo đơn...' : 'Tạo hóa đơn'} <ArrowRight size={14} />
+                    </button>
+                  </form>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <h3 className="text-xs font-bold text-slate-900">{t('quickActions', selectedLang)}</h3>
-                  <div className="mt-2 space-y-1.5 text-[10px] text-slate-600">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">{t('shippingEstimate', selectedLang)}</div>
-                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-900 outline-none" />
-                    <p className="text-[10px] text-slate-500">{shippingEstimate}</p>
-                  </div>
-                </div>
-
+                {/* Recent Orders preview */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <h3 className="text-xs font-bold text-slate-900">{t('orderTrackingSales', selectedLang)}</h3>
                   {warehouseQueue.length === 0 ? (
-                    <p className="mt-2 text-[10px] text-slate-500">{t('noOrdersInQueue', selectedLang)}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{t('noOrdersInQueue', selectedLang)}</p>
                   ) : (
-                    <div className="mt-2 space-y-1">
-                      {warehouseQueue.slice(0, 3).map((order) => (
+                    <div className="mt-1.5 space-y-1">
+                      {warehouseQueue.slice(0, 4).map((order) => (
                         <div key={`sales-track-${order.id}`} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
                           <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
                           <p className="text-[9px] text-slate-500">{WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}</p>
@@ -1352,706 +1387,164 @@ export default function StorefrontPage() {
                     </div>
                   )}
                 </div>
-              </aside>
-            </div>
-
-            {showMiniCart && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-slate-900">{t('quickCart', selectedLang)}</h2>
-                    <button onClick={() => setShowMiniCart(false)} className="rounded-full bg-slate-100 p-1.5 text-slate-500">
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
-                    {cart.length === 0 ? (
-                      <p className="text-xs text-slate-500">{t('emptyCart', selectedLang)}</p>
-                    ) : (
-                      cart.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-900">{item.name}</p>
-                            <p className="text-[10px] text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">-</button>
-                            <span className="w-5 text-center text-xs font-semibold">{item.quantity}</span>
-                            <button onClick={() => updateCartQuantity(item.id, 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">+</button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {rolePopup && (
-              <div className="fixed right-4 top-4 z-50 w-72 rounded-xl border border-blue-200 bg-white p-3 shadow-2xl">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{rolePopup.title}</p>
-                    <p className="mt-1 text-xs text-slate-600">{rolePopup.message}</p>
-                  </div>
-                  <button type="button" onClick={() => setRolePopup(null)} className="text-slate-400 hover:text-slate-600 text-xs">x</button>
-                </div>
-              </div>
-            )}
-
-            {showQuickView && quickViewItem && (
-              <QuickViewModal
-                item={quickViewItem}
-                onClose={() => setShowQuickView(false)}
-                onAddToCart={(item, qty) => addToCart(item, qty)}
-                onToggleWishlist={(itemId) => toggleWishlist(itemId)}
-                isWishlisted={wishlist.includes(quickViewItem.id)}
-                selectedCurrency={selectedCurrency}
-                t={t}
-                canUseCart={canUseCart}
-                canManageItems={canManageItems}
-                isSalesRole={isSalesRole}
-                onEditItem={fillAdminFormFromItem}
-              />
-            )}
-          </div>
-        </div>
-    </>
-  );
-  }
-
-  return (
-    <div className="page-shell bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
-      <div className="content-shell py-6">
-        {canTrackQueue && (
-          <WebSocketStatusHUD
-            className="hidden md:block"
-            isConnected={isRealtimeConnected}
-            isConnecting={isRealtimeConnecting}
-            lastSync={lastRealtimeSync}
-            pendingOrders={pendingRealtimeOrders}
-            onReconnect={() => {
-              if (streamRef.current) streamRef.current.close();
-              setTimeout(() => {
-                if (companyId) {
-                  setIsRealtimeConnecting(true);
-                  setIsRealtimeConnected(false);
-                  loadWarehouseQueue({ source: 'poll', keepLoadingState: false });
-                }
-              }, 200);
-            }}
-          />
-        )}
-        <header className="rounded-[28px] border border-slate-200/70 bg-white/90 p-6 shadow-2xl shadow-slate-300/20 backdrop-blur">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-200">
-                <Sparkles size={16} /> Vật liệu xây dựng chất lượng
-              </div>
-              <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2 text-xs text-slate-600">
-                <span className="font-semibold text-slate-700">Vai trò storefront:</span>
-                <span className={`rounded-full border px-2.5 py-1 font-semibold ${ROLE_BADGE_CLASS[currentRole.value] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                  {currentRole.label}
-                </span>
-              </div>
-              {ALLOW_ROLE_SWITCH && (
-                <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-2 text-xs text-slate-600">
-                  <span className="px-1 font-semibold text-slate-700">Chuyển role (dev):</span>
-                  {ROLE_OPTIONS.map((role) => (
-                    <button
-                      key={role.value}
-                      type="button"
-                      onClick={() => handleRoleChange(role.value)}
-                      className={`rounded-xl px-3 py-1.5 font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 hover:bg-slate-100'}`}
-                    >
-                      {role.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div>
-                <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">{isSalesRole ? 'Quầy bán hàng POS - Tạo hóa đơn nhanh' : 'Mua vật liệu xây dựng nhanh chóng'}</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">{isSalesRole ? 'Màn hình dành riêng cho nhân viên bán hàng: chọn hàng, cập nhật số lượng và chốt hóa đơn ngay tại quầy.' : 'Tìm kiếm gạch, sơn, xi măng, thép và vật tư xây dựng giá tốt trên cùng một trang. Đặt hàng nhanh, giao hàng tận công trình.'}</p>
-                {isGuestRole && (
-                  <p className="mt-2 max-w-2xl text-sm font-medium text-violet-700">Bạn đang ở chế độ khách vãng lai, có thể xem sản phẩm và đặt hàng nhanh mà không cần đăng nhập.</p>
-                )}
-                {isSalesRole && (
-                  <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">POS Mode: Nhân viên bán hàng</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <div className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100/90 p-2 text-sm text-slate-600 sm:w-auto">
-                <button type="button" onClick={() => setSelectedLang('VI')} className={`rounded-2xl px-3 py-2 text-sm ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-slate-100'}`}>VI</button>
-                <button type="button" onClick={() => setSelectedLang('EN')} className={`rounded-2xl px-3 py-2 text-sm ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-slate-100'}`}>EN</button>
-                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`rounded-2xl px-3 py-2 text-sm ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-slate-100'}`}>VND</button>
-                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`rounded-2xl px-3 py-2 text-sm ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'hover:bg-slate-100'}`}>USD</button>
-              </div>
-              {canUseCart ? (
-                <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-600/20">
-                  <ShoppingCart size={18} /> {isSalesRole ? `Màn hình POS ${cartCount > 0 ? `(${cartCount})` : ''}` : `Giỏ hàng ${cartCount > 0 ? `(${cartCount})` : ''}`}
-                </button>
-              ) : (
-                <div className="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-                  <Package size={18} /> {isAdminRole ? 'Quản lý danh mục' : 'Chế độ kho'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 pt-5">
-            {dynamicCategories.map((item) => (
-              <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-full px-4 py-2 text-sm ${activeCategory === item ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}`}>
-                {item}
-              </button>
-            ))}
-            <button type="button" className="ml-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-4 py-2 text-sm text-slate-600 hover:border-emerald-500">
-              <SlidersHorizontal size={14} /> {isSalesRole ? 'Bộ lọc POS' : 'Lọc theo vật liệu'}
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-slate-100/80 p-4 md:grid-cols-[1fr_auto] md:items-end">
-            <form onSubmit={handleCompanySubmit} className="grid gap-2 sm:grid-cols-[1fr_auto]">
-              <label className="space-y-1 text-sm text-slate-600">
-                <span>Doanh nghiệp đang xem</span>
-                <input
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  placeholder="Nhập company_id để tải danh mục"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
-                />
-              </label>
-              <button type="submit" className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">Tải gian hàng</button>
-            </form>
-            {!isGuestRole ? (
-              <div className="text-xs text-slate-500">Đang ở chế độ nội bộ. Có thể đổi về Khách vãng lai ở thanh role.</div>
-            ) : (
-              getERPUrl() ? (
-                <a href={buildErpLoginUrl(getERPUrl(), companyId, storefrontRole)} className="inline-flex items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700">
-                  Nhân viên? Đăng nhập ERP
-                </a>
-              ) : (
-                <span className="inline-flex items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700">
-                  Thiếu VITE_ERP_URL để chuyển về ERP
-                </span>
-              )
-            )}
-          </div>
-        </header>
-
-        {showMiniCart && (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-white/90 p-4 shadow-xl shadow-slate-300/20 mt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900">Giỏ hàng nhanh</h2>
-              <button onClick={() => setShowMiniCart(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {cart.length === 0 ? (
-                <p className="text-sm text-slate-500">Giỏ hàng hiện trống.</p>
-              ) : (
-                cart.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-sm text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded-full bg-slate-100 px-2 py-1 text-sm">-</button>
-                      <span className="text-sm font-semibold">{item.quantity}</span>
-                      <button onClick={() => updateCartQuantity(item.id, 1)} className="rounded-full bg-slate-100 px-2 py-1 text-sm">+</button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-sm text-slate-600">
-              <span>Tổng</span>
-              <span className="font-semibold text-slate-900">{formatPrice(cartSubtotal, selectedCurrency)}</span>
-            </div>
-          </div>
-        )}
-
-        <section className={`mt-6 grid gap-6 ${isSalesRole ? 'xl:grid-cols-[1.55fr_1fr]' : 'xl:grid-cols-[1.9fr_1fr]'}`}>
-          <div className="space-y-6">
-            {isSalesRole && (
-              <div className="rounded-[24px] border border-emerald-200 bg-gradient-to-r from-emerald-50 to-lime-50 p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">POS Counter</p>
-                    <p className="text-sm text-emerald-800">Quét/tìm sản phẩm ở cột trái và chốt hóa đơn ở cột phải.</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700">
-                      <ShoppingBag size={14} /> {cartCount} món
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700">
-                      <Clock3 size={14} /> Tổng tạm tính {formatPrice(checkoutPreviewAmount, selectedCurrency)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className={`rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur ${isSalesRole ? 'ring-1 ring-emerald-200/70' : ''}`}>
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-200">
-                    <Building2 size={16} /> Vật tư công trình
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-slate-900 sm:text-4xl">{isSalesRole ? 'Danh mục hàng hóa tại quầy' : 'Chọn vật liệu chất lượng, giao nhanh'}</h2>
-                    <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">{isSalesRole ? 'Ưu tiên thao tác nhanh: chọn hàng, thêm vào hóa đơn, chỉnh số lượng và chốt đơn.' : 'Duyệt vật liệu xây dựng theo danh mục, so sánh giá và hoàn tất đơn hàng nhanh chóng ngay trên web.'}</p>
-                  </div>
-                </div>
-                {!isSalesRole && (
-                  <div className="rounded-[24px] border border-emerald-400/20 bg-gradient-to-br from-emerald-500/15 to-slate-200/40 p-5 text-sm text-slate-700">
-                    <div className="flex items-center gap-2 text-slate-900"><Truck size={16} /> Giao hàng 24h</div>
-                    <div className="mt-3 flex items-center gap-2 text-slate-900"><BadgePercent size={16} /> Giảm giá đặc biệt</div>
-                    <div className="mt-3 flex items-center gap-2 text-slate-900"><CheckCircle2 size={16} /> Hỗ trợ đổi trả</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
-              <div className="grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                <div className="relative rounded-[24px] border border-slate-200 bg-slate-100/90 p-4">
-                  <Search className="pointer-events-none absolute left-4 top-4 text-slate-500" size={18} />
-                  <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={isSalesRole ? 'Tìm nhanh theo tên hoặc mã hàng...' : 'Tìm sản phẩm, danh mục...'}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 py-3 pl-12 pr-4 text-sm text-slate-900 outline-none"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-2 rounded-[24px] border border-slate-200 bg-slate-100/90 p-4 text-sm text-slate-600">
-                    <span>Sắp xếp</span>
-                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-900 outline-none">
-                      {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="space-y-2 rounded-[24px] border border-slate-200 bg-slate-100/90 p-4 text-sm text-slate-600">
-                    <span>Giá tối đa</span>
-                    <input type="range" min="500000" max="5000000" step="100000" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="w-full accent-emerald-500" />
-                    <p className="text-xs text-slate-500">Đến {formatPrice(priceMax, selectedCurrency)}</p>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-              {dynamicCategories.map((item) => (
-                <button key={item} onClick={() => setActiveCategory(item)} className={`rounded-[24px] border px-4 py-4 text-left text-sm text-slate-700 transition ${activeCategory === item ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-200 bg-slate-100/90 hover:border-emerald-500'}`}>
-                    <span className="block font-semibold text-slate-900">{item}</span>
-                    <span className="mt-2 block text-xs text-slate-500">Khám phá danh mục {item === 'Tất cả' ? 'toàn bộ' : item.toLowerCase()}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className={`grid gap-4 ${isSalesRole ? 'md:grid-cols-2 xl:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-3'}`}>
-              {filteredItems.length === 0 ? (
-                <div className="col-span-full rounded-[24px] border border-dashed border-slate-200 bg-slate-50/90 p-8 text-center text-slate-500">{t('noProducts', selectedLang)}</div>
-              ) : filteredItems.map((item) => {
-                const isWishlisted = wishlist.includes(item.id);
-                return (
-                  <ProductCard
-                    key={item.id}
-                    product={item}
-                    onViewDetails={openQuickView}
-                    onSecondaryAction={canUseCart ? undefined : handleViewStock}
-                    onAction={canUseCart ? (currentItem) => addToCart(currentItem, 1) : undefined}
-                    actionLabel={isSalesRole ? t('addToOrder', selectedLang) : t('buyNow', selectedLang)}
-                    actionClassName="touch-target flex-1 bg-emerald-500 text-slate-950 rounded-lg text-xs font-semibold hover:bg-emerald-600 transition flex items-center justify-center gap-2"
-                    secondaryLabel={canUseCart ? t('details', selectedLang) : 'Xem tồn kho'}
-                    secondaryClassName="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition flex items-center justify-center gap-2"
-                    onToggleWishlist={(itemId) => toggleWishlist(itemId)}
-                    isInWishlist={isWishlisted}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          <aside className={`space-y-4 ${isSalesRole ? 'xl:sticky xl:top-4 self-start' : ''}`}>
-            <div className="rounded-[24px] border border-slate-200/70 bg-slate-100/70 p-4 shadow-xl shadow-slate-300/20 backdrop-blur">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-300"><Package size={16} /></div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{isWarehouseRole || isAdminRole ? 'Theo dõi nhập xuất' : 'Chi tiết sản phẩm'}</h3>
-                  <p className="text-xs text-slate-500">{isWarehouseRole ? 'Chế độ kho chỉ theo dõi dữ liệu vật tư và trạng thái vận hành.' : isAdminRole ? 'Admin storefront quản lý danh mục sản phẩm tách biệt ERP.' : isGuestRole ? 'Khách vãng lai có thể duyệt sản phẩm và thêm vào giỏ mà không cần đăng nhập.' : 'Xem nhanh và thao tác giỏ hàng trong 1 khung.'}</p>
-                </div>
-              </div>
-
-              {isWarehouseRole || isAdminRole ? (
-                <div className="mt-4 space-y-3">
-                  {selectedItem ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                      <p className="text-xs text-slate-500">Mặt hàng đang theo dõi</p>
-                      <p className="font-semibold text-slate-900">{selectedItem.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{selectedItem.code} • {selectedItem.unit || 'Đơn vị'}</p>
-                      <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                        <div className="rounded-lg border border-slate-200 bg-white p-2">Giá tham chiếu: {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-2">Loại hàng: {selectedItem.category || 'Phổ biến'}</div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-2 sm:col-span-2">Tồn kho tham chiếu: {Number(selectedItem.opening_quantity || 0).toLocaleString('vi-VN')} {selectedItem.unit || 'đơn vị'}</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-500">Chọn một vật tư để theo dõi chi tiết.</div>
-                  )}
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <p className="text-sm font-semibold text-slate-900">{isAdminRole ? 'Nhiệm vụ theo vai trò admin bán hàng' : 'Nhiệm vụ theo vai trò kho'}</p>
-                    <ul className="mt-2 space-y-1 text-xs text-slate-600">
-                      {isAdminRole ? (
-                        <>
-                          <li>Quản lý danh mục sản phẩm trực tiếp trên storefront.</li>
-                          <li>Chuẩn hóa mã hàng, đơn vị tính và ảnh hiển thị.</li>
-                          <li>Tách vận hành danh mục khỏi ERP kế toán.</li>
-                        </>
-                      ) : (
-                        <>
-                          <li>Kiểm tra mã vật tư, đơn vị tính và hình ảnh.</li>
-                          <li>Đối chiếu lô hàng trước khi xuất kho.</li>
-                          <li>Phối hợp giao vận theo doanh nghiệp đang chọn.</li>
-                        </>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              ) : isSalesRole ? (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-emerald-700">Hóa đơn đang tạo</p>
-                        <p className="font-semibold text-emerald-900">{cart.length} sản phẩm • {cartCount} món</p>
-                      </div>
-                      <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
-                        {formatPrice(checkoutPreviewAmount, selectedCurrency)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="text-xs text-slate-600">Sản phẩm trong hóa đơn</div>
-                    <div className="mt-2 max-h-[40vh] space-y-2 overflow-y-auto pr-1 md:max-h-72">
-                      {cart.length === 0 ? (
-                        <p className="text-sm text-slate-500">Chưa có sản phẩm. Chọn hàng ở danh sách bên trái để bắt đầu.</p>
-                      ) : (
-                        cart.map((entry) => (
-                          <div key={entry.id} className="rounded-lg border border-slate-200 bg-white p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
-                              <p className="text-xs font-semibold text-slate-700">{formatPrice(Number(entry.price_sell || 0), selectedCurrency)}</p>
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5">
-                              <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
-                              <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
-                              <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
-                              <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : hasCheckoutCart ? (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-slate-500">{t('selectedProduct', selectedLang)}</p>
-                        <p className="font-semibold text-slate-900">{cart.length} sản phẩm trong giỏ</p>
-                        <p className="mt-1 text-xs text-slate-500">Số lượng tổng: {cartCount} món</p>
-                      </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{formatPrice(checkoutPreviewAmount, selectedCurrency)}</div>
-                    </div>
-
-                    <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 p-2.5">
-                      <div className="text-xs text-slate-600">Chi tiết từng sản phẩm</div>
-                      <div className="mt-2 max-h-[40vh] space-y-1.5 overflow-y-auto pr-1 md:max-h-72">
-                        {cart.map((entry) => (
-                          <div key={entry.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-slate-900">{entry.name}</p>
-                                <p className="text-xs text-slate-500">{entry.code} • {entry.unit || 'Đơn vị'}</p>
-                              </div>
-                              <p className="text-xs font-semibold text-slate-700">{formatPrice(Number(entry.price_sell || 0), selectedCurrency)}</p>
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">-</button>
-                              <span className="w-7 text-center text-sm font-semibold text-slate-800">{entry.quantity}</span>
-                              <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded-lg border border-slate-200 px-2 py-0.5 text-sm text-slate-700">+</button>
-                              <div className="ml-auto text-xs font-semibold text-slate-700">
-                                {formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-2 border-t border-slate-200 pt-2 text-right text-sm font-semibold text-slate-800">
-                        Thành tiền: {formatPrice(checkoutPreviewAmount, selectedCurrency)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-600"><Truck size={15} /> Ước tính phí ship</div>
-                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                    <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
-                  </div>
-                </div>
-              ) : selectedItem ? (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-slate-500">{t('selectedProduct', selectedLang)}</p>
-                        <p className="font-semibold text-slate-900">{selectedItem.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">Đơn giá: {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}/{selectedItem.unit || 'đơn vị'}</p>
-                      </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">{formatPrice(getUnitPrice(selectedItem), selectedCurrency)}</div>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 p-2.5">
-                      <div className="text-sm text-slate-600">Số lượng cần mua</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) - 1)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-sm text-slate-700">-</button>
-                        <input
-                          type="number"
-                          min="1"
-                          value={checkoutForm.quantity}
-                          onChange={(e) => handleQuantityChange(e.target.value)}
-                          className="w-20 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-sm text-slate-900 outline-none"
-                        />
-                        <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) + 1)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-sm text-slate-700">+</button>
-                        <div className="ml-auto text-sm font-semibold text-slate-700">
-                          Thành tiền: {formatPrice(Number(checkoutForm.amount || 0), selectedCurrency)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="flex items-center gap-2 text-sm text-emerald-300"><Clock3 size={15} /> Flash sale còn</div>
-                    <div className="mt-1.5 text-xs text-slate-500">03:12:47</div>
-                    <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('addToCart', selectedLang)} ({checkoutForm.quantity || 1})</button>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-600"><Truck size={15} /> Ước tính phí ship</div>
-                    <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                    <p className="mt-2 text-xs text-slate-500">{shippingEstimate}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-500">{t('selectProduct', selectedLang)}</div>
-              )}
-            </div>
-
-            <div className="rounded-[24px] border border-slate-200/70 bg-slate-100/70 p-4 shadow-xl shadow-slate-300/20 backdrop-blur">
-              <h3 className="text-lg font-bold text-slate-900">{isSalesRole ? 'Gợi ý bán nhanh tại quầy' : 'Ưu đãi vật liệu'}</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                {promoHighlights.map((highlight, index) => (
-                  <div key={`${highlight}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
-                    {highlight}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-        </section>
-
-        {canOrder ? (
-          <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{isGuestRole ? 'Đặt hàng nhanh cho khách vãng lai' : isSalesRole ? 'Thanh toán quầy POS' : 'Thanh toán nhanh'}</h3>
-                <p className="text-sm text-slate-500">{isGuestRole ? 'Không cần tài khoản, chỉ cần thông tin liên hệ để tạo đơn.' : isSalesRole ? 'Nhập nhanh thông tin khách và chốt hóa đơn tại quầy.' : 'Hoàn tất đơn hàng chỉ trong một bước.'}</p>
-              </div>
-              <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">Checkout</span>
-            </div>
-
-            {error && <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</div>}
-            {success && <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-300"><CheckCircle2 size={16} />{success}</div>}
-
-            <form onSubmit={handleCheckoutSubmit} className="mt-5 space-y-4">
-              {hasCheckoutCart && (
-                <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-300">
-                  Đơn hàng sẽ đặt đồng thời {cart.length} sản phẩm trong giỏ ({cartCount} món).
-                </div>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><User size={14} />{t('customerName', selectedLang)}</span><input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><Phone size={14} />{t('phone', selectedLang)}</span><input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-              </div>
-              <label className="space-y-1 text-sm text-slate-600"><span className="flex items-center gap-2"><MapPin size={14} />{t('address', selectedLang)}</span><input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-sm text-slate-600"><span>{t('quantity', selectedLang)}</span><input type="number" min="1" value={hasCheckoutCart ? cartCount : checkoutForm.quantity} onChange={(e) => !hasCheckoutCart && handleQuantityChange(e.target.value)} readOnly={hasCheckoutCart} className="w-full rounded-2xl border border-slate-200 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-                <label className="space-y-1 text-sm text-slate-600"><span>{t('amount', selectedLang)}</span><input type="number" min="0" value={checkoutPreviewAmount} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-100/70 px-3 py-2.5 text-sm text-slate-900 outline-none" /></label>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                <div className="flex items-center gap-2 text-sm text-slate-600"><BadgePercent size={14} /> {t('coupon', selectedLang)}</div>
-                <div className="mt-3 flex gap-2">
-                  <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                  <button type="button" onClick={handleCouponApply} className="rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('apply', selectedLang)}</button>
-                </div>
-                {couponMessage && <p className="mt-2 text-sm text-emerald-300">{couponMessage}</p>}
-              </div>
-              <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">{submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={16} /></button>
-            </form>
-          </div>
-
-          <div className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-5 shadow-xl shadow-slate-300/20 backdrop-blur">
-            {isSalesRole ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-slate-900">Thao tác nhanh POS</h3>
-                  <span className="text-sm text-slate-500">Ca bán hiện tại</span>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">Mẹo: nhập tên khách và số điện thoại để kho theo dõi giao hàng chính xác.</div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">Ưu tiên chốt đơn theo giỏ hàng để gom nhiều mã hàng trong cùng hóa đơn.</div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-sm font-semibold text-emerald-700">Hóa đơn tạm tính: {formatPrice(checkoutPreviewAmount, selectedCurrency)}</div>
-                </div>
               </>
-            ) : (
+            )}
+
+            {/* GUEST ROLE — Single product checkout + Cart if has items */}
+            {isGuestRole && (
               <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-slate-900">Thông tin mua hàng</h3>
-                  <span className="text-sm text-slate-500">Dữ liệu thật từ hệ thống</span>
+                {hasCheckoutCart ? (
+                  // Cart summary + checkout
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-bold text-slate-900">{t('quickCart', selectedLang)}</h3>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{cartCount} món</span>
+                    </div>
+                    <div className="max-h-[20vh] space-y-1 overflow-y-auto pr-1">
+                      {cart.map((entry) => (
+                        <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                          <span className="truncate text-[10px] font-semibold text-slate-900">{entry.name} x{entry.quantity}</span>
+                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs font-bold text-slate-900">
+                      <span>{t('total', selectedLang)}</span>
+                      <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
+                    </div>
+                  </div>
+                ) : selectedItem ? (
+                  // Single product quick-add
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <h3 className="text-xs font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
+                    <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <p className="text-xs font-semibold text-slate-900">{selectedItem.name}</p>
+                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) - 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700">-</button>
+                        <input type="number" min="1" value={checkoutForm.quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-14 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center text-xs text-slate-900 outline-none" />
+                        <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) + 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700">+</button>
+                        <button onClick={() => addToCart(selectedItem, Number(checkoutForm.quantity || 1))} className="ml-auto rounded-lg bg-emerald-500 px-2.5 py-1 text-[10px] font-semibold text-slate-950">{t('addToCart', selectedLang)}</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-3 text-center text-xs text-slate-500">
+                    {t('selectProduct', selectedLang)}
+                  </div>
+                )}
+
+                {/* Checkout Form */}
+                {canOrder && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <h3 className="text-sm font-bold text-slate-900">{t('checkout', selectedLang)}</h3>
+                    {error && <div className="mt-2 rounded-lg border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] text-rose-700">{error}</div>}
+                    {success && <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-2 text-[10px] text-emerald-700"><CheckCircle2 size={12} />{success}</div>}
+                    <form onSubmit={handleCheckoutSubmit} className="mt-2 space-y-2">
+                      <div className="grid gap-2">
+                        <label className="space-y-0.5 text-[10px] text-slate-600">
+                          <span className="flex items-center gap-1"><User size={10} />{t('customerName', selectedLang)}</span>
+                          <input required value={checkoutForm.customerName} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                        </label>
+                        <label className="space-y-0.5 text-[10px] text-slate-600">
+                          <span className="flex items-center gap-1"><Phone size={10} />{t('phone', selectedLang)}</span>
+                          <input required value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                        </label>
+                        <label className="space-y-0.5 text-[10px] text-slate-600">
+                          <span className="flex items-center gap-1"><MapPin size={10} />{t('address', selectedLang)}</span>
+                          <input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                        </label>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs font-bold text-slate-900">
+                        <span>{t('total', selectedLang)}</span>
+                        <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><BadgePercent size={10} /> {t('coupon', selectedLang)}</div>
+                        <div className="mt-1 flex gap-1">
+                          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Nhập SAVE10" className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-900 outline-none" />
+                          <button type="button" onClick={handleCouponApply} className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-slate-950">{t('apply', selectedLang)}</button>
+                        </div>
+                        {couponMessage && <p className="mt-1 text-[10px] text-emerald-700">{couponMessage}</p>}
+                      </div>
+                      <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
+                        {submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={14} />
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* Shipping estimate */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-center gap-1 text-xs text-slate-600"><Truck size={12} /> {t('shippingEstimate', selectedLang)}</div>
+                  <input value={shippingCode} onChange={(e) => setShippingCode(e.target.value)} placeholder={t('enterPostalCode', selectedLang)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                  <p className="mt-1 text-[10px] text-slate-500">{shippingEstimate}</p>
                 </div>
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
-                    Hình ảnh, giá và tồn kho được đồng bộ trực tiếp từ dữ liệu doanh nghiệp.
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
-                    Storefront không hiển thị điểm sao hoặc nhận xét khi chưa có dữ liệu đánh giá thực tế.
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-700">
-                    Ảnh lỗi hoặc thiếu sẽ tự chuyển sang biểu tượng thay thế để tránh vỡ giao diện.
+
+                {/* Promo highlights */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <h3 className="text-xs font-bold text-slate-900">Ưu đãi</h3>
+                  <div className="mt-1.5 space-y-1">
+                    {promoHighlights.map((h, i) => (
+                      <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-[10px] text-slate-600">{h}</div>
+                    ))}
                   </div>
                 </div>
               </>
             )}
-          </div>
-          </section>
-        ) : (
-          <section className="mt-6 rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-6 shadow-xl shadow-slate-300/20 backdrop-blur">
-            <h3 className="text-xl font-bold text-slate-900">{isAdminRole ? 'Chế độ admin bán hàng' : 'Chế độ nhân viên kho'}</h3>
-            <p className="mt-2 text-sm text-slate-600">{isAdminRole ? 'Admin quản lý danh mục sản phẩm trên storefront. Chức năng checkout được tắt để phân tách nhiệm vụ khỏi web kế toán ERP.' : 'Trang này đang hiển thị giao diện theo dõi vật tư và phối hợp giao nhận. Chức năng giỏ hàng, thanh toán và tạo đơn bán được ẩn theo phân quyền.'}</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
-                <p className="text-sm font-semibold text-slate-900">Doanh nghiệp đang thao tác</p>
-                <p className="mt-1 text-sm text-slate-600">{companyId || 'Chưa chọn doanh nghiệp'}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
-                <p className="text-sm font-semibold text-slate-900">Sản phẩm khả dụng</p>
-                <p className="mt-1 text-sm text-slate-600">{filteredItems.length} mặt hàng theo bộ lọc hiện tại</p>
-              </div>
-            </div>
-          </section>
-        )}
 
-        {isAdminRole && (
-          <section className="mt-4 rounded-[28px] border border-slate-200/70 bg-white/90 p-4 shadow-xl shadow-slate-300/20 backdrop-blur">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">{t('adminPanelTitle', selectedLang)}</h3>
-                <p className="text-xs text-slate-600">{t('adminPanelSubtitle', selectedLang)}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  {items.length} {t('productsCount', selectedLang)}
-                </span>
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                  {warehouseQueue.length} {t('pendingOrders', selectedLang)}
-                </span>
-              </div>
-            </div>
-
-            {adminMessage && (
-              <div className={`mb-3 rounded-xl border p-2.5 text-xs ${hasAdminSession ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                {adminMessage}
-              </div>
-            )}
-
-            <div className="grid gap-3 lg:grid-cols-3">
-              {/* Left Column - Product Form */}
-              <div className="lg:col-span-1">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                  <h4 className="mb-2 text-sm font-semibold text-slate-900">{t('createUpdateProduct', selectedLang)}</h4>
-                  <form onSubmit={handleAdminItemSubmit} className="space-y-2">
-                    <div className="grid gap-1.5 sm:grid-cols-2">
+            {/* ADMIN ROLE — Product Management + Orders */}
+            {isAdminRole && (
+              <>
+                {adminMessage && (
+                  <div className={`rounded-xl border p-2 text-[10px] ${hasAdminSession ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                    {adminMessage}
+                  </div>
+                )}
+                {/* Product Form */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <h3 className="text-xs font-bold text-slate-900">{t('createUpdateProduct', selectedLang)}</h3>
+                  <form onSubmit={handleAdminItemSubmit} className="mt-2 space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <input value={adminItemForm.code} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, code: e.target.value }))} placeholder={t('productCode', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
                       <input value={adminItemForm.unit} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, unit: e.target.value }))} placeholder={t('unitShort', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
                     </div>
                     <input value={adminItemForm.name} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, name: e.target.value }))} placeholder={t('productName', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
-                    <textarea value={adminItemForm.description} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, description: e.target.value }))} placeholder={t('description', selectedLang)} rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
-                    <div className="grid gap-1.5 sm:grid-cols-2">
+                    <textarea value={adminItemForm.description} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, description: e.target.value }))} placeholder={t('description', selectedLang)} rows={1} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
+                    <div className="grid grid-cols-2 gap-1.5">
                       <input type="number" min="0" step="1000" value={adminItemForm.price_sell} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, price_sell: e.target.value }))} placeholder={t('price', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
                       <input type="number" min="0" value={adminItemForm.opening_quantity} onChange={(e) => setAdminItemForm((prev) => ({ ...prev, opening_quantity: e.target.value }))} placeholder={t('openingQuantity', selectedLang)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none" />
                     </div>
-                    <input
-                      ref={adminImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleAdminImageFilesChange}
-                    />
-                    <button type="button" onClick={handleAdminPickImages} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    <input ref={adminImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAdminImageFilesChange} />
+                    <button type="button" onClick={handleAdminPickImages} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50">
                       {adminImageFiles.length > 0 ? `${t('addImages', selectedLang)} (${adminImageFiles.length}/6)` : t('addImages', selectedLang)}
                     </button>
-                    {adminImageFiles.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {adminImageFiles.slice(0, 3).map((file, idx) => (
-                          <span key={`${file.name}-${idx}`} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600">
-                            {file.name}
-                          </span>
-                        ))}
-                        {adminImageFiles.length > 3 && (
-                          <span className="px-1.5 py-0.5 text-[10px] text-slate-500">+{adminImageFiles.length - 3}</span>
-                        )}
-                      </div>
-                    )}
                     <div className="flex gap-1.5">
                       <button type="submit" disabled={adminBusy || !hasAdminSession} className="flex-1 rounded-lg bg-emerald-500 px-2 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-60">
                         {adminEditingCode ? t('save', selectedLang) : t('create', selectedLang)}
                       </button>
-                      <button type="button" onClick={resetAdminItemForm} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700">
-                        {t('reset', selectedLang)}
-                      </button>
+                      <button type="button" onClick={resetAdminItemForm} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700">{t('reset', selectedLang)}</button>
                     </div>
                   </form>
                 </div>
-              </div>
 
-              {/* Middle Column - Order Tracking */}
-              <div className="lg:col-span-1">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-900">{t('orderTracking', selectedLang)}</h4>
+                {/* Orders tracking */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-xs font-bold text-slate-900">{t('orderTracking', selectedLang)}</h3>
                     <span className="text-[10px] text-slate-500">{warehouseQueue.length} {t('pendingOrders', selectedLang)}</span>
                   </div>
-                  <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                  <div className="max-h-36 space-y-1 overflow-y-auto">
                     {warehouseQueue.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-slate-500">{t('noOrders', selectedLang)}</p>
+                      <p className="py-2 text-center text-[10px] text-slate-500">{t('noOrders', selectedLang)}</p>
                     ) : (
-                      warehouseQueue.slice(0, 6).map((order) => (
-                        <div key={`admin-track-${order.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                      warehouseQueue.slice(0, 8).map((order) => (
+                        <div key={`admin-track-${order.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
-                            <p className="text-[10px] text-slate-500">{getOrderDisplayDate(order)}</p>
+                            <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
+                            <p className="text-[9px] text-slate-500">{getOrderDisplayDate(order)}</p>
                           </div>
-                          <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
+                          <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
                             {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
                           </span>
                         </div>
@@ -2059,228 +1552,189 @@ export default function StorefrontPage() {
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* Right Column - Product List */}
-              <div className="lg:col-span-1">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3">
-                  <h4 className="mb-2 text-sm font-semibold text-slate-900">{t('productCatalog', selectedLang)}</h4>
-                  <div className="max-h-80 space-y-1.5 overflow-y-auto">
+                {/* Product catalog */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <h3 className="text-xs font-bold text-slate-900">{t('productCatalog', selectedLang)}</h3>
+                  <div className="mt-1 max-h-48 space-y-1 overflow-y-auto">
                     {items.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-slate-500">{t('noProducts', selectedLang)}</p>
+                      <p className="py-2 text-center text-[10px] text-slate-500">{t('noProducts', selectedLang)}</p>
                     ) : (
-                      items.map((item) => (
-                        <div key={item.id || item.code} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                      items.slice(0, 20).map((item) => (
+                        <div key={item.id || item.code} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold text-slate-900">{item.code} - {item.name}</p>
-                            <p className="text-[10px] text-slate-500">
-                              {formatPrice(getUnitPrice(item), selectedCurrency)} • {item.unit || t('unit', selectedLang)} • SL: {Number(item.opening_quantity || 0).toLocaleString('vi-VN')}
-                            </p>
+                            <p className="truncate text-[10px] font-semibold text-slate-900">{item.code} - {item.name}</p>
+                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
                           </div>
-                          <div className="ml-1.5 flex gap-1">
-                            <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-100">{t('editAction', selectedLang)}</button>
-                            <button type="button" onClick={() => handleAdminDeleteItem(item.code)} className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 hover:bg-rose-100">{t('deleteAction', selectedLang)}</button>
+                          <div className="ml-1 flex gap-0.5">
+                            <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-100">{t('editAction', selectedLang)}</button>
+                            <button type="button" onClick={() => handleAdminDeleteItem(item.code)} className="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[9px] font-semibold text-rose-700 hover:bg-rose-100">{t('deleteAction', selectedLang)}</button>
                           </div>
                         </div>
                       ))
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-          </section>
-        )}
+              </>
+            )}
 
-        {isWarehouseRole && (
-          <section className="mt-4 rounded-[28px] border border-sky-200/70 bg-white/90 p-4 shadow-xl shadow-slate-300/20 backdrop-blur">
-            {/* Compact Header with Stats */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">{t('warehouseTracking', selectedLang)}</h3>
-                <p className="text-xs text-slate-600">{t('warehouseDescription', selectedLang)}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                  {warehouseQueue.filter(o => o.loading_status !== 'completed').length} {t('pendingOrders', selectedLang)}
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  {warehouseQueue.filter(o => o.loading_status === 'completed').length} {t('completed', selectedLang)}
-                </span>
-              </div>
-            </div>
-
-            {!hasAdminSession ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">{t('noSessionFromERP', selectedLang)}</div>
-            ) : (
-              <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
-                {/* Left Column - Orders List */}
-                <div className="space-y-2">
-                  {/* Status Filter Pills */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {WAREHOUSE_STATUS_OPTIONS.map((status) => (
-                      <button
-                        key={status.value}
-                        onClick={() => setWarehouseStatusFilter(status.value)}
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                          warehouseStatusFilter === status.value
-                            ? 'bg-sky-500 text-slate-950'
-                            : 'bg-slate-100 text-slate-600 hover:bg-sky-50'
-                        }`}
-                      >
-                        {status.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {warehouseLoading ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">{t('loadingQueue', selectedLang)}</div>
-                  ) : warehouseFilteredQueue.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">{t('noOrdersWithFilter', selectedLang)}</div>
-                  ) : (
-                    <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
-                      {warehouseFilteredQueue.map((order) => {
-                        const isSelected = selectedWarehouseOrder?.id === order.id;
-                        const lineCount = order.lines?.length || 0;
-                        return (
-                          <button
-                            key={order.id}
-                            type="button"
-                            onClick={() => setSelectedWarehouseOrder(order)}
-                            className={`w-full rounded-xl border p-2.5 text-left transition ${
-                              isSelected
-                                ? 'border-sky-400 bg-sky-50 shadow-sm'
-                                : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
-                                <p className="text-[10px] text-slate-500">{getOrderDisplayDate(order)}</p>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                  order.loading_status === 'completed'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : order.loading_status === 'assigned'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-sky-100 text-sky-700'
-                                }`}>
-                                  {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
-                              <span>{lineCount} {t('lines', selectedLang)}</span>
-                              <span>•</span>
-                              <span>{t('totalQuantity', selectedLang)}: {Number(order.total_quantity || 0).toLocaleString('vi-VN')}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
+            {/* WAREHOUSE ROLE — Orders + actions */}
+            {isWarehouseRole && (
+              <>
+                {!hasAdminSession ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-700">{t('noSessionFromERP', selectedLang)}</div>
+                ) : (
+                  <>
+                    {/* Filter */}
+                    <div className="flex flex-wrap gap-1">
+                      {WAREHOUSE_STATUS_OPTIONS.map((status) => (
+                        <button key={status.value} onClick={() => setWarehouseStatusFilter(status.value)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${warehouseStatusFilter === status.value ? 'bg-sky-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-sky-50'}`}>
+                          {status.label}
+                        </button>
+                      ))}
                     </div>
-                  )}
-                </div>
 
-                {/* Right Column - Order Details */}
-                <aside className="self-start xl:sticky xl:top-4">
-                  {selectedWarehouseOrder ? (
-                    <div className="space-y-2">
+                    {/* Orders list */}
+                    <div className="rounded-2xl border border-sky-200 bg-white p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-xs font-bold text-slate-900">{t('warehouseTracking', selectedLang)}</h3>
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">
+                          {warehouseQueue.filter(o => o.loading_status !== 'completed').length} {t('pendingOrders', selectedLang)}
+                        </span>
+                      </div>
+                      {warehouseLoading ? (
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-[10px] text-slate-500">{t('loadingQueue', selectedLang)}</div>
+                      ) : warehouseFilteredQueue.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-[10px] text-slate-500">{t('noOrdersWithFilter', selectedLang)}</div>
+                      ) : (
+                        <div className="max-h-[45vh] space-y-1 overflow-y-auto pr-0.5">
+                          {warehouseFilteredQueue.slice(0, 20).map((order) => {
+                            const isSelected = selectedWarehouseOrder?.id === order.id;
+                            return (
+                              <button
+                                key={order.id}
+                                type="button"
+                                onClick={() => setSelectedWarehouseOrder(order)}
+                                className={`w-full rounded-lg border p-2 text-left transition ${isSelected ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/50'}`}
+                              >
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <p className="truncate text-[10px] font-semibold text-slate-900">{order.voucherNumber || `Đơn #${order.id}`}</p>
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${order.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : order.loading_status === 'assigned' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                                    {WAREHOUSE_STATUS_LABEL[order.loading_status] || order.loading_status}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 text-[9px] text-slate-500">{getOrderDisplayDate(order)} • {order.lines?.length || 0} dòng</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Selected order details */}
+                    {selectedWarehouseOrder && (
                       <div className="rounded-2xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white p-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-1.5">
                           <h4 className="text-xs font-bold text-slate-900">{selectedWarehouseOrder.voucherNumber || `Đơn #${selectedWarehouseOrder.id}`}</h4>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            selectedWarehouseOrder.loading_status === 'completed'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : selectedWarehouseOrder.loading_status === 'assigned'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-sky-100 text-sky-700'
-                          }`}>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${selectedWarehouseOrder.loading_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : selectedWarehouseOrder.loading_status === 'assigned' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
                             {WAREHOUSE_STATUS_LABEL[selectedWarehouseOrder.loading_status] || selectedWarehouseOrder.loading_status}
                           </span>
                         </div>
-                        <p className="mt-1 text-[10px] text-slate-500">{selectedWarehouseOrder.description || 'Đơn web'} • {getOrderDisplayDate(selectedWarehouseOrder)}</p>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                        <h4 className="text-xs font-bold text-slate-900">{t('orderLines', selectedLang)}</h4>
-                        <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
-                          {selectedWarehouseOrder.lines?.length > 0 ? selectedWarehouseOrder.lines.map((line, idx) => (
-                            <div key={`${selectedWarehouseOrder.id}-${line.item_id || idx}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-[10px] font-semibold text-slate-800">{line.item_code} - {line.item_name}</p>
-                                <p className="text-[9px] text-slate-500">{t('unit', selectedLang)}: {line.item_unit || '-'}</p>
-                              </div>
-                              <div className="ml-1.5 text-xs font-bold text-slate-900">{Number(line.quantity || 0).toLocaleString('vi-VN')}</div>
+                        <p className="text-[10px] text-slate-500">{selectedWarehouseOrder.description || 'Đơn web'} • {getOrderDisplayDate(selectedWarehouseOrder)}</p>
+                        <div className="mt-2 max-h-32 space-y-0.5 overflow-y-auto">
+                          {selectedWarehouseOrder.lines?.length > 0 ? selectedWarehouseOrder.lines.slice(0, 10).map((line, idx) => (
+                            <div key={`${selectedWarehouseOrder.id}-${line.item_id || idx}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2 py-1">
+                              <span className="truncate text-[10px] font-semibold text-slate-800">{line.item_code} - {line.item_name}</span>
+                              <span className="text-[10px] font-bold text-slate-900">{Number(line.quantity || 0).toLocaleString('vi-VN')}</span>
                             </div>
                           )) : (
                             <p className="text-[10px] text-slate-500">{t('noOrderLines', selectedLang)}</p>
                           )}
                         </div>
+                        {selectedWarehouseOrder.loading_status !== 'completed' && (
+                          <button type="button" onClick={() => handleWarehouseComplete(selectedWarehouseOrder)} className="mt-2 w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-[10px] font-semibold text-slate-950 hover:bg-emerald-400">
+                            {t('completeWarehouseOrder', selectedLang)}
+                          </button>
+                        )}
                       </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                        <h4 className="text-xs font-bold text-slate-900">{t('quickActions', selectedLang)}</h4>
-                        <div className="mt-2 space-y-1.5">
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] text-slate-600">
-                            <span className="font-semibold text-slate-800">{t('totalQuantity', selectedLang)}: </span>
-                            {Number(selectedWarehouseOrder.total_quantity || 0).toLocaleString('vi-VN')}
-                          </div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] text-slate-600">
-                            <span className="font-semibold text-slate-800">{t('orderLines', selectedLang)}: </span>
-                            {selectedWarehouseOrder.lines?.length || 0} {t('lines', selectedLang)}
-                          </div>
-                          {selectedWarehouseOrder.loading_status !== 'completed' && (
-                            <button
-                              type="button"
-                              onClick={() => handleWarehouseComplete(selectedWarehouseOrder)}
-                              className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-[10px] font-semibold text-slate-950 hover:bg-emerald-400"
-                            >
-                              {t('completeWarehouseOrder', selectedLang)}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
-                      <Package size={24} className="mx-auto text-slate-300" />
-                      <p className="mt-2 text-xs text-slate-500">{t('selectProduct', selectedLang)}</p>
-                    </div>
-                  )}
-                </aside>
-              </div>
+                    )}
+                  </>
+                )}
+              </>
             )}
-          </section>
-        )}
+          </aside>
+        </div>
+      </div>
 
-        {rolePopup && (
-          <div className="fixed right-4 top-4 z-50 w-80 rounded-xl border border-blue-200 bg-white p-4 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-slate-900">{rolePopup.title}</p>
-                <p className="mt-1 text-sm text-slate-600">{rolePopup.message}</p>
+      {/* ========== MODALS / POPUPS ========== */}
+
+      {rolePopup && (
+        <div className="fixed right-4 top-14 z-50 w-72 rounded-xl border border-blue-200 bg-white p-3 shadow-2xl">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold text-slate-900">{rolePopup.title}</p>
+              <p className="mt-1 text-xs text-slate-600">{rolePopup.message}</p>
+            </div>
+            <button type="button" onClick={() => setRolePopup(null)} className="text-slate-400 hover:text-slate-600 text-xs">x</button>
+          </div>
+        </div>
+      )}
+
+      {showQuickView && quickViewItem && (
+        <QuickViewModal
+          item={quickViewItem}
+          onClose={() => setShowQuickView(false)}
+          onAddToCart={(item, qty) => addToCart(item, qty)}
+          onToggleWishlist={(itemId) => toggleWishlist(itemId)}
+          isWishlisted={wishlist.includes(quickViewItem.id)}
+          selectedCurrency={selectedCurrency}
+          t={t}
+          canUseCart={canUseCart}
+          canManageItems={canManageItems}
+          isSalesRole={isSalesRole}
+          onEditItem={fillAdminFormFromItem}
+        />
+      )}
+
+      {showMiniCart && canUseCart && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900">{t('quickCart', selectedLang)}</h2>
+              <button onClick={() => setShowMiniCart(false)} className="rounded-full bg-slate-100 p-1.5 text-slate-500">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+              {cart.length === 0 ? (
+                <p className="text-xs text-slate-500">{t('emptyCart', selectedLang)}</p>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">{item.name}</p>
+                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">-</button>
+                      <span className="w-5 text-center text-xs font-semibold">{item.quantity}</span>
+                      <button onClick={() => updateCartQuantity(item.id, 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">+</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
+                <span>{t('total', selectedLang)}</span>
+                <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
               </div>
-              <button type="button" onClick={() => setRolePopup(null)} className="text-slate-400 hover:text-slate-600">x</button>
+              <button onClick={handleMobileCheckout} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950">{t('checkout', selectedLang)}</button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {showQuickView && quickViewItem && (
-          <QuickViewModal
-            item={quickViewItem}
-            onClose={() => setShowQuickView(false)}
-            onAddToCart={(item, qty) => addToCart(item, qty)}
-            onToggleWishlist={(itemId) => toggleWishlist(itemId)}
-            isWishlisted={wishlist.includes(quickViewItem.id)}
-            selectedCurrency={selectedCurrency}
-            t={t}
-            canUseCart={canUseCart}
-            canManageItems={canManageItems}
-            isSalesRole={isSalesRole}
-            onEditItem={fillAdminFormFromItem}
-          />
-        )}
-      </div>
       <FloatingCartBar
         cart={cart}
         onUpdateQuantity={updateCartQuantity}
