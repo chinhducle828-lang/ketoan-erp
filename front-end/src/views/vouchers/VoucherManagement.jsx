@@ -31,7 +31,7 @@ export default function VoucherManagement() {
   useEffect(() => {
     if (activeCompany) {
       const companyId = activeCompany?.id ?? activeCompany;
-      api.get(`/api/partners?company_id=${companyId}`)
+      api.get(`/api/partners/list?company_id=${companyId}`)
          .then(res => setPartners(res.data))
          .catch(() => {});
       api.get(`/api/items?company_id=${companyId}`)
@@ -356,7 +356,7 @@ export default function VoucherManagement() {
                       className="border p-2 rounded-lg text-sm flex-1 min-w-[140px]"
                     >
                       <option value="">Vật tư</option>
-                      {items.map(i => <option key={i.id} value={i.id}>{i.item_name}</option>)}
+                      {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                     <input
                       type="number"

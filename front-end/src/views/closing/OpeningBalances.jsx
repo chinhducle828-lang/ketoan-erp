@@ -77,7 +77,7 @@ export default function OpeningBalances() {
   // Lấy danh sách đối tác
   const fetchPartners = async () => {
     try {
-      const res = await api.get(`/partners?company_id=${activeCompany.id}`);
+      const res = await api.get(`/partners/list?company_id=${activeCompany.id}`);
       const partnerList = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.data)
