@@ -4,6 +4,14 @@ import wsService from './websocket';
 // API base configuration - Use VITE_ prefix for Vite
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Track if we're in the initial authentication phase to prevent unwanted redirects
+let isAuthenticating = false;
+
+// Export function to control authentication state
+export const setAuthenticating = (value) => {
+  isAuthenticating = value;
+};
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -32,16 +40,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth and redirect to ERP login
+      // Clear auth data
       localStorage.removeItem('erp_token');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('token');
       localStorage.removeItem('companyId');
       localStorage.removeItem('userId');
       
-      // Redirect to ERP login
-      const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
-      window.location.href = erpUrl;
+      // Only redirect to ERP if we were already authenticated (not during initial auth)
+      // This prevents the "rollback" issue when logging in from ERP to storefront
+      if (!isAuthenticating) {
+        const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
+        window.location.href = erpUrl;
+      }
+      // If we're in the initial auth phase, let the error propagate to the component
+      // so it can handle the error gracefully (show error message, etc.)
     }
     return Promise.reject(error);
   }

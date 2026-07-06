@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
-import api from './services/api';
+import api, { setAuthenticating } from './services/api';
 import { canAccessStorefront } from './hooks/usePermissions';
 import { XCircle, AlertTriangle } from 'lucide-react';
 import { registerServiceWorker, isPushSupported } from './services/pushService';
@@ -23,6 +23,8 @@ const initAuth = async () => {
   const { erp_token, company_id, role, erp_url } = getUrlParams();
   
   if (erp_token) {
+    // Set authenticating flag to prevent 401 redirect during initial auth
+    setAuthenticating(true);
     try {
       // Call external login to establish session
       const response = await api.post('/auth/external-login', {
@@ -58,6 +60,9 @@ const initAuth = async () => {
       localStorage.removeItem('companyId');
       localStorage.removeItem('userId');
       localStorage.removeItem('userRole');
+    } finally {
+      // Clear authenticating flag after auth attempt completes
+      setAuthenticating(false);
     }
   }
   
