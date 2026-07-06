@@ -293,9 +293,13 @@ export default function StorefrontPage() {
         setAuthenticatingAdmin(true);
         setAdminSessionChecked(false);
         try {
-          await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
-          setStorefrontToken(erpToken);
-          localStorage.setItem('storefrontAccessToken', erpToken);
+          const extRes = await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
+          // Use the dedicated storefront token (7-day expiry) returned by backend,
+          // not the original erp_token (15-min expiry) from URL
+          const storefrontTokenFromBackend = extRes?.data?.storefrontToken;
+          const finalToken = storefrontTokenFromBackend || erpToken;
+          setStorefrontToken(finalToken);
+          localStorage.setItem('storefrontAccessToken', finalToken);
           // remove token from URL to avoid leakage
           params.delete('erp_token');
           const nextQuery = params.toString();

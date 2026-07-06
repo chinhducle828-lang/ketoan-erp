@@ -40,21 +40,25 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth data
-      localStorage.removeItem('erp_token');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('token');
-      localStorage.removeItem('companyId');
-      localStorage.removeItem('userId');
+      // Determine if this was a Bearer-token request or cookie-based request
+      const hadBearerHeader = error.config?.headers?.Authorization?.startsWith('Bearer ');
       
-      // Only redirect to ERP if we were already authenticated (not during initial auth)
-      // This prevents the "rollback" issue when logging in from ERP to storefront
-      if (!isAuthenticating) {
+      if (hadBearerHeader) {
+        // Token-based request failed - token is expired/invalid
+        localStorage.removeItem('erp_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('token');
+        localStorage.removeItem('storefrontAccessToken');
+      }
+      // For cookie-based requests (without Bearer), do NOT clear tokens
+      // The component will handle the 401 gracefully via its own logic
+      
+      // Only redirect to ERP if this was NOT during initial auth
+      // AND the request used a Bearer token (proves it wasn't a session timeout)
+      if (!isAuthenticating && hadBearerHeader) {
         const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
         window.location.href = erpUrl;
       }
-      // If we're in the initial auth phase, let the error propagate to the component
-      // so it can handle the error gracefully (show error message, etc.)
     }
     return Promise.reject(error);
   }
