@@ -180,21 +180,22 @@ export default function StorefrontPage() {
 
   // If admin session is missing, keep user on storefront and show guidance instead of auto-redirect.
   useEffect(() => {
-    if (!isAdminRole) return;
     if (!authBootstrapDone) return;
     if (!adminSessionChecked) return;
     if (authenticatingAdmin) return;
     if (hasAdminSession) return;
+    if (isGuestRole) return;
 
     // Build ERP login URL for guidance only (no automatic navigation)
     const erpBase = getERPUrl();
     if (!erpBase) {
-      setAdminMessage('Thiếu địa chỉ ERP để xác thực lại admin. Giữ nguyên chế độ admin và chờ phiên hợp lệ.');
+      setAdminMessage('Thiếu địa chỉ ERP để xác thực lại. Giữ nguyên chế độ và chờ phiên hợp lệ.');
       return;
     }
     const loginUrl = buildErpLoginUrl(erpBase, companyId, storefrontRole);
-    setAdminMessage(`Chưa có phiên admin hợp lệ. Vui lòng đăng nhập lại từ ERP nếu cần: ${loginUrl}`);
-  }, [isAdminRole, authBootstrapDone, adminSessionChecked, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
+    const roleLabel = storefrontRole === 'admin' ? 'admin' : storefrontRole === 'nv_banhang' ? 'bán hàng' : 'kho';
+    setAdminMessage(`Chưa có phiên ${roleLabel} hợp lệ. Vui lòng đăng nhập lại từ ERP nếu cần: ${loginUrl}`);
+  }, [isAdminRole, isGuestRole, authBootstrapDone, adminSessionChecked, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const adminImageInputRef = useRef(null);
@@ -380,6 +381,8 @@ export default function StorefrontPage() {
     }
   }, []);
 
+  // Periodic session validation for all roles (admin, nv_banhang, nv_kho)
+  // Runs immediately and then every 30 seconds to detect token expiry
   useEffect(() => {
     if (!authBootstrapDone) return;
     if (!(isAdminRole || isWarehouseRole || isSalesRole)) return;
@@ -456,7 +459,12 @@ export default function StorefrontPage() {
       }
     };
 
+    // Run immediately on mount
     validateAdminSession();
+
+    // Then poll every 30 seconds to detect token expiry for all roles
+    const interval = setInterval(validateAdminSession, 30000);
+    return () => clearInterval(interval);
   }, [authBootstrapDone, isAdminRole, isWarehouseRole, isSalesRole, storefrontRole, storefrontToken]);
 
   const loadItems = async (id) => {
