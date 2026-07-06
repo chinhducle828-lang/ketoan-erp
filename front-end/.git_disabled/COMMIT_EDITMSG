@@ -1,0 +1,20 @@
+commit 1a2b3c4d5e6f7g8h9i0j
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch master
+# Your branch is ahead of 'origin/master' by 9 commits.
+#   (use "git push" to publish your local commits)
+#
+# Changes to be committed:
+#	modified:   package-lock.json
+#	modified:   package.json
+#	modified:   src/components/Header.jsx
+#	modified:   src/components/NotificationBell.jsx
+#	modified:   src/hooks/useRealTime-base.js
+#	modified:   src/hooks/useRealTime.js
+#	modified:   src/services/websocket-base.js
+#	modified:   src/services/websocket.js
+#	modified:   src/views/auth/Login.jsx
+#	modified:   src/views/auth/StorefrontAccessNotice.jsx
+#
