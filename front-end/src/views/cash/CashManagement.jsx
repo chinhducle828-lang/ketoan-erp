@@ -3,6 +3,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Wallet, Trash2, Loader2 } from 'lucide-react';
 import api from '../../utils/api.js';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -14,7 +15,7 @@ export default function CashManagement() {
     date: new Date().toISOString().split('T')[0],
     desc: '',
     partnerId: '',
-    currency: 'VND',     
+    currency: getDefaultCurrency(),
     exchangeRate: 1,     
     details: [
       { accountCode: '1111', entryType: 'DR', amount: '' },
@@ -42,13 +43,21 @@ export default function CashManagement() {
     setLoading(true);
     try {
       const companyId = activeCompany?.id ?? activeCompany;
+      if (!companyId) {
+        alert('Vui lòng chọn doanh nghiệp trước khi tạo phiếu thu/chi!');
+        setLoading(false);
+        return;
+      }
+      if (!form.partnerId) {
+        alert('Vui lòng chọn đối tác công nợ cho phiếu thu/chi!');
+        setLoading(false);
+        return;
+      }
       const rate = parseFloat(form.exchangeRate) || 1;
-      
-      // Quy đổi giá trị ngoại tệ sang VND theo tỷ giá hạch toán
       const processedDetails = form.details.map(d => ({
         ...d,
         amount: Math.round(parseFloat(d.amount || 0) * rate),
-        partnerId: form.partnerId || null
+        partnerId: Number(form.partnerId)
       }));
 
       // Kiểm tra cân đối Nợ - Có cơ bản trước khi đẩy lên API
@@ -93,11 +102,11 @@ export default function CashManagement() {
               {partners.map(p => <option key={p.id} value={p.id}>{p.partner_name}</option>)}
             </select>
             <select value={form.currency} onChange={e => setForm({...form, currency: e.target.value, exchangeRate: e.target.value==='VND'?1:form.exchangeRate})} className="border p-2 rounded-lg text-sm">
-              <option value="VND">VND (Việt Nam Đồng)</option>
+              <option value={getDefaultCurrency()}>{getDefaultCurrency()} (Việt Nam Đồng)</option>
               <option value="USD">USD (Đô la Mỹ)</option>
               <option value="EUR">EUR (Đồng Euro)</option>
             </select>
-            <input type="number" placeholder="Tỷ giá hạch toán" value={form.exchangeRate} onChange={e => setForm({...form, exchangeRate: e.target.value})} disabled={form.currency==='VND'} className="border p-2 rounded-lg text-sm" />
+            <input type="number" placeholder="Tỷ giá hạch toán" value={form.exchangeRate} onChange={e => setForm({...form, exchangeRate: e.target.value})} disabled={form.currency===getDefaultCurrency()} className="border p-2 rounded-lg text-sm" />
           </div>
           <input type="text" placeholder="Lý do nộp / nội dung chi..." value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} className="w-full border p-2 rounded-lg text-sm" />
           

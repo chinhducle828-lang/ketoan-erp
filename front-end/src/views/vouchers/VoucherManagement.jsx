@@ -4,6 +4,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { FileText, Trash2, Loader2, Plus, Search, Filter, X } from 'lucide-react';
 import api from '../../utils/api.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -13,7 +14,7 @@ const VOUCHER_TYPES = [
   { value: 'PKT', label: 'Phiếu Kế Toán', color: 'bg-slate-50 text-slate-700' }
 ];
 
-const CURRENCIES = ['VND', 'USD', 'EUR'];
+const CURRENCIES = [getDefaultCurrency(), 'USD', 'EUR'];
 
 export default function VoucherManagement() {
   const { activeCompany } = useAuth();
@@ -115,7 +116,7 @@ export default function VoucherManagement() {
       date: new Date().toISOString().split('T')[0],
       desc: '',
       partnerId: '',
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       exchangeRate: 1,
       details: [{ accountCode: '', entryType: 'DR', amount: '', partnerId: '', itemId: '', quantity: '' }]
     });
@@ -259,7 +260,7 @@ export default function VoucherManagement() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Loại tiền</label>
                 <select
                   value={form.currency}
-                  onChange={e => setForm({...form, currency: e.target.value, exchangeRate: e.target.value === 'VND' ? 1 : form.exchangeRate})}
+                  onChange={e => setForm({...form, currency: e.target.value, exchangeRate: e.target.value === getDefaultCurrency() ? 1 : form.exchangeRate})}
                   className="w-full border p-2 rounded-lg text-sm"
                 >
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,7 +274,7 @@ export default function VoucherManagement() {
                   placeholder="Tỷ giá"
                   value={form.exchangeRate}
                   onChange={e => setForm({...form, exchangeRate: e.target.value})}
-                  disabled={form.currency === 'VND'}
+                  disabled={form.currency === getDefaultCurrency()}
                   className="w-full border p-2 rounded-lg text-sm"
                 />
               </div>

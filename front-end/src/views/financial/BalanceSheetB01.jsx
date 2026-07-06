@@ -181,7 +181,7 @@ export default function BalanceSheetB01() {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       minimumFractionDigits: 0
     }).format(value || 0);
   };

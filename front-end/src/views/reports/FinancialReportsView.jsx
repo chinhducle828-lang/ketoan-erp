@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { FileSpreadsheet, BarChart3, FileText, RefreshCw, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 
 export default function FinancialReportsView() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
@@ -63,7 +64,7 @@ export default function FinancialReportsView() {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       minimumFractionDigits: 0
     }).format(value || 0);
   };

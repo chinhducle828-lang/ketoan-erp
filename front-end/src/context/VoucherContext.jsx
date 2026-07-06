@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import api from '../utils/api.js';
+import { normalizeVoucherPayload } from '../utils/accountingRules.js';
 
 // 1. Khởi tạo Context nội bộ
 const VoucherContext = createContext(null);
@@ -67,13 +68,15 @@ export function VoucherProvider({ children }) {
       if (amount <= 0) {
         return { isValid: false, error: `Số tiền tại tài khoản ${accountCode} phải lớn hơn 0!` };
       }
+      if (type !== 'DR' && type !== 'CR') {
+        return { isValid: false, error: `Dòng định khoản ${accountCode} thiếu hướng Nợ/Có.` };
+      }
 
       if (type === 'DR') totalDr += amount;
       if (type === 'CR') totalCr += amount;
     }
 
-    // Đối chiếu chéo logic toán học kế toán
-    if (Math.abs(totalDr - totalCr) > 0.01) { // Sử dụng sai số nhỏ để tránh lỗi số thực float
+    if (Math.abs(totalDr - totalCr) > 0.01) {
       return {
         isValid: false,
         error: `Chứng từ mất cân đối kế toán! Tổng Nợ (${totalDr.toLocaleString('vi-VN')} đ) phải bằng Tổng Có (${totalCr.toLocaleString('vi-VN')} đ). Lệch: ${Math.abs(totalDr - totalCr).toLocaleString('vi-VN')} đ.`
@@ -84,31 +87,28 @@ export function VoucherProvider({ children }) {
   };
 
   const createNewVoucher = async (data) => {
-    // CHỐT CHẶN 1: Bắt buộc khai báo số dư đầu kỳ trước khi phát sinh nghiệp vụ
     if (hasOpeningBalance === false && activeCompany?.id) {
-      return { 
-        success: false, 
-        error: 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.' 
+      return {
+        success: false,
+        error: 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.'
       };
     }
 
-    // Phòng chống lỗi gửi payload null làm sập backend
-    const voucherData = data || {};
-
-    // CHỐT CHẶN 2: Kích hoạt bộ lọc đối chiếu chéo Nợ - Có thời gian thực
+    const voucherData = normalizeVoucherPayload(data || {}, activeCompany);
     const checkBalance = validateDoubleEntry(voucherData.details);
     if (!checkBalance.isValid) {
       return { success: false, error: checkBalance.error };
     }
 
+    if (!voucherData.company_id) {
+      return { success: false, error: 'Vui lòng chọn doanh nghiệp trước khi ghi sổ.' };
+    }
+
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      
-      // Đóng gói JSON an toàn, thay thế toàn bộ tham số null tiềm ẩn bằng object rỗng {}
-      const res = await api.post('/vouchers', { 
-        ...voucherData, 
-        company_id: companyId,
-        details: voucherData.details || [] 
+      const res = await api.post('/vouchers', {
+        ...voucherData,
+        company_id: voucherData.company_id,
+        details: voucherData.details || []
       });
 
       if (res.data?.success) {

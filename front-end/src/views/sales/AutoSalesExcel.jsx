@@ -3,6 +3,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Layers, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 
 export default function AutoSalesExcel() {
   const { createNewVoucher } = useVouchers();
@@ -56,7 +57,7 @@ export default function AutoSalesExcel() {
           voucherDate: new Date().toISOString().split('T')[0],
           type: 'PK', // Dùng phiếu khác cho doanh thu
           description: `Doanh thu bán hàng Excel: ${inv.id} - ${inv.customer}`,
-          currency: 'VND',
+          currency: getDefaultCurrency(),
           exchangeRate: 1,
           details: details
         };

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
+import { buildPayrollInsuranceDetails } from '../../utils/accountingRules.js';
 import { Users, Plus } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 
@@ -31,72 +32,7 @@ export default function Payroll() {
     const today = new Date();
     const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    // -----------------------------------------------------------------
-    // LOGIC CẤU TRÚC ĐỊNH KHOẢN ĐA DÒNG (BỔ SUNG THEO TT 99)
-    // -----------------------------------------------------------------
-    const companyInsurance = Math.round(base * 0.215);  // 21.5% tính vào chi phí Doanh nghiệp gánh
-    const employeeInsurance = Math.round(base * 0.105); // 10.5% khấu trừ trực tiếp vào lương người lao động
-    
-    // Tách chi tiết bảo hiểm cấp 4
-    const bhxhCr = Math.round(base * 0.175) + Math.round(base * 0.08);   // Tổng 25.5% BHXH (TK 3383)
-    const bhytCr = Math.round(base * 0.03) + Math.round(base * 0.015);    // Tổng 4.5% BHYT (TK 3384)
-    const bhtnCr = Math.round(base * 0.01) + Math.round(base * 0.01);     // Tổng 2% BHTN (TK 3386)
-
-    const details = [
-      // =================================================================
-      // NGHIỆP VỤ MẪU A TRÍCH HỢP: HẠCH TOÁN CHI PHÍ LƯƠNG GỐP & THUẾ TNCN
-      // =================================================================
-      {
-        accountCode: '6422', // 1. Tính chi phí lương gộp (Gross) vào chi phí QLDN
-        entryType: 'DR',
-        amount: base
-      },
-      {
-        accountCode: '334',  // Đối ứng tăng khoản phải trả công nhân viên
-        entryType: 'CR',
-        amount: base
-      },
-      {
-        accountCode: '334',  // 2. Khấu trừ thuế TNCN tại nguồn của người lao động
-        entryType: 'DR',
-        amount: totalTaxTNCN
-      },
-      {
-        accountCode: '3331', // SỬA: Ghi nhận nghĩa vụ thuế TNCN với NSNN (Có 3331 - Thuế TNCN)
-        entryType: 'CR',
-        amount: totalTaxTNCN,
-        partnerId: 'TAX_AUTHORITY_ID' // Khớp theo cơ chế đối tác của Engine TT99
-      },
-
-      // =================================================================
-      // LOGIC CŨ GIỮ NGUYÊN: CÁC KHOẢN TRÍCH THEO LƯƠNG (32%)
-      // =================================================================
-      {
-        accountCode: '6422', // Dòng 3: Bảo hiểm phần DN chịu tính vào chi phí
-        entryType: 'DR',
-        amount: companyInsurance
-      },
-      {
-        accountCode: '334',  // Dòng 4: Bảo hiểm phần NLĐ chịu trừ vào lương
-        entryType: 'DR',
-        amount: employeeInsurance
-      },
-      {
-        accountCode: '3383', // Dòng 5: Nghĩa vụ quỹ BHXH
-        entryType: 'CR',
-        amount: bhxhCr
-      },
-      {
-        accountCode: '3384', // Dòng 6: Nghĩa vụ quỹ BHYT
-        entryType: 'CR',
-        amount: bhytCr
-      },
-      {
-        accountCode: '3386', // Dòng 7: Nghĩa vụ quỹ BHTN
-        entryType: 'CR',
-        amount: bhtnCr
-      }
-    ];
+    const { details } = buildPayrollInsuranceDetails(base, totalTaxTNCN);
 
     const payload = {
       company_id: currentCompanyId,

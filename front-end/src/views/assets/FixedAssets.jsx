@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Calculator, Trash2, Loader2, Plus } from 'lucide-react';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 
 export default function FixedAssets() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -26,7 +27,7 @@ export default function FixedAssets() {
       voucherDate: form.date,
       type: 'PK', // Phiếu Kế Toán Khác
       description: `Ghi tăng TSCĐ: ${form.name} (Mã: ${form.id})`,
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       exchangeRate: 1,
       details: [
         { accountCode: '2111', entryType: 'DR', amount: price },

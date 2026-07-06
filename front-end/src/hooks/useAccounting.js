@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import api from '../utils/api.js';
+import { getCorporateIncomeTaxRate } from '../utils/accountingRules.js';
 
 export function useAccounting() {
   const [loading, setLoading] = useState(false);
@@ -145,7 +146,7 @@ export function useAccounting() {
     } catch (err) {
       setError(err.message);
       console.error('Error getting tax rate:', err);
-      return 0.2; // Default fallback
+      return getCorporateIncomeTaxRate();
     } finally {
       setLoading(false);
     }

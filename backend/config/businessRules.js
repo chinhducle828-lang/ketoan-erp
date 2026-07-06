@@ -10,6 +10,13 @@ const DEFAULT_BUSINESS_RULES = {
     saleVoucherType: 'XK',
     defaultLoadingStatus: 'pending_loading'
   },
+  integration: {
+    orderIngestion: {
+      queueName: 'order-ingestion',
+      sagaPrefix: 'order-ingestion',
+      defaultCurrency: 'VND'
+    }
+  },
   accounting: {
     general: {
       hermaphroditicAccounts: ['131', '331', '138', '338', '3334', '3335', '3381']
@@ -164,6 +171,47 @@ export const resetBusinessRulesCache = () => {
 };
 
 export const getSaleRules = () => getBusinessRules().accounting.sale;
+
+/**
+ * Get dynamic account dictionary for chart of accounts
+ * FIX 3: Centralized account mapping for scalability
+ */
+export const getAccountDictionary = () => ({
+  '111': 'Tiền mặt tại quỹ',
+  '112': 'Tiền gửi Ngân hàng',
+  '131': 'Phải thu của khách hàng',
+  '138': 'Phải thu khác',
+  '141': 'Tạm ứng',
+  '152': 'Nguyên liệu, vật liệu tồn kho',
+  '153': 'Công cụ, dụng cụ',
+  '156': 'Hàng hóa kho tổng',
+  '211': 'Tài sản cố định hữu hình',
+  '214': 'Hao mòn tài sản cố định',
+  '215': 'Tài sản sinh học',
+  '229': 'Dự phòng tổn thất tài sản',
+  '331': 'Phải trả cho người bán',
+  '333': 'Thuế và các khoản phải nộp Nhà nước',
+  '334': 'Phải trả người lao động',
+  '338': 'Phải trả, phải nộp khác',
+  '341': 'Vay và nợ thuê tài chính',
+  '411': 'Vốn đầu tư của chủ sở hữu',
+  '418': 'Quỹ đầu tư phát triển',
+  '421': 'Lợi nhuận sau thuế chưa phân phối',
+  '511': 'Doanh thu bán hàng',
+  '515': 'Doanh thu hoạt động tài chính',
+  '632': 'Giá vốn hàng bán',
+  '635': 'Chi phí bán hàng',
+  '641': 'Chi phí quản lý doanh nghiệp',
+  '642': 'Chi phí sản xuất, kinh doanh',
+  '711': 'Thu nhập khác',
+  '811': 'Chi phí khác',
+  '821': 'Chi phí thuế TNDN'
+});
+export const getOrderIngestionRules = () => ({
+  queueName: getBusinessRules().integration?.orderIngestion?.queueName || 'order-ingestion',
+  sagaPrefix: getBusinessRules().integration?.orderIngestion?.sagaPrefix || 'order-ingestion',
+  defaultCurrency: getBusinessRules().integration?.orderIngestion?.defaultCurrency || 'VND'
+});
 export const getClosingRules = () => {
   const rules = getBusinessRules().accounting.closing;
   // Apply fallback for cost if null/empty

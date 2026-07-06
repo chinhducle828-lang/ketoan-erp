@@ -9,9 +9,11 @@
  * @param {object} options - Formatting options
  * @returns {string} Formatted currency string
  */
+import { getDefaultCurrency } from './accountingRules.js';
+
 export const formatCurrency = (value, options = {}) => {
   const {
-    currency = 'VND',
+    currency = getDefaultCurrency(),
     decimals = 0,
     showCurrency = true,
     locale = 'vi-VN'

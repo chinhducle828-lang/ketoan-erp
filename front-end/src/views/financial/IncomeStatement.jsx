@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-// Accounting functions removed - now using API
+import { getCorporateIncomeTaxRate } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
 
 export default function IncomeStatement() {
@@ -14,14 +14,8 @@ export default function IncomeStatement() {
   const [cycleData, setCycleData] = useState(null);
   const [cycleLoading, setCycleLoading] = useState(false);
   
-  const getTaxRateByRevenue = (revenue) => {
-    if (revenue <= 3000000000) return 0.15;
-    if (revenue <= 50000000000) return 0.17;
-    return 0.20;
-  };
-  
-  const appliedTaxRate = getTaxRateByRevenue(prevYearRevenue);
-  const taxRateLabel = appliedTaxRate === 0.15 ? '15%' : appliedTaxRate === 0.17 ? '17%' : '20%';
+  const appliedTaxRate = getCorporateIncomeTaxRate();
+  const taxRateLabel = `${Math.round(appliedTaxRate * 100)}%`;
 
   useEffect(() => {
     if (activeCompany) {
@@ -110,7 +104,7 @@ export default function IncomeStatement() {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'VND',
+      currency: getDefaultCurrency(),
       minimumFractionDigits: 0
     }).format(value || 0);
   };

@@ -25,23 +25,20 @@ export default function TaxReporting() {
           const accCode = dt.accountCode || dt.account_code;
           const entryType = dt.entryType || dt.entry_type;
 
-          // 1. Phân hệ Thuế GTGT (1331 & 3331) - Đã được giải phóng khỏi logic lưỡng tính
-          if (accCode === '1331' && entryType === 'DR') {
+          if ((accCode === '1331' || accCode === '133') && entryType === 'DR') {
             vatInput += amount;
           }
-          if (accCode === '3331' && entryType === 'CR') {
+          if ((accCode === '3331' || accCode === '333') && entryType === 'CR') {
             vatOutput += amount;
           }
 
-          // 2. Phân hệ Thuế TNDN (3334 - Theo dõi trạng thái lưỡng tính)
           if (accCode === '3334') {
-            if (entryType === 'CR') tndnPhaiNop += amount; // Phát sinh nghĩa vụ thuế (bên Có)
-            if (entryType === 'DR') tndnDaNop += amount;   // Thực tế đã nộp tiền/hoặc nộp thừa (bên Nợ)
+            if (entryType === 'CR') tndnPhaiNop += amount;
+            if (entryType === 'DR') tndnDaNop += amount;
           }
 
-          // 3. Phân hệ Thuế TNCN (3335 - Tính chất lưỡng tính)
-          if (accCode === '3335' && entryType === 'CR') {
-            tncnKhauTru += amount; // Khấu trừ tại nguồn từ bảng lương (bên Có)
+          if ((accCode === '3335' || accCode === '334') && entryType === 'CR') {
+            tncnKhauTru += amount;
           }
         });
       }
