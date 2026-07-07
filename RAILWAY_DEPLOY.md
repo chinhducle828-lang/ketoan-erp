@@ -2,10 +2,13 @@
 
 ## Cấu trúc deploy
 
-Dự án sử dụng **Dockerfile multi-stage** để build 3 services:
-- **Backend** (port 5000) - API + WebSocket
-- **Frontend ERP** (port 3000) - React SPA
-- **Storefront** (port 3001) - Cửa hàng trực tuyến
+Dự án dùng **3 Dockerfile riêng biệt** (mỗi service một file), mỗi file chỉ `COPY` đúng thư mục của nó:
+- **Backend** → `Dockerfile.backend` (port 5000) - API + WebSocket
+- **Frontend ERP** → `Dockerfile.frontend` (port 3000) - React SPA
+- **Storefront** → `Dockerfile.storefront` (port 3001) - Cửa hàng trực tuyến
+
+> Mỗi service là một Railway service riêng, build từ cùng repo nhưng dùng Dockerfile khác nhau.
+> Việc tách riêng giúp tránh lỗi build do Railway gửi snapshot tăng dần (incremental) chỉ chứa thư mục bị thay đổi.
 
 ## Cách 1: Deploy qua Railway Dashboard (Khuyên dùng)
 
@@ -31,17 +34,20 @@ Dự án sử dụng **Dockerfile multi-stage** để build 3 services:
   FRONTEND_URL=https://<frontend-url>.railway.app,https://<storefront-url>.railway.app
   SERVE_STATIC_FRONTEND=false
   ```
-- Railway tự động đọc `railway.json` để build Docker
+- Railway tự động đọc `railway.json` để build Docker (`dockerfilePath: Dockerfile.backend`, watch `backend/**`)
 
 ### 5. Cấu hình Frontend Service
 - Tạo service mới từ cùng repo
-- Settings → Build → Custom Dockerfile → Dockerfile path: `Dockerfile`
-- Settings → Deploy → Start Command: `cd /app/front-end && npm start`
+- Settings → Build → Custom Dockerfile → Dockerfile path: `Dockerfile.frontend`
+- Settings → Deploy → Start Command: `npm start` (WORKDIR đã là `/app`, không cần `cd`)
+- Settings → Deploy → Watch / Build filter (nếu có): `front-end/**`
 - Variables: `PORT=3000`, `VITE_API_BASE_URL=https://<backend-url>.railway.app`
 
 ### 6. Cấu hình Storefront Service
 - Tương tự frontend nhưng:
-- Start Command: `cd /app/storefront && npm start`
+- Dockerfile path: `Dockerfile.storefront`
+- Start Command: `npm start`
+- Watch / Build filter: `storefront/**`
 - Variables: `PORT=3001`, `VITE_API_BASE_URL=https://<backend-url>.railway.app`
 
 ## Cách 2: Deploy qua Railway CLI
@@ -101,3 +107,7 @@ Không cần chạy migration thủ công.
 ### Lỗi build Docker
 - Kiểm tra `.dockerignore` đã loại trừ `.env` chưa
 - Đảm bảo `npm ci` thành công local trước khi deploy
+- Nếu gặp lỗi `"/storefront": not found` (hoặc `"/front-end": not found`):
+  - Nguyên nhân: Dockerfile cũ gộp chung 3 service, Railway gửi snapshot tăng dần chỉ chứa thư mục bị đổi → thiếu thư mục khác.
+  - Khắc phục: dùng đúng Dockerfile riêng (`Dockerfile.backend` / `Dockerfile.frontend` / `Dockerfile.storefront`), mỗi file chỉ COPY thư mục của nó.
+  - Hoặc trigger rebuild sạch (Clear cache / Redeploy) để Railway gửi toàn bộ repo.
