@@ -1,0 +1,11 @@
+{
+  "_comment": "Historical performance baseline. Regenerate with: npm run perf:update-baseline",
+  "lastUpdated": "2026-07-07T17:34:32.669Z",
+  "tolerancePct": 20,
+  "values": {
+    "taxRateTenThousandLookups": 0.7690000000000055,
+    "bqgqTenThousandCalculations": 1.9894999999999996,
+    "fifoTenThousandCalculations": 0.12385138000000001,
+    "formatCurrencyTenThousand": 281.1573999999998
+  }
+}
