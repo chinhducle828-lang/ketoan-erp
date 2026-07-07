@@ -122,14 +122,14 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
               COALESCE(i.code, '') AS item_code,
               COALESCE(i.name, '') AS item_name,
               COALESCE(i.unit, '') AS item_unit,
-              i.id AS item_id
+              COALESCE(i.id::text, vd.item_id::text) AS item_id
        FROM vouchers v
        LEFT JOIN voucher_details vd
               ON vd.voucher_id = v.id
              AND vd.entry_type = 'CR'
              AND vd.item_id IS NOT NULL
              AND COALESCE(vd.quantity, 0) > 0
-       LEFT JOIN items i ON i.id = vd.item_id
+       LEFT JOIN items i ON i.id::text = vd.item_id::text
        WHERE v.company_id = $1
          AND v.voucher_type = $2
          AND v.loading_status = ANY($3::text[])
@@ -154,9 +154,11 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
 
       if (row.item_id) {
         const qty = Number(row.quantity || 0);
+        const numericItemId = Number(row.item_id);
+        const normalizedItemId = Number.isFinite(numericItemId) ? numericItemId : String(row.item_id);
         const order = ordersMap.get(voucherId);
         order.lines.push({
-          item_id: Number(row.item_id),
+          item_id: normalizedItemId,
           item_code: row.item_code,
           item_name: row.item_name,
           item_unit: row.item_unit,

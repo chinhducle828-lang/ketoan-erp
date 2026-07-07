@@ -67,9 +67,13 @@ api.interceptors.request.use(
       delete config.headers['Content-Type'];
     }
 
+    // Các endpoint cấp hệ thống (không nên auto-scope theo company_id)
+    const rawUrl = String(config.url || '');
+    const shouldSkipAutoCompanyScope = rawUrl.includes('/inventory/audit-logs');
+
     // Tự động kiểm tra và cấu hình ID doanh nghiệp đang làm việc vào Header hệ thống
     const activeCompanyData = localStorage.getItem('activeCompany');
-    if (activeCompanyData) {
+    if (activeCompanyData && !shouldSkipAutoCompanyScope) {
       try {
         const company = JSON.parse(activeCompanyData);
         const hasCompanyIdParam = config.params?.company_id || config.params?.companyId || /[?&](company_id|companyId)=/.test(config.url || '');
