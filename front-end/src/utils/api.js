@@ -1,5 +1,6 @@
 // FILE_PATH: front-end/src/utils/api.js
 import axios from 'axios';
+import { getClientInstanceId } from './clientInstance.js';
 
 // ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
 const getBaseURL = () => {
@@ -59,6 +60,8 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    config.headers['X-Client-Instance-Id'] = getClientInstanceId();
     
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];

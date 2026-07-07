@@ -11,14 +11,14 @@ const PERMISSIONS = {
     create: ['admin', 'ktt', 'nv'],
     read: ['admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'],
     update: ['admin', 'ktt'],
-    delete: ['admin', 'ktt'],
+    delete: ['admin'],
     post: ['admin', 'ktt']
   },
   inventory: {
     create: ['admin', 'ktt', 'nv_kho'],
     read: ['admin', 'ktt', 'nv_kho', 'nv_banhang'],
     update: ['admin', 'ktt', 'nv_kho'],
-    delete: ['admin', 'ktt']
+    delete: ['admin']
   },
   reports: {
     view: ['admin', 'ktt', 'nv'],

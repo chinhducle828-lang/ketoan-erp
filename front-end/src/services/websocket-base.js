@@ -5,6 +5,7 @@
  */
 
 import { io } from 'socket.io-client';
+import { getClientInstanceId } from '../utils/clientInstance.js';
 
 // WebSocket client configuration - Use VITE_ prefix for Vite
 const WS_URL = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || 'http://localhost:5000';
@@ -28,6 +29,7 @@ export class WebSocketBaseService {
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000;
     this.listeners = new Map();
+    this.clientInstanceId = getClientInstanceId();
   }
 
   // Initialize connection
@@ -49,7 +51,8 @@ export class WebSocketBaseService {
       timeout: 10000,
       auth: {
         companyId,
-        userId
+        userId,
+        clientInstanceId: this.clientInstanceId
       }
     });
 
@@ -136,5 +139,9 @@ export class WebSocketBaseService {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts
     };
+  }
+
+  getClientInstanceId() {
+    return this.clientInstanceId;
   }
 }

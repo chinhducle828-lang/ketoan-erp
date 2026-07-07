@@ -36,8 +36,8 @@ export function buildPeriodBalanceSummaryQuery(accountCodes, year = null, month 
   return query;
 }
 
-export async function getPeriodBalanceSummary(companyId, accountCodes, year = null, month = null) {
-  const tableCheck = await pool.query("SELECT to_regclass('public.monthly_balances') AS table_name");
+export async function getPeriodBalanceSummary(companyId, accountCodes, year = null, month = null, dbClient = pool) {
+  const tableCheck = await dbClient.query("SELECT to_regclass('public.monthly_balances') AS table_name");
   const tableExists = Boolean(tableCheck.rows[0]?.table_name);
 
   let query;
@@ -87,7 +87,7 @@ export async function getPeriodBalanceSummary(companyId, accountCodes, year = nu
     if (month !== null) values.push(month);
   }
 
-  const { rows } = await pool.query(query, values);
+  const { rows } = await dbClient.query(query, values);
 
   return rows.map((row) => ({
     account_code: row.account_code,

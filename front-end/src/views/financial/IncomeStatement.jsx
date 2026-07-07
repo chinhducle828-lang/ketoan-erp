@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getCorporateIncomeTaxRate } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function IncomeStatement() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
@@ -30,7 +32,7 @@ export default function IncomeStatement() {
     }
   }, [activeCompany, fiscalYear, activeTab]);
 
-  const fetchCycleData = async () => {
+  const fetchCycleData = useCallback(async () => {
     if (!activeCompany) return;
     
     setCycleLoading(true);
@@ -46,9 +48,9 @@ export default function IncomeStatement() {
     } finally {
       setCycleLoading(false);
     }
-  };
+  }, [activeCompany, fiscalYear]);
 
-  const fetchVouchers = async () => {
+  const fetchVouchers = useCallback(async () => {
     if (!activeCompany) return;
     
     setLoading(true);
@@ -64,7 +66,35 @@ export default function IncomeStatement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompany, fiscalYear]);
+
+  const refreshCyclesIfOpened = useCallback(() => {
+    if (activeTab === 'cycles') {
+      return fetchCycleData();
+    }
+    return Promise.resolve();
+  }, [activeTab, fetchCycleData]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    {
+      reports: fetchVouchers,
+      cycles: refreshCyclesIfOpened
+    },
+    {
+      eventMap: {
+        'voucher:created': ['reports', 'cycles'],
+        'voucher:updated': ['reports', 'cycles'],
+        'voucher:deleted': ['reports', 'cycles'],
+        voucherCreated: ['reports', 'cycles'],
+        voucherUpdated: ['reports', 'cycles'],
+        voucherDeleted: ['reports', 'cycles'],
+        'closing:completed': ['reports', 'cycles'],
+        closingCompleted: ['reports', 'cycles']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   const getLedgerValue = (accountCode, entryType) => {
     const key = accountCode;

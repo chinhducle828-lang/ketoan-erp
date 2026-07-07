@@ -4,6 +4,7 @@ import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
 import { pool } from '../config/db.js';
 import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
 import { runClosingEntries } from '../services/closing.service.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ tốc độ cao cho ứng dụng
 const localCache = new Map();
@@ -76,6 +77,8 @@ export const runInventoryCosting = async (req, res) => {
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
+
+    await assertCompanyOperational(companyId);
 
     // 1. Kích hoạt Inventory Engine quét lượng, cập nhật đè số tiền 'amount' xuất kho xuống DB
     // Lấy tháng và năm từ body hoặc sử dụng tháng/năm hiện tại

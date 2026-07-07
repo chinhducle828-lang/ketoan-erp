@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import api from '../utils/api.js';
 import { normalizeVoucherPayload } from '../utils/accountingRules.js';
+import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
 
 // 1. Khởi tạo Context nội bộ
 const VoucherContext = createContext(null);
@@ -19,16 +21,7 @@ export function VoucherProvider({ children }) {
     }
   }, [activeCompany?.id, checkOpeningBalanceStatus]);
 
-  // Tự động tải lại danh sách chứng từ khi thay đổi pháp nhân hạch toán
-  useEffect(() => {
-    if (activeCompany) {
-      loadVouchers();
-    } else {
-      setVouchers([]);
-    }
-  }, [activeCompany]);
-
-  const loadVouchers = async () => {
+  const loadVouchers = useCallback(async () => {
     setIsSyncing(true);
     try {
       const companyId = activeCompany?.id ?? activeCompany;
@@ -43,7 +36,36 @@ export function VoucherProvider({ children }) {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [activeCompany]);
+
+  // Tự động tải lại danh sách chứng từ khi thay đổi pháp nhân hạch toán
+  useEffect(() => {
+    if (activeCompany) {
+      loadVouchers();
+    } else {
+      setVouchers([]);
+    }
+  }, [activeCompany, loadVouchers]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { vouchers: loadVouchers },
+    {
+      eventMap: {
+        'voucher:created': ['vouchers'],
+        'voucher:updated': ['vouchers'],
+        'voucher:deleted': ['vouchers'],
+        'voucher:posted': ['vouchers'],
+        voucherCreated: ['vouchers'],
+        voucherUpdated: ['vouchers'],
+        voucherDeleted: ['vouchers'],
+        voucherPosted: ['vouchers'],
+        'closing:completed': ['vouchers'],
+        closingCompleted: ['vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   /**
    * 🛠️ HÀM NGHIỆP VỤ: ĐỐI CHIẾU CHÉO ĐỊNH KHOẢN (DOUBLE-ENTRY VALIDATION)

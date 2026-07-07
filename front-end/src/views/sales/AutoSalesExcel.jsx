@@ -26,7 +26,7 @@ export default function AutoSalesExcel() {
           id: r.ID || r.id || `INV-${i+1}`,
           customer: r.Customer || r.customer || 'Khách lẻ',
           amount: parseFloat(r.Amount || r.amount) || 0,
-          taxRate: parseFloat(r.TaxRate || r.taxRate) || 10
+          taxRate: parseFloat(r.TaxRate || r.taxRate) || 8
         })).filter(r => r.amount > 0);
         
         setExcelData(validData);

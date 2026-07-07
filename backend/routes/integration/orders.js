@@ -3,6 +3,7 @@ import { pool } from '../../config/db.js';
 import { authenticate } from '../../middleware/auth.js';
 import { publishToCompany } from '../../services/websocket.service.js';
 import { addOrderIngestionJob } from '../../services/queue.service.js';
+import { assertCompanyOperational, validateOrderPayloadReferences } from '../../services/cascadeValidation.service.js';
 
 const router = express.Router();
 
@@ -31,6 +32,13 @@ router.post('/orders', authenticate, async (req, res) => {
         error: 'Thiếu thông tin bắt buộc: company_id, order_number, order_date, items'
       });
     }
+
+    await assertCompanyOperational(company_id);
+    await validateOrderPayloadReferences({
+      companyId: company_id,
+      customerId: customer_id,
+      items
+    });
 
     const job = await addOrderIngestionJob({
       order: {
@@ -139,6 +147,7 @@ router.put('/orders/:id/status', authenticate, async (req, res) => {
     }
     
     const voucher = voucherRes.rows[0];
+    await assertCompanyOperational(voucher.company_id, { client });
     
     // Update status
     await client.query(
@@ -154,6 +163,7 @@ router.put('/orders/:id/status', authenticate, async (req, res) => {
         orderId: id,
         orderNumber: voucher.voucher_number,
         status: status,
+        clientInstanceId: req.headers['x-client-instance-id'] || null,
         timestamp: new Date().toISOString()
       });
     } catch (wsError) {

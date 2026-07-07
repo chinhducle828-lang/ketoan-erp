@@ -459,14 +459,17 @@ export async function checkLogisticCostAllocation(companyId, voucherId) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function allocateLogisticCosts(companyId, month, year) {
-  const client = await pool.connect();
+export async function allocateLogisticCosts(companyId, month, year, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const ruleContext = getInventoryRuleContext();
   const costAccounts = ruleContext.logisticsCostAccounts;
   const costAccountsPlaceholders = costAccounts.map((_, idx) => `$${idx + 6}`).join(', ');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy tất cả phiếu nhập kho chưa phân bổ chi phí
     const query = `
@@ -544,7 +547,9 @@ export async function allocateLogisticCosts(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -554,9 +559,13 @@ export async function allocateLogisticCosts(companyId, month, year) {
     };
     
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }

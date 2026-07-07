@@ -1,7 +1,9 @@
 // FILE_PATH: front-end/src/views/partner/PartnerManagement.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function PartnerManagement({ onRefresh }) {
   const { activeCompany } = useAuth();
@@ -14,6 +16,24 @@ export default function PartnerManagement({ onRefresh }) {
     address: ''
   });
   const [loading, setLoading] = useState(false);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { partners: () => onRefresh?.() },
+    {
+      eventMap: {
+        'partner:updated': ['partners'],
+        partnerUpdated: ['partners'],
+        'voucher:created': ['partners'],
+        'voucher:updated': ['partners'],
+        'voucher:deleted': ['partners'],
+        voucherCreated: ['partners'],
+        voucherUpdated: ['partners'],
+        voucherDeleted: ['partners']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany && onRefresh) });
 
   const handleCreatePartner = async (e) => {
     e.preventDefault();

@@ -5,30 +5,39 @@ class WebSocketService extends WebSocketBaseService {
   setupEventHandlers() {
     super.setupEventHandlers();
 
-    // ERP-specific business events
-    this.socket.on('voucherCreated', (data) => {
-      this.emit('voucherCreated', data);
-    });
+    const bridgeEvent = (socketEvent, internalEvents = []) => {
+      this.socket.on(socketEvent, (data) => {
+        const targets = [socketEvent, ...internalEvents];
+        targets.forEach((eventName) => this.emit(eventName, data));
+      });
+    };
 
-    this.socket.on('voucherUpdated', (data) => {
-      this.emit('voucherUpdated', data);
-    });
+    // Voucher events (legacy + new naming)
+    bridgeEvent('voucherCreated', ['voucher:created']);
+    bridgeEvent('voucherUpdated', ['voucher:updated']);
+    bridgeEvent('voucherDeleted', ['voucher:deleted']);
+    bridgeEvent('voucherPosted', ['voucher:posted']);
+    bridgeEvent('voucher:created', ['voucherCreated']);
+    bridgeEvent('voucher:updated', ['voucherUpdated']);
+    bridgeEvent('voucher:deleted', ['voucherDeleted']);
+    bridgeEvent('voucher:posted', ['voucherPosted']);
 
-    this.socket.on('orderStatusChanged', (data) => {
-      this.emit('orderStatusChanged', data);
-    });
+    // Closing events
+    bridgeEvent('closingCompleted', ['closing:completed']);
+    bridgeEvent('closing:completed', ['closingCompleted']);
 
-    this.socket.on('inventoryUpdated', (data) => {
-      this.emit('inventoryUpdated', data);
-    });
+    // Inventory events
+    bridgeEvent('inventoryUpdated', ['inventory:updated']);
+    bridgeEvent('inventory:updated', ['inventoryUpdated']);
 
-    this.socket.on('balanceUpdated', (data) => {
-      this.emit('balanceUpdated', data);
-    });
+    // Partner events
+    bridgeEvent('partnerUpdated', ['partner:updated']);
+    bridgeEvent('partner:updated', ['partnerUpdated']);
 
-    this.socket.on('notification:new', (data) => {
-      this.emit('notification:new', data);
-    });
+    // Existing events
+    bridgeEvent('orderStatusChanged');
+    bridgeEvent('balanceUpdated');
+    bridgeEvent('notification:new');
   }
 }
 

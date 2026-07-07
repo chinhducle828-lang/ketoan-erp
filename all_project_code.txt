@@ -1,6 +1,6 @@
 === TỔNG HỢP MÃ NGUỒN DỰ ÁN (BẢN NÂNG CẤP TOÀN DIỆN) ===
 Thư mục gốc: C:\Users\proge\OneDrive\Máy tính\tools\Ketoan
-Thời gian khởi tạo: 2026-07-07 14:09:56
+Thời gian khởi tạo: 2026-07-07 18:15:26
 ============================================================
 
 📸 SƠ ĐỒ CÂY THƯ MỤC TRỰC QUAN TOÀN HỆ THỐNG:
@@ -37,7 +37,8 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   ├── 006_add_multicurrency.sql
 │   │   ├── 007_add_items_id_primary_key.sql
 │   │   ├── 008_railway_full_schema_sync.sql
-│   │   └── 009_add_entity_type_to_companies.sql
+│   │   ├── 009_add_entity_type_to_companies.sql
+│   │   └── 010_enforce_partner_fk_restrict.sql
 │   ├── routes/
 │   │   ├── integration/
 │   │   │   ├── index.js
@@ -70,6 +71,7 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   ├── services/
 │   │   ├── audit.service.js
 │   │   ├── balanceCache.service.js
+│   │   ├── cascadeValidation.service.js
 │   │   ├── cashFlowEngine.js
 │   │   ├── closing.service.js
 │   │   ├── cycle.service.js
@@ -92,6 +94,7 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   ├── summary.service.js
 │   │   ├── taxRule.service.js
 │   │   ├── tenant.service.js
+│   │   ├── voucherRealtime.service.js
 │   │   ├── voucherStatus.js
 │   │   ├── webPush.service.js
 │   │   └── websocket.service.js
@@ -148,6 +151,8 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   ├── server.js
 │   └── test-erp-core.js
 ├── docs/
+│   ├── E2E_REALTIME_LOOP_TEST_PLAN.md
+│   ├── MASTERPLAN_REFACTORING.md
 │   └── PUSH_NOTIFICATIONS.md
 ├── front-end/
 │   ├── public/
@@ -168,6 +173,7 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   │   └── storefrontRoles.js
 │   │   ├── context/
 │   │   │   ├── AuthContext.jsx
+│   │   │   ├── SocketContext.jsx
 │   │   │   └── VoucherContext.jsx
 │   │   ├── hooks/
 │   │   │   ├── useAccounting.js
@@ -175,6 +181,8 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   │   ├── usePushNotification.js
 │   │   │   ├── useRealTime-base.js
 │   │   │   ├── useRealTime.js
+│   │   │   ├── useRealtimeInvalidation.js
+│   │   │   ├── useRealTimeSync.js
 │   │   │   └── useStorefrontRealTime.js
 │   │   ├── services/
 │   │   │   ├── websocket-base.js
@@ -184,6 +192,7 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   │   ├── accountingRules.js
 │   │   │   ├── accountingRules.test.js
 │   │   │   ├── api.js
+│   │   │   ├── clientInstance.js
 │   │   │   ├── constants.js
 │   │   │   ├── format.js
 │   │   │   ├── hybridRuntime.js
@@ -239,9 +248,7 @@ Thời gian khởi tạo: 2026-07-07 14:09:56
 │   │   │   │   └── TaxReporting.jsx
 │   │   │   ├── vouchers/
 │   │   │   │   └── VoucherManagement.jsx
-│   │   │   ├── index.js
-│   │   │   ├── MASTERPLAN.md
-│   │   │   └── QUY_TRINH_NGHIEP_VU.md
+│   │   │   └── index.js
 │   │   ├── App.jsx
 │   │   ├── index.css
 │   │   └── main.jsx
@@ -358,6 +365,171 @@ SEED_DATABASE=false
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: .gitignore
+// START_OF_FILE
+��#   D e p e n d e n c i e s 
+ 
+ n o d e _ m o d u l e s / 
+ 
+ . p n p 
+ 
+ . p n p . j s 
+ 
+ 
+ 
+ #   E n v i r o n m e n t   v a r i a b l e s 
+ 
+ . e n v 
+ 
+ . e n v . l o c a l 
+ 
+ . e n v . * . l o c a l 
+ 
+ . e n v . p r o d u c t i o n . l o c a l 
+ 
+ b a c k e n d / . e n v 
+ 
+ f r o n t - e n d / . e n v 
+ 
+ f r o n t - e n d / . e n v . p r o d u c t i o n 
+ 
+ s t o r e f r o n t / . e n v 
+ 
+ 
+ 
+ #   B u i l d   o u t p u t s 
+ 
+ d i s t / 
+ 
+ b u i l d / 
+ 
+ . n e x t / 
+ 
+ o u t / 
+ 
+ 
+ 
+ #   L o g s 
+ 
+ l o g s 
+ 
+ * . l o g 
+ 
+ n p m - d e b u g . l o g * 
+ 
+ y a r n - d e b u g . l o g * 
+ 
+ y a r n - e r r o r . l o g * 
+ 
+ p n p m - d e b u g . l o g * 
+ 
+ l e r n a - d e b u g . l o g * 
+ 
+ 
+ 
+ #   T e s t i n g 
+ 
+ c o v e r a g e / 
+ 
+ . n y c _ o u t p u t / 
+ 
+ 
+ 
+ #   C a c h e s 
+ 
+ . e s l i n t c a c h e 
+ 
+ . c a c h e / 
+ 
+ . p a r c e l - c a c h e / 
+ 
+ 
+ 
+ #   I D E 
+ 
+ . v s c o d e / 
+ 
+ . i d e a / 
+ 
+ * . s w p 
+ 
+ * . s w o 
+ 
+ * ~ 
+ 
+ . p r o j e c t 
+ 
+ . c l a s s p a t h 
+ 
+ . s e t t i n g s / 
+ 
+ 
+ 
+ #   O S 
+ 
+ . D S _ S t o r e 
+ 
+ . D S _ S t o r e ? 
+ 
+ . _ * 
+ 
+ . S p o t l i g h t - V 1 0 0 
+ 
+ . T r a s h e s 
+ 
+ e h t h u m b s . d b 
+ 
+ T h u m b s . d b 
+ 
+ 
+ 
+ #   D a t a b a s e 
+ 
+ * . d b 
+ 
+ * . s q l i t e 
+ 
+ * . s q l i t e 3 
+ 
+ 
+ 
+ #   T e m p o r a r y   f i l e s 
+ 
+ t m p / 
+ 
+ t e m p / 
+ 
+ * . t m p 
+ 
+ * . t e m p 
+ 
+ 
+ 
+ #   P a c k a g e   m a n a g e r   l o c k   f i l e s 
+ 
+ p a c k a g e - l o c k . j s o n 
+ 
+ y a r n . l o c k 
+ 
+ p n p m - l o c k . y a m l 
+ 
+ 
+ 
+ #   U p l o a d s   ( s h a r e d   a c r o s s   f r o n t e n d / b a c k e n d ) 
+ 
+ u p l o a d s / 
+ 
+ b a c k e n d / u p l o a d s / 
+ 
+ b a c k e n d / l o g s / 
+ 
+ 
+ 
+ #   T e m p o r a r y / u t i l i t y   f i l e s 
+ 
+ a l l _ p r o j e c t _ c o d e . t x t 
+ 
+ 
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -2925,6 +3097,7 @@ import { calculateProgressiveTax } from '../utils/accountingEngine.js';
 import { getPeriodBalanceSummary } from '../services/summary.service.js';
 import { invalidateCache } from '../cache/redis.js';
 import { sendToRole } from '../services/webPush.service.js';
+import { emitClosingRealtime } from '../services/voucherRealtime.service.js';
 
 /**
  * Controller xử lý kết chuyển sổ
@@ -3028,6 +3201,7 @@ export const previewClosing = async (req, res) => {
  * @param {Object} res - Response object
  */
 export const executeClosing = async (req, res) => {
+  let client = null;
   try {
     const companyId = req.companyId || req.body.companyId || req.body.company_id;
     const month = req.body.month || new Date().getMonth() + 1;
@@ -3039,30 +3213,36 @@ export const executeClosing = async (req, res) => {
 
     // Thực hiện các bước kết chuyển theo workflow
     const results = [];
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await client.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
     
     // Bước 1: Tính giá vốn kho
-    const inventoryResult = await calculateWeightedAverageCost(companyId, month, year);
+    const inventoryResult = await calculateWeightedAverageCost(companyId, month, year, client);
     results.push({ step: 'inventory_costing', result: inventoryResult });
     
     // Bước 2: Phân bổ chi phí logistics
-    const logisticResult = await allocateLogisticCosts(companyId, month, year);
+    const logisticResult = await allocateLogisticCosts(companyId, month, year, client);
     results.push({ step: 'logistic_allocation', result: logisticResult });
     
     // Bước 3: Khấu hao TSCĐ
-    const depreciationResult = await createDepreciationEntries(companyId, month, year);
+    const depreciationResult = await createDepreciationEntries(companyId, month, year, client);
     results.push({ step: 'depreciation', result: depreciationResult });
     
     // Bước 4: Xử lý thuế VAT
-    const vatResult = await processTaxVAT(companyId, month, year);
+    const vatResult = await processTaxVAT(companyId, month, year, client);
     results.push({ step: 'tax_vat', result: vatResult });
     
     // Bước 5: Xử lý thuế TNCN
-    const tncnResult = await processTaxTNCN(companyId, month, year);
+    const tncnResult = await processTaxTNCN(companyId, month, year, client);
     results.push({ step: 'tax_tncn', result: tncnResult });
     
     // Bước 6: Kết chuyển sổ
-    const closingResult = await runClosingEntries(companyId, month, year);
+    const closingResult = await runClosingEntries(companyId, month, year, client, { skipLock: false });
     results.push({ step: 'closing_entries', result: closingResult });
+
+    await client.query('COMMIT');
     
     // Xóa cache
     try {
@@ -3085,6 +3265,15 @@ export const executeClosing = async (req, res) => {
     } catch (notifyError) {
       console.warn('Push notification failed:', notifyError.message);
     }
+
+    emitClosingRealtime({
+      companyId,
+      month,
+      year,
+      results,
+      source: 'closing.controller.executeClosing',
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
     
     return res.json({
       success: true,
@@ -3097,8 +3286,19 @@ export const executeClosing = async (req, res) => {
       }
     });
   } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Rollback executeClosing thất bại:', rollbackError.message);
+      }
+    }
     console.error('Lỗi thực thi kết chuyển:', error);
     return res.status(500).json({ error: error.message });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 };
 
@@ -3159,6 +3359,7 @@ import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';
 import { pool } from '../config/db.js';
 import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
 import { runClosingEntries } from '../services/closing.service.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ tốc độ cao cho ứng dụng
 const localCache = new Map();
@@ -3231,6 +3432,8 @@ export const runInventoryCosting = async (req, res) => {
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
+
+    await assertCompanyOperational(companyId);
 
     // 1. Kích hoạt Inventory Engine quét lượng, cập nhật đè số tiền 'amount' xuất kho xuống DB
     // Lấy tháng và năm từ body hoặc sử dụng tháng/năm hiện tại
@@ -3729,6 +3932,7 @@ export const sendNotificationToUser = async (req, res) => {
 // FILE_PATH: backend/controllers/partnerController.js
 // START_OF_FILE
 import * as partnerService from '../services/partnerService.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 /**
  * Controller xử lý tạo mới Đối tác
@@ -3738,6 +3942,7 @@ export const createPartner = async (req, res) => {
     // BẪY BẢO MẬT: Lấy company_id an toàn từ req.user (do authMiddleware giải mã token cung cấp)
     // Tuyệt đối không tin tưởng company_id do Client tự truyền lên ở body để chống hack chéo dữ liệu
     const { company_id } = req.user; 
+    await assertCompanyOperational(company_id);
     
     // Gom dữ liệu từ client gửi lên và gắn kèm company_id đã được xác thực
     const partnerData = { ...req.body, company_id };
@@ -3773,6 +3978,7 @@ export const getPartners = async (req, res) => {
   try {
     // Cô lập dữ liệu: Chỉ lấy các đối tác thuộc đúng công ty của user đang đăng nhập
     const { company_id } = req.user; 
+    await assertCompanyOperational(company_id);
     
     const partners = await partnerService.getPartnersByCompanyDB(company_id);
     
@@ -3800,6 +4006,8 @@ import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances 
 import { runClosingEntries, getClosingData } from '../services/closing.service.js';
 import { allocateLogisticCosts, calculateFifoCostForPeriod } from '../services/inventory.service.js';
 import { invalidateCache } from '../cache/redis.js';
+import { emitClosingRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ
 const localCache = new Map();
@@ -3957,6 +4165,8 @@ export const executeClosing = async (req, res) => {
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
+
+    await assertCompanyOperational(companyId);
     
     // Bước 1: Phân bổ chi phí logistics (nạp phí vào nguyên giá)
     await allocateLogisticCosts(Number(companyId), month, year);
@@ -3974,6 +4184,15 @@ export const executeClosing = async (req, res) => {
     // Xóa Redis cache
     await invalidateCache(`dashboard:cashflow:${companyId}:*`);
     await invalidateCache(`balance-sheet:${companyId}:*`);
+
+    emitClosingRealtime({
+      companyId: Number(companyId),
+      month,
+      year,
+      source: 'report.controller.executeClosing',
+      result,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
     
     return res.json(result);
   } catch (error) {
@@ -4340,14 +4559,14 @@ const PERMISSIONS = {
     create: ['admin', 'ktt', 'nv'],
     read: ['admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'],
     update: ['admin', 'ktt'],
-    delete: ['admin', 'ktt'],
+    delete: ['admin'],
     post: ['admin', 'ktt']
   },
   inventory: {
     create: ['admin', 'ktt', 'nv_kho'],
     read: ['admin', 'ktt', 'nv_kho', 'nv_banhang'],
     update: ['admin', 'ktt', 'nv_kho'],
-    delete: ['admin', 'ktt']
+    delete: ['admin']
   },
   reports: {
     view: ['admin', 'ktt', 'nv'],
@@ -5386,6 +5605,45 @@ COMMENT ON COLUMN companies.annual_revenue_band IS 'Mức doanh thu năm: under_
 -- Thêm cột is_active (nếu chưa có) - cho middleware waf check
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: backend/migrations/010_enforce_partner_fk_restrict.sql
+// START_OF_FILE
+DO $$
+DECLARE
+  fk_record RECORD;
+BEGIN
+  -- Drop any existing FK on opening_balances.partner_id -> partners(id)
+  FOR fk_record IN
+    SELECT tc.constraint_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+    JOIN information_schema.constraint_column_usage ccu
+      ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.table_name = 'opening_balances'
+      AND tc.constraint_type = 'FOREIGN KEY'
+      AND kcu.column_name = 'partner_id'
+      AND ccu.table_name = 'partners'
+      AND ccu.column_name = 'id'
+  LOOP
+    EXECUTE format('ALTER TABLE opening_balances DROP CONSTRAINT IF EXISTS %I', fk_record.constraint_name);
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE table_name = 'opening_balances'
+      AND constraint_name = 'opening_balances_partner_id_fk_restrict'
+  ) THEN
+    ALTER TABLE opening_balances
+      ADD CONSTRAINT opening_balances_partner_id_fk_restrict
+      FOREIGN KEY (partner_id)
+      REFERENCES partners(id)
+      ON DELETE RESTRICT;
+  END IF;
+END $$;
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -6852,6 +7110,8 @@ import { fileURLToPath } from 'url';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
+import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational, assertItemCanBeDeleted } from '../services/cascadeValidation.service.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -6879,6 +7139,14 @@ const getItemsColumns = async () => {
      WHERE table_name = 'items'`
   );
   return new Set(rs.rows.map((row) => row.column_name));
+};
+
+const assertCompanyNotLockedForPhysicalDelete = async (companyId) => {
+  const result = await pool.query('SELECT lock_date FROM companies WHERE id = $1', [companyId]);
+  const lockDate = result.rows[0]?.lock_date || null;
+  if (lockDate) {
+    throw new Error(`Doanh nghiệp đã khóa sổ đến ${new Date(lockDate).toISOString().split('T')[0]}. Không cho phép xóa vật tư vật lý, vui lòng dùng phương án điều chỉnh.`);
+  }
 };
 
 const parseImageUrls = (bodyValue, uploadedImages) => {
@@ -7029,6 +7297,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
 
     if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Không xác định được doanh nghiệp cần khai báo vật tư!' });
+    await assertCompanyOperational(targetCompanyId);
 
     if (req.user.role !== 'admin') {
       const hasAccess = await canAccessCompany(req.user, targetCompanyId);
@@ -7094,6 +7363,15 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
       `INSERT INTO items (${insertColumns.join(', ')}) VALUES (${placeholders})`,
       insertValues
     );
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_created',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.status(201).json({ success: true, message: 'Đã lưu vật tư/sản phẩm mới.' });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Mã vật tư này đã được đăng ký tại doanh nghiệp hiện tại!' });
@@ -7114,6 +7392,10 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
       if (!hasAccess) return res.status(403).json({ error: 'Quyền thao tác danh mục bị chặn!' });
     }
 
+    await assertCompanyNotLockedForPhysicalDelete(targetCompanyId);
+    await assertCompanyOperational(targetCompanyId);
+    await assertItemCanBeDeleted({ companyId: targetCompanyId, itemCode: code });
+
     const columns = await getItemsColumns();
     const whereCode = columns.has('item_code')
       ? '(code = $1 OR item_code = $1)'
@@ -7124,6 +7406,15 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
       [code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_deleted',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Đã xóa vật tư thành công khỏi danh mục.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -7145,6 +7436,7 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
 
     if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính mới.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp cần cập nhật!' });
+    await assertCompanyOperational(targetCompanyId);
 
     if (req.user.role !== 'admin') {
       const hasAccess = await canAccessCompany(req.user, targetCompanyId);
@@ -7215,6 +7507,15 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
       [...updateValues, code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_updated',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Cập nhật thông tin vật tư thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -9031,9 +9332,11 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate, createVoucherSchema } from '../middleware/validation.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
-import { buildPostingUpdateValues } from '../services/voucherStatus.js';
+import { buildPostingUpdateValues, emitVoucherPostingRealtime } from '../services/voucherStatus.js';
 import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
 import { checkCompanyActive } from '../middleware/waf.js';
+import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational, validateVoucherDetailReferences } from '../services/cascadeValidation.service.js';
 
 const router = express.Router();
 
@@ -9044,7 +9347,7 @@ async function checkLockDate(companyId, voucherDate) {
     const lockDate = new Date(compQuery.rows[0].lock_date);
     const targetDate = new Date(voucherDate);
     if (targetDate <= lockDate) {
-      throw new Error(`Dữ liệu đã khóa sổ tính đến ngày ${compQuery.rows[0].lock_date.toISOString().split('T')[0]}. Thao tác bị từ chối!`);
+      throw new Error(`Dữ liệu đã khóa sổ tính đến ngày ${compQuery.rows[0].lock_date.toISOString().split('T')[0]}. Không cho phép xóa vật lý, vui lòng dùng bút toán điều chỉnh.`);
     }
   }
 }
@@ -9114,6 +9417,8 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
 
     // FIX 1: Kiểm tra khóa sổ trước khi thêm mới (prevents post-close modifications)
     await checkLockDate(company_id, voucher_date);
+    await assertCompanyOperational(company_id, { client });
+    await validateVoucherDetailReferences({ client, companyId: company_id, details });
 
     const vMasterQuery = `
       INSERT INTO vouchers (
@@ -9157,6 +9462,16 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    emitVoucherRealtime('created', {
+      voucherId: vId,
+      companyId: company_id,
+      type: voucher_type,
+      posted: postingValues.is_posted,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.status(201).json({ success: true, message: 'Tạo chứng từ thành công!' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -9185,6 +9500,15 @@ router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), async (req
       [postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, voucherId]
     );
 
+    emitVoucherPostingRealtime({
+      voucherId,
+      companyId: voucher.company_id,
+      posted: result.rows[0]?.is_posted,
+      postedBy: postingValues.posted_by,
+      postedAt: postingValues.posted_at,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Đã ghi sổ chứng từ', voucher: result.rows[0] });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -9206,6 +9530,11 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
       return res.status(404).json({ error: 'Chứng từ kế toán không tồn tại' });
     }
     const voucher = voucherRes.rows[0];
+
+    if (voucher.is_posted) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Chứng từ đã ghi sổ. Không cho phép xóa vật lý, vui lòng lập bút toán điều chỉnh.' });
+    }
     
     // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
     await checkLockDate(voucher.company_id, voucher.voucher_date);
@@ -9239,6 +9568,15 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
     await client.query('DELETE FROM vouchers WHERE id = $1', [voucherId]);
     
     await client.query('COMMIT');
+
+    emitVoucherRealtime('deleted', {
+      voucherId,
+      companyId: voucher.company_id,
+      type: voucher.voucher_type,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Xóa chứng từ kế toán thành công và đã đồng bộ lưu lịch sử vết hệ thống.' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -9268,6 +9606,8 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     
     // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
     await checkLockDate(voucher.company_id, voucher_date || voucher.voucher_date);
+    await assertCompanyOperational(voucher.company_id, { client });
+    await validateVoucherDetailReferences({ client, companyId: voucher.company_id, details });
     
     // 3. Lưu trữ trạng thái cũ để ghi audit log
     const oldDetailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
@@ -9337,6 +9677,15 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     );
     
     await client.query('COMMIT');
+
+    emitVoucherRealtime('updated', {
+      voucherId,
+      companyId: voucher.company_id,
+      type: voucher.voucher_type,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Cập nhật chứng từ thành công!' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -9367,6 +9716,7 @@ import { pool } from '../../config/db.js';
 import { authenticate } from '../../middleware/auth.js';
 import { publishToCompany } from '../../services/websocket.service.js';
 import { addOrderIngestionJob } from '../../services/queue.service.js';
+import { assertCompanyOperational, validateOrderPayloadReferences } from '../../services/cascadeValidation.service.js';
 
 const router = express.Router();
 
@@ -9395,6 +9745,13 @@ router.post('/orders', authenticate, async (req, res) => {
         error: 'Thiếu thông tin bắt buộc: company_id, order_number, order_date, items'
       });
     }
+
+    await assertCompanyOperational(company_id);
+    await validateOrderPayloadReferences({
+      companyId: company_id,
+      customerId: customer_id,
+      items
+    });
 
     const job = await addOrderIngestionJob({
       order: {
@@ -9503,6 +9860,7 @@ router.put('/orders/:id/status', authenticate, async (req, res) => {
     }
     
     const voucher = voucherRes.rows[0];
+    await assertCompanyOperational(voucher.company_id, { client });
     
     // Update status
     await client.query(
@@ -9518,6 +9876,7 @@ router.put('/orders/:id/status', authenticate, async (req, res) => {
         orderId: id,
         orderNumber: voucher.voucher_number,
         status: status,
+        clientInstanceId: req.headers['x-client-instance-id'] || null,
         timestamp: new Date().toISOString()
       });
     } catch (wsError) {
@@ -10175,6 +10534,176 @@ export async function invalidateAllBalances(companyId) {
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: backend/services/cascadeValidation.service.js
+// START_OF_FILE
+import { pool } from '../config/db.js';
+
+const toInt = (value) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const uniqueIntIds = (values) => {
+  const ids = values
+    .map((value) => toInt(value))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  return [...new Set(ids)];
+};
+
+const getDbClient = (client) => client || pool;
+
+export async function assertCompanyOperational(companyId, options = {}) {
+  const { client = null } = options;
+  const db = getDbClient(client);
+  const normalizedCompanyId = toInt(companyId);
+  if (!normalizedCompanyId) {
+    throw new Error('CompanyId không hợp lệ cho kiểm tra tính toàn vẹn.');
+  }
+
+  const companyRes = await db.query(
+    'SELECT id, is_active FROM companies WHERE id = $1',
+    [normalizedCompanyId]
+  );
+
+  if (companyRes.rows.length === 0) {
+    throw new Error('Doanh nghiệp không tồn tại trong hệ thống.');
+  }
+
+  if (companyRes.rows[0].is_active === false) {
+    throw new Error('Doanh nghiệp đang ngừng hoạt động. Không thể thực hiện thao tác ghi dữ liệu.');
+  }
+
+  return companyRes.rows[0];
+}
+
+export async function validateVoucherDetailReferences(options = {}) {
+  const {
+    client = null,
+    companyId,
+    details = []
+  } = options;
+
+  if (!Array.isArray(details) || details.length === 0) {
+    return;
+  }
+
+  const db = getDbClient(client);
+  const normalizedCompanyId = toInt(companyId);
+  if (!normalizedCompanyId) {
+    throw new Error('Thiếu companyId để xác thực liên kết dữ liệu chứng từ.');
+  }
+
+  const partnerIds = uniqueIntIds(details.map((item) => item?.partnerId ?? item?.partner_id));
+  const itemIds = uniqueIntIds(details.map((item) => item?.itemId ?? item?.item_id));
+
+  if (partnerIds.length > 0) {
+    const partnerRes = await db.query(
+      `SELECT id
+       FROM partners
+       WHERE company_id = $1
+         AND is_active = TRUE
+         AND id = ANY($2::int[])`,
+      [normalizedCompanyId, partnerIds]
+    );
+
+    const validPartnerIds = new Set(partnerRes.rows.map((row) => row.id));
+    const invalidPartnerIds = partnerIds.filter((id) => !validPartnerIds.has(id));
+    if (invalidPartnerIds.length > 0) {
+      throw new Error(`Đối tác không hợp lệ hoặc khác công ty: ${invalidPartnerIds.join(', ')}`);
+    }
+  }
+
+  if (itemIds.length > 0) {
+    const itemRes = await db.query(
+      `SELECT id
+       FROM items
+       WHERE company_id = $1
+         AND id = ANY($2::int[])`,
+      [normalizedCompanyId, itemIds]
+    );
+
+    const validItemIds = new Set(itemRes.rows.map((row) => row.id));
+    const invalidItemIds = itemIds.filter((id) => !validItemIds.has(id));
+    if (invalidItemIds.length > 0) {
+      throw new Error(`Vật tư không hợp lệ hoặc khác công ty: ${invalidItemIds.join(', ')}`);
+    }
+  }
+}
+
+export async function assertItemCanBeDeleted(options = {}) {
+  const {
+    client = null,
+    companyId,
+    itemCode
+  } = options;
+
+  const db = getDbClient(client);
+  const normalizedCompanyId = toInt(companyId);
+  if (!normalizedCompanyId || !itemCode) {
+    throw new Error('Thiếu thông tin để kiểm tra xóa vật tư.');
+  }
+
+  const itemRes = await db.query(
+    `SELECT id
+     FROM items
+     WHERE company_id = $1
+       AND (code = $2 OR item_code = $2)
+     LIMIT 1`,
+    [normalizedCompanyId, itemCode]
+  );
+
+  if (itemRes.rows.length === 0) {
+    return;
+  }
+
+  const itemId = itemRes.rows[0].id;
+  const usageRes = await db.query(
+    `SELECT COUNT(*)::int AS ref_count
+     FROM voucher_details vd
+     JOIN vouchers v ON v.id = vd.voucher_id
+     WHERE v.company_id = $1
+       AND vd.item_id = $2`,
+    [normalizedCompanyId, itemId]
+  );
+
+  const refCount = usageRes.rows[0]?.ref_count || 0;
+  if (refCount > 0) {
+    throw new Error(`Không thể xóa vật tư vì đã phát sinh ${refCount} bút toán liên quan.`);
+  }
+}
+
+export async function validateOrderPayloadReferences(options = {}) {
+  const {
+    client = null,
+    companyId,
+    customerId = null,
+    items = []
+  } = options;
+
+  const normalizedCompanyId = toInt(companyId);
+  if (!normalizedCompanyId) {
+    throw new Error('Thiếu companyId để xác thực đơn hàng bán.');
+  }
+
+  if (customerId) {
+    await validateVoucherDetailReferences({
+      client,
+      companyId: normalizedCompanyId,
+      details: [{ partner_id: customerId }]
+    });
+  }
+
+  if (Array.isArray(items) && items.length > 0) {
+    await validateVoucherDetailReferences({
+      client,
+      companyId: normalizedCompanyId,
+      details: items.map((item) => ({ item_id: item?.item_id ?? item?.itemId }))
+    });
+  }
+}
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: backend/services/cashFlowEngine.js
 // START_OF_FILE
 import { pool } from '../config/db.js';
@@ -10453,15 +10982,21 @@ const getBalanceByPrefix = async (db, companyId, accountPrefix, month, year) => 
  * @param {number} month - Tháng kết chuyển
  * @param {number} year - Năm kết chuyển
  */
-export async function runClosingEntries(companyId, month, year) {
-  // Sử dụng distributed lock để đảm bảo chỉ một process chạy cho mỗi công ty
-  const lock = await acquireLock('closing', { companyId, ttl: 60000 });
-  
-  if (!lock) {
-    throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
+export async function runClosingEntries(companyId, month, year, dbClient = null, options = {}) {
+  const useExternalClient = Boolean(dbClient);
+  const { skipLock = useExternalClient } = options;
+
+  let lock = null;
+  if (!skipLock) {
+    // Sử dụng distributed lock để đảm bảo chỉ một process chạy cho mỗi công ty
+    lock = await acquireLock('closing', { companyId, ttl: 60000 });
+
+    if (!lock) {
+      throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
+    }
   }
 
-    const client = await pool.connect();
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const closingAccounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
@@ -10488,7 +11023,9 @@ export async function runClosingEntries(companyId, month, year) {
   const retainedEarningsAccount = String(closingAccounts.retainedEarnings || '4212');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // [PESSIMISTIC LOCK] Khóa bản ghi công ty để tránh race condition
     // Nếu có 2 request đồng thời, request thứ 2 sẽ nhận lỗi ngay lập tức
@@ -10528,7 +11065,8 @@ export async function runClosingEntries(companyId, month, year) {
       companyId,
       [revenueAccount, ...costAccounts, otherIncomeAccount, otherExpenseAccount, taxExpenseAccount, closingAccount],
       year,
-      month
+      month,
+      client
     );
     const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
 
@@ -10619,7 +11157,7 @@ export async function runClosingEntries(companyId, month, year) {
     if (netProfit > 0) {
       // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
       // Lấy doanh thu năm trước từ TK 511
-      const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1);
+      const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1, null, client);
       const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
       // Tính thuế lũy tiến thực sự (theo entity_type của công ty)
@@ -10662,7 +11200,7 @@ export async function runClosingEntries(companyId, month, year) {
     
     // 5. Kết chuyển lãi/lỗ cuối cùng: TK 911 → TK 4212
     // Lấy số dư còn lại trên TK 911 sau khi đã kết chuyển
-    const final911Summary = await getPeriodBalanceSummary(companyId, [closingAccount], year, month);
+    const final911Summary = await getPeriodBalanceSummary(companyId, [closingAccount], year, month, client);
     const final911Balance = (final911Summary[0]?.debit || 0) - (final911Summary[0]?.credit || 0);
     
     if (Math.abs(final911Balance) > 0) {
@@ -10701,15 +11239,19 @@ export async function runClosingEntries(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
-    // Xóa cache toàn bộ hệ thống sau khi hoàn thành kết chuyển
-    try {
-      await invalidateCache(`dashboard:cashflow:${companyId}:*`);
-      await invalidateCache(`balance-sheet:${companyId}:*`);
-      await invalidateBalance(companyId, year, month);
-    } catch (cacheError) {
-      console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+    // Chỉ xóa cache ngay tại service khi service tự quản transaction riêng.
+    if (!useExternalClient) {
+      try {
+        await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+        await invalidateCache(`balance-sheet:${companyId}:*`);
+        await invalidateBalance(companyId, year, month);
+      } catch (cacheError) {
+        console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+      }
     }
     
     return {
@@ -10725,10 +11267,14 @@ export async function runClosingEntries(companyId, month, year) {
     };
     
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
     // Giải phóng distributed lock
     if (lock) {
       await releaseLock(lock);
@@ -10830,8 +11376,9 @@ export async function createAllowanceEntries(companyId, month, year) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function createDepreciationEntries(companyId, month, year) {
-  const client = await pool.connect();
+export async function createDepreciationEntries(companyId, month, year, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const rates = closingRules.rates || {};
@@ -10842,7 +11389,9 @@ export async function createDepreciationEntries(companyId, month, year) {
   const depreciationAnnualRate = Number(rates.depreciationAnnualRate ?? 0.2);
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy danh sách TSCĐ cần khấu hao
     const query = `
@@ -10882,7 +11431,9 @@ export async function createDepreciationEntries(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -10890,10 +11441,14 @@ export async function createDepreciationEntries(companyId, month, year) {
       assets_processed: rows.length
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }
 
@@ -10994,15 +11549,18 @@ export async function createProvisionEntries(companyId, month, year) {
  * @param {string} description - Mô tả bút toán
  * @param {string} resultField - Tên trường kết quả (VD: 'tax_payable', 'vat_payable')
  */
-export async function processTaxGeneric(companyId, month, year, taxAccount, description, resultField) {
-  const client = await pool.connect();
+export async function processTaxGeneric(companyId, month, year, taxAccount, description, resultField, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
   const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy số dư tài khoản thuế
     const taxBalance = await getBalanceByPrefix(client, companyId, taxAccount, month, year);
@@ -11026,7 +11584,9 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
       );
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -11034,10 +11594,14 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
       [resultField]: taxPayable
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }
 
@@ -11047,7 +11611,7 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function processTaxTNCN(companyId, month, year) {
+export async function processTaxTNCN(companyId, month, year, dbClient = null) {
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const tncnPayableAccount = String(accounts.personalIncomeTaxPayable || '3331');
@@ -11058,7 +11622,8 @@ export async function processTaxTNCN(companyId, month, year) {
     year, 
     tncnPayableAccount, 
     'Nộp thuế TNCN', 
-    'tax_payable'
+    'tax_payable',
+    dbClient
   );
 }
 
@@ -11068,7 +11633,7 @@ export async function processTaxTNCN(companyId, month, year) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function processTaxVAT(companyId, month, year) {
+export async function processTaxVAT(companyId, month, year, dbClient = null) {
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const vatPayableAccount = String(accounts.vatPayable || '33311');
@@ -11079,7 +11644,8 @@ export async function processTaxVAT(companyId, month, year) {
     year, 
     vatPayableAccount, 
     'Nộp thuế GTGT', 
-    'vat_payable'
+    'vat_payable',
+    dbClient
   );
 }
 // END_OF_FILE
@@ -12509,14 +13075,17 @@ export async function checkLogisticCostAllocation(companyId, voucherId) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function allocateLogisticCosts(companyId, month, year) {
-  const client = await pool.connect();
+export async function allocateLogisticCosts(companyId, month, year, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const ruleContext = getInventoryRuleContext();
   const costAccounts = ruleContext.logisticsCostAccounts;
   const costAccountsPlaceholders = costAccounts.map((_, idx) => `$${idx + 6}`).join(', ');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy tất cả phiếu nhập kho chưa phân bổ chi phí
     const query = `
@@ -12594,7 +13163,9 @@ export async function allocateLogisticCosts(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -12604,10 +13175,14 @@ export async function allocateLogisticCosts(companyId, month, year) {
     };
     
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }
 // END_OF_FILE
@@ -14058,8 +14633,8 @@ export function buildPeriodBalanceSummaryQuery(accountCodes, year = null, month 
   return query;
 }
 
-export async function getPeriodBalanceSummary(companyId, accountCodes, year = null, month = null) {
-  const tableCheck = await pool.query("SELECT to_regclass('public.monthly_balances') AS table_name");
+export async function getPeriodBalanceSummary(companyId, accountCodes, year = null, month = null, dbClient = pool) {
+  const tableCheck = await dbClient.query("SELECT to_regclass('public.monthly_balances') AS table_name");
   const tableExists = Boolean(tableCheck.rows[0]?.table_name);
 
   let query;
@@ -14109,7 +14684,7 @@ export async function getPeriodBalanceSummary(companyId, accountCodes, year = nu
     if (month !== null) values.push(month);
   }
 
-  const { rows } = await pool.query(query, values);
+  const { rows } = await dbClient.query(query, values);
 
   return rows.map((row) => ({
     account_code: row.account_code,
@@ -14332,8 +14907,67 @@ export default tenantService;
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: backend/services/voucherRealtime.service.js
+// START_OF_FILE
+import { publishToCompany } from './websocket.service.js';
+
+const EVENT_NAME_MAP = {
+  created: ['voucher:created', 'voucherCreated'],
+  updated: ['voucher:updated', 'voucherUpdated'],
+  deleted: ['voucher:deleted', 'voucherDeleted'],
+  posted: ['voucher:posted', 'voucherPosted'],
+  closing_completed: ['closing:completed', 'closingCompleted'],
+  inventory_updated: ['inventory:updated', 'inventoryUpdated'],
+  partner_updated: ['partner:updated', 'partnerUpdated']
+};
+
+const toNumberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+function publishCompanyEvents(companyId, eventNames, payload) {
+  if (!companyId || !Array.isArray(eventNames) || eventNames.length === 0) {
+    return;
+  }
+
+  for (const eventName of eventNames) {
+    publishToCompany(companyId, eventName, payload);
+  }
+}
+
+export function emitVoucherRealtime(action, payload = {}) {
+  const eventNames = EVENT_NAME_MAP[action] || [];
+  const companyId = toNumberOrNull(payload.companyId || payload.company_id);
+  const eventPayload = {
+    timestamp: Date.now(),
+    action,
+    ...payload,
+    companyId,
+    company_id: companyId
+  };
+
+  publishCompanyEvents(companyId, eventNames, eventPayload);
+}
+
+export function emitInventoryRealtime(payload = {}) {
+  emitVoucherRealtime('inventory_updated', payload);
+}
+
+export function emitClosingRealtime(payload = {}) {
+  emitVoucherRealtime('closing_completed', payload);
+}
+
+export function emitPartnerRealtime(payload = {}) {
+  emitVoucherRealtime('partner_updated', payload);
+}
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: backend/services/voucherStatus.js
 // START_OF_FILE
+import { emitVoucherRealtime } from './voucherRealtime.service.js';
+
 export function normalizePostingState(value) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -14359,6 +14993,10 @@ export function buildPostingUpdateValues(isPosted, userId = null, postedAt = new
     posted_by: shouldPost ? userId ?? null : null,
     posted_at: shouldPost ? postedAt : null,
   };
+}
+
+export function emitVoucherPostingRealtime(payload = {}) {
+  emitVoucherRealtime('posted', payload);
 }
 // END_OF_FILE
 ------------------------------------------------------------
@@ -18106,7 +18744,7 @@ export async function calculateInventoryCost(companyId, itemId, targetDate) {
  * @param {number} year - Năm tính toán
  * @returns {Object} - Kết quả tính toán
  */
-export async function calculateWeightedAverageCost(companyId, month, year) {
+export async function calculateWeightedAverageCost(companyId, month, year, dbClient = pool) {
   const ruleContext = getInventoryRuleContext();
   const costAccounts = ruleContext.logisticsCostAccounts;
   const allocParams = [companyId];
@@ -18136,7 +18774,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
     HAVING SUM(CASE WHEN vd.account_code IN (${costAccountsPlaceholders}) AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
   `;
   
-  const { rows: vouchersToAllocate } = await pool.query(allocationQuery, allocParams);
+  const { rows: vouchersToAllocate } = await dbClient.query(allocationQuery, allocParams);
   
   // Thực hiện phân bổ chi phí logistics
   // Tính tổng giá trị nhập kho để phân bổ theo tỷ lệ
@@ -18162,7 +18800,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
   if (month) logisticsParams.push(month);
   if (year) logisticsParams.push(year);
   
-  const { rows: logisticsRows } = await pool.query(logisticsQuery, logisticsParams);
+  const { rows: logisticsRows } = await dbClient.query(logisticsQuery, logisticsParams);
   const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
   
   // Phân bổ theo tỷ lệ thực tế: totalLogistics / totalInputValue
@@ -18176,15 +18814,15 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
       
       // Tạo bút toán phân bổ: Nợ TK 156, Có TK 632
       const closingDate = year && month ? `${year}-${String(month).padStart(2, '0')}-31` : new Date().toISOString().split('T')[0];
-      await pool.query(
+      await dbClient.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
          VALUES ($1, $2, $3, 'Tự động phân bổ chi phí logistics')`,
         [companyId, ruleContext.allocationVoucherType, closingDate]
       );
       
-      const voucherId = (await pool.query('SELECT LASTVAL()')).rows[0].lastval;
+      const voucherId = (await dbClient.query('SELECT LASTVAL()')).rows[0].lastval;
       
-      await pool.query(
+      await dbClient.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
          VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
         [voucherId, ruleContext.inventoryAccount, logisticCost, voucherId, ruleContext.allocationCreditAccount, logisticCost]
@@ -18219,7 +18857,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
     ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
   `;
 
-  const { rows } = await pool.query(query, params);
+  const { rows } = await dbClient.query(query, params);
 
   // Tính giá bình quân cho từng vật tư
   const itemCosts = {};
@@ -18252,7 +18890,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
       itemCosts[itemId].totalCostValue -= calculatedValue;
       
       // Cập nhật lại amount cho chi tiết xuất kho
-      await pool.query(
+      await dbClient.query(
         'UPDATE voucher_details SET amount = $1 WHERE id = $2',
         [calculatedValue, row.detail_id]
       );
@@ -18668,6 +19306,326 @@ orderIngestionWorker.on('failed', (job, err) => {
 });
 
 export default orderIngestionWorker;
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: docs/E2E_REALTIME_LOOP_TEST_PLAN.md
+// START_OF_FILE
+# E2E Realtime Loop-Safety Test Plan
+
+## Objective
+Validate that Phase 2 (frontend invalidation orchestration) and Phase 3 (backend cascade validation) work consistently and do not create infinite request/realtime loops.
+
+## Scope
+- Frontend: websocket subscription, invalidation debounce, loop guard, self-event suppression.
+- Backend: voucher/item/order/closing mutation guards and cascade reference checks.
+- Cross-module flows: partner, inventory, vouchers, sales order ingestion, report closing.
+
+## Preconditions
+1. Backend is running with database and websocket enabled.
+2. Frontend is running in two separate browser sessions:
+- Session A: normal user with write permissions.
+- Session B: another user (or same user in another browser profile) to verify remote sync.
+3. Browser DevTools Network tab is open in both sessions.
+4. Clear browser storage before test start.
+
+## Observability Setup
+1. In Session A and Session B, enable Network recording and preserve logs.
+2. Filter by:
+- `vouchers`
+- `items`
+- `report`
+- `inventory`
+- `socket`
+3. In backend logs, track realtime payload frequency by event name.
+
+## Test Matrix
+
+### Case 1: Voucher Create Sync (No Loop)
+1. In Session A, create 1 voucher.
+2. Expected:
+- Session A: exactly 1 create API call, max 1-2 follow-up GET refresh calls per screen.
+- Session B: no POST; only refresh GET calls triggered by realtime.
+- No repeating periodic burst after initial sync window (5 seconds).
+
+### Case 2: Voucher Update/Delete Sync (No Loop)
+1. In Session A, update then delete the same voucher.
+2. Expected:
+- Session A and B both refresh once per event group (debounced).
+- No chain reaction where refresh API calls trigger more writes.
+
+### Case 3: Item Delete Cascade Protection
+1. Try deleting an item already referenced by voucher details.
+2. Expected:
+- API responds with business error (cannot delete referenced item).
+- No realtime `inventory` broadcast on failed delete.
+
+### Case 4: Cross-Company Reference Guard
+1. Attempt to create/update voucher with `partner_id` or `item_id` from another company.
+2. Expected:
+- API rejects request with reference integrity error.
+- No partial write.
+
+### Case 5: Sales Order Ingestion Guard
+1. Send integration order payload with invalid customer/item references.
+2. Expected:
+- API rejects before enqueue.
+- No queue job created.
+
+### Case 6: Closing Broadcast Loop Check
+1. Trigger closing from Session A.
+2. Expected:
+- Session A and Session B receive one closing event each.
+- Dependent screens refresh once (or debounced group), then become idle.
+
+### Case 7: Self-Event Suppression
+1. In Session A, trigger write operations quickly (create 5 vouchers in sequence).
+2. Expected:
+- Session A does not repeatedly re-process identical self-origin events.
+- Refresh volume remains bounded by debounce and loop guard thresholds.
+
+## Infinite Loop Detection Rules
+Treat as failure if any condition is true:
+1. A single write operation causes more than 10 repeated GET requests on the same endpoint within 10 seconds in one session.
+2. Network requests continue without user action for longer than 15 seconds after the last mutation.
+3. Backend logs show repeating identical event payloads for the same entity without new writes.
+
+## Pass Criteria
+1. All guarded invalid mutations fail with clear business errors.
+2. Valid mutations sync to other sessions within 3 seconds.
+3. No request/event storm meets failure thresholds in loop detection rules.
+4. Session A and Session B converge to the same visible data state.
+
+## Optional Automation Outline
+1. Use Playwright with two browser contexts (A/B).
+2. Instrument frontend `fetch`/axios calls and websocket events in-page.
+3. Count calls per endpoint/event in a 10-second window.
+4. Assert thresholds from "Infinite Loop Detection Rules".
+5. Export JSON evidence per test case.
+
+## Regression Checklist (Run before release)
+1. Voucher create/update/delete/post.
+2. Item create/update/delete.
+3. Partner create + list refresh.
+4. Sales order integration enqueue + status update.
+5. Closing execute + report refresh.
+6. Multi-tab realtime consistency.
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: docs/MASTERPLAN_REFACTORING.md
+// START_OF_FILE
+# MASTERPLAN: TÁI CẤU TRÚC & NÂNG CẤP KETOAN ERP (P0 + P1)
+
+> Tài liệu kế hoạch chi tiết dựa trên **thực trạng mã nguồn hiện tại** (không chỉ lý thuyết). Mục tiêu: Maintainability, Reliability, Scalability.
+> Phạm vi tài liệu này: P0 (làm ngay) + P1 (trong tháng tới). P2 liệt kê để biết lộ trình dài hạn.
+
+---
+
+## 0. ĐÁNH GIÁ THỰC TRẠNG (Current State Audit)
+
+Dựa trên quét thực tế `backend/` (commit `10ec17e`):
+
+| Hạng mục trong chiến lược | Trạng thái hiện tại | Bằng chứng |
+|---|---|---|
+| ESM / module | ✅ Đã có | `package.json` `"type":"module"`; `server.js` dùng `import/export` |
+| Validation (zod) | 🟡 Đã cài `zod@^4.4.3` | Chưa áp dụng đồng bộ ở Controller |
+| Queue (BullMQ) | 🟡 Đã cài `bullmq@^4.18.3` | `workers/orderIngestionWorker.js` chưa có retry/backoff/DLQ |
+| Redis cache | ✅ `cache/redis.js` | Hand-rolled middleware (không phải queue), ổn nhưng chưa structured logging |
+| Controller/Service tách biệt | ❌ Chưa | `controllers/erpController.js` gọi `pool.query` trực tiếp (dòng 38–52), giữ `localCache` Map |
+| Unit of Work / transaction | ❌ Chưa | Transaction rải rác, không tập trung |
+| Centralized Error Handling | ❌ Chưa | `try/catch` + `res.status(500).json({error})` lặp lại khắp nơi |
+| TypeScript | ❌ Chưa | Toàn bộ `*.js` / `*.jsx` |
+| Table Partitioning | ❌ Chưa | `voucher_details` (sổ cái) chưa partition |
+| React Query / Socket invalidation | 🟡 Một phần | Đã có `useRealTimeSync`, `useRealtimeInvalidation` (untracked) nhưng chưa chuẩn React Query |
+
+**Kết luận:** P0 là nền móng bắt buộc. P1 (TS, BullMQ hardening) xây trên nền đó.
+
+---
+
+## 1. P0 — LÀM NGAY (Nền tảng)
+
+### 1.1 Tách Controller / Service / Repository (3-Tier)
+**Nguyên tắc:** Controller chỉ làm HTTP (parse + validate + gọi service + trả response). Service chứa 100% business logic, không biết `req/res`. Repository/DAO chỉ gọi Knex/PG.
+
+**Thực thi theo module (ưu tiên cao → thấp):**
+1. `controllers/erpController.js` → tách `getLedgerBalances`, `runInventoryCosting` ra `services/ledger.service.js` + `repositories/ledger.repository.js`.
+2. `controllers/closing.controller.js` ↔ `services/closing.service.js` (đã có service, làm mỏng controller).
+3. `controllers/partnerController.js`, `controllers/report.controller.js` tương tự.
+4. Tạo thư mục `backend/repositories/` với `voucher.repository.js`, `ledger.repository.js`, `partner.repository.js`.
+
+**Quy ước cấu trúc file:**
+```
+backend/
+  controllers/   → mỏng, gọi service
+  services/      → business logic, gọi repository
+  repositories/  → Knex/PG only
+  validators/    → zod schema (đã có thư mục này)
+```
+
+**Ví dụ refactor (lấy từ `erpController.getLedgerBalances`):**
+
+```js
+// TRƯỚC (erpController.js - fat controller, gọi pool.query trực tiếp)
+export const getLedgerBalances = async (req, res) => {
+  const companyId = req.companyId || req.query.company_id;
+  if (!companyId) return res.status(400).json({ error: 'Thiếu companyId!' });
+  const vouchersRes = await pool.query(`SELECT ... FROM vouchers v JOIN voucher_details vd ...`, [Number(companyId)]);
+  const balances = calculateBalances(vouchersRes.rows, []);
+  return res.json({ success: true, data: { accountLedger: balances } });
+};
+
+// SAU (Controller mỏng)
+export const getLedgerBalances = async (req, res, next) => {
+  try {
+    const { companyId } = LedgerQueryValidator.parse({
+      companyId: req.companyId || req.query.company_id
+    });
+    const data = await LedgerService.getBalances(companyId);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+// Service (services/ledger.service.js)
+class LedgerService {
+  static async getBalances(companyId) {
+    const vouchers = await LedgerRepository.findByCompany(companyId);
+    return calculateBalances(vouchers, []);
+  }
+}
+```
+
+### 1.2 Unit of Work (Transaction tập trung)
+Tạo `backend/utils/unitOfWork.js`:
+```js
+import { pool } from '../config/db.js';
+
+export const UnitOfWork = {
+  async transaction(fn) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);   // truyền client (tương đương Knex trx)
+      await client.query('COMMIT');
+      return result;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+};
+```
+Service gọi `UnitOfWork.transaction(async (trx) => { ... })` thay vì mở transaction rải rác.
+
+### 1.3 Centralized Error Handling
+- Tạo `backend/utils/AppError.js`:
+```js
+export class AppError extends Error {
+  constructor(errorCode, message, statusCode = 500) {
+    super(message);
+    this.errorCode = errorCode;
+    this.statusCode = statusCode;
+  }
+}
+```
+- Tạo `backend/middleware/errorHandler.js` (đặt CUỐI `server.js`, sau tất cả routes):
+```js
+export const errorHandler = (err, req, res, next) => {
+  logger.error({ traceId: req.traceId, errorCode: err.errorCode, err });
+  res.status(err.statusCode || 500).json({
+    success: false,
+    errorCode: err.errorCode || 'INTERNAL_ERROR',
+    message: err.message || 'Lỗi máy chủ nội bộ'
+  });
+};
+```
+- Thay mọi `catch { res.status(500).json({error}) }` bằng `next(err)` / `throw new AppError(...)`.
+- Tạo `backend/utils/logger.js` (Pino/Winston JSON) thay `console.log` (bắt đầu từ `server.js` + worker).
+
+### 1.4 Correlation / Trace ID
+- Middleware `backend/middleware/correlationId.js`: gán `req.traceId = req.headers['x-trace-id'] || uuid()`. Gắn vào logger + truyền sang worker job data.
+
+---
+
+## 2. P1 — TRONG THÁNG TỚI
+
+### 2.1 TypeScript Migration (Chiến lược an toàn, không big-bang)
+Vì dự án lớn, dùng **gradual migration**:
+1. Thêm `tsconfig.json` (`"allowJs": true`, `"checkJs": false` ban đầu để không break).
+2. Cài `typescript`, `@types/node`, `@types/express`, `tsx`.
+3. Định nghĩa `backend/types/domain.ts`:
+```ts
+export interface LedgerEntry {
+  accountCode: string;
+  partnerId?: string | null;
+  debitAmount: number;   // ép number, không string
+  creditAmount: number;
+}
+export interface Voucher {
+  id: number;
+  voucherDate: string;
+  companyId: number;
+  details: LedgerEntry[];
+}
+```
+4. Đổi đuôi từng module `*.js → *.ts` theo thứ tự: `utils/` → `repositories/` → `services/` → `controllers/` → `server.js`. Giữ `"type":"module"` + `tsx` chạy dev.
+5. Bật dần `"checkJs": true` để siết chặt kiểu.
+
+### 2.2 BullMQ Hardening (Retry + DLQ)
+Nâng cấp `workers/orderIngestionWorker.js` (hiện tại chưa có retry/backoff/DLQ):
+```js
+new Worker(queueName, handler, {
+  connection: redis,
+  concurrency: 10,
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 2000 },        // Exponential backoff
+  deadLetterPolicy: { maxFailedAttempts: 5 }            // DLQ: tuyệt đối không drop tin nhắn
+});
+```
+- Tạo `workers/deadLetterWorker.js` để Kế toán trưởng duyệt tay các job vào DLQ.
+- Đảm bảo job data mang `traceId` để trace xuyên suốt.
+
+### 2.3 Structured Logging & Observability
+- Thay toàn bộ `console.log/error` bằng `logger` (Pino JSON) → sẵn sàng đẩy ELK/Datadog.
+- Gắn `traceId` xuyên suốt Controller → Service → Worker → DB log.
+
+---
+
+## 3. P2 (Dài hạn — lộ trình, không làm ngay)
+- **Table Partitioning** `voucher_details` theo tháng (PostgreSQL declarative partitioning) → migration SQL `backend/migrations/0xx_partition_voucher_details.sql` (partitions `voucher_details_2026_01`, ...).
+- **Materialized Views** cho Dashboard (CQRS) → worker ngầm `REFRESH MATERIALIZED VIEW`.
+- **React Query (TanStack)** chuẩn hóa `useRealTimeSync` hiện có; tách UI components / business hooks triệt để.
+
+---
+
+## 4. MA TRẬN ƯU TIÊN & THỨ TỰ THỰC THI
+
+| STT | Hạng mục | Priority | File/Module ảnh hưởng | Rủi ro |
+|---|---|---|---|---|
+| 1 | AppError + errorHandler middleware | P0 | `utils/AppError.js`, `middleware/errorHandler.js`, `server.js` | Thấp |
+| 2 | correlationId middleware + logger | P0 | `middleware/correlationId.js`, `utils/logger.js` | Thấp |
+| 3 | UnitOfWork | P0 | `utils/unitOfWork.js` | Trung bình |
+| 4 | Tách erpController → service/repo | P0 | `controllers/erpController.js`, `services/ledger.service.js`, `repositories/*` | Trung bình |
+| 5 | Tách closing/partner/report controllers | P0 | tương ứng | Trung bình |
+| 6 | tsconfig + domain types | P1 | `tsconfig.json`, `types/domain.ts` | Thấp (allowJs) |
+| 7 | Gradual .js→.ts | P1 | toàn bộ backend | Cao (làm từng module) |
+| 8 | BullMQ retry/backoff/DLQ | P1 | `workers/orderIngestionWorker.js`, `workers/deadLetterWorker.js` | Thấp |
+
+---
+
+## 5. KIỂM THỬ & ĐẢM BẢO
+- Giữ nguyên `npm test` (Jest) xanh suốt quá trình; refactor từng module rồi chạy test.
+- Thêm test cho `UnitOfWork` (rollback trên lỗi) và `errorHandler` (map AppError → status/code).
+- Không xóa `cache/redis.js` (vẫn dùng); chỉ bổ sung logger.
+
+---
+
+## 6. TÓM TẮT
+- **P0** thiết lập nền tảng: tách 3 lớp, Unit of Work, xử lý lỗi tập trung, trace id, logger.
+- **P1** nâng cấp: TypeScript dần dần (không big-bang), BullMQ có retry/backoff/DLQ, structured logging.
+- **P2** tối ưu dài hạn: partitioning, materialized views, React Query.
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -19314,12 +20272,16 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000', // Đồng bộ về cổng 5000 của backend kế toán
         changeOrigin: true,
       }
     }
+  },
+  preview: {
+    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app']
   }
 });
 // END_OF_FILE
@@ -19815,13 +20777,16 @@ import App from './App.jsx';
 import './index.css';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { VoucherProvider } from './context/VoucherContext.jsx';
+import { SocketProvider } from './context/SocketContext.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      <VoucherProvider>
-        <App />
-      </VoucherProvider>
+      <SocketProvider>
+        <VoucherProvider>
+          <App />
+        </VoucherProvider>
+      </SocketProvider>
     </AuthProvider>
   </React.StrictMode>
 );
@@ -21157,12 +22122,89 @@ export const useAuth = () => useContext(AuthContext);
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: front-end/src/context/SocketContext.jsx
+// START_OF_FILE
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthContext.jsx';
+import wsService from '../services/websocket.js';
+
+const SocketContext = createContext(null);
+
+const normalizeCompanyId = (activeCompany) => {
+  if (!activeCompany) return null;
+  if (typeof activeCompany === 'object') return activeCompany.id || null;
+  return activeCompany;
+};
+
+export function SocketProvider({ children }) {
+  const { user, activeCompany } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+
+  const companyId = normalizeCompanyId(activeCompany);
+
+  useEffect(() => {
+    if (!companyId || !user?.id) {
+      return;
+    }
+
+    const handleConnectionStatus = (data) => {
+      const connected = Boolean(data?.connected);
+      setIsConnected(connected);
+      setConnectionStatus(connected ? 'connected' : 'disconnected');
+      if (connected) {
+        wsService.joinCompany(companyId);
+      }
+    };
+
+    wsService.connect(companyId, user.id);
+    wsService.joinCompany(companyId);
+    wsService.on('connectionStatus', handleConnectionStatus);
+
+    return () => {
+      wsService.off('connectionStatus', handleConnectionStatus);
+      wsService.leaveCompany(companyId);
+    };
+  }, [companyId, user?.id]);
+
+  const subscribe = useCallback((eventName, handler) => {
+    wsService.on(eventName, handler);
+  }, []);
+
+  const unsubscribe = useCallback((eventName, handler) => {
+    wsService.off(eventName, handler);
+  }, []);
+
+  const value = useMemo(() => ({
+    isConnected,
+    connectionStatus,
+    companyId,
+    clientInstanceId: wsService.getClientInstanceId(),
+    subscribe,
+    unsubscribe
+  }), [isConnected, connectionStatus, companyId, subscribe, unsubscribe]);
+
+  return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
+}
+
+export function useSocket() {
+  const context = useContext(SocketContext);
+  if (!context) {
+    throw new Error('useSocket phải được dùng bên trong SocketProvider');
+  }
+  return context;
+}
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: front-end/src/context/VoucherContext.jsx
 // START_OF_FILE
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import api from '../utils/api.js';
 import { normalizeVoucherPayload } from '../utils/accountingRules.js';
+import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
 
 // 1. Khởi tạo Context nội bộ
 const VoucherContext = createContext(null);
@@ -21180,16 +22222,7 @@ export function VoucherProvider({ children }) {
     }
   }, [activeCompany?.id, checkOpeningBalanceStatus]);
 
-  // Tự động tải lại danh sách chứng từ khi thay đổi pháp nhân hạch toán
-  useEffect(() => {
-    if (activeCompany) {
-      loadVouchers();
-    } else {
-      setVouchers([]);
-    }
-  }, [activeCompany]);
-
-  const loadVouchers = async () => {
+  const loadVouchers = useCallback(async () => {
     setIsSyncing(true);
     try {
       const companyId = activeCompany?.id ?? activeCompany;
@@ -21204,7 +22237,36 @@ export function VoucherProvider({ children }) {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [activeCompany]);
+
+  // Tự động tải lại danh sách chứng từ khi thay đổi pháp nhân hạch toán
+  useEffect(() => {
+    if (activeCompany) {
+      loadVouchers();
+    } else {
+      setVouchers([]);
+    }
+  }, [activeCompany, loadVouchers]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { vouchers: loadVouchers },
+    {
+      eventMap: {
+        'voucher:created': ['vouchers'],
+        'voucher:updated': ['vouchers'],
+        'voucher:deleted': ['vouchers'],
+        'voucher:posted': ['vouchers'],
+        voucherCreated: ['vouchers'],
+        voucherUpdated: ['vouchers'],
+        voucherDeleted: ['vouchers'],
+        voucherPosted: ['vouchers'],
+        'closing:completed': ['vouchers'],
+        closingCompleted: ['vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   /**
    * 🛠️ HÀM NGHIỆP VỤ: ĐỐI CHIẾU CHÉO ĐỊNH KHOẢN (DOUBLE-ENTRY VALIDATION)
@@ -21932,6 +22994,184 @@ export function useBalanceUpdates() {
 // END_OF_FILE
 ------------------------------------------------------------
 
+// FILE_PATH: front-end/src/hooks/useRealTimeSync.js
+// START_OF_FILE
+import { useEffect, useMemo, useRef } from 'react';
+import { useSocket } from '../context/SocketContext.jsx';
+
+/**
+ * Hook tập trung đồng bộ realtime cho các màn hình ERP.
+ * handlers: object { eventName: (payload) => void }
+ */
+export function useRealTimeSync(handlers = {}, options = {}) {
+  const { subscribe, unsubscribe, isConnected, companyId, clientInstanceId } = useSocket();
+  const {
+    enabled = true,
+    ignoreSelfEvents = true,
+    minIntervalMs = 80
+  } = options;
+
+  const lastHandledRef = useRef(new Map());
+
+  const entries = useMemo(() => Object.entries(handlers || {}), [handlers]);
+
+  useEffect(() => {
+    if (!enabled || !companyId || entries.length === 0) {
+      return;
+    }
+
+    const wrappedHandlers = [];
+
+    entries.forEach(([eventName, handler]) => {
+      if (typeof handler === 'function') {
+        const wrapped = (payload) => {
+          const originClientId = payload?.clientInstanceId || payload?.sourceClientId || null;
+          if (ignoreSelfEvents && originClientId && originClientId === clientInstanceId) {
+            return;
+          }
+
+          const now = Date.now();
+          const lastHandled = lastHandledRef.current.get(eventName) || 0;
+          if (now - lastHandled < minIntervalMs) {
+            return;
+          }
+          lastHandledRef.current.set(eventName, now);
+
+          handler(payload);
+        };
+
+        wrappedHandlers.push([eventName, handler, wrapped]);
+        subscribe(eventName, wrapped);
+      }
+    });
+
+    return () => {
+      wrappedHandlers.forEach(([eventName, _handler, wrapped]) => {
+        unsubscribe(eventName, wrapped);
+      });
+    };
+  }, [enabled, companyId, clientInstanceId, entries, ignoreSelfEvents, minIntervalMs, subscribe, unsubscribe]);
+
+  return { isConnected, companyId };
+}
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: front-end/src/hooks/useRealtimeInvalidation.js
+// START_OF_FILE
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+
+const DEFAULT_EVENT_MAP = Object.freeze({
+  'voucher:created': ['vouchers'],
+  'voucher:updated': ['vouchers'],
+  'voucher:deleted': ['vouchers'],
+  'voucher:posted': ['vouchers'],
+  voucherCreated: ['vouchers'],
+  voucherUpdated: ['vouchers'],
+  voucherDeleted: ['vouchers'],
+  voucherPosted: ['vouchers'],
+  'closing:completed': ['reports'],
+  closingCompleted: ['reports'],
+  'inventory:updated': ['inventory'],
+  inventoryUpdated: ['inventory'],
+  'partner:updated': ['partners'],
+  partnerUpdated: ['partners']
+});
+
+const toArray = (value) => {
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
+};
+
+export function useRealtimeInvalidation(refreshers = {}, options = {}) {
+  const {
+    eventMap = DEFAULT_EVENT_MAP,
+    debounceMs = 250,
+    onLoopGuardTrip = null,
+    maxRefreshPerWindow = 30,
+    windowMs = 5000
+  } = options;
+
+  const timersRef = useRef(new Map());
+  const inFlightRef = useRef(new Set());
+  const loopStateRef = useRef({ start: Date.now(), count: 0, blockedUntil: 0 });
+
+  const scheduleRefresh = useCallback((key) => {
+    const refresher = refreshers[key];
+    if (typeof refresher !== 'function') {
+      return;
+    }
+
+    const now = Date.now();
+    const loopState = loopStateRef.current;
+    if (loopState.blockedUntil > now) {
+      return;
+    }
+    if (now - loopState.start > windowMs) {
+      loopState.start = now;
+      loopState.count = 0;
+    }
+    loopState.count += 1;
+    if (loopState.count > maxRefreshPerWindow) {
+      loopState.blockedUntil = now + windowMs;
+      if (typeof onLoopGuardTrip === 'function') {
+        onLoopGuardTrip({ key, blockedUntil: loopState.blockedUntil });
+      }
+      return;
+    }
+
+    const existingTimer = timersRef.current.get(key);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timerId = setTimeout(async () => {
+      if (inFlightRef.current.has(key)) {
+        return;
+      }
+
+      inFlightRef.current.add(key);
+      try {
+        await refresher();
+      } finally {
+        inFlightRef.current.delete(key);
+      }
+    }, debounceMs);
+
+    timersRef.current.set(key, timerId);
+  }, [debounceMs, maxRefreshPerWindow, onLoopGuardTrip, refreshers, windowMs]);
+
+  const invalidateKeys = useCallback((keys) => {
+    toArray(keys).forEach((key) => scheduleRefresh(key));
+  }, [scheduleRefresh]);
+
+  const handlers = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(eventMap || {}).map(([eventName, keys]) => [
+        eventName,
+        () => invalidateKeys(keys)
+      ])
+    );
+  }, [eventMap, invalidateKeys]);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of timersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      timersRef.current.clear();
+      inFlightRef.current.clear();
+    };
+  }, []);
+
+  return {
+    handlers,
+    invalidateKeys
+  };
+}
+// END_OF_FILE
+------------------------------------------------------------
+
 // FILE_PATH: front-end/src/hooks/useStorefrontRealTime.js
 // START_OF_FILE
 import { useEffect, useState, useCallback } from 'react';
@@ -22029,6 +23269,7 @@ export default useStorefrontRealTime;
  */
 
 import { io } from 'socket.io-client';
+import { getClientInstanceId } from '../utils/clientInstance.js';
 
 // WebSocket client configuration - Use VITE_ prefix for Vite
 const WS_URL = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || 'http://localhost:5000';
@@ -22052,6 +23293,7 @@ export class WebSocketBaseService {
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000;
     this.listeners = new Map();
+    this.clientInstanceId = getClientInstanceId();
   }
 
   // Initialize connection
@@ -22073,7 +23315,8 @@ export class WebSocketBaseService {
       timeout: 10000,
       auth: {
         companyId,
-        userId
+        userId,
+        clientInstanceId: this.clientInstanceId
       }
     });
 
@@ -22161,6 +23404,10 @@ export class WebSocketBaseService {
       reconnectAttempts: this.reconnectAttempts
     };
   }
+
+  getClientInstanceId() {
+    return this.clientInstanceId;
+  }
 }
 // END_OF_FILE
 ------------------------------------------------------------
@@ -22174,30 +23421,39 @@ class WebSocketService extends WebSocketBaseService {
   setupEventHandlers() {
     super.setupEventHandlers();
 
-    // ERP-specific business events
-    this.socket.on('voucherCreated', (data) => {
-      this.emit('voucherCreated', data);
-    });
+    const bridgeEvent = (socketEvent, internalEvents = []) => {
+      this.socket.on(socketEvent, (data) => {
+        const targets = [socketEvent, ...internalEvents];
+        targets.forEach((eventName) => this.emit(eventName, data));
+      });
+    };
 
-    this.socket.on('voucherUpdated', (data) => {
-      this.emit('voucherUpdated', data);
-    });
+    // Voucher events (legacy + new naming)
+    bridgeEvent('voucherCreated', ['voucher:created']);
+    bridgeEvent('voucherUpdated', ['voucher:updated']);
+    bridgeEvent('voucherDeleted', ['voucher:deleted']);
+    bridgeEvent('voucherPosted', ['voucher:posted']);
+    bridgeEvent('voucher:created', ['voucherCreated']);
+    bridgeEvent('voucher:updated', ['voucherUpdated']);
+    bridgeEvent('voucher:deleted', ['voucherDeleted']);
+    bridgeEvent('voucher:posted', ['voucherPosted']);
 
-    this.socket.on('orderStatusChanged', (data) => {
-      this.emit('orderStatusChanged', data);
-    });
+    // Closing events
+    bridgeEvent('closingCompleted', ['closing:completed']);
+    bridgeEvent('closing:completed', ['closingCompleted']);
 
-    this.socket.on('inventoryUpdated', (data) => {
-      this.emit('inventoryUpdated', data);
-    });
+    // Inventory events
+    bridgeEvent('inventoryUpdated', ['inventory:updated']);
+    bridgeEvent('inventory:updated', ['inventoryUpdated']);
 
-    this.socket.on('balanceUpdated', (data) => {
-      this.emit('balanceUpdated', data);
-    });
+    // Partner events
+    bridgeEvent('partnerUpdated', ['partner:updated']);
+    bridgeEvent('partner:updated', ['partnerUpdated']);
 
-    this.socket.on('notification:new', (data) => {
-      this.emit('notification:new', data);
-    });
+    // Existing events
+    bridgeEvent('orderStatusChanged');
+    bridgeEvent('balanceUpdated');
+    bridgeEvent('notification:new');
   }
 }
 
@@ -22501,6 +23757,7 @@ test('purchase and cash voucher builders produce balanced accounting lines', () 
 // START_OF_FILE
 // FILE_PATH: front-end/src/utils/api.js
 import axios from 'axios';
+import { getClientInstanceId } from './clientInstance.js';
 
 // ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
 const getBaseURL = () => {
@@ -22560,6 +23817,8 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    config.headers['X-Client-Instance-Id'] = getClientInstanceId();
     
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
@@ -22590,6 +23849,30 @@ api.interceptors.request.use(
 export default api;
 
 //
+// END_OF_FILE
+------------------------------------------------------------
+
+// FILE_PATH: front-end/src/utils/clientInstance.js
+// START_OF_FILE
+const STORAGE_KEY = 'erp_client_instance_id';
+
+function generateClientInstanceId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function getClientInstanceId() {
+  if (typeof window === 'undefined') {
+    return 'server-runtime';
+  }
+
+  let id = window.sessionStorage.getItem(STORAGE_KEY);
+  if (!id) {
+    id = generateClientInstanceId();
+    window.sessionStorage.setItem(STORAGE_KEY, id);
+  }
+
+  return id;
+}
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -23125,2051 +24408,6 @@ export const usePersistentState = (key, initialValue, storageType = 'localStorag
 
   return [state, setState];
 };
-// END_OF_FILE
-------------------------------------------------------------
-
-// FILE_PATH: front-end/src/views/MASTERPLAN.md
-// START_OF_FILE
-# MASTERPLAN - ERP KẾ TOÁN DOANH NGHIỆP
-## Tích Hợp Storefront-ERP & Sẵn Sàng Sản Xuất
-
-**Phiên bản:** 2.0  
-**Ngày tạo:** 2026-01-07  
-**Căn cứ pháp lý:** Thông tư 200/2014/TT-BTC, Thông tư 99/2025/TT-BTC  
-**Trạng thái:** ⚠️ CẦN SỬA LỖI TRƯỚC KHI PRODUCTION
-
----
-
-## MỤC LỤC
-
-1. [Tổng Quan Dự Án](#1-tổng-quan-dự-án)
-2. [Quy Trình Nghiệp Vụ Hiện Tại](#2-quy-trình-nghiệp-vụ-hiện-tại)
-3. [Kiến Trúc Tích Hợp Storefront-ERP](#3-kiến-trúc-tích-hợp-storefront-erp)
-4. [Lộ Trình Triển Khai](#4-lộ-trình-triển-khai)
-5. [Đánh Giá Sẵn Sàng Production](#5-đánh-giá-sẵn-sàng-production)
-6. [Danh Sách Lỗi Cần Sửa](#6-danh-sách-lỗi-cần-sửa)
-7. [Kế Hoạch Sửa Lỗi](#7-kế-hoạch-sửa-lỗi)
-8. [Tài Liệu Tham Khảo](#8-tài-liệu-tham-khảo)
-
----
-
-## 1. TỔNG QUAN DỰ ÁN
-
-### 1.1. Mục Tiêu
-
-Xây dựng hệ thống ERP kế toán hoàn chỉnh, tuân thủ Thông tư 99/2025/TT-BTC, tích hợp với storefront để tự động hóa quy trình từ bán hàng đến kế toán.
-
-### 1.2. Phạm Vi Hệ Thống
-
-**22 Modules Chính:**
-- Quản lý Quỹ & Tiền gửi ngân hàng
-- Mua hàng & Nhập kho
-- Bán hàng & Doanh thu
-- Quản lý Đối tác (KH/NCC)
-- Tính lương & Trích BHXH
-- Báo cáo Thuế (GTGT, TNDN, TNCN)
-- Báo cáo Tài chính (KQKD, B01-DN, B03-DN, B09-DN)
-- Kết chuyển khóa sổ cuối kỳ
-- Tài sản cố định & Khấu hao
-- Tập hợp chi phí Giá thành
-- Quản lý Chứng từ Tổng hợp
-- Quản lý Kho Tổng hợp
-- Dashboard Dòng tiền
-- Logistics & Giao hàng
-- Cấu hình pháp nhân
-- Nhật ký An ninh & Hệ thống
-
-### 1.3. Đối Tượng Sử Dụng
-
-| Vai trò | Quyền hạn | Modules được phép |
-|---------|-----------|-------------------|
-| **Admin** | Toàn quyền | Tất cả 22 modules |
-| **KTT** | Quản lý tài chính | 14 modules (trừ POS, Excel, Logistics) |
-| **NV** | Nhập liệu | 6 modules cơ bản |
-| **GD Kinh Doanh** | Xem báo cáo | 6 modules báo cáo |
-
-### 1.4. Các Vấn Đề Hiện Tại
-
-**Trạng thái hiện tại:** ❌ **KHÔNG SẴN SÀNG PRODUCTION**
-
-**Lý do:**
-- 7 lỗi CRITICAL cần sửa trước khi deploy
-- Thiếu tích hợp storefront-ERP hoàn chỉnh
-- Hardcoded giá trị không tuân thủ pháp luật
-- Thiếu validation quan trọng
-
----
-
-## 2. QUY TRÌNH NGHIỆP VỤ HIỆN TẠI
-
-### 2.1. Luồng Nghiệp Vụ Chuẩn
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. KHỞI TẠO                                                │
-│    ├── Cấu hình pháp nhân (Company Management)              │
-│    └── Khai báo số dư đầu kỳ (OpeningBalances)             │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 2. NGHIỆP VỤ THƯỜNG XUYÊN                                  │
-│    ├── Quản lý Đối tác (PartnerManagement)                  │
-│    │   └── Tạo KH/NCC với mã duy nhất                      │
-│    ├── Mua hàng → Nhập kho (PurchaseInventory)              │
-│    │   └── Tạo NK voucher với định khoản tự động            │
-│    ├── Bán hàng → Xuất kho (AutoSalesExcel)                 │
-│    │   └── Import Excel → Tạo PK voucher hàng loạt          │
-│    ├── Quản lý Quỹ (CashManagement)                         │
-│    │   ├── Phiếu Thu (PT) - Đa tiền tệ                      │
-│    │   └── Phiếu Chi (PC) - Tỷ giá tự động                  │
-│    └── Tính lương (Payroll)                                 │
-│        └── TL voucher + Trích BHXH/BHYT/BHTN               │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 3. NGHIỆP VỤ KẾ TOÁN                                       │
-│    ├── Ghi sổ chứng từ (VoucherManagement)                  │
-│    ├── Theo dõi công nợ (từ PT/PC/NK/PK)                   │
-│    └── Đối chiếu tài khoản (IncomeStatement)                │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 4. BÁO CÁO THUẾ                                            │
-│    ├── Thuế GTGT (TaxReporting) - Mẫu 01/GTGT              │
-│    ├── Thuế TNDN (IncomeStatement) - TK 3334                │
-│    └── Thuế TNCN (TaxReporting) - TK 3335                   │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 5. BÁO CÁO TÀI CHÍNH                                       │
-│    ├── Báo cáo KQKD (IncomeStatement)                       │
-│    ├── Bảng Cân đối kế toán B01-DN (BalanceSheetB01)       │
-│    ├── Báo cáo Lưu chuyển tiền tệ B03-DN                   │
-│    └── Bản thuyết minh BCTC B09-DN                          │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 6. KẾT THÚC KỲ                                             │
-│    ├── Kiểm tra sổ sách (ClosingProcess)                    │
-│    ├── Kết chuyển khóa sổ tự động                           │
-│    │   ├── Doanh thu (511, 515, 711) → 911                 │
-│    │   ├── Chi phí (632, 635, 641, 642, 811) → 911         │
-│    │   └── 911 → 421 (LNST chưa phân phối)                 │
-│    └── Xuất báo cáo tài chính                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 2.2. Định Khoản Tự Động Hiện Tại
-
-#### 2.2.1. Nhập Kho (NK) - PurchaseInventory.jsx
-```javascript
-// HIỆN TẠI (CÓ LỖI)
-Nợ TK 156 (Hàng hóa) = Giá trị hàng
-Nợ TK 1331 (Thuế GTGT) = Thuế GTGT
-   Có TK 331 (Phải trả NCC) = Tổng cộng
-
-// THIẾU: item_id, quantity, partner_id
-```
-
-#### 2.2.2. Phiếu Thu (PT) - CashManagement.jsx
-```javascript
-// HỖ TRỢ ĐA TIỀN TỆ
-Nợ TK 1111/112 (Tiền mặt/Tiền gửi) = Số tiền × Tỷ giá
-   Có TK 131/331 (Phải thu/Phải trả) = Số tiền
-
-// KIỂM TRA: Cân đối Nợ = Có
-// VẤN ĐỀ: Cho phép partnerId = null
-```
-
-#### 2.2.3. Bán Hàng Excel (PK) - AutoSalesExcel.jsx
-```javascript
-// ĐỒNG BỘ HÀNG LOẠT
-Nợ TK 131 (Phải thu KH) = Tiền hàng + Thuế
-   Có TK 511 (Doanh thu) = Tiền hàng
-   Có TK 3331 (Thuế GTGT đầu ra) = Thuế
-
-// TỰ ĐỘNG: Đọc Excel, tạo voucher cho mỗi hóa đơn
-```
-
-#### 2.2.4. Tính Lương (TL) - Payroll.jsx
-```javascript
-// 7 DÒNG BÚT TOÁN TỰ ĐỘNG
-1. Nợ 6422 (Lương gộp) / Có 334 (Phải trả NLĐ)
-2. Nợ 334 (Thuế TNCN) / Có 3331 (Thuế TNCN)
-3. Nợ 6422 (BH DN) / Có 3383 (BHXH)
-4. Nợ 334 (BH NLĐ) / Có 3383 (BHXH)
-5. Nợ 334 (BH NLĐ) / Có 3384 (BHYT)
-6. Nợ 334 (BH NLĐ) / Có 3386 (BHTN)
-
-// TỶ LỆ: BHXH 25.5%, BHYT 4.5%, BHTN 2%
-// VẤN ĐỀ: Hardcoded rates
-```
-
-### 2.3. Báo Cáo Tự Động
-
-#### 2.3.1. Báo Cáo KQKD - IncomeStatement.jsx
-```javascript
-// 8 CHỈ TIÊU CHÍNH
-I. Doanh thu thuần (511) - Có TK 511
-II. Giá vốn (632) - Nợ TK 632
-III. Lợi nhuận gộp = I - II
-IV. Chi phí hoạt động (635, 641, 642)
-V. Lợi nhuận thuần HĐKD = III + 515 - (635+641+642)
-VI. Thu nhập/chi phí khác (711, 811)
-VII. Lợi nhuận trước thuế = V + (711-811)
-VIII. Chi phí thuế TNDN (821)
-LNST = VII - 821
-
-// VẤN ĐỀ: Thuế suất tính sai (dựa trên doanh thu năm trước)
-```
-
-#### 2.3.2. Báo Cáo Thuế - TaxReporting.jsx
-```javascript
-// THUẾ GTGT (Mẫu 01/GTGT)
-Thuế đầu vào (1331 Nợ) - Từ chứng từ mua hàng
-Thuế đầu ra (3331 Có) - Từ chứng từ bán hàng
-Nghĩa vụ phải nộp = Đầu ra - Đầu vào
-
-// THUẾ TNDN (TK 3334)
-Phát sinh (Có 3334) - Từ TK 821
-Đã nộp (Nợ 3334) - Từ chứng từ thuế
-Trạng thái: Còn phải nộp hoặc Tạm nộp thừa
-
-// THUẾ TNCN (TK 3335)
-Khấu trừ (Có 3335) - Từ bảng lương
-```
-
-#### 2.3.3. Khóa Sổ Cuối Kỳ - ClosingProcess.jsx
-```javascript
-// TỰ ĐỘNG KẾT CHUYỂN
-1. Doanh thu → 911
-   Nợ 511, 515, 711 / Có 911
-
-2. Chi phí → 911
-   Nợ 911 / Có 632, 635, 641, 642, 811
-
-3. Kết quả → 421
-   Nợ 911 / Có 421 (LNST chưa phân phối)
-
-// KIỂM TRA: Tổng Tài sản = Tổng Nguồn vốn
-```
-
----
-
-## 3. KIẾN TRÚC TÍCH HỢP STOREFRONT-ERP
-
-### 3.1. Luồng Dữ Liệu Tích Hợp
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    STOREFRONT LAYER                             │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  ItemManagement.jsx                                      │  │
-│  │  - Tạo sản phẩm mới                                      │  │
-│  │  - Nhập: code, name, unit, price_sell                    │  │
-│  │  - THÊM MỚI: unit_cost, opening_quantity, supplier_id    │  │
-│  │  - Lưu vào items table                                    │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                          ↓ POST /api/items                       │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  PurchaseInventory.jsx                                   │  │
-│  │  - Chọn sản phẩm từ danh mục                             │  │
-│  │  - Nhập số lượng nhập kho                                │  │
-│  │  - Chọn nhà cung cấp                                     │  │
-│  │  - Hệ thống tự động:                                     │  │
-│  │    * Tính giá trị hàng = qty × unit_cost                 │  │
-│  │    * Tính thuế GTGT                                      │  │
-│  │    * Sinh bút toán NK tự động                            │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓ POST /api/vouchers
-┌─────────────────────────────────────────────────────────────────┐
-│                      ERP ACCOUNTING ENGINE                       │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  VoucherManagement.jsx                                   │  │
-│  │  - Lưu chứng từ NK                                       │  │
-│  │  - Chi tiết:                                             │  │
-│  │    * Nợ 156 (Hàng hóa) = qty × unit_cost                │  │
-│  │    * Nợ 1331 (Thuế GTGT) = inventory_value × vat_rate   │  │
-│  │    * Có 331 (Phải trả NCC) = total                      │  │
-│  │  - Cập nhật số lượng tồn kho                             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                          ↓                                      │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  InventoryManagement.jsx                                 │  │
-│  │  - current_quantity += receipt_quantity                  │  │
-│  │  - last_purchase_cost = unit_cost                        │  │
-│  │  - last_purchase_date = voucher_date                     │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                      REPORTING LAYER                             │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  CashFlowDashboard.jsx                                   │  │
-│  │  - NK voucher → Phân loại:                               │  │
-│  │    * Nợ 111/112: Cash outflow (immediate payment)        │  │
-│  │    * Có 331: Increase in payables (deferred)             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  IncomeStatement.jsx                                     │  │
-│  │  - Đọc số liệu từ sổ cái                                │  │
-│  │  - Tính KQKD theo TT 99/2025                             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  TaxReporting.jsx                                        │  │
-│  │  - Tổng hợp thuế GTGT, TNDN, TNCN                       │  │
-│  │  - Xuất báo cáo thuế theo mẫu                          │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 3.2. Schema Thiết Kế
-
-#### 3.2.1. Items Table (Product Master)
-```sql
-CREATE TABLE items (
-  id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id),
-  item_code VARCHAR(50) NOT NULL,
-  item_name VARCHAR(255) NOT NULL,
-  description TEXT,
-  unit VARCHAR(50) NOT NULL,
-  unit_of_measure VARCHAR(50) DEFAULT 'Cái',
-  
-  -- Inventory Fields
-  opening_quantity DECIMAL(15,3) DEFAULT 0,
-  current_quantity DECIMAL(15,3) DEFAULT 0,
-  unit_cost DECIMAL(15,2) DEFAULT 0,  -- Giá vốn mua vào
-  
-  -- Sales Fields
-  price_sell DECIMAL(15,2) NOT NULL,
-  
-  -- Accounting Fields
-  supplier_id INTEGER REFERENCES partners(id),
-  inventory_account VARCHAR(20) DEFAULT '156',
-  vat_input_account VARCHAR(20) DEFAULT '1331',
-  vat_rate INTEGER DEFAULT 10 CHECK (vat_rate IN (0, 5, 10)),
-  
-  -- Metadata
-  image_urls TEXT[],  -- Array of image URLs
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  
-  -- Constraints
-  UNIQUE(company_id, item_code),
-  CHECK (current_quantity >= 0)
-);
-
-CREATE INDEX idx_items_company ON items(company_id);
-CREATE INDEX idx_items_code ON items(item_code);
-```
-
-#### 3.2.2. Voucher Details Enhancement
-```sql
-ALTER TABLE voucher_details ADD COLUMN IF NOT EXISTS item_id INTEGER REFERENCES items(id);
-ALTER TABLE voucher_details ADD COLUMN IF NOT EXISTS quantity DECIMAL(15,3);
-ALTER TABLE voucher_details ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(15,2);
-ALTER TABLE voucher_details ADD COLUMN IF NOT EXISTS unit_of_measure VARCHAR(50);
-
--- Index for inventory queries
-CREATE INDEX idx_voucher_details_item ON voucher_details(item_id);
-```
-
-### 3.3. API Endpoints
-
-#### 3.3.1. Items API
-```javascript
-// GET /api/items?company_id=123
-// Response: All items with inventory fields
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "company_id": 123,
-      "item_code": "NGUYENLIEU01",
-      "item_name": "Nguyên liệu A",
-      "unit": "Kg",
-      "unit_of_measure": "Kg",
-      "opening_quantity": 100,
-      "current_quantity": 250,
-      "unit_cost": 50000,
-      "price_sell": 80000,
-      "supplier_id": 5,
-      "inventory_account": "156",
-      "vat_input_account": "1331",
-      "vat_rate": 10
-    }
-  ]
-}
-
-// POST /api/items
-// Request: FormData with all fields including images
-// Response: Created item with ID
-
-// PUT /api/items/:id
-// Request: Updated fields
-// Response: Updated item
-
-// GET /api/items/suppliers?company_id=123
-// Response: List of vendors for dropdown
-{
-  "success": true,
-  "data": [
-    { "id": 5, "partner_code": "NCC001", "partner_name": "Công ty ABC" }
-  ]
-}
-```
-
-#### 3.3.2. Vouchers API (Enhanced)
-```javascript
-// POST /api/vouchers
-// Request for NK (Nhập Kho) voucher:
-{
-  "company_id": 123,
-  "voucher_type": "NK",
-  "voucher_date": "2026-01-07",
-  "description": "Nhập kho: Nguyên liệu A - 50 Kg",
-  "details": [
-    {
-      "account_code": "156",
-      "entry_type": "DR",
-      "amount": 2500000,  // 50 × 50000
-      "item_id": 1,
-      "quantity": 50,
-      "unit_cost": 50000,
-      "unit_of_measure": "Kg"
-    },
-    {
-      "account_code": "1331",
-      "entry_type": "DR",
-      "amount": 250000,  // 10% VAT
-      "item_id": 1,
-      "quantity": 50
-    },
-    {
-      "account_code": "331",
-      "entry_type": "CR",
-      "amount": 2750000,  // Total
-      "partner_id": 5  // Supplier
-    }
-  ]
-}
-
-// Response:
-{
-  "success": true,
-  "data": {
-    "voucher_id": 456,
-    "voucher_number": "NK-123456",
-    "message": "Nhập kho thành công. Số lượng tồn kho đã cập nhật."
-  }
-}
-```
-
-### 3.4. Frontend Workflow
-
-#### 3.4.1. ItemManagement.jsx - Enhanced Form
-```javascript
-const [form, setForm] = usePersistentState('item-management-form-v2', {
-  code: '',
-  name: '',
-  description: '',
-  unit: 'Cái',
-  unit_of_measure: 'Cái',
-  price_sell: '',
-  unit_cost: '',  // NEW
-  opening_quantity: '',  // NEW
-  current_quantity: '',  // NEW
-  supplier_id: '',  // NEW
-  inventory_account: '156',  // NEW
-  vat_input_account: '1331',  // NEW
-  vat_rate: 10  // NEW
-});
-
-// Form submission sends all fields to /api/items
-// Fetches suppliers from /api/items/suppliers?company_id=...
-```
-
-#### 3.4.2. PurchaseInventory.jsx - Enhanced Workflow
-```javascript
-const [form, setForm] = useState({
-  mode: 'existing',  // 'existing' or 'new'
-  item_id: '',
-  item_code: '',
-  item_name: '',
-  quantity: '',
-  unit_cost: '',
-  vat_rate: '10',
-  supplier_id: '',
-  description: ''
-});
-
-// Workflow:
-// 1. Select existing item OR create new
-// 2. Auto-fill unit_cost, inventory_account from item master
-// 3. Enter receipt quantity
-// 4. System calculates: inventory_value, vat_amount, total
-// 5. Select supplier
-// 6. Preview journal entry
-// 7. Submit → Creates NK voucher
-```
-
----
-
-## 4. LỘ TRÌNH TRIỂN KHAI
-
-### Phase 1: Backend API Enhancement (8-10 giờ)
-
-#### 1.1. Items API Enhancement (3-4 giờ)
-- [ ] Update items table schema with inventory fields
-- [ ] Enhance POST /api/items to accept inventory fields
-- [ ] Enhance GET /api/items to return all fields
-- [ ] Add PUT /api/items/:id for updates
-- [ ] Add GET /api/items/suppliers endpoint
-- [ ] Add validation for item_code uniqueness per company
-- [ ] Add validation for positive quantities and costs
-
-#### 1.2. Vouchers API Enhancement (3-4 giờ)
-- [ ] Add NK voucher validation schema
-- [ ] Implement automatic journal entry generation for NK vouchers
-- [ ] Add item_id and quantity tracking
-- [ ] Implement inventory quantity update on NK voucher creation
-- [ ] Add lock date validation
-- [ ] Add company active state validation
-- [ ] Implement audit logging
-
-#### 1.3. Validation Rules (2 giờ)
-- [ ] Create inventoryReceiptSchema in validation.js
-- [ ] Add DR = CR balance validation
-- [ ] Add account code validation against chart of accounts
-- [ ] Add partner type validation (vendor for NK, customer for PT)
-- [ ] Add voucher date range validation
-
-### Phase 2: Frontend Enhancement (6-8 giờ)
-
-#### 2.1. ItemManagement.jsx (2-3 giờ)
-- [ ] Add unit_cost input field
-- [ ] Add opening_quantity input field
-- [ ] Add current_quantity input field
-- [ ] Add supplier dropdown (fetch from /api/items/suppliers)
-- [ ] Add vat_rate selector (0%, 5%, 10%)
-- [ ] Add inventory_account input (default 156)
-- [ ] Add vat_input_account input (default 1331)
-- [ ] Update form submission to send all fields
-- [ ] Add validation for positive numbers
-- [ ] Display success message with inventory summary
-
-#### 2.2. PurchaseInventory.jsx (2-3 giờ)
-- [ ] Add item selection dropdown (fetch from /api/items)
-- [ ] Add "Create New Item" button with modal
-- [ ] Auto-fill unit_cost, inventory_account, vat_rate on item selection
-- [ ] Add quantity input field
-- [ ] Add supplier dropdown
-- [ ] Add payment type selection (immediate vs deferred)
-- [ ] Implement real-time calculation: inventory_value, vat_amount, total
-- [ ] Add journal entry preview
-- [ ] Enhance validation
-
-#### 2.3. VoucherManagement.jsx (1-2 giờ)
-- [ ] Display item code and name in voucher details
-- [ ] Show quantity and unit cost
-- [ ] Add link to item master
-- [ ] Color-code by voucher type
-- [ ] Add filter by voucher type
-- [ ] Add search by item code/name
-
-#### 2.4. CashFlowDashboard.jsx (1 giờ)
-- [ ] Include NK vouchers in cash flow calculations
-- [ ] Distinguish immediate vs deferred payments
-- [ ] Show accounts payable from deferred payments
-- [ ] Add drill-down to voucher details
-
-### Phase 3: Critical Bug Fixes (20-30 giờ)
-
-#### 3.1. IncomeStatement.jsx - Tax Rate Fix (2 giờ)
-- [ ] Remove progressive tax rate calculation
-- [ ] Implement flat 20% CIT rate (or configurable)
-- [ ] Use current year taxable income, not prior year revenue
-- [ ] Add tax rate configuration table
-- [ ] Support multiple revenue accounts (5111-5119)
-
-#### 3.2. PurchaseInventory.jsx - Missing Fields (3 giờ)
-- [ ] Add item_id to voucher details
-- [ ] Add quantity to voucher details
-- [ ] Add partner_id to voucher details
-- [ ] Add unit_cost to voucher details
-- [ ] Implement inventory quantity update
-- [ ] Add validation for required fields
-
-#### 3.3. CashManagement.jsx - Partner Validation (2 giờ)
-- [ ] Add partner existence validation
-- [ ] Add partner type validation (customer vs vendor)
-- [ ] Prevent NULL partner_id for PT/PC vouchers
-- [ ] Add partner dropdown with search
-- [ ] Display partner name in voucher list
-
-#### 3.4. Payroll.jsx - Configurable Insurance Rates (3 giờ)
-- [ ] Create insurance_rates table
-- [ ] Move hardcoded rates to database
-- [ ] Add admin UI for rate configuration
-- [ ] Add maximum insurance base validation (46.8M)
-- [ ] Add minimum base validation (regional wage)
-- [ ] Support historical rates by date
-
-#### 3.5. TaxReporting.jsx - Account Code Support (2 giờ)
-- [ ] Support detailed VAT accounts (13311, 13312, 33311, 33312)
-- [ ] Add chart of accounts lookup
-- [ ] Handle VAT refunds (negative amounts)
-- [ ] Validate account codes exist
-- [ ] Support multiple TNDN accounts
-
-#### 3.6. ClosingProcess.jsx - Dynamic Account Dictionary (3 giờ)
-- [ ] Move ACCOUNT_DICTIONARY to database
-- [ ] Create chart_of_accounts table
-- [ ] Support TC99 detailed accounts
-- [ ] Support company-specific account structures
-- [ ] Add admin UI for account management
-- [ ] Load accounts dynamically from API
-
-#### 3.7. Lock Date Validation (3 giờ)
-- [ ] Add lock_date field to companies table
-- [ ] Implement checkLockDate() function
-- [ ] Add validation to all voucher creation endpoints
-- [ ] Display lock date in UI
-- [ ] Add admin function to set lock date
-- [ ] Prevent modification of locked period vouchers
-
-#### 3.8. Company Active State (2 giờ)
-- [ ] Add is_active field to companies table
-- [ ] Validate activeCompany.is_active in all modules
-- [ ] Display warning for inactive companies
-- [ ] Prevent transactions for inactive companies
-
-### Phase 4: Testing & Documentation (8-10 giờ)
-
-#### 4.1. Unit Testing (4-5 giờ)
-- [ ] Test NK voucher creation with VAT
-- [ ] Test NK voucher creation without VAT
-- [ ] Test inventory quantity updates
-- [ ] Test tax rate calculations
-- [ ] Test insurance calculations
-- [ ] Test lock date validation
-- [ ] Test company active state validation
-- [ ] Test DR = CR balance validation
-
-#### 4.2. Integration Testing (2-3 giờ)
-- [ ] Test complete storefront-to-ERP workflow
-- [ ] Test multi-company data isolation
-- [ ] Test concurrent voucher creation
-- [ ] Test year-end closing process
-- [ ] Test report generation accuracy
-
-#### 4.3. Documentation (2 giờ)
-- [ ] Update QUY_TRINH_NGHIEP_VU.md with fixes
-- [ ] Create API documentation
-- [ ] Create user guide for storefront-ERP workflow
-- [ ] Document accounting entry templates
-- [ ] Create troubleshooting guide
-
----
-
-## 5. ĐÁNH GIÁ SẴN SÀNG PRODUCTION
-
-### 5.1. Kết Quả Audit
-
-**Tổng lỗi phát hiện:** 14 lỗi
-
-| Mức độ | Số lượng | Mô tả |
-|--------|----------|-------|
-| 🔴 CRITICAL | 8 | Block production, legal non-compliance |
-| 🟠 HIGH | 3 | Major functionality issues |
-| 🟡 MEDIUM | 3 | Usability/validation issues |
-
-### 5.2. Chi Tiết Lỗi CRITICAL
-
-#### ❌ 1. IncomeStatement.jsx - Thuế Suất Tính Sai
-**Vị trí:** Lines 17-24  
-**Mô tả:** Sử dụng doanh thu năm trước để tính thuế suất TNDN năm hiện tại  
-**Vấn đề pháp lý:** Vi phạm Thông tư 200/2014/TT-BTC  
-**Hậu quả:** Báo cáo thuế không chính xác, có thể dẫn đến phạt thuế  
-**Sửa:** Dùng thuế suất 20% cố định hoặc theo quy định hiện hành
-
-#### ❌ 2. PurchaseInventory.jsx - Thiếu Trường Quan Trọng
-**Vị trí:** Lines 24-30  
-**Mô tả:** Không có item_id, quantity, partner_id  
-**Vấn đề:** Không thể theo dõi tồn kho, không liên kết được với NCC  
-**Hậu quả:** Không quản lý được kho, không có audit trail  
-**Sửa:** Thêm đầy đủ các trường vào voucher details
-
-#### ❌ 3. CashManagement.jsx - Cho Phép Partner NULL
-**Vị trí:** Line 51  
-**Mô tả:** partnerId có thể null  
-**Vấn đề:** Giao dịch tiền mặt không thể truy xuất được  
-**Hậu quả:** Không đáp ứng yêu cầu kiểm toán, audit trail không đầy đủ  
-**Sửa:** Bắt buộc phải chọn đối tác
-
-#### ❌ 4. Payroll.jsx - Tỷ Lệ BHXH Hardcoded
-**Vị trí:** Lines 37-43  
-**Mô tả:** Tỷ lệ bảo hiểm hardcoded (21.5%, 10.5%, 25.5%, 4.5%, 2%)  
-**Vấn đề:** Khi pháp luật thay đổi, hệ thống tính sai  
-**Hậu quả:** Tính lương sai, trích BHXH không đúng quy định  
-**Sửa:** Lưu tỷ lệ vào database, có UI cập nhật
-
-#### ❌ 5. TaxReporting.jsx - Giả Định Mã Tài Khoản
-**Vị trí:** Lines 28-45  
-**Mô tả:** Chỉ dùng 1331, 3331, 3334, 3335  
-**Vấn đề:** Bỏ sót tài khoản chi tiết (13311, 13312, 33311, 33312)  
-**Hậu quả:** Báo cáo thuế thiếu số liệu  
-**Sửa:** Hỗ trợ cả tài khoản tổng và chi tiết
-
-#### ❌ 6. ClosingProcess.jsx - Danh Mục TK Tĩnh
-**Vị trí:** Lines 8-29  
-**Mô tả:** ACCOUNT_DICTIONARY hardcoded 20 tài khoản  
-**Vấn đề:** Thiếu nhiều tài khoản (621, 622, 627, 632, 641, 642...)  
-**Hậu quả:** Bảng cân đối kế toán thiếu sót  
-**Sửa:** Lấy danh mục từ database
-
-#### ❌ 7. ALL MODULES - Thiếu Lock Date Validation
-**Vị trí:** Tất cả modules tạo voucher  
-**Mô tả:** Không kiểm tra ngày chứng từ có bị khóa không  
-**Vấn đề:** Người dùng có thể nhập ngày trong kỳ đã khóa  
-**Hậu quả:** Sổ sách bị thay đổi sau khi khóa, vi phạm audit  
-**Sửa:** Thêm validation ở tất cả endpoints tạo voucher
-
-#### ❌ 8. ALL MODULES - Thiếu Company Active Check
-**Vị trí:** Tất cả modules  
-**Mô tả:** Không kiểm tra công ty có đang active không  
-**Vấn đề:** Giao dịch có thể tạo cho công ty đã ngừng hoạt động  
-**Hậu quả:** Dữ liệu không nhất quán  
-**Sửa:** Thêm check ở tất cả endpoints
-
-### 5.3. Chi Tiết Lỗi HIGH
-
-#### 🟠 9. IncomeStatement.jsx - Chỉ Dùng TK 511
-**Vấn đề:** Bỏ sót TK 5111-5119 (doanh thu chi tiết)  
-**Sửa:** Sum tất cả TK 51XX
-
-#### 🟠 10. AutoSalesExcel.jsx - Không Báo Lỗi Chi Tiết
-**Vấn đề:** Filter silent không báo dòng nào lỗi  
-**Sửa:** Log và hiển thị các dòng bị bỏ
-
-#### 🟠 11. PartnerManagement.jsx - Không Check Trùng Mã
-**Vấn đề:** Không check trùng mã trước khi gửi API  
-**Sửa:** Thêm frontend validation
-
-### 5.4. Chi Tiết Lỗi MEDIUM
-
-#### 🟡 12. Payroll.jsx - Không Validate Base BHXH
-**Vấn đề:** Không check max base (46.8M)  
-**Sửa:** Thêm validation
-
-#### 🟡 13. CashManagement.jsx - Không Validate Tỷ Giá
-**Vấn đề:** Không check tỷ giá âm  
-**Sửa:** Thêm validation
-
-#### 🟡 14. PurchaseInventory.jsx - Không Validate TK Kho
-**Vấn đề:** Không check TK 156 có tồn tại không  
-**Sửa:** Thêm validation
-
-### 5.5. Kết Luận Đánh Giá
-
-**Điểm Sẵn Sàng Production:** 3/10
-
-**Khuyến nghị:**
-1. ❌ **KHÔNG ĐƯỢC** deploy production trong tình trạng hiện tại
-2. ✅ Cần sửa tối thiểu 7 lỗi CRITICAL trước
-3. ✅ Ước tính 40-60 giờ sửa lỗi
-4. ✅ Cần test kỹ lưỡng sau khi sửa
-5. ✅ Nên có accountant review bút toán trước khi go-live
-
----
-
-## 6. DANH SÁCH LỖI CẦN SỬA
-
-### CRITICAL (Block Production)
-
-| # | File | Vị trí | Lỗi | Sửa | Thời gian |
-|---|------|--------|-----|-----|-----------|
-| 1 | IncomeStatement.jsx | L17-24 | Thuế suất tính sai | Dùng 20% flat | 2h |
-| 2 | PurchaseInventory.jsx | L24-30 | Thiếu item_id, qty, partner_id | Thêm đầy đủ | 3h |
-| 3 | CashManagement.jsx | L51 | Cho phép partner NULL | Bắt buộc chọn partner | 2h |
-| 4 | Payroll.jsx | L37-43 | Hardcoded insurance rates | Configurable | 3h |
-| 5 | TaxReporting.jsx | L28-45 | Chỉ dùng TK tổng | Hỗ trợ TK chi tiết | 2h |
-| 6 | ClosingProcess.jsx | L8-29 | Danh mục TK tĩnh | Dynamic from DB | 3h |
-| 7 | ALL | All | Thiếu lock date | Add validation | 3h |
-| 8 | ALL | All | Thiếu company check | Add validation | 2h |
-
-### HIGH (Major Issues)
-
-| # | File | Vị trí | Lỗi | Sửa | Thời gian |
-|---|------|--------|-----|-----|-----------|
-| 9 | IncomeStatement.jsx | L81 | Chỉ dùng TK 511 | Sum 5111-5119 | 1h |
-| 10 | AutoSalesExcel.jsx | L24-29 | Silent filter | Log errors | 1h |
-| 11 | PartnerManagement.jsx | L18-33 | No duplicate check | Frontend validation | 1h |
-
-### MEDIUM (Nice to Have)
-
-| # | File | Vị trí | Lỗi | Sửa | Thời gian |
-|---|------|--------|-----|-----|-----------|
-| 12 | Payroll.jsx | L37-43 | No base validation | Add max/min check | 1h |
-| 13 | CashManagement.jsx | L100 | No rate validation | Add check | 0.5h |
-| 14 | PurchaseInventory.jsx | L25 | No account validation | Add check | 0.5h |
-
----
-
-## 7. KẾ HOẠCH SỬA LỖI
-
-### Sprint 1: Critical Fixes (Tuần 1-2)
-
-**Mục tiêu:** Đạt production-ready status
-
-**Ngày 1-2: Tax & Reporting**
-- [ ] Fix IncomeStatement.jsx tax rate calculation
-- [ ] Add support for multiple revenue accounts
-- [ ] Test with sample data
-
-**Ngày 3-5: Inventory & Purchasing**
-- [ ] Enhance PurchaseInventory.jsx with item_id, quantity, partner_id
-- [ ] Update backend to handle new fields
-- [ ] Implement inventory quantity tracking
-- [ ] Test NK voucher creation
-
-**Ngày 6-7: Cash & Partners**
-- [ ] Add partner validation in CashManagement.jsx
-- [ ] Add duplicate check in PartnerManagement.jsx
-- [ ] Test partner workflows
-
-### Sprint 2: Configuration & Validation (Tuần 3)
-
-**Ngày 8-10: Payroll**
-- [ ] Create insurance_rates table
-- [ ] Move hardcoded rates to database
-- [ ] Add admin UI for rate management
-- [ ] Add base validation
-- [ ] Test payroll calculations
-
-**Ngày 11-12: Tax & Closing**
-- [ ] Update TaxReporting.jsx for detailed accounts
-- [ ] Make ClosingProcess.jsx account dictionary dynamic
-- [ ] Test tax reports
-
-**Ngày 13-14: System-wide**
-- [ ] Implement lock date validation
-- [ ] Implement company active check
-- [ ] Test all modules
-
-### Sprint 3: Storefront Integration (Tuần 4-5)
-
-**Ngày 15-17: Backend**
-- [ ] Enhance items API with inventory fields
-- [ ] Add suppliers endpoint
-- [ ] Update voucher creation for NK with items
-- [ ] Test API endpoints
-
-**Ngày 18-21: Frontend**
-- [ ] Update ItemManagement.jsx with inventory fields
-- [ ] Enhance PurchaseInventory.jsx workflow
-- [ ] Update VoucherManagement.jsx display
-- [ ] Update CashFlowDashboard.jsx
-- [ ] Test complete workflow
-
-### Sprint 4: Testing & Documentation (Tuần 6)
-
-**Ngày 22-24: Testing**
-- [ ] Unit tests for all fixes
-- [ ] Integration tests
-- [ ] User acceptance testing
-- [ ] Performance testing
-
-**Ngày 25-26: Documentation**
-- [ ] Update QUY_TRINH_NGHIEP_VU.md
-- [ ] Create API documentation
-- [ ] Create user guides
-- [ ] Create troubleshooting guide
-
-**Ngày 27-28: Deployment Prep**
-- [ ] Code review
-- [ ] Security audit
-- [ ] Backup strategy
-- [ ] Rollback plan
-
----
-
-## 8. TÀI LIỆU THAM KHẢO
-
-### 8.1. Văn Bản Pháp Lý
-
-1. **Thông tư 200/2014/TT-BTC** - Chuẩn mực kế toán Việt Nam
-2. **Thông tư 99/2025/TT-BTC** - Sửa đổi, bổ sung chuẩn mực kế toán
-3. **Luật Kế toán 2015** - Sửa đổi 2019
-4. **Nghị định 200/2014/NĐ-CP** - Chi tiết hướng dẫn kế toán
-
-### 8.2. Tài Liệu Hệ Thống
-
-1. **QUY_TRINH_NGHIEP_VU.md** - Tổng hợp quy trình nghiệp vụ (đã tạo)
-2. **API_REFERENCE.md** - Tài liệu API endpoints (cần tạo)
-3. **ACCOUNTING_WORKFLOW.md** - Mẫu bút toán (cần tạo)
-4. **STOREfront_ERP_INTEGRATION.md** - Kiến trúc tích hợp (cần tạo)
-
-### 8.3. Công Cụ & Công Nghệ
-
-- **Frontend:** React, Tailwind CSS, Lucide icons
-- **Backend:** Node.js, Express, PostgreSQL
-- **Authentication:** JWT tokens
-- **File Upload:** Multer (images), XLSX (Excel import)
-- **Validation:** Custom validation schemas
-
----
-
-## PHỤ LỤC
-
-### A. Mã Tài Khoản Tham Chiếu
-
-**Theo Thông tư 99/2025/TT-BTC:**
-
-| TK | Tên | Loại |
-|----|-----|------|
-| 111 | Tiền mặt | Tài sản ngắn hạn |
-| 112 | Tiền gửi ngân hàng | Tài sản ngắn hạn |
-| 131 | Phải thu khách hàng | Tài sản ngắn hạn |
-| 1331 | Thuế GTGT được khấu trừ | Tài sản ngắn hạn |
-| 133 | Thuế GTGT | Tài sản ngắn hạn |
-| 138 | Phải thu khác | Tài sản ngắn hạn |
-| 141 | Tạm ứng | Tài sản ngắn hạn |
-| 152 | Nguyên liệu, vật liệu | Tài sản ngắn hạn |
-| 153 | Công cụ, dụng cụ | Tài sản ngắn hạn |
-| 156 | Hàng hóa kho tổng | Tài sản ngắn hạn |
-| 211 | TSCĐ hữu hình | Tài sản dài hạn |
-| 214 | Hao mòn TSCĐ | Tài sản dài hạn |
-| 331 | Phải trả người bán | Nợ phải trả |
-| 333 | Thuế và các khoản phải nộp NSNN | Nợ phải trả |
-| 3331 | Thuế GTGT phải nộp | Nợ phải trả |
-| 3334 | Thuế TNDN phải nộp | Nợ phải trả |
-| 3335 | Thuế TNCN phải nộp | Nợ phải trả |
-| 334 | Phải trả người lao động | Nợ phải trả |
-| 3383 | Nghĩa vụ BHXH | Nợ phải trả |
-| 3384 | Nghĩa vụ BHYT | Nợ phải trả |
-| 3386 | Nghĩa vụ BHTN | Nợ phải trả |
-| 341 | Vay và nợ thuê tài chính | Nợ phải trả |
-| 411 | Vốn đầu tư của chủ sở hữu | Vốn chủ sở hữu |
-| 421 | LNST chưa phân phối | Vốn chủ sở hữu |
-| 511 | Doanh thu bán hàng | Doanh thu |
-| 515 | Doanh thu hoạt động tài chính | Doanh thu |
-| 632 | Giá vốn hàng bán | Chi phí |
-| 635 | Chi phí tài chính | Chi phí |
-| 641 | Chi phí bán hàng | Chi phí |
-| 642 | Chi phí quản lý doanh nghiệp | Chi phí |
-| 6422 | Chi phí tiền lương | Chi phí |
-| 711 | Thu nhập khác | Thu nhập |
-| 811 | Chi phí khác | Chi phí |
-| 821 | Chi phí thuế TNDN | Chi phí |
-| 911 | Xác định kết quả kinh doanh | Tạm tính |
-
-### B. Tỷ Lệ Bảo Hiểm Hiện Hành
-
-| Loại | Tỷ lệ DN | Tỷ lệ NLĐ | Tổng |
-|------|----------|-----------|------|
-| BHXH | 17.5% | 8% | 25.5% |
-| BHYT | 3% | 1.5% | 4.5% |
-| BHTN | 1% | 1% | 2% |
-| **Tổng DN** | **21.5%** | | |
-| **Tổng NLĐ** | | **10.5%** | |
-
-**Lưu ý:** Tỷ lệ có thể thay đổi theo quy định pháp luật. Cần cập nhật thường xuyên.
-
-**Mức đóng BHXH tối đa:** 46.8 triệu/tháng (năm 2026)  
-**Mức lương tối thiểu vùng:** Theo từng vùng (Vùng I: 4.96M, Vùng II: 4.41M, Vùng III: 3.9M, Vùng IV: 3.5M)
-
-### C. Thuế Suất Thuế TNDN
-
-| Điều kiện | Thuế suất |
-|-----------|-----------|
-| Doanh thu ≤ 3 tỷ/năm | 15% |
-| Doanh thu > 3 tỷ và ≤ 50 tỷ/năm | 17% |
-| Doanh thu > 50 tỷ/năm | 20% |
-
-**Lưu ý:** Từ năm 2026, thuế suất TNDN là 20% cố định theo Luật Thuế TNDN sửa đổi.
-
----
-
-**KẾT THÚC MASTERPLAN**
-
-**Hành động tiếp theo:**
-1. Review và approve masterplan này
-2. Toggle sang Act mode để bắt đầu sửa lỗi
-3. Hoặc yêu cầu điều chỉnh kế hoạch
-
-**Liên hệ:** Đội ngũ phát triển ERP  
-**Cập nhật lần cuối:** 2026-01-07
-// END_OF_FILE
-------------------------------------------------------------
-
-// FILE_PATH: front-end/src/views/QUY_TRINH_NGHIEP_VU.md
-// START_OF_FILE
-# TỔNG HỢP QUY TRÌNH NGHIỆP VỤ KẾ TOÁN
-## Hệ Thống ERP Kế Toán Doanh Nghiệp
-
----
-
-## MỤC LỤC
-
-1. [Tổng Quan Hệ Thống](#1-tổng-quan-hệ-thống)
-2. [Quy Trình Quỹ & Tiền Gửi Ngân Hàng](#2-quy-trình-quỹ--tiền-gửi-ngân-hàng)
-3. [Quy Trình Mua Hàng & Nhập Kho](#3-quy-trình-mua-hàng--nhập-kho)
-4. [Quy Trình Bán Hàng & Doanh Thu](#4-quy-trình-bán-hàng--doanh-thu)
-5. [Quy Trình Quản Lý Đối Tác](#5-quy-trình-quản-lý-đối-tác)
-6. [Quy Trình Tính Lương & Trích Bảo Hiểm](#6-quy-trình-tính-lương--trích-bảo-hiểm)
-7. [Quy Trình Báo Cáo Thuế](#7-quy-trình-báo-cáo-thuế)
-8. [Quy Trình Báo Cáo Tài Chính](#8-quy-trình-báo-cáo-tài-chính)
-9. [Quy Trình Kết Chuyển Khóa Sổ Cuối Kỳ](#9-quy-trình-kết-chuyển-khóa-sổ-cuối-kỳ)
-10. [Quy Trình Quản Lý Tài Sản Cố Định](#10-quy-trình-quản-lý-tài-sản-cố-định)
-11. [Quy Trình Tập Hợp Chi Phí Giá Thành](#11-quy-trình-tập-hợp-chi-phí-giá-thành)
-12. [Quy Trình Quản Lý Chứng Từ Tổng Hợp](#12-quy-trình-quản-lý-chứng-từ-tổng-hợp)
-13. [Quy Trình Quản Lý Kho Tổng Hợp](#13-quy-trình-quản-lý-kho-tổng-hợp)
-14. [Quy Trình Dashboard Dòng Tiền](#14-quy-trình-dashboard-dòng-tiền)
-15. [Quy Trình Logistics & Giao Hàng](#15-quy-trình-logistics--giao-hàng)
-16. [Phân Quyền & Bảo Mật Hệ Thống](#16-phân-quyền--bảo-mật-hệ-thống)
-
----
-
-## 1. TỔNG QUAN HỆ THỐNG
-
-### 1.1. Giới Thiệu
-Hệ thống ERP Kế Toán là giải pháp quản lý tài chính toàn diện được thiết kế theo Thông tư 99/2025/TT-BTC, cung cấp các chức năng từ quản lý quỹ, mua hàng, bán hàng, báo cáo thuế đến khóa sổ cuối kỳ.
-
-### 1.2. Các Module Chính
-Hệ thống bao gồm 22 module chức năng chính:
-
-**Module Quản Lý Tài Chính:**
-- Quỹ & Tiền gửi ngân hàng (Cash Management)
-- Báo cáo Kết quả hoạt động kinh doanh
-- Báo cáo Tài chính B01-DN (Bảng Cân đối kế toán)
-- Báo cáo Lưu chuyển tiền tệ B03-DN
-- Bản thuyết minh BCTC B09-DN
-- Dashboard dòng tiền
-
-**Module Nghiệp Vụ:**
-- Mua hàng & Vật tư nhập kho
-- Bán hàng tại quầy (POS)
-- Hóa đơn bán hàng Excel
-- Quản lý Đối tác (KH & NCC)
-- Quản lý Chứng từ Tổng hợp
-- Quản lý Kho Tổng hợp
-
-**Module Nhân Sự & Chi Phí:**
-- Tính lương & Trích BHXH
-- Tập hợp chi phí Giá thành
-- Tài sản cố định & Khấu hao
-
-**Module Thuế & Báo Cáo:**
-- Tờ khai báo cáo Thuế GTGT
-- Kết chuyển khóa sổ cuối kỳ
-- Khai báo số dư đầu kỳ
-
-**Module Hệ Thống:**
-- Cấu hình pháp nhân (Quản lý công ty)
-- Nhật ký an ninh & hệ thống
-- Logistics / Giao hàng
-- Màn hình Bãi xúc
-
-### 1.3. Đối Tượng Sử Dụng
-- **Admin**: Quyền truy cập toàn bộ hệ thống
-- **KTT (Kế Toán Trưởng)**: Quản lý tài chính, báo cáo, khóa sổ
-- **NV (Nhân Viên)**: Nhập liệu, theo dõi nghiệp vụ
-- **GD Kinh Doanh**: Xem báo cáo kinh doanh, chi phí
-
----
-
-## 2. QUY TRÌNH QUỸ & TIỀN GỬI NGÂN HÀNG
-
-### 2.1. Mô Tả Module
-Module Quản lý Quỹ & Tiền gửi ngân hàng cho phép ghi nhận các nghiệp vụ thu tiền (Phiếu Thu - PT) và chi tiền (Phiếu Chi - PC) với hỗ trợ đa tiền tệ.
-
-### 2.2. Chức Năng Chính
-
-#### 2.2.1. Tạo Phiếu Thu (PT)
-**Mục đích:** Ghi nhận các khoản thu tiền mặt, chuyển khoản từ khách hàng hoặc các đối tác khác.
-
-**Quy trình:**
-1. **Chuẩn bị thông tin:**
-   - Ngày chứng từ (mặc định: ngày hiện tại)
-   - Chọn đối tác công nợ (từ danh mục đối tác)
-   - Loại tiền tệ (VND, USD, EUR)
-   - Tỷ giá hạch toán (tự động điền 1 với VND)
-   - Lý do nộp/nội dung chi
-
-2. **Định khoản:**
-   - Chọn loại bút toán: NỢ (DR) hoặc CÓ (CR)
-   - Nhập mã tài khoản (ví dụ: 1111 - Tiền mặt, 131 - Phải thu khách hàng)
-   - Nhập số tiền nguyên tệ
-   - Hệ thống tự động quy đổi sang VND theo tỷ giá
-
-3. **Kiểm tra và ghi sổ:**
-   - Hệ thống kiểm tra cân đối Nợ = Có
-   - Tạo số phiếu tự động: PT-XXXXXX
-   - Lưu chứng từ vào hệ thống
-
-**Định khoản mẫu Phiếu Thu:**
-```
-Nợ TK 1111/112 (Tiền mặt/Tiền gửi ngân hàng)
-   Có TK 131 (Phải thu khách hàng) hoặc TK 511 (Doanh thu)
-```
-
-#### 2.2.2. Tạo Phiếu Chi (PC)
-**Mục đích:** Ghi nhận các khoản chi tiền mặt, chuyển khoản cho nhà cung cấp, chi phí nội bộ.
-
-**Quy trình:**
-1. **Chuẩn bị thông tin:**
-   - Ngày chứng từ
-   - Chọn đối tác công nợ (NCC)
-   - Loại tiền tệ và tỷ giá
-   - Lý do chi/nội dung
-
-2. **Định khoản:**
-   - Xác định tài khoản Nợ (chi phí, tài sản)
-   - Xác định tài khoản Có (tiền mặt, tiền gửi)
-   - Nhập số tiền
-
-3. **Kiểm tra và ghi sổ:**
-   - Kiểm tra cân đối Nợ = Có
-   - Tạo số phiếu: PC-XXXXXX
-   - Lưu vào hệ thống
-
-**Định khoản mẫu Phiếu Chi:**
-```
-Nợ TK 632 (Chi phí) hoặc TK 156 (Hàng hóa)
-   Có TK 1111/112 (Tiền mặt/Tiền gửi NH)
-```
-
-### 2.3. Tính Năng Đặc Biệt
-- **Hỗ trợ đa tiền tệ:** VND, USD, EUR với tỷ giá hạch toán linh hoạt
-- **Tự động quy đổi:** Số tiền nguyên tệ tự động nhân với tỷ giá → VND
-- **Kiểm tra cân đối:** Không cho phép ghi sổ nếu Tổng Nợ ≠ Tổng Có
-- **Liên kết đối tác:** Tích hợp với danh mục đối tác (KH/NCC)
-
-### 2.4. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 3. QUY TRÌNH MUA HÀNG & NHẬP KHO
-
-### 3.1. Mô Tả Module
-Module Mua hàng & Vật tư nhập kho hỗ trợ ghi nhận nghiệp vụ mua hàng hóa, vật tư, nguyên liệu với tự động tính thuế GTGT và định khoản theo chuẩn mực kế toán Việt Nam.
-
-### 3.2. Chức Năng Chính
-
-#### 3.2.1. Nhập Kho Mua Hàng Nhanh
-**Mục đích:** Ghi nhận nghiệp vụ mua hàng hóa, vật tư nhập kho với đầy đủ thông tin thuế.
-
-**Quy trình:**
-1. **Nhập thông tin hàng hóa:**
-   - Mô tả vật tư/hàng hóa
-   - Giá trị trước thuế (VND)
-   - Thuế suất GTGT (0%, 5%, 10%)
-
-2. **Tự động tính toán:**
-   - Tiền hàng: Giá trị nhập
-   - Thuế GTGT: Giá trị × Thuế suất
-   - Tổng phải trả: Tiền hàng + Thuế
-
-3. **Định khoản tự động:**
-```
-Nợ TK 156 (Hàng hóa kho tổng) - Giá trị hàng
-Nợ TK 1331 (Thuế GTGT được khấu trừ) - Thuế GTGT
-   Có TK 331 (Phải trả người bán) - Tổng cộng
-```
-
-4. **Ghi sổ:**
-   - Tạo chứng từ tự động: NK-XXXXXX (Phiếu Nhập Kho)
-   - Lưu vào hệ thống với đầy đủ chi tiết định khoản
-
-### 3.3. Tính Năng Đặc Biệt
-- **Tự động tính thuế:** Hệ thống tự động tính thuế GTGT theo thuế suất
-- **Định khoản chuẩn:** Tự động sinh bút toán theo chuẩn TT99
-- **Kiểm tra hợp lệ:** Bắt buộc nhập tên hàng và giá trị > 0
-- **Tích hợp kho:** Liên kết với module quản lý kho tổng hợp
-
-### 3.4. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 4. QUY TRÌNH BÁN HÀNG & DOANH THU
-
-### 4.1. Mô Tả Module
-Module Bán hàng hỗ trợ ghi nhận doanh thu từ bán hàng tại quầy (POS) và đồng bộ doanh thu từ file Excel, với tự động định khoản theo chuẩn mực kế toán.
-
-### 4.2. Chức Năng Chính
-
-#### 4.2.1. Bán Hàng Tại Quầy (POS)
-**Mục đích:** Ghi nhận doanh thu bán hàng trực tiếp tại quầy.
-
-**Đặc điểm:**
-- Chỉ dành cho Admin trong hệ thống ERP
-- Tích hợp với thiết bị POS
-- Tự động tạo chứng từ bán hàng
-
-#### 4.2.2. Đồng Bộ Doanh Thu Từ Excel
-**Mục đích:** Nhập khối lượng lớn hóa đơn bán hàng từ file Excel để ghi sổ hàng loạt.
-
-**Quy trình:**
-1. **Upload file Excel:**
-   - Định dạng: .xlsx, .xls
-   - Cấu trúc file: ID, Customer, Amount, TaxRate
-   - Hệ thống đọc và parse dữ liệu
-
-2. **Kiểm tra dữ liệu:**
-   - Lọc các hóa đơn hợp lệ (Amount > 0)
-   - Hiển thị số lượng hóa đơn đã đọc
-
-3. **Định khoản tự động cho mỗi hóa đơn:**
-```
-Nợ TK 131 (Phải thu khách hàng) - Tiền hàng + Thuế
-   Có TK 511 (Doanh thu bán hàng) - Tiền hàng
-   Có TK 3331 (Thuế GTGT đầu ra) - Thuế GTGT
-```
-
-4. **Ghi sổ hàng loạt:**
-   - Tạo chứng từ: PK-XXXXXX (Phiếu Khác) cho mỗi hóa đơn
-   - Đồng bộ toàn bộ vào hệ thống
-   - Thông báo kết quả
-
-**Ví dụ định khoản:**
-- Hóa đơn: 10,000,000đ, thuế 10%
-- Tiền hàng: 10,000,000đ
-- Thuế GTGT: 1,000,000đ
-- Tổng phải thu: 11,000,000đ
-
-```
-Nợ TK 131: 11,000,000đ
-   Có TK 511: 10,000,000đ
-   Có TK 3331: 1,000,000đ
-```
-
-### 4.3. Tính Năng Đặc Biệt
-- **Import hàng loạt:** Xử lý hàng trăm hóa đơn cùng lúc
-- **Tự động nhận diện:** Đọc cấu trúc Excel linh hoạt (ID, Customer, Amount, TaxRate)
-- **Định khoản chuẩn:** Tự động sinh bút toán theo TT99
-- **Báo cáo tiến độ:** Hiển thị số hóa đơn đã xử lý
-
-### 4.4. Phân Quyền
-- **Bán hàng tại quầy:** Chỉ Admin
-- **Hóa đơn Excel:** Chỉ Admin
-
----
-
-## 5. QUY TRÌNH QUẢN LÝ ĐỐI TÁC
-
-### 5.1. Mô Tả Module
-Module Quản lý Đối tác (Danh mục KH & NCC) cho phép đăng ký, quản lý thông tin khách hàng và nhà cung cấp với phân loại rõ ràng theo tính chất công nợ.
-
-### 5.2. Chức Năng Chính
-
-#### 5.2.1. Đăng Ký Đối Tác Mới
-**Mục đích:** Tạo mới đối tác trong hệ thống để sử dụng cho các nghiệp vụ phát sinh sau.
-
-**Quy trình:**
-1. **Nhập thông tin cơ bản:**
-   - Mã đối tác (Mã KH/NCC) - Bắt buộc, duy nhất
-   - Tên đối tác doanh nghiệp - Bắt buộc
-   - Loại đối tác:
-     * Khách hàng (TK 131 - Phải thu)
-     * Nhà cung cấp (TK 331 - Phải trả)
-     * Lưỡng tính (Cả KH và NCC)
-
-2. **Thông tin bổ sung:**
-   - Số điện thoại
-   - Email
-   - Địa chỉ
-
-3. **Lưu vào hệ thống:**
-   - Kiểm tra mã đối tác không trùng lặp
-   - Lưu vào danh mục theo công ty đang active
-
-### 5.3. Phân Loại Đối Tác
-
-#### 5.3.1. Khách Hàng (Customer)
-- **Tài khoản mặc định:** 131 - Phải thu của khách hàng
-- **Nghiệp vụ liên quan:** Bán hàng, thu tiền, giảm trừ công nợ
-- **Bút toán điển hình:**
-  - Bán hàng: Nợ 131 / Có 511, 3331
-  - Thu tiền: Nợ 111/112 / Có 131
-
-#### 5.3.2. Nhà Cung Cấp (Vendor)
-- **Tài khoản mặc định:** 331 - Phải trả cho người bán
-- **Nghiệp vụ liên quan:** Mua hàng, nhập kho, thanh toán
-- **Bút toán điển hình:**
-  - Mua hàng: Nợ 156, 1331 / Có 331
-  - Thanh toán: Nợ 331 / Có 111/112
-
-#### 5.3.3. Lưỡng Tính (Both)
-- **Tính chất:** Vừa là khách hàng vừa là nhà cung cấp
-- **Ứng dụng:** Doanh nghiệp có cả hoạt động mua và bán với cùng đối tác
-- **Tài khoản:** Cả 131 và 331
-
-### 5.4. Tính Năng Đặc Biệt
-- **Mã duy nhất:** Đảm bảo không trùng lặp mã đối tác
-- **Phân loại rõ ràng:** Xác định tính chất công nợ ngay từ đầu
-- **Tích hợp đa module:** Sử dụng được trong Quỹ, Mua hàng, Bán hàng
-- **Theo dõi công ty:** Mỗi đối tác thuộc về một công ty cụ thể
-
-### 5.5. Phân Quyền
-- **Admin, KTT, NV:** Được phép quản lý đối tác
-
----
-
-## 6. QUY TRÌNH TÍNH LƯƠNG & TRÍCH BẢO HIỂM
-
-### 6.1. Mô Tả Module
-Module Tính lương & Trích BHXH thực hiện hạch toán tổng hợp chi phí tiền lương, thuế TNCN và các khoản trích bảo hiểm bắt buộc theo quy định pháp luật.
-
-### 6.2. Chức Năng Chính
-
-#### 6.2.1. Hạch Toán Lương Tổng Hợp
-**Mục đích:** Tự động sinh bút toán kép tích hợp cho toàn bộ chi phí lương, bảo hiểm và thuế TNCN.
-
-**Quy trình:**
-1. **Nhập thông tin:**
-   - Tổng quỹ lương gộp (Gross Salary)
-   - Tổng thuế TNCN khấu trừ (nếu có)
-
-2. **Tự động tính toán các khoản:**
-   - **Bảo hiểm doanh nghiệp chịu:** 21.5% × Lương gộp
-   - **Bảo hiểm người lao động chịu:** 10.5% × Lương gộp
-   - **BHXH tổng:** 25.5% (DN 17.5% + NLĐ 8%)
-   - **BHYT tổng:** 4.5% (DN 3% + NLĐ 1.5%)
-   - **BHTN tổng:** 2% (DN 1% + NLĐ 1%)
-
-3. **Sinh bút toán tự động (7 dòng):**
-
-**Dòng 1-2: Hạch toán lương gộp**
-```
-Nợ TK 6422 (Chi phí QLDN) - Lương gộp
-   Có TK 334 (Phải trả NLĐ) - Lương gộp
-```
-
-**Dòng 3-4: Khấu trừ thuế TNCN**
-```
-Nợ TK 334 (Phải trả NLĐ) - Thuế TNCN
-   Có TK 3331 (Thuế TNCN phải nộp) - Thuế TNCN
-```
-
-**Dòng 5-7: Trích bảo hiểm**
-```
-Nợ TK 6422 (Chi phí QLDN) - BH DN chịu
-Nợ TK 334 (Phải trả NLĐ) - BH NLĐ chịu
-   Có TK 3383 (Nghĩa vụ BHXH) - Tổng BHXH
-   Có TK 3384 (Nghĩa vụ BHYT) - Tổng BHYT
-   Có TK 3386 (Nghĩa vụ BHTN) - Tổng BHTN
-```
-
-4. **Ghi sổ:**
-   - Tạo chứng từ: TL-XXXXXX (Tiền Lương)
-   - Ngày chứng từ: Ngày cuối tháng
-   - Lưu mô tả đầy đủ: Tháng/Năm
-
-### 6.3. Cấu Trúc Định Khoản Chi Tiết
-
-#### 6.3.1. Chi Phí Lương Gộp
-- **TK Nợ:** 6422 - Chi phí quản lý doanh nghiệp
-- **TK Có:** 334 - Phải trả người lao động
-- **Số tiền:** Tổng quỹ lương gộp
-
-#### 6.3.2. Thuế TNCN
-- **TK Nợ:** 334 - Khấu trừ từ lương NLĐ
-- **TK Có:** 3331 - Thuế TNCN phải nộp NSNN
-- **Số tiền:** Tổng thuế TNCN đã khấu trừ
-
-#### 6.3.3. Bảo Hiểm Xã Hội (BHXH)
-- **Tỷ lệ tổng:** 25.5% (DN 17.5% + NLĐ 8%)
-- **TK Nợ:** 6422 (phần DN) + 334 (phần NLĐ)
-- **TK Có:** 3383 - Nghĩa vụ BHXH
-
-#### 6.3.4. Bảo Hiểm Y Tế (BHYT)
-- **Tỷ lệ tổng:** 4.5% (DN 3% + NLĐ 1.5%)
-- **TK Nợ:** 6422 (phần DN) + 334 (phần NLĐ)
-- **TK Có:** 3384 - Nghĩa vụ BHYT
-
-#### 6.3.5. Bảo Hiểm Thất Nghiệp (BHTN)
-- **Tỷ lệ tổng:** 2% (DN 1% + NLĐ 1%)
-- **TK Nợ:** 6422 (phần DN) + 334 (phần NLĐ)
-- **TK Có:** 3386 - Nghĩa vụ BHTN
-
-### 6.4. Tính Năng Đặc Biệt
-- **Định khoản kép tích hợp:** 7 dòng bút toán tự động cân đối
-- **Tính toán tự động:** Tỷ lệ bảo hiểm theo quy định pháp luật
-- **Lưu trữ:** Sử dụng persistent state để lưu form
-- **Xuất Excel:** Xuất bảng trích lương và bảo hiểm
-
-### 6.5. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 7. QUY TRÌNH BÁO CÁO THUẾ
-
-### 7.1. Mô Tả Module
-Module Báo cáo Thuế tổng hợp và phân tích các loại thuế phát sinh trong kỳ kế toán: Thuế GTGT, Thuế TNDN, Thuế TNCN theo Thông tư 99/2025/TT-BTC.
-
-### 7.2. Chức Năng Chính
-
-#### 7.2.1. Báo Cáo Thuế GTGT (Mẫu 01/GTGT)
-**Mục đích:** Tổng hợp thuế GTGT đầu vào và đầu ra để xác định nghĩa vụ thuế phải nộp.
-
-**Cấu trúc báo cáo:**
-1. **Thuế GTGT đầu vào (TK 1331 - Nợ):**
-   - Thuế GTGT được khấu trừ từ hóa đơn mua hàng
-   - Tổng hợp từ các chứng từ nhập kho, mua hàng
-   - Phát sinh bên Nợ TK 1331
-
-2. **Thuế GTGT đầu ra (TK 3331 - Có):**
-   - Thuế GTGT tính trên doanh thu bán hàng
-   - Tổng hợp từ các chứng từ bán hàng
-   - Phát sinh bên Có TK 3331
-
-3. **Nghĩa vụ phải nộp:**
-   - Công thức: Thuế đầu ra - Thuế đầu vào
-   - Nếu > 0: Phải nộp thêm
-   - Nếu < 0: Được khấu trừ chuyển kỳ sau
-
-**Ví dụ:**
-- Thuế đầu vào: 5,000,000đ
-- Thuế đầu ra: 8,000,000đ
-- **Nghĩa vụ phải nộp: 3,000,000đ**
-
-#### 7.2.2. Báo Cáo Thuế TNDN (TK 3334)
-**Mục đích:** Theo dõi phát sinh và thanh toán thuế thu nhập doanh nghiệp.
-
-**Cấu trúc theo dõi lưỡng tính:**
-1. **Phát sinh nghĩa vụ (Có TK 3334):**
-   - Từ báo cáo KQKD (TK 821)
-   - Thuế TNDN phải nộp theo quy định
-
-2. **Đã nộp thuế (Nợ TK 3334):**
-   - Từ chứng từ thuế (Phiếu thu, ủy nhiệm chi)
-   - Tạm nộp, nộp thừa
-
-3. **Trạng thái nghĩa vụ:**
-   - Còn phải nộp: Phát sinh - Đã nộp
-   - Tạm nộp thừa: Đã nộp - Phát sinh (Dư Nợ)
-
-**Ví dụ:**
-- Thuế TNDN phát sinh: 15,000,000đ
-- Đã nộp: 12,000,000đ
-- **Còn phải nộp: 3,000,000đ**
-
-#### 7.2.3. Báo Cáo Thuế TNCN (TK 3335)
-**Mục đích:** Theo dõi thuế TNCN khấu trừ tại nguồn từ người lao động.
-
-**Cấu trúc:**
-- **Phát sinh (Có TK 3335):** Từ bảng lương (Payroll)
-- **Tổng khấu trừ:** Tổng thuế TNCN đã trừ vào lương NLĐ
-- **Trạng thái:** Chờ quyết toán chuyển nộp NSNN
-
-### 7.3. Tính Năng Đặc Biệt
-- **Tự động tổng hợp:** Đọc toàn bộ chứng từ, bóc tách theo tài khoản
-- **Hỗ trợ ghi đỏ:** Xử lý số âm cho điều chỉnh tăng/giảm
-- **Theo dõi lưỡng tính:** Thuế TNDN theo dõi cả phát sinh và đã nộp
-- **Xuất Excel:** Xuất báo cáo thuế ra file Excel
-- **Thông tin niên độ:** Hiển thị năm kế toán hiện tại
-
-### 7.4. Phân Quyền
-- **Admin, KTT, GD Kinh Doanh:** Được xem báo cáo thuế
-
----
-
-## 8. QUY TRÌNH BÁO CÁO TÀI CHÍNH
-
-### 8.1. Mô Tả Module
-Module Báo cáo Tài chính cung cấp các báo cáo theo Thông tư 99/2025/TT-BTC: Báo cáo KQKD, Bảng Cân đối kế toán, Báo cáo Lưu chuyển tiền tệ, Bản thuyết minh BCTC.
-
-### 8.2. Chức Năng Chính
-
-#### 8.2.1. Báo Cáo Kết Quả Hoạt Động Kinh Doanh
-**Mục đích:** Thể hiện tình hình tài chính, kết quả kinh doanh của doanh nghiệp trong kỳ.
-
-**Cấu trúc báo cáo (8 chỉ tiêu chính):**
-
-**I. Doanh Thu Thuần (TK 511)**
-- Doanh thu bán hàng và cung cấp dịch vụ
-- Tổng hợp bên Có TK 511
-
-**II. Giá Vốn Hàng Bán (TK 632)**
-- Chi phí giá vốn hàng bán
-- Tổng hợp bên Nợ TK 632
-
-**III. Lợi Nhuận Gộp**
-- Công thức: I - II
-- Đánh giá hiệu quả bán hàng cơ bản
-
-**IV. Chi Phí Hoạt Động**
-- Doanh thu hoạt động tài chính (TK 515)
-- Chi phí tài chính (TK 635)
-- Chi phí bán hàng (TK 641)
-- Chi phí quản lý doanh nghiệp (TK 642)
-
-**V. Lợi Nhuận Thuần Từ HĐKD**
-- Công thức: III + 515 - (635 + 641 + 642)
-
-**VI. Thu Nhập & Chi Phí Khác**
-- Thu nhập khác (TK 711)
-- Chi phí khác (TK 811)
-
-**VII. Lợi Nhuận Trước Thuế**
-- Công thức: V + (711 - 811)
-
-**VIII. Chi Phí Thuế TNDN (TK 821)**
-- Thuế TNDN hiện hành
-
-**LNST (Lợi Nhuận Sau Thuế)**
-- Công thức: VII - 821
-- Đánh giá: Hoạt động có lãi hay lỗ ròng
-
-**Tính năng đặc biệt:**
-- **Thuế suất lũy tiến:** Tự động tính theo doanh thu năm trước
-  - ≤ 3 tỷ: 15%
-  - ≤ 50 tỷ: 17%
-  - > 50 tỷ: 20%
-- **Chỉ số niên độ:** Chọn năm kế toán để xem báo cáo
-- **So sánh năm:** Nhập doanh thu năm trước để tính thuế suất
-
-#### 8.2.2. 9 Chu Trình Nghiệp Vụ
-**Mục đích:** Phân tích chi tiết các chu trình nghiệp vụ phát sinh trong kỳ.
-
-**9 Chu trình:**
-1. **Chu trình 1:** Vốn chủ sở hữu, mua TSCĐ, vay nợ (TK 411, 121, 128, 221, 515)
-2. **Chu trình 2:** Mua vật tư, hàng hóa (TK 152, 156, 1331, 331)
-3. **Chu trình 3:** Bán hàng, thu tiền (TK 632, 156, 131, 511, 3331)
-4. **Chu trình 4:** Chi phí hoạt động (TK 622, 641, 642, 334, 338)
-5. **Chu trình 5:** Đầu tư TSCĐ (TK 211, 214, 1332, 331)
-6. **Chu trình 6:** Sản xuất (TK 154, 621, 622, 627)
-7. **Chu trình 7:** Vay nợ và trả nợ (TK 341, 635, 335)
-8. **Chu trình 8:** Thuế GTGT (TK 3331, 133)
-9. **Chu trình 9:** Kết quả kinh doanh (TK 911, 4212)
-
-**Hiển thị:**
-- Tên chu trình
-- Tài khoản liên quan
-- Số liệu thực tế từ sổ cái
-- Tổng cộng từng chu trình
-
-#### 8.2.3. Báo Cáo Tài Chính Khác
-- **Bảng Cân đối kế toán B01-DN:** Tài sản - Nguồn vốn
-- **Báo cáo KQKD B02-DN:** Biến động vốn chủ sở hữu
-- **Báo cáo Lưu chuyển tiền tệ B03-DN:** Dòng tiền hoạt động, đầu tư, tài chính
-- **Bản thuyết minh BCTC B09-DN:** Giải thích chi tiết số liệu
-
-### 8.3. Tính Năng Đặc Biệt
-- **Tính toán real-time:** Đọc số liệu từ sổ cái tự động
-- **Hai chế độ xem:** Báo cáo KQKD và 9 chu trình
-- **Thuế suất tự động:** Tính theo quy định lũy tiến
-- **Định dạng TT99:** Tuân thủ Thông tư 99/2025/TT-BTC
-- **Xuất Excel:** Xuất báo cáo ra file Excel
-
-### 8.4. Phân Quyền
-- **Admin, KTT, GD Kinh Doanh:** Được xem báo cáo tài chính
-
----
-
-## 9. QUY TRÌNH KẾT CHUYỂN KHÓA SỔ CUỐI KỲ
-
-### 9.1. Mô Tả Module
-Module Kết chuyển khóa sổ cuối kỳ thực hiện việc tổng hợp, phân loại số liệu cuối kỳ và tự động sinh bút toán kết chuyển doanh thu, chi phí vào quỹ kết quả kinh doanh.
-
-### 9.2. Chức Năng Chính
-
-#### 9.2.1. Thực Hiện Khóa Sổ Tự Động
-**Mục đích:** Tự động kết chuyển số dư các tài khoản doanh thu, chi phí về tài khoản 911 và chuyển kết quả vào 421.
-
-**Quy trình:**
-1. **Kiểm tra điều kiện:**
-   - Xác định công ty đang làm việc
-   - Xác định niên độ kế toán
-   - Kiểm tra có chứng từ phát sinh không
-
-2. **Kích hoạt engine khóa sổ:**
-   - Gửi yêu cầu POST đến `/api/report/closing`
-   - Backend thực hiện các bước:
-     * Tính toán lãi/lỗ ròng phát sinh
-     * Kết chuyển doanh thu (511, 515, 711) → 911
-     * Kết chuyển chi phí (632, 635, 641, 642, 811) → 911
-     * Chuyển kết quả 911 → 421 (LNST chưa phân phối)
-
-3. **Hiển thị kết quả:**
-   - Log tiến trình xử lý
-   - Lãi/lỗ ròng phát sinh
-   - Thông báo thành công/thất bại
-
-**Bút toán kết chuyển mẫu:**
-```
-1. Kết chuyển doanh thu:
-Nợ TK 511 (Doanh thu bán hàng)
-Nợ TK 515 (Doanh thu tài chính)
-Nợ TK 711 (Thu nhập khác)
-   Có TK 911 (Xác định kết quả kinh doanh)
-
-2. Kết chuyển chi phí:
-Nợ TK 911 (Xác định kết quả kinh doanh)
-   Có TK 632 (Giá vốn)
-   Có TK 635 (Chi phí tài chính)
-   Có TK 641 (Chi phí bán hàng)
-   Có TK 642 (Chi phí QLDN)
-   Có TK 811 (Chi phí khác)
-
-3. Chuyển kết quả:
-Nợ TK 911 (Xác định kết quả kinh doanh)
-   Có TK 421 (LNST chưa phân phối)
-```
-
-#### 9.2.2. Xem Số Dư Tài Khoản Cuối Kỳ
-**Mục đích:** Hiển thị bảng cân đối kế toán nội bộ trước và sau khi khóa sổ.
-
-**Cấu trúc báo cáo:**
-
-**A. TÀI SẢN**
-- **I. Tài sản ngắn hạn:**
-  - TK 111: Tiền mặt
-  - TK 112: Tiền gửi ngân hàng
-  - TK 131: Phải thu khách hàng
-  - TK 138: Phải thu khác
-  - TK 141: Tạm ứng
-  - TK 152: Nguyên liệu, vật liệu
-  - TK 153: Công cụ, dụng cụ
-  - TK 156: Hàng hóa kho
-
-- **II. Tài sản dài hạn:**
-  - TK 211: TSCĐ hữu hình
-  - TK 214: Hao mòn TSCĐ (ghi giảm)
-  - TK 215: Tài sản sinh học
-  - TK 229: Dự phòng tổn thất (ghi giảm)
-
-**B. NGUỒN VỐN**
-- **I. Nợ phải trả:**
-  - TK 331: Phải trả người bán
-  - TK 333: Thuế và các khoản phải nộp NSNN
-  - TK 334: Phải trả người lao động
-  - TK 338: Phải trả, phải nộp khác
-  - TK 341: Vay và nợ thuê tài chính
-
-- **II. Vốn chủ sở hữu:**
-  - TK 411: Vốn đầu tư của chủ sở hữu
-  - TK 418: Quỹ đầu tư phát triển
-  - TK 421: LNST chưa phân phối
-
-**Kiểm tra cân đối:**
-- Tổng Tài sản = Tổng Nguồn vốn
-- Hệ thống tự động kiểm tra và cảnh báo nếu lệch
-
-### 9.3. Tính Năng Đặc Biệt
-- **Khóa sổ tự động:** Engine backend xử lý toàn bộ quy trình
-- **Log real-time:** Hiển thị tiến trình xử lý từng bước
-- **Kiểm tra cân đối:** Tự động đối chiếu Tổng Tài sản = Tổng Nguồn vốn
-- **Xuất Excel:** Xuất bảng cân đối ra file Excel
-- **Bảo vệ sổ sách:** Không cho phép xóa/sửa sau khi khóa sổ
-
-### 9.4. Phân Quyền
-- **Admin, KTT, GD Kinh Doanh:** Được phép thực hiện khóa sổ
-
----
-
-## 10. QUY TRÌNH QUẢN LÝ TÀI SẢN CỐ ĐỊNH
-
-### 10.1. Mô Tả Module
-Module Tài sản cố định & Khấu hao quản lý toàn bộ vòng đời tài sản cố định từ mua sắm, sử dụng, khấu hao đến thanh lý.
-
-### 10.2. Chức Năng Chính
-
-#### 10.2.1. Quản Lý TSCĐ
-- Đăng ký tài sản mới (TK 211)
-- Theo dõi nguyên giá, giá trị còn lại
-- Quản lý thông tin: vị trí, bộ phận sử dụng, ngày mua
-
-#### 10.2.2. Tính Khấu Hao
-**Phương pháp khấu hao:**
-- Khấu hao đường thẳng
-- Khấu hao số dư giảm dần
-- Khấu hao theo sản lượng
-
-**Định khoản khấu hao:**
-```
-Nợ TK 642 (Chi phí khấu hao)
-   Có TK 214 (Hao mòn TSCĐ)
-```
-
-#### 10.2.3. Thanh Lý, Nhượng Bán
-- Tính lãi/lỗ thanh lý
-- Định khoản:
-```
-Nợ TK 211 (Nguyên giá TSCĐ)
-Nợ TK 214 (Hao mòn TSCĐ)
-   Có TK 211 (TSCĐ thanh lý)
-   Có TK 711/811 (Lãi/lỗ thanh lý)
-```
-
-### 10.3. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 11. QUY TRÌNH TẬP HỢP CHI PHÍ GIÁ THÀNH
-
-### 11.1. Mô Tả Module
-Module Tập hợp chi phí Giá thành phân bổ chi phí sản xuất, tính giá thành sản phẩm theo quy trình sản xuất.
-
-### 11.2. Chức Năng Chính
-
-#### 11.2.1. Tập Hợp Chi Phí Sản Xuất
-**Chi phí trực tiếp:**
-- Nguyên liệu trực tiếp (TK 621)
-- Nhân công trực tiếp (TK 622)
-
-**Chi phí gián tiếp:**
-- Chi phí sản xuất chung (TK 627)
-- Phân bổ theo cơ sở hợp lý
-
-#### 11.2.2. Tính Giá Thành
-- Tính giá thành sản phẩm hoàn thành
-- Tính giá thành sản phẩm dở dang (WIP)
-- Phân bổ chi phí điều hành
-
-**Định khoản chuyển chi phí:**
-```
-Nợ TK 621, 622, 627 (Chi phí tập hợp)
-   Có TK 152, 154, 331, 334 (Các nguồn chi phí)
-
-Nợ TK 156 (Giá thành SP hoàn thành)
-   Có TK 621, 622, 627 (Chi phí tập hợp)
-```
-
-### 11.3. Phân Quyền
-- **Admin, KTT, GD Kinh Doanh:** Được phép sử dụng module
-
----
-
-## 12. QUY TRÌNH QUẢN LÝ CHỨNG TỪ TỔNG HỢP
-
-### 12.1. Mô Tả Module
-Module Quản lý Chứng từ Tổng hợp cung cấp giao diện tra cứu, quản lý toàn bộ chứng từ kế toán trong hệ thống.
-
-### 12.2. Chức Năng Chính
-
-#### 12.2.1. Tra Cứu Chứng Từ
-- Xem danh sách tất cả chứng từ
-- Lọc theo loại chứng từ, ngày tháng, đối tác
-- Tìm kiếm theo số chứng từ, nội dung
-
-#### 12.2.2. Quản Lý Chứng Từ
-- Xem chi tiết chứng từ
-- Xem bút toán định khoản
-- Xuất chứng từ ra Excel
-- Theo dõi trạng thái chứng từ
-
-#### 12.2.3. Phân Loại Chứng Từ
-- **PT:** Phiếu Thu
-- **PC:** Phiếu Chi
-- **NK:** Phiếu Nhập Kho
-- **PK:** Phiếu Xuất Kho / Phiếu Khác
-- **TL:** Phiếu Tiền Lương
-- **PST:** Phiếu Kết chuyển
-
-### 12.3. Tính Năng Đặc Biệt
-- **Tra cứu toàn diện:** Tất cả chứng từ trong một giao diện
-- **Chi tiết đa dòng:** Xem đầy đủ các dòng bút toán
-- **Xuất báo cáo:** Xuất Excel theo điều kiện lọc
-- **Theo dõi real-time:** Cập nhật liên tục khi có chứng từ mới
-
-### 12.4. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 13. QUY TRÌNH QUẢN LÝ KHO TỔNG HỢP
-
-### 13.1. Mô Tả Module
-Module Quản lý Kho Tổng hợp theo dõi nhập kho, xuất kho, tồn kho của hàng hóa, vật tư, nguyên liệu.
-
-### 13.2. Chức Năng Chính
-
-#### 13.2.1. Nhập Kho
-- Nhập kho mua hàng (từ module Purchasing)
-- Nhập kho trả lại từ khách hàng
-- Nhập kho điều chuyển từ kho khác
-
-#### 13.2.2. Xuất Kho
-- Xuất kho bán hàng
-- Xuất kho sử dụng nội bộ
-- Xuất kho trả lại nhà cung cấp
-- Xuất kho điều chuyển
-
-#### 13.2.3. Theo Dõi Tồn Kho
-- Số dư đầu kỳ
-- Phát sinh nhập trong kỳ
-- Phát sinh xuất trong kỳ
-- Số dư cuối kỳ
-
-**Công thức:**
-```
-Tồn kho cuối kỳ = Tồn kho đầu kỳ + Nhập kho - Xuất kho
-```
-
-#### 13.2.4. Báo Cáo Kho
-- Bảng kê nhập/xuất tồn (BKNT)
-- Số liệu tồn kho theo mặt hàng
-- Đánh giá giá trị tồn kho
-
-### 13.3. Định Khoản Kho
-
-**Nhập kho:**
-```
-Nợ TK 156 (Hàng hóa kho tổng)
-   Có TK 331 (Phải trả NCC) hoặc TK 111/112 (Tiền mặt/tiền gửi)
-```
-
-**Xuất kho:**
-```
-Nợ TK 632 (Giá vốn hàng bán) hoặc TK 621 (Nguyên liệu)
-   Có TK 156 (Hàng hóa kho tổng)
-```
-
-### 13.4. Phân Quyền
-- **Admin, KTT, NV:** Được phép sử dụng module
-
----
-
-## 14. QUY TRÌNH DASHBOARD DÒNG TIỀN
-
-### 14.1. Mô Tả Module
-Module Dashboard dòng tiền cung cấp cái nhìn tổng quan về tình hình tài chính, dòng tiền vào/ra của doanh nghiệp.
-
-### 14.2. Chức Năng Chính
-
-#### 14.2.1. Theo Dõi Dòng Tiền
-- **Dòng tiền hoạt động:** Thu từ bán hàng, chi cho hoạt động
-- **Dòng tiền đầu tư:** Mua bán TSCĐ, đầu tư tài chính
-- **Dòng tiền tài chính:** Vay nợ, trả nợ, chia cổ tức
-
-#### 14.2.2. Chỉ Số Tài Chính
-- Tỷ suất lợi nhuận gộp
-- Tỷ suất lợi nhuận ròng
-- Vòng quay vốn lưu động
-- Tỷ lệ nợ trên vốn chủ sở hữu
-
-#### 14.2.3. Biểu Đồ & Báo Cáo
-- Biểu đồ dòng tiền theo thời gian
-- Biểu đồ cơ cấu thu chi
-- Báo cáo so sánh kỳ
-
-### 14.3. Phân Quyền
-- **Admin, KTT, NV:** Được phép xem dashboard
-
----
-
-## 15. QUY TRÌNH LOGISTICS & GIAO HÀNG
-
-### 15.1. Mô Tả Module
-Module Logistics / Giao hàng và Màn hình Bãi xúc quản lý hoạt động vận chuyển, giao nhận hàng hóa.
-
-### 15.2. Chức Năng Chính
-
-#### 15.2.1. Quản Lý Vận Chuyển
-- Theo dõi đơn vị vận chuyển
-- Quản lý lộ trình giao hàng
-- Theo dõi trạng thái đơn hàng
-
-#### 15.2.2. Màn Hình Bãi Xúc
-- Quản lý xe vào bãi
-- Theo dõi trọng lượng (cân vào/cân ra)
-- Tính toán khối lượng hàng hóa
-- In biên bản bãi xúc
-
-### 15.3. Phân Quyền
-- **Chỉ Admin:** Được phép sử dụng module logistics
-
----
-
-## 16. PHÂN QUYỀN & BẢO MẬT HỆ THỐNG
-
-### 16.1. Các Vai Trò Người Dùng
-
-#### 16.1.1. Admin (Quản Trị Viên)
-**Quyền hạn:**
-- Toàn quyền truy cập tất cả modules
-- Quản lý người dùng và phân quyền
-- Cấu hình hệ thống pháp nhân
-- Xem nhật ký an ninh & hệ thống
-- Quản lý logistics, bãi xúc
-- Bán hàng tại quầy, hóa đơn Excel
-
-**Modules đặc quyền:**
-- Cấu hình pháp nhân (Company Management)
-- Nhật ký an ninh (Audit Logs)
-- Bán hàng tại quầy (POS)
-- Hóa đơn Excel (AutoSalesExcel)
-- Logistics / Giao hàng
-- Màn hình Bãi xúc
-
-#### 16.1.2. KTT (Kế Toán Trưởng)
-**Quyền hạn:**
-- Quản lý tài chính toàn diện
-- Báo cáo tài chính, thuế
-- Khóa sổ cuối kỳ
-- Quản lý chứng từ, kho
-- Quản lý đối tác
-
-**Modules được phép:**
-- Quỹ & Tiền gửi ngân hàng
-- Mua hàng & Nhập kho
-- Quản lý Đối tác
-- Tài sản cố định
-- Tính lương & Trích BHXH
-- Tập hợp chi phí Giá thành
-- Báo cáo Thuế
-- Kết chuyển khóa sổ
-- Báo cáo Tài chính
-- Dashboard dòng tiền
-- Quản lý Chứng từ
-- Quản lý Kho
-
-#### 16.1.3. NV (Nhân Viên)
-**Quyền hạn:**
-- Nhập liệu nghiệp vụ
-- Theo dõi chứng từ
-- Quản lý kho cơ bản
-
-**Modules được phép:**
-- Quỹ & Tiền gửi ngân hàng (nhập liệu)
-- Mua hàng & Nhập kho
-- Quản lý Đối tác
-- Dashboard dòng tiền (xem)
-- Quản lý Chứng từ
-- Quản lý Kho
-
-#### 16.1.4. GD Kinh Doanh (Giám Đốc Kinh Doanh)
-**Quyền hạn:**
-- Xem báo cáo kinh doanh
-- Theo dõi chi phí giá thành
-- Xem báo cáo thuế, tài chính
-
-**Modules được phép:**
-- Khai báo số dư đầu kỳ
-- Quản lý Đối tác
-- Tập hợp chi phí Giá thành
-- Báo cáo Thuế
-- Kết chuyển khóa sổ
-- Báo cáo Tài chính
-
-### 16.2. Bảo Mật Hệ Thống
-
-#### 16.2.1. Xác Thực Người Dùng
-- Đăng nhập bằng tài khoản cá nhân
-- Mật khẩu được mã hóa
-- Quản lý phiên làm việc (session)
-
-#### 16.2.2. Phân Vùng Công Ty (Multi-Tenant)
-- Mỗi công ty có không gian dữ liệu riêng
-- Người dùng chỉ thấy dữ liệu công ty mình
-- Cấu hình pháp nhân độc lập
-
-#### 16.2.3. Nhật Ký An Ninh (Audit Logs)
-- Ghi lại mọi thao tác của người dùng
-- Theo dõi thời gian, IP, hành động
-- Lưu trữ để truy xuất khi cần
-
-**Thông tin ghi nhận:**
-- Người dùng thực hiện
-- Thời gian thực hiện
-- Hành động (tạo, sửa, xóa, xem)
-- Đối tượng tác động (chứng từ, tài khoản...)
-- IP address
-
-#### 16.2.4. Bảo Vệ Chứng Từ
-- Không cho phép xóa chứng từ đã khóa sổ
-- Chỉ Admin mới có quyền xóa chứng từ chưa khóa sổ
-- Ghi log mọi thay đổi
-
-### 16.3. Cấu Hình Hệ Thống
-
-#### 16.3.1. Quản Lý Công Ty (Company Management)
-- Đăng ký thông tin pháp nhân
-- Cấu hình thông tin kế toán:
-  * Tên công ty
-  * Mã số thuế
-  * Địa chỉ
-  * Niên độ kế toán
-  * Nguyên tệ (loại tiền tệ cơ sở)
-
-#### 16.3.2. Khai Báo Số Dư Đầu Kỳ
-- Nhập số dư các tài khoản đầu kỳ
-- Đảm bảo cân đối Nợ = Có
-- Kiểm tra trước khi bắt đầu sử dụng hệ thống
-
----
-
-## TỔNG KẾT QUY TRÌNH NGHIỆP VỤ
-
-### Luồng Nghiệp Vụ Chuẩn
-
-```
-1. KHỞI TẠO
-   └── Cấu hình pháp nhân
-   └── Khai báo số dư đầu kỳ
-
-2. NGHIỆP VỤ THƯỜNG XUYÊN
-   ├── Quản lý Đối tác (KH/NCC)
-   ├── Mua hàng → Nhập kho
-   ├── Bán hàng → Xuất kho
-   ├── Quản lý Quỹ (Thu/Chi)
-   └── Tính lương & Trích BHXH
-
-3. NGHIỆP VỤ KẾ TOÁN
-   ├── Ghi sổ chứng từ
-   ├── Theo dõi công nợ
-   └── Đối chiếu tài khoản
-
-4. BÁO CÁO THUẾ
-   ├── Báo cáo Thuế GTGT
-   ├── Báo cáo Thuế TNDN
-   └── Báo cáo Thuế TNCN
-
-5. BÁO CÁO TÀI CHÍNH
-   ├── Báo cáo KQKD
-   ├── Bảng Cân đối kế toán
-   └── Báo cáo Lưu chuyển tiền tệ
-
-6. KẾT THÚC KỲ
-   ├── Kiểm tra sổ sách
-   ├── Kết chuyển khóa sổ
-   └── Xuất báo cáo tài chính
-```
-
-### Nguyên Tắc Kế Toán Áp Dụng
-
-1. **Kế toán kép:** Mỗi nghiệp vụ đều có bút toán Nợ = Có
-2. **Thông tư 99/2025/TT-BTC:** Tuân thủ chuẩn mực kế toán Việt Nam
-3. **Định khoản tự động:** Hệ thống tự sinh bút toán chuẩn
-4. **Kiểm soát cân đối:** Không cho phép ghi sổ nếu lệch số
-5. **Đa tiền tệ:** Hỗ trợ quy đổi tự động
-6. **Lưu trữ đầy đủ:** Theo dõi chi tiết từng nghiệp vụ
-
-### Lợi Ích Hệ Thống
-
-✓ **Tự động hóa:** Giảm thiểu thao tác thủ công, giảm sai sót
-✓ **Tính toán chính xác:** Tự động tính thuế, khấu hao, lương
-✓ **Báo cáo real-time:** Số liệu luôn cập nhật
-✓ **Tuân thủ pháp luật:** Định dạng theo Thông tư 99
-✓ **Đa người dùng:** Phân quyền linh hoạt, bảo mật cao
-✓ **Multi-company:** Quản lý nhiều công ty trên cùng hệ thống
-✓ **Xuất báo cáo:** Hỗ trợ Excel, PDF cho mọi báo cáo
-
----
-
-**Tài liệu được tạo bởi:** Hệ thống ERP Kế Toán  
-**Phiên bản:** 1.0  
-**Cập nhật:** 2026  
-**Căn cứ pháp lý:** Thông tư 99/2025/TT-BTC
 // END_OF_FILE
 ------------------------------------------------------------
 
@@ -27513,12 +26751,14 @@ export default function CashManagement() {
 
 // FILE_PATH: front-end/src/views/closing/ClosingProcess.jsx
 // START_OF_FILE
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 // FIX 3: Account dictionary maintained locally for frontend
 // Backend updates via API if needed
@@ -27570,28 +26810,58 @@ export default function ClosingProcess() {
 
   const currentCompanyId = activeCompany?.id || activeCompany || vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
   
+  const loadBalances = useCallback(async () => {
+    if (!currentCompanyId) return;
+
+    setLoadingBalances(true);
+    try {
+      const response = await api.get('/inventory/balances', {
+        params: { company_id: currentCompanyId, year: fiscalYear }
+      });
+      if (response.data?.success && response.data.data?.accountLedger) {
+        setAccountLedger(response.data.data.accountLedger);
+      }
+    } catch (error) {
+      console.error('Lỗi tải số dư tài khoản:', error);
+    } finally {
+      setLoadingBalances(false);
+    }
+  }, [currentCompanyId, fiscalYear]);
+
   // Fetch account balances from backend API
   useEffect(() => {
-    const loadBalances = async () => {
-      if (!currentCompanyId) return;
-      
-      setLoadingBalances(true);
-      try {
-        const response = await api.get('/inventory/balances', {
-          params: { company_id: currentCompanyId, year: fiscalYear }
-        });
-        if (response.data?.success && response.data.data?.accountLedger) {
-          setAccountLedger(response.data.data.accountLedger);
-        }
-      } catch (error) {
-        console.error('Lỗi tải số dư tài khoản:', error);
-      } finally {
-        setLoadingBalances(false);
-      }
-    };
-
     loadBalances();
-  }, [currentCompanyId, fiscalYear]);
+  }, [loadBalances]);
+
+  const closingRealtimeRefresh = useCallback(async () => {
+    setLog('✓ Đã nhận tín hiệu realtime: kết chuyển hoàn tất, hệ thống đang đồng bộ lại số liệu...');
+    await loadBalances();
+    if (fetchVouchers) {
+      await fetchVouchers();
+    }
+  }, [fetchVouchers, loadBalances]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    {
+      balances: loadBalances,
+      vouchers: () => (fetchVouchers ? fetchVouchers() : Promise.resolve()),
+      closing: closingRealtimeRefresh
+    },
+    {
+      eventMap: {
+        'closing:completed': ['closing'],
+        closingCompleted: ['closing'],
+        'voucher:created': ['balances', 'vouchers'],
+        'voucher:updated': ['balances', 'vouchers'],
+        'voucher:deleted': ['balances', 'vouchers'],
+        voucherCreated: ['balances', 'vouchers'],
+        voucherUpdated: ['balances', 'vouchers'],
+        voucherDeleted: ['balances', 'vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(currentCompanyId) });
 
   const executeClosing = async () => {
     if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');
@@ -28467,10 +27737,12 @@ export default function WorkInProcess() {
 
 // FILE_PATH: front-end/src/views/dashboard/CashFlowDashboard.jsx
 // START_OF_FILE
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from 'lucide-react';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function CashFlowDashboard() {
   const { vouchers, fetchCashFlow } = useVouchers();
@@ -28480,20 +27752,41 @@ export default function CashFlowDashboard() {
   const [cashFlow, setCashFlow] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Lấy báo cáo dòng tiền chuẩn B03-DN từ backend (tính từ voucher thực tế)
-  useEffect(() => {
-    if (!companyId) return;
-    let cancelled = false;
+  const loadCashFlow = useCallback(() => {
+    if (!companyId) return Promise.resolve();
     setLoading(true);
-    fetchCashFlow(companyId, new Date().getFullYear(), 'indirect')
+
+    return fetchCashFlow(companyId, new Date().getFullYear(), 'indirect')
       .then((data) => {
-        if (!cancelled) setCashFlow(data);
+        setCashFlow(data);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
-    return () => { cancelled = true; };
   }, [companyId, fetchCashFlow]);
+
+  // Lấy báo cáo dòng tiền chuẩn B03-DN từ backend (tính từ voucher thực tế)
+  useEffect(() => {
+    loadCashFlow();
+  }, [loadCashFlow]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { cashflow: loadCashFlow },
+    {
+      eventMap: {
+        'voucher:created': ['cashflow'],
+        'voucher:updated': ['cashflow'],
+        'voucher:deleted': ['cashflow'],
+        voucherCreated: ['cashflow'],
+        voucherUpdated: ['cashflow'],
+        voucherDeleted: ['cashflow'],
+        'closing:completed': ['cashflow'],
+        closingCompleted: ['cashflow']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   // Lịch sử thu/chi: mọi voucher có dòng tiền qua tài khoản tiền (111, 112)
   const { inFlow, outFlow, cashVouchers } = useMemo(() => {
@@ -29158,11 +28451,13 @@ export default function BalanceSheetB01() {
 
 // FILE_PATH: front-end/src/views/financial/IncomeStatement.jsx
 // START_OF_FILE
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getCorporateIncomeTaxRate } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function IncomeStatement() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
@@ -29190,7 +28485,7 @@ export default function IncomeStatement() {
     }
   }, [activeCompany, fiscalYear, activeTab]);
 
-  const fetchCycleData = async () => {
+  const fetchCycleData = useCallback(async () => {
     if (!activeCompany) return;
     
     setCycleLoading(true);
@@ -29206,9 +28501,9 @@ export default function IncomeStatement() {
     } finally {
       setCycleLoading(false);
     }
-  };
+  }, [activeCompany, fiscalYear]);
 
-  const fetchVouchers = async () => {
+  const fetchVouchers = useCallback(async () => {
     if (!activeCompany) return;
     
     setLoading(true);
@@ -29224,7 +28519,35 @@ export default function IncomeStatement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompany, fiscalYear]);
+
+  const refreshCyclesIfOpened = useCallback(() => {
+    if (activeTab === 'cycles') {
+      return fetchCycleData();
+    }
+    return Promise.resolve();
+  }, [activeTab, fetchCycleData]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    {
+      reports: fetchVouchers,
+      cycles: refreshCyclesIfOpened
+    },
+    {
+      eventMap: {
+        'voucher:created': ['reports', 'cycles'],
+        'voucher:updated': ['reports', 'cycles'],
+        'voucher:deleted': ['reports', 'cycles'],
+        voucherCreated: ['reports', 'cycles'],
+        voucherUpdated: ['reports', 'cycles'],
+        voucherDeleted: ['reports', 'cycles'],
+        'closing:completed': ['reports', 'cycles'],
+        closingCompleted: ['reports', 'cycles']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   const getLedgerValue = (accountCode, entryType) => {
     const key = accountCode;
@@ -29978,10 +29301,12 @@ export default function Payroll() {
 
 // FILE_PATH: front-end/src/views/inventory/InventoryManagement.jsx
 // START_OF_FILE
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search } from 'lucide-react';
 import api from '../../utils/api.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function InventoryManagement() {
   const { activeCompany } = useAuth();
@@ -29991,7 +29316,7 @@ export default function InventoryManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
 
-  const loadBalances = async () => {
+  const loadBalances = useCallback(async () => {
     if (!activeCompany) return;
     setLoading(true);
     setError('');
@@ -30006,11 +29331,31 @@ export default function InventoryManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompany]);
 
   useEffect(() => {
     loadBalances();
-  }, [activeCompany]);
+  }, [loadBalances]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { inventory: loadBalances },
+    {
+      eventMap: {
+        'inventory:updated': ['inventory'],
+        inventoryUpdated: ['inventory'],
+        'voucher:created': ['inventory'],
+        'voucher:updated': ['inventory'],
+        'voucher:deleted': ['inventory'],
+        voucherCreated: ['inventory'],
+        voucherUpdated: ['inventory'],
+        voucherDeleted: ['inventory'],
+        'closing:completed': ['inventory'],
+        closingCompleted: ['inventory']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   const handleRunCosting = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn chạy tính giá vốn cuối kỳ? Quá trình này sẽ tính toán lại giá xuất kho theo phương pháp BQGQ/FIFO.')) return;
@@ -30763,11 +30108,13 @@ export default function PurchaseInventory() {
 
 // FILE_PATH: front-end/src/views/reports/FinancialReportsView.jsx
 // START_OF_FILE
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { FileSpreadsheet, BarChart3, FileText, RefreshCw, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function FinancialReportsView() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
@@ -30784,9 +30131,10 @@ export default function FinancialReportsView() {
     if (companyId) {
       fetchReports();
     }
-  }, [companyId, fiscalYear, method]);
+  }, [companyId, fetchReports]);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    if (!companyId) return;
     setLoading(true);
     try {
       const [cashFlowRes, notesRes] = await Promise.all([
@@ -30804,7 +30152,25 @@ export default function FinancialReportsView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyId, fiscalYear, method]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { reports: fetchReports },
+    {
+      eventMap: {
+        'voucher:created': ['reports'],
+        'voucher:updated': ['reports'],
+        'voucher:deleted': ['reports'],
+        voucherCreated: ['reports'],
+        voucherUpdated: ['reports'],
+        voucherDeleted: ['reports'],
+        'closing:completed': ['reports'],
+        closingCompleted: ['reports']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   const handleExportExcel = async () => {
     try {
@@ -31589,9 +30955,11 @@ export default function ItemManagement() {
 // FILE_PATH: front-end/src/views/sales/PartnerManagement.jsx
 // START_OF_FILE
 // FILE_PATH: front-end/src/views/partner/PartnerManagement.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function PartnerManagement({ onRefresh }) {
   const { activeCompany } = useAuth();
@@ -31604,6 +30972,24 @@ export default function PartnerManagement({ onRefresh }) {
     address: ''
   });
   const [loading, setLoading] = useState(false);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { partners: () => onRefresh?.() },
+    {
+      eventMap: {
+        'partner:updated': ['partners'],
+        partnerUpdated: ['partners'],
+        'voucher:created': ['partners'],
+        'voucher:updated': ['partners'],
+        'voucher:deleted': ['partners'],
+        voucherCreated: ['partners'],
+        voucherUpdated: ['partners'],
+        voucherDeleted: ['partners']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany && onRefresh) });
 
   const handleCreatePartner = async (e) => {
     e.preventDefault();
@@ -35748,6 +35134,9 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  preview: {
+    allowedHosts: ['banhang.up.railway.app']
   },
   build: {
     outDir: 'dist',
@@ -41868,11 +41257,11 @@ export const testOSNotification = () => {
 ------------------------------------------------------------
 
 === BÁO CÁO ĐÓNG GÓI THÀNH CÔNG ===
-Tổng số lượng file đã gom: 255
+Tổng số lượng file đã gom: 262
 Phân bố chi tiết theo loại file:
-  - .js: 140 files
-  - .jsx: 64 files
-  - .sql: 10 files
+  - .js: 145 files
+  - .jsx: 65 files
+  - .sql: 11 files
   - .md: 8 files
   - .mjs: 7 files
   - .json: 6 files
@@ -41884,4 +41273,4 @@ Phân bố chi tiết theo loại file:
   - .yaml: 2 files
   - .local: 1 files
   - .production: 1 files
-Thời gian xử lý: 0.15 giây
+Thời gian xử lý: 0.12 giây

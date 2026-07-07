@@ -82,7 +82,7 @@ export async function calculateInventoryCost(companyId, itemId, targetDate) {
  * @param {number} year - Năm tính toán
  * @returns {Object} - Kết quả tính toán
  */
-export async function calculateWeightedAverageCost(companyId, month, year) {
+export async function calculateWeightedAverageCost(companyId, month, year, dbClient = pool) {
   const ruleContext = getInventoryRuleContext();
   const costAccounts = ruleContext.logisticsCostAccounts;
   const allocParams = [companyId];
@@ -112,7 +112,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
     HAVING SUM(CASE WHEN vd.account_code IN (${costAccountsPlaceholders}) AND vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) = 0
   `;
   
-  const { rows: vouchersToAllocate } = await pool.query(allocationQuery, allocParams);
+  const { rows: vouchersToAllocate } = await dbClient.query(allocationQuery, allocParams);
   
   // Thực hiện phân bổ chi phí logistics
   // Tính tổng giá trị nhập kho để phân bổ theo tỷ lệ
@@ -138,7 +138,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
   if (month) logisticsParams.push(month);
   if (year) logisticsParams.push(year);
   
-  const { rows: logisticsRows } = await pool.query(logisticsQuery, logisticsParams);
+  const { rows: logisticsRows } = await dbClient.query(logisticsQuery, logisticsParams);
   const totalLogistics = parseFloat(logisticsRows[0]?.total_logistics) || 0;
   
   // Phân bổ theo tỷ lệ thực tế: totalLogistics / totalInputValue
@@ -152,15 +152,15 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
       
       // Tạo bút toán phân bổ: Nợ TK 156, Có TK 632
       const closingDate = year && month ? `${year}-${String(month).padStart(2, '0')}-31` : new Date().toISOString().split('T')[0];
-      await pool.query(
+      await dbClient.query(
         `INSERT INTO vouchers (company_id, voucher_type, voucher_date, description) 
          VALUES ($1, $2, $3, 'Tự động phân bổ chi phí logistics')`,
         [companyId, ruleContext.allocationVoucherType, closingDate]
       );
       
-      const voucherId = (await pool.query('SELECT LASTVAL()')).rows[0].lastval;
+      const voucherId = (await dbClient.query('SELECT LASTVAL()')).rows[0].lastval;
       
-      await pool.query(
+      await dbClient.query(
         `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount) 
          VALUES ($1, $2, 'DR', $3), ($4, $5, 'CR', $6)`,
         [voucherId, ruleContext.inventoryAccount, logisticCost, voucherId, ruleContext.allocationCreditAccount, logisticCost]
@@ -195,7 +195,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
     ORDER BY v.voucher_date ASC, v.id ASC, vd.id ASC
   `;
 
-  const { rows } = await pool.query(query, params);
+  const { rows } = await dbClient.query(query, params);
 
   // Tính giá bình quân cho từng vật tư
   const itemCosts = {};
@@ -228,7 +228,7 @@ export async function calculateWeightedAverageCost(companyId, month, year) {
       itemCosts[itemId].totalCostValue -= calculatedValue;
       
       // Cập nhật lại amount cho chi tiết xuất kho
-      await pool.query(
+      await dbClient.query(
         'UPDATE voucher_details SET amount = $1 WHERE id = $2',
         [calculatedValue, row.detail_id]
       );

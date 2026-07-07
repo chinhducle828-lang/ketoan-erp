@@ -1,9 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 // FIX 3: Account dictionary maintained locally for frontend
 // Backend updates via API if needed
@@ -55,28 +57,58 @@ export default function ClosingProcess() {
 
   const currentCompanyId = activeCompany?.id || activeCompany || vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
   
+  const loadBalances = useCallback(async () => {
+    if (!currentCompanyId) return;
+
+    setLoadingBalances(true);
+    try {
+      const response = await api.get('/inventory/balances', {
+        params: { company_id: currentCompanyId, year: fiscalYear }
+      });
+      if (response.data?.success && response.data.data?.accountLedger) {
+        setAccountLedger(response.data.data.accountLedger);
+      }
+    } catch (error) {
+      console.error('Lỗi tải số dư tài khoản:', error);
+    } finally {
+      setLoadingBalances(false);
+    }
+  }, [currentCompanyId, fiscalYear]);
+
   // Fetch account balances from backend API
   useEffect(() => {
-    const loadBalances = async () => {
-      if (!currentCompanyId) return;
-      
-      setLoadingBalances(true);
-      try {
-        const response = await api.get('/inventory/balances', {
-          params: { company_id: currentCompanyId, year: fiscalYear }
-        });
-        if (response.data?.success && response.data.data?.accountLedger) {
-          setAccountLedger(response.data.data.accountLedger);
-        }
-      } catch (error) {
-        console.error('Lỗi tải số dư tài khoản:', error);
-      } finally {
-        setLoadingBalances(false);
-      }
-    };
-
     loadBalances();
-  }, [currentCompanyId, fiscalYear]);
+  }, [loadBalances]);
+
+  const closingRealtimeRefresh = useCallback(async () => {
+    setLog('✓ Đã nhận tín hiệu realtime: kết chuyển hoàn tất, hệ thống đang đồng bộ lại số liệu...');
+    await loadBalances();
+    if (fetchVouchers) {
+      await fetchVouchers();
+    }
+  }, [fetchVouchers, loadBalances]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    {
+      balances: loadBalances,
+      vouchers: () => (fetchVouchers ? fetchVouchers() : Promise.resolve()),
+      closing: closingRealtimeRefresh
+    },
+    {
+      eventMap: {
+        'closing:completed': ['closing'],
+        closingCompleted: ['closing'],
+        'voucher:created': ['balances', 'vouchers'],
+        'voucher:updated': ['balances', 'vouchers'],
+        'voucher:deleted': ['balances', 'vouchers'],
+        voucherCreated: ['balances', 'vouchers'],
+        voucherUpdated: ['balances', 'vouchers'],
+        voucherDeleted: ['balances', 'vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(currentCompanyId) });
 
   const executeClosing = async () => {
     if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');
