@@ -77,7 +77,8 @@ export default function AuditLogs() {
       'LOGIN': 'bg-emerald-100 text-emerald-700 border-emerald-200',
       'CREATE': 'bg-blue-100 text-blue-700 border-blue-200',
       'UPDATE': 'bg-amber-100 text-amber-700 border-amber-200',
-      'DELETE': 'bg-rose-100 text-rose-700 border-rose-200'
+      'DELETE': 'bg-rose-100 text-rose-700 border-rose-200',
+      'GOODSISSUE': 'bg-orange-100 text-orange-700 border-orange-200'
     };
     return badges[action] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
@@ -175,6 +176,7 @@ export default function AuditLogs() {
                 <option value="CREATE">CREATE</option>
                 <option value="UPDATE">UPDATE</option>
                 <option value="DELETE">DELETE</option>
+                <option value="GOODSISSUE">GOODSISSUE</option>
               </select>
             </div>
 

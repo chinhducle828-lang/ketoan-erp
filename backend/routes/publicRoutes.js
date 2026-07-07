@@ -5,6 +5,7 @@ import { publishStorefrontOrderEvent } from '../services/storefrontRealtime.serv
 import { getBusinessRules, getSaleRules } from '../config/businessRules.js';
 import { sendToRole } from '../services/webPush.service.js';
 import { resolveTaxBreakdown } from '../services/taxRule.service.js';
+import { logAudit } from '../services/audit.service.js';
 
 const router = express.Router();
 const SCHEMA_CACHE_TTL_MS = 30 * 1000;
@@ -611,6 +612,21 @@ router.post('/orders', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Ghi audit log (non-blocking)
+    try {
+      const auditAction = (voucherType || '').trim().toUpperCase() === 'XK' ? 'GOODSISSUE' : 'CREATE';
+      logAudit({
+        userId: null,
+        action: auditAction,
+        entityType: 'VOUCHERS',
+        newValues: { voucherId, voucherNumber, amount, netAmount: amount, taxAmount, items: lineItems },
+        ipAddress: req.ip,
+        companyId: Number(companyId)
+      });
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr.message);
+    }
 
     // Send notifications (non-blocking)
     try {
