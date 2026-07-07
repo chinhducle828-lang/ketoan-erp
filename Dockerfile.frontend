@@ -7,6 +7,8 @@ RUN npm ci
 
 COPY front-end/ .
 
+ENV VITE_API_BASE_URL=https://dazzling-grace-production-03a5.up.railway.app
+
 RUN npm run build
 
 EXPOSE 3000
