@@ -8,7 +8,7 @@ export default {
   transform: {},
   moduleFileExtensions: ['js', 'mjs'],
   testMatch: ['**/tests/**/*.test.js'],
-  setupFiles: ['<rootDir>/tests/setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   collectCoverageFrom: [
     'validators/**/*.js',
     'services/**/*.js',

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShoppingCart, X, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
+import { getUnitPriceWithTax } from '../utils/formatters';
 
 /**
  * Floating Action Bar for Mobile Cart
@@ -19,9 +20,9 @@ export default function FloatingCartBar({
 
   return (
     <div className="floating-action-bar md:hidden">
-      <div className="max-w-7xl mx-auto px-4 py-3">
+      <div className="max-w-[1180px] mx-auto px-3 py-2.5">
         {/* Cart Summary */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <div className="relative">
               <ShoppingCart size={20} className="text-indigo-600" />
@@ -29,9 +30,7 @@ export default function FloatingCartBar({
                 {itemCount}
               </span>
             </div>
-            <span className="text-sm font-bold text-slate-800">
-              {subtotal.toLocaleString('vi-VN')}đ
-            </span>
+            <span className="text-[11px] text-slate-500 font-medium">Tổng thanh toán</span>
           </div>
           <button
             onClick={onClose}
@@ -41,6 +40,12 @@ export default function FloatingCartBar({
             <X size={20} />
           </button>
         </div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-base font-bold text-indigo-600">
+            {subtotal.toLocaleString('vi-VN')}đ
+          </span>
+          <span className="text-[10px] text-emerald-600 font-medium">Đã bao gồm Thuế VAT 10%</span>
+        </div>
 
         {/* Cart Items Preview */}
         <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
@@ -49,7 +54,7 @@ export default function FloatingCartBar({
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-800 truncate">{item.name}</p>
                 <p className="text-[10px] text-slate-500">
-                  {item.price_sell?.toLocaleString('vi-VN')}đ x {item.quantity}
+                  {getUnitPriceWithTax(item).toLocaleString('vi-VN')}đ x {item.quantity}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -83,7 +88,7 @@ export default function FloatingCartBar({
         {/* Checkout Button */}
         <button
           onClick={onCheckout}
-          className="w-full touch-target bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+          className="w-full btn-balanced-primary"
         >
           <span>Tiến hành đặt hàng</span>
           <ArrowRight size={18} />

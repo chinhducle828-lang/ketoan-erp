@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingCart, Heart, Eye, Package } from 'lucide-react';
 import StockIndicator from './StockIndicator';
+import { getUnitPriceWithTax } from '../utils/formatters';
 
 /**
  * Compact Product Card Component for Storefront
@@ -10,13 +11,13 @@ export default function ProductCard({
   product,
   onAction,
   actionLabel = 'Thêm',
-  actionClassName = 'touch-target flex-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:bg-indigo-800 transition flex items-center justify-center gap-1',
+  actionClassName = 'btn-balanced-primary flex-1',
   onViewDetails,
   onSecondaryAction,
   isInWishlist = false,
   onToggleWishlist,
   secondaryLabel = 'Xem',
-  secondaryClassName = 'touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 active:bg-slate-300 transition'
+  secondaryClassName = 'btn-balanced-secondary flex-1'
 }) {
   const unitPrice = Number(product?.price_sell) || 0;
   const stockQuantity = Number(product?.opening_quantity) || 0;
@@ -81,16 +82,19 @@ export default function ProductCard({
 
         {/* Price and Actions - compact */}
         <div className="mt-auto">
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-baseline gap-1">
               <p className="text-sm font-bold text-indigo-600">
-                {unitPrice.toLocaleString('vi-VN')}đ
+                {getUnitPriceWithTax(product).toLocaleString('vi-VN')}đ
               </p>
               {product?.unit && (
                 <p className="text-[9px] text-slate-500">/{product.unit}</p>
               )}
             </div>
           </div>
+          <p className="text-[9px] text-emerald-600 font-medium mb-1.5">
+            Đã bao gồm Thuế VAT 10%
+          </p>
 
           {/* Action Buttons - compact */}
           <div className="flex gap-1.5">

@@ -276,8 +276,18 @@ export function getTotalCredit(ledger, accountCode) {
  * @param {number} revenue - Doanh thu năm trước (VNĐ)
  * @returns {number} - Thuế suất áp dụng
  */
-export function getTaxRateByRevenue(revenue) {
+export function getTaxRateByRevenue(revenue, entityType = 'company') {
   const closingRules = getClosingRules();
+  const normalizedEntityType = String(entityType || 'company').trim().toLowerCase();
+
+  // Hộ kinh doanh (thuế khoán) và Hợp tác xã (ưu đãi) áp dụng mức thuế riêng
+  if (normalizedEntityType === 'household') {
+    return 0; // Thuế khoán, không tính thuế TNDN lũy tiến
+  }
+  if (normalizedEntityType === 'cooperative') {
+    return 0.1; // Ưu đãi thuế TNDN cho hợp tác xã
+  }
+
   // Support both progressiveTaxBrackets (new) and taxBracketsByRevenue (legacy)
   const brackets = Array.isArray(closingRules.progressiveTaxBrackets)
     ? [...closingRules.progressiveTaxBrackets]
@@ -345,8 +355,23 @@ export function calculateTax(profitBeforeTax, prevYearRevenue = 0) {
  * @param {number} profit - Lợi nhuận trước thuế (VNĐ)
  * @returns {Object} - { totalTax, appliedRate, breakdown: [{ threshold, amount, rate, tax }] }
  */
-export function calculateProgressiveTax(revenue, profit) {
+export function calculateProgressiveTax(revenue, profit, entityType = 'company') {
   const closingRules = getClosingRules();
+  const normalizedEntityType = String(entityType || 'company').trim().toLowerCase();
+
+  // Hộ kinh doanh (thuế khoán) và Hợp tác xã (ưu đãi) áp dụng mức thuế riêng
+  if (normalizedEntityType === 'household') {
+    return { totalTax: 0, appliedRate: 0, breakdown: [] };
+  }
+  if (normalizedEntityType === 'cooperative') {
+    const tax = profit > 0 ? profit * 0.1 : 0;
+    return {
+      totalTax: tax,
+      appliedRate: profit > 0 ? 0.1 : 0,
+      breakdown: profit > 0 ? [{ threshold: null, amount: profit, rate: 0.1, tax }] : []
+    };
+  }
+
   const brackets = Array.isArray(closingRules.progressiveTaxBrackets)
     ? closingRules.progressiveTaxBrackets
     : [

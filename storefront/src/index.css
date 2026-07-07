@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  font-size: clamp(1rem, 1rem + 0.22vw, 1.15rem);
-  --ui-font-base: 1rem;
-  --ui-font-lg: 1.16rem;
-  --ui-font-xl: 1.4rem;
-  --ui-line-height: 1.75;
-  --ui-radius: 1rem;
-  --ui-radius-md: 0.75rem;
+  font-size: clamp(0.875rem, 0.875rem + 0.15vw, 0.95rem);
+  --ui-font-base: 0.875rem;
+  --ui-font-lg: 1rem;
+  --ui-font-xl: 1.15rem;
+  --ui-line-height: 1.5;
+  --ui-radius: 0.75rem;
+  --ui-radius-md: 0.5rem;
   --ui-border-subtle: 1px solid var(--color-border-subtle);
-  --ui-shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
-  --ui-shadow-card: 0 18px 50px rgba(15, 23, 42, 0.12);
+  --ui-shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.08);
+  --ui-shadow-card: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
 :root, body, #root {
@@ -68,7 +68,7 @@
 
 @layer base {
   html {
-    font-size: clamp(1rem, 1rem + 0.22vw, 1.15rem);
+    font-size: clamp(0.875rem, 0.875rem + 0.15vw, 0.95rem);
     scroll-behavior: smooth;
   }
 
@@ -87,9 +87,9 @@
   select,
   textarea {
     font-size: var(--ui-font-base);
-    min-height: 3rem;
+    min-height: 2.5rem;
     border-radius: var(--ui-radius-md);
-    line-height: 1.5;
+    line-height: 1.4;
   }
 
   input,
@@ -98,7 +98,7 @@
     transition-property: background-color, border-color, color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
-    padding: 0.8rem 0.9rem;
+    padding: 0.55rem 0.7rem;
     border: var(--ui-border-subtle);
   }
 
@@ -162,11 +162,27 @@
   }
 
   .content-shell {
-    @apply w-full max-w-[min(100%,1600px)] mx-auto px-4 sm:px-6 lg:px-8 flex-1;
+    @apply w-full max-w-[min(100%,1180px)] mx-auto px-3 sm:px-4 lg:px-6 flex-1;
   }
 
   .floating-action-bar {
     @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-50;
+  }
+
+  /* Nút có chiều ngang cân đối: cùng min-width, padding đồng đều */
+  .btn-balanced {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition;
+    min-width: 7rem;
+    padding: 0.5rem 0.9rem;
+    font-size: var(--ui-font-base);
+  }
+
+  .btn-balanced-primary {
+    @apply btn-balanced bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800;
+  }
+
+  .btn-balanced-secondary {
+    @apply btn-balanced bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300;
   }
 
   .stock-high {

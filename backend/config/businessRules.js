@@ -41,7 +41,7 @@ const DEFAULT_BUSINESS_RULES = {
       logisticsOpsAccount: '156_OPS',
       legacyAccountDrFallback: ['131', '111', '112'],
       legacyAccountCrFallback: ['511', '3331', '33311', '131'],
-      excludeFinancialEntriesForStorefront: ['632', '156']
+      excludeFinancialEntriesForStorefront: []
     },
     closing: {
       voucherType: 'DauKy',

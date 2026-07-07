@@ -48,10 +48,21 @@ export async function runClosingEntries(companyId, month, year) {
     throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
   }
 
-  const client = await pool.connect();
+    const client = await pool.connect();
   const closingRules = getClosingRules();
   const closingAccounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
+
+  // Đọc entity_type của công ty để áp dụng phân loại thuế A–D
+  let companyEntityType = 'company';
+  try {
+    const companyMetaRes = await client.query('SELECT entity_type FROM companies WHERE id = $1 LIMIT 1', [companyId]);
+    if (companyMetaRes.rows.length > 0) {
+      companyEntityType = String(companyMetaRes.rows[0].entity_type || 'company').trim().toLowerCase();
+    }
+  } catch {
+    companyEntityType = 'company';
+  }
   const revenueAccount = String(closingAccounts.revenue || '511');
   const costAccounts = Array.isArray(closingAccounts.cost) && closingAccounts.cost.length > 0
     ? closingAccounts.cost.map((acc) => String(acc))
@@ -198,8 +209,8 @@ export async function runClosingEntries(companyId, month, year) {
       const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1);
       const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
-      // Tính thuế lũy tiến thực sự
-      const progressiveTax = calculateProgressiveTax(prevYearRevenue, netProfit);
+      // Tính thuế lũy tiến thực sự (theo entity_type của công ty)
+      const progressiveTax = calculateProgressiveTax(prevYearRevenue, netProfit, companyEntityType);
       taxAmount = progressiveTax.totalTax;
       appliedTaxRate = progressiveTax.appliedRate;
       taxBreakdown = progressiveTax.breakdown;
