@@ -30,6 +30,7 @@ import {
   assignStaffSchema,
   assignCompanySchema,
 } from '../validators/index.js';
+import { logAction, getClientIp } from '../services/auditLog.service.js';
 
 const router = express.Router();
 const EMPLOYEE_ROLES = ['nv', 'nv_banhang', 'nv_kho'];
@@ -129,20 +130,19 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
       }
     }
 
-    // GHI AUDIT LOG: Theo dõi lịch sử đăng nhập hệ thống
+// GHI AUDIT LOG: Theo dõi lịch sử đăng nhập hệ thống
     try {
-      await pool.query(
-        `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address) 
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          user.id, 
-          'LOGIN', 
-          'USERS', 
-          null, 
-          JSON.stringify({ username: user.username, role: user.role, company_ids: companyIds }), 
-          req.ip
-        ]
-      );
+      await logAction({
+        userId: user.id,
+        action: 'LOGIN',
+        entityType: 'USERS',
+        newValues: {
+          username: user.username,
+          role: user.role,
+          company_ids: companyIds
+        },
+        ipAddress: getClientIp(req)
+      });
     } catch (err) {
       console.error('Không thể ghi audit log:', err.message);
     }
@@ -374,13 +374,18 @@ router.post('/external-login', async (req, res) => {
       return res.status(500).json({ error: 'Failed to create session' });
     }
 
-    // Log audit entry
+// Log audit entry
     try {
-      await pool.query(
-        `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [payload.id, 'STOREFRONT_LOGIN', 'USERS', null, JSON.stringify({ company_id, role: requestedRole }), req.ip]
-      );
+      await logAction({
+        userId: payload.id,
+        action: 'STOREFRONT_LOGIN',
+        entityType: 'USERS',
+        newValues: {
+          company_id,
+          role: requestedRole
+        },
+        ipAddress: getClientIp(req)
+      });
     } catch (e) {
       console.warn('Failed to write audit log for storefront login:', e.message);
     }

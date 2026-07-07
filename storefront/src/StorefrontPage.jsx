@@ -709,7 +709,7 @@ export default function StorefrontPage() {
         phone: checkoutForm.phone,
         address: checkoutForm.address,
         amount: checkoutPreviewAmount,
-        taxRate: 0.1
+taxRate: 0.08
       };
 
       const { data } = await publicApi.post('/orders', payload);

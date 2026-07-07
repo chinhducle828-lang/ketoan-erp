@@ -125,6 +125,7 @@ export const getAuditLogs = async (req, res) => {
       user_id,
       action,
       entity_type,
+      company_id,
       start_date,
       end_date
     } = req.query;
@@ -152,6 +153,12 @@ export const getAuditLogs = async (req, res) => {
       paramCount++;
       conditions.push(`al.entity_type = $${paramCount}`);
       params.push(entity_type);
+    }
+
+    if (company_id) {
+      paramCount++;
+      conditions.push(`al.company_id = $${paramCount}`);
+      params.push(Number(company_id));
     }
 
     if (start_date) {

@@ -87,7 +87,10 @@ export default function AuditLogs() {
       'VOUCHERS': 'bg-indigo-100 text-indigo-700 border-indigo-200',
       'USERS': 'bg-purple-100 text-purple-700 border-purple-200',
       'PARTNERS': 'bg-pink-100 text-pink-700 border-pink-200',
-      'COMPANIES': 'bg-teal-100 text-teal-700 border-teal-200'
+      'COMPANIES': 'bg-teal-100 text-teal-700 border-teal-200',
+      'ITEMS': 'bg-orange-100 text-orange-700 border-orange-200',
+      'INVENTORY_VOUCHERS': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'VOUCHER_DETAILS': 'bg-violet-100 text-violet-700 border-violet-200'
     };
     return badges[entityType] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
@@ -188,9 +191,12 @@ export default function AuditLogs() {
               >
                 <option value="">Tất cả</option>
                 <option value="VOUCHERS">VOUCHERS</option>
+                <option value="VOUCHER_DETAILS">VOUCHER_DETAILS</option>
                 <option value="USERS">USERS</option>
                 <option value="PARTNERS">PARTNERS</option>
                 <option value="COMPANIES">COMPANIES</option>
+                <option value="ITEMS">ITEMS</option>
+                <option value="INVENTORY_VOUCHERS">INVENTORY_VOUCHERS</option>
               </select>
             </div>
 
