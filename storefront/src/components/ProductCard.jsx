@@ -93,7 +93,7 @@ export default function ProductCard({
             </div>
           </div>
           <p className="text-[9px] text-emerald-600 font-medium mb-1.5">
-            Đã bao gồm Thuế VAT 10%
+            Đã bao gồm Thuế VAT 8%
           </p>
 
           {/* Action Buttons - compact */}
