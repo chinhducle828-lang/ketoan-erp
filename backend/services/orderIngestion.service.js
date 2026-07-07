@@ -1,29 +1,21 @@
 import { pool } from '../config/db.js';
 import { publishToCompany } from './websocket.service.js';
-import { getInventoryRules, getOrderIngestionRules } from '../config/businessRules.js';
+import { getInventoryRules, getOrderIngestionRules, getSaleRules, getBusinessRules } from '../config/businessRules.js';
 import { runSaga } from './saga.service.js';
+import { buildAccountingEntries } from './logistics.service.js';
+import { resolveTaxBreakdown } from './taxRule.service.js';
 
 const getSalesVoucherType = () => {
   const rules = getInventoryRules();
   return String(rules.salesVoucherType || 'XK');
 };
 
-const getInventoryAccount = () => {
-  const rules = getInventoryRules();
-  const accounts = rules.accounts || {};
-  return String(accounts.inventory || '156');
-};
-
-const getSalesAccount = () => {
-  const rules = getInventoryRules();
-  const accounts = rules.accounts || {};
-  return String(accounts.sales || '511');
-};
-
 export async function ingestOrderToVoucher(order, userId = null) {
   const client = await pool.connect();
   let createdVoucherId = null;
   const { sagaPrefix, defaultCurrency } = getOrderIngestionRules();
+  const saleRules = getSaleRules();
+  const businessRules = getBusinessRules();
 
   const rollbackVoucher = async (voucherId) => {
     if (!voucherId) return;
@@ -50,8 +42,27 @@ export async function ingestOrderToVoucher(order, userId = null) {
               await client.query('BEGIN');
 
               const voucherType = getSalesVoucherType();
-              const inventoryAccount = getInventoryAccount();
-              const salesAccount = getSalesAccount();
+
+              // Đọc entity_type của công ty để đồng bộ VAT theo loại hình
+              let resolvedEntityType = String(order?.entity_type || '').trim().toLowerCase();
+              let resolvedRevenueBand = String(order?.annual_revenue_band || '').trim().toLowerCase();
+              if (!resolvedEntityType || !resolvedRevenueBand) {
+                const companyRes = await client.query(
+                  'SELECT entity_type, annual_revenue_band FROM companies WHERE id = $1 LIMIT 1',
+                  [order.company_id]
+                );
+                if (companyRes.rows.length > 0) {
+                  if (!resolvedEntityType) {
+                    resolvedEntityType = String(companyRes.rows[0].entity_type || 'company').trim().toLowerCase();
+                  }
+                  if (!resolvedRevenueBand) {
+                    resolvedRevenueBand = String(companyRes.rows[0].annual_revenue_band || 'under_1b').trim().toLowerCase();
+                  }
+                } else {
+                  resolvedEntityType = 'company';
+                  resolvedRevenueBand = 'under_1b';
+                }
+              }
 
               const voucherRes = await client.query(
                 `INSERT INTO vouchers (
@@ -72,28 +83,56 @@ export async function ingestOrderToVoucher(order, userId = null) {
               );
 
               const voucherId = voucherRes.rows[0].id;
-              let totalDebit = 0;
 
-              for (const item of order.items) {
-                const { item_id, quantity, amount } = item;
-                if (quantity > 0 && amount > 0) {
-                  totalDebit += parseFloat(amount);
-                  await client.query(
-                    `INSERT INTO voucher_details (
-                      voucher_id, account_code, entry_type, amount, quantity, item_id, partner_id
-                    ) VALUES ($1, $2, 'DR', $3, $4, $5, $6)`,
-                    [voucherId, inventoryAccount, amount, quantity, item_id, order.customer_id]
-                  );
-                }
-              }
+              // Tính tổng doanh thu (net) và giá vốn từ items
+              const amountPrecision = Number(businessRules.pricing?.amountPrecision ?? 2);
+              const netAmount = Number(
+                order.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toFixed(amountPrecision)
+              );
+              const costAmount = Number(
+                order.items.reduce((sum, item) => sum + (Number(item.cost_amount) || 0), 0).toFixed(amountPrecision)
+              );
 
-              if (totalDebit > 0) {
+              // Tính VAT theo entity_type (đồng bộ với storefront)
+              const taxResolution = resolveTaxBreakdown({
+                amount: netAmount,
+                taxRate: order.taxRate,
+                entityType: resolvedEntityType,
+                annualRevenueBand: resolvedRevenueBand,
+                category: order.category,
+                businessRules,
+                priceMode: order.priceMode
+              });
+              const { taxAmount, grossAmount } = taxResolution;
+
+              // Tạo bút toán chuẩn: Nợ 131 / Có 511 / Có 3331 / Nợ 632 / Có 156
+              const accountingEntries = buildAccountingEntries({
+                amount: grossAmount,
+                costAmount,
+                taxAmount
+              });
+
+              for (const entry of accountingEntries) {
+                if (Number(entry.amount || 0) <= 0) continue;
                 await client.query(
                   `INSERT INTO voucher_details (
                     voucher_id, account_code, entry_type, amount, partner_id
-                  ) VALUES ($1, $2, 'CR', $3, $4)`,
-                  [voucherId, salesAccount, totalDebit, order.customer_id]
+                  ) VALUES ($1, $2, $3, $4, $5)`,
+                  [voucherId, entry.accountCode, entry.entryType, Number(entry.amount), order.customer_id]
                 );
+              }
+
+              // Dòng vận hành kho (amount=0, giữ quantity + item_id)
+              for (const item of order.items) {
+                const { item_id, quantity } = item;
+                if (Number(quantity) > 0) {
+                  await client.query(
+                    `INSERT INTO voucher_details (
+                      voucher_id, account_code, entry_type, amount, quantity, item_id, partner_id
+                    ) VALUES ($1, $2, 'CR', 0, $3, $4, $5)`,
+                    [voucherId, saleRules.logisticsOpsAccount, quantity, item_id, order.customer_id]
+                  );
+                }
               }
 
               await client.query('COMMIT');

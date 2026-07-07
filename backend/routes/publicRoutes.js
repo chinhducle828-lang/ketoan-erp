@@ -387,10 +387,13 @@ router.post('/orders', async (req, res) => {
     }
 
     const itemById = new Map(itemRes.rows.map((row) => [String(row.item_pk), row]));
+    const hasCostPrice = itemColumns.has('cost_price');
     const lineItems = mergedItems.map((line) => {
       const item = itemById.get(String(line.itemId));
       const unitPrice = Number(item.price_sell || 0);
+      const unitCost = hasCostPrice ? Number(item.cost_price || 0) : unitPrice;
       const lineAmount = Number((unitPrice * line.quantity).toFixed(amountPrecision));
+      const lineCostAmount = Number((unitCost * line.quantity).toFixed(amountPrecision));
       return {
         itemId: item.item_pk,
         code: item.code,
@@ -398,7 +401,9 @@ router.post('/orders', async (req, res) => {
         unit: item.unit,
         quantity: line.quantity,
         unitPrice,
-        lineAmount
+        unitCost,
+        lineAmount,
+        lineCostAmount
       };
     });
 
@@ -415,7 +420,8 @@ router.post('/orders', async (req, res) => {
     const { taxAmount, grossAmount } = taxResolution;
 
     const voucherNumber = buildOrderNumber(voucherPrefix);
-    const accountingEntries = buildAccountingEntries({ amount: grossAmount, costAmount: 0, taxAmount })
+    const totalCostAmount = Number(lineItems.reduce((sum, line) => sum + (line.lineCostAmount || 0), 0).toFixed(amountPrecision));
+    const accountingEntries = buildAccountingEntries({ amount: grossAmount, costAmount: totalCostAmount, taxAmount })
       .filter((entry) => !excludeFinancialEntries.has(entry.accountCode))
       .map((entry) => ({
         ...entry,

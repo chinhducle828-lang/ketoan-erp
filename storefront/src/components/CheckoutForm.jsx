@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { formatPrice, getUnitPrice, getOrderAmount } from '../utils/formatters';
+import { formatPrice, getUnitPrice, getOrderAmount, getUnitPriceWithTax } from '../utils/formatters';
 import { createOrder } from '../utils/api';
+
+const VAT_RATE = 0.1;
 
 const CheckoutForm = ({
   cart,
@@ -20,6 +22,7 @@ const CheckoutForm = ({
 
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price_sell) || 0) * item.quantity, 0);
   const total = Math.max(0, subtotal - discount);
+  const totalWithTax = Math.max(0, (subtotal * (1 + VAT_RATE)) - discount);
 
   const applyCoupon = () => {
     if (coupon === 'SAVE10') {
@@ -47,7 +50,7 @@ const CheckoutForm = ({
         customerName,
         phone,
         address,
-        amount: total,
+        amount: totalWithTax,
         taxRate: 0.1
       };
 
@@ -126,9 +129,13 @@ setMessage(`Đặt hàng thành công. Mã chứng từ: ${result?.voucherNumber
             <span>-{formatPrice(discount, selectedCurrency)}</span>
           </div>
         )}
-        <div className="flex justify-between text-lg font-bold">
-          <span>{t('total', 'VI')}</span>
-          <span>{formatPrice(total, selectedCurrency)}</span>
+        <div className="flex justify-between text-sm text-slate-500">
+          <span>Thuế VAT 10%</span>
+          <span>{formatPrice(subtotal * VAT_RATE - discount * VAT_RATE, selectedCurrency)}</span>
+        </div>
+        <div className="flex justify-between text-lg font-bold text-indigo-600 mt-1">
+          <span>Tổng thanh toán</span>
+          <span>{formatPrice(totalWithTax, selectedCurrency)}</span>
         </div>
       </div>
 
@@ -145,7 +152,7 @@ setMessage(`Đặt hàng thành công. Mã chứng từ: ${result?.voucherNumber
           <button
             type="button"
             onClick={applyCoupon}
-            className="rounded-lg bg-slate-100 px-4 py-2 text-sm"
+            className="btn-balanced-secondary"
           >
             {t('apply', 'VI')}
           </button>
