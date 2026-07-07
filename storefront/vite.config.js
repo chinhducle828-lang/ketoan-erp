@@ -16,6 +16,9 @@ export default defineConfig({
       }
     }
   },
+  preview: {
+    allowedHosts: ['banhang.up.railway.app']
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
