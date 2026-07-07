@@ -4,6 +4,7 @@ import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '..
 import { publishStorefrontOrderEvent } from '../services/storefrontRealtime.service.js';
 import { getBusinessRules, getSaleRules } from '../config/businessRules.js';
 import { sendToRole } from '../services/webPush.service.js';
+import { resolveTaxBreakdown } from '../services/taxRule.service.js';
 
 const router = express.Router();
 const SCHEMA_CACHE_TTL_MS = 30 * 1000;
@@ -304,13 +305,34 @@ router.post('/orders', async (req, res) => {
       .filter(Boolean)
     );
 
-    const { companyId, itemId, quantity, items, customerName, phone, address, taxRate } = req.body;
+    const { companyId, itemId, quantity, items, customerName, phone, address, taxRate, entityType, annualRevenueBand, category, priceMode } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
     }
 
     await ensureLockDateOpen(client, Number(companyId));
+
+    // Tự động lấy thông tin pháp nhân từ companies nếu payload không gửi
+    let resolvedEntityType = String(entityType || '').trim().toLowerCase();
+    let resolvedRevenueBand = String(annualRevenueBand || '').trim().toLowerCase();
+    if (!resolvedEntityType || !resolvedRevenueBand) {
+      const companyRes = await client.query(
+        'SELECT entity_type, annual_revenue_band FROM companies WHERE id = $1 LIMIT 1',
+        [companyId]
+      );
+      if (companyRes.rows.length > 0) {
+        if (!resolvedEntityType) {
+          resolvedEntityType = String(companyRes.rows[0].entity_type || 'company').trim().toLowerCase();
+        }
+        if (!resolvedRevenueBand) {
+          resolvedRevenueBand = String(companyRes.rows[0].annual_revenue_band || 'under_1b').trim().toLowerCase();
+        }
+      } else {
+        resolvedEntityType = 'company';
+        resolvedRevenueBand = 'under_1b';
+      }
+    }
 
     const rawItems = Array.isArray(items) && items.length > 0
       ? items
@@ -381,11 +403,19 @@ router.post('/orders', async (req, res) => {
     });
 
     const amount = Number(lineItems.reduce((sum, line) => sum + line.lineAmount, 0).toFixed(amountPrecision));
-    const safeTaxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : defaultTaxRate;
+    const taxResolution = resolveTaxBreakdown({
+      amount,
+      taxRate,
+      entityType: resolvedEntityType,
+      annualRevenueBand: resolvedRevenueBand,
+      category,
+      businessRules,
+      priceMode
+    });
+    const { taxAmount, grossAmount } = taxResolution;
 
     const voucherNumber = buildOrderNumber(voucherPrefix);
-    const taxAmount = calculateTaxAmount(amount, safeTaxRate);
-    const accountingEntries = buildAccountingEntries({ amount, costAmount: 0, taxAmount })
+    const accountingEntries = buildAccountingEntries({ amount: grossAmount, costAmount: 0, taxAmount })
       .filter((entry) => !excludeFinancialEntries.has(entry.accountCode))
       .map((entry) => ({
         ...entry,
@@ -627,8 +657,9 @@ router.post('/orders', async (req, res) => {
           unitPrice: line.unitPrice,
           amount: line.lineAmount
         })),
-        amount,
-        taxAmount
+        amount: grossAmount,
+        taxAmount,
+        netAmount: amount
       }
     });
   } catch (error) {

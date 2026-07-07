@@ -4,6 +4,9 @@
   "description": "Backend hạch toán kế toán kép TT200 và Thông tư 99/2025/TT-BTC",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",

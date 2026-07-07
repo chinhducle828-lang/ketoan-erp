@@ -16,6 +16,7 @@ export default function IncomeStatement() {
   
   const appliedTaxRate = getCorporateIncomeTaxRate();
   const taxRateLabel = `${Math.round(appliedTaxRate * 100)}%`;
+  const taxModeLabel = 'Cố định';
 
   useEffect(() => {
     if (activeCompany) {
@@ -282,7 +283,7 @@ export default function IncomeStatement() {
           
           <div className="flex items-center gap-2 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200">
             <span>Thuế suất TNDN áp dụng: {taxRateLabel}</span>
-            <span className="text-[10px] bg-emerald-100 px-1.5 py-0.5 rounded">Lũy tiến</span>
+            <span className="text-[10px] bg-emerald-100 px-1.5 py-0.5 rounded">{taxModeLabel}</span>
           </div>
         </div>
       )}
