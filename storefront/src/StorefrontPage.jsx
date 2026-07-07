@@ -1300,7 +1300,7 @@ taxRate: 0.08
         </header>
 
         {/* ========== MAIN CONTENT GRID ========== */}
-        <div className="flex-1 overflow-hidden grid gap-3 p-3" style={{ gridTemplateColumns: '1fr 380px', height: 'calc(100vh - 44px)' }}>
+        <div className="flex-1 overflow-hidden grid gap-2 p-2" style={{ gridTemplateColumns: '1fr 340px', height: 'calc(100vh - 44px)' }}>
 
           {/* ─── LEFT PANEL: Products ─── */}
           <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-sm">
@@ -1336,7 +1336,7 @@ taxRate: 0.08
               ) : filteredItems.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-xs text-slate-500">{t('noProducts', selectedLang)}</div>
               ) : (
-                <div className={`grid gap-2 ${isSalesRole ? 'grid-cols-2' : 'grid-cols-2 xl:grid-cols-3'}`}>
+                <div className={`grid gap-1.5 ${isSalesRole ? 'grid-cols-2' : 'grid-cols-3'}`}>
                   {filteredItems.map((item) => {
                     const isWishlisted = wishlist.includes(item.id);
                     return (

@@ -24,8 +24,8 @@ export default function ProductCard({
   const imageSrc = product?.image_urls?.[0] || product?.image_url;
 
   return (
-    <div className="product-card flex flex-col rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-      {/* Product Image - smaller */}
+    <div className="product-card flex flex-col rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+      {/* Product Image - compact */}
       <div className="relative aspect-[4/3] bg-slate-100 cursor-pointer" onClick={() => onViewDetails(product)}>
         {imageSrc ? (
           <img
@@ -62,49 +62,49 @@ export default function ProductCard({
       </div>
 
       {/* Product Info - compact */}
-      <div className="flex-1 p-2.5 flex flex-col">
+      <div className="flex-1 p-2 flex flex-col">
         <h3 
-          className="text-xs font-bold text-slate-800 mb-0.5 line-clamp-1 cursor-pointer hover:text-indigo-600 transition"
+          className="text-[11px] font-bold text-slate-800 mb-0.5 line-clamp-1 cursor-pointer hover:text-indigo-600 transition"
           onClick={() => onViewDetails(product)}
         >
           {product.name}
         </h3>
         
-        <p className="text-[9px] text-slate-500 font-mono mb-1">
+        <p className="text-[8px] text-slate-500 font-mono mb-0.5">
           {product.code}
         </p>
 
         {product?.description && (
-          <p className="text-[10px] text-slate-600 mb-1 line-clamp-1 flex-1">
+          <p className="text-[9px] text-slate-600 mb-0.5 line-clamp-1 flex-1">
             {product.description}
           </p>
         )}
 
         {/* Price and Actions - compact */}
         <div className="mt-auto">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-0.5">
             <div className="flex items-baseline gap-1">
-              <p className="text-sm font-bold text-indigo-600">
+              <p className="text-xs font-bold text-indigo-600">
                 {getUnitPriceWithTax(product).toLocaleString('vi-VN')}đ
               </p>
               {product?.unit && (
-                <p className="text-[9px] text-slate-500">/{product.unit}</p>
+                <p className="text-[8px] text-slate-500">/{product.unit}</p>
               )}
             </div>
           </div>
-          <p className="text-[9px] text-emerald-600 font-medium mb-1.5">
+          <p className="text-[8px] text-emerald-600 font-medium mb-1">
             Đã bao gồm Thuế VAT 8%
           </p>
 
           {/* Action Buttons - compact */}
-          <div className="flex gap-1.5">
+          <div className="flex gap-1">
             <button
               onClick={() => (onSecondaryAction ?? onViewDetails)?.(product)}
               className={secondaryClassName}
               title={secondaryLabel}
             >
-              <Eye size={13} />
-              <span className="text-[10px]">{secondaryLabel}</span>
+              <Eye size={11} />
+              <span className="text-[9px]">{secondaryLabel}</span>
             </button>
             {onAction && (
               <button
@@ -112,8 +112,8 @@ export default function ProductCard({
                 className={actionClassName}
                 title={actionLabel}
               >
-                <ShoppingCart size={13} />
-                <span className="text-[10px]">{actionLabel}</span>
+                <ShoppingCart size={11} />
+                <span className="text-[9px]">{actionLabel}</span>
               </button>
             )}
           </div>
