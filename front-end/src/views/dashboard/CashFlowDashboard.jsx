@@ -1,7 +1,9 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from 'lucide-react';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function CashFlowDashboard() {
   const { vouchers, fetchCashFlow } = useVouchers();
@@ -11,20 +13,41 @@ export default function CashFlowDashboard() {
   const [cashFlow, setCashFlow] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Lấy báo cáo dòng tiền chuẩn B03-DN từ backend (tính từ voucher thực tế)
-  useEffect(() => {
-    if (!companyId) return;
-    let cancelled = false;
+  const loadCashFlow = useCallback(() => {
+    if (!companyId) return Promise.resolve();
     setLoading(true);
-    fetchCashFlow(companyId, new Date().getFullYear(), 'indirect')
+
+    return fetchCashFlow(companyId, new Date().getFullYear(), 'indirect')
       .then((data) => {
-        if (!cancelled) setCashFlow(data);
+        setCashFlow(data);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
-    return () => { cancelled = true; };
   }, [companyId, fetchCashFlow]);
+
+  // Lấy báo cáo dòng tiền chuẩn B03-DN từ backend (tính từ voucher thực tế)
+  useEffect(() => {
+    loadCashFlow();
+  }, [loadCashFlow]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { cashflow: loadCashFlow },
+    {
+      eventMap: {
+        'voucher:created': ['cashflow'],
+        'voucher:updated': ['cashflow'],
+        'voucher:deleted': ['cashflow'],
+        voucherCreated: ['cashflow'],
+        voucherUpdated: ['cashflow'],
+        voucherDeleted: ['cashflow'],
+        'closing:completed': ['cashflow'],
+        closingCompleted: ['cashflow']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   // Lịch sử thu/chi: mọi voucher có dòng tiền qua tài khoản tiền (111, 112)
   const { inFlow, outFlow, cashVouchers } = useMemo(() => {

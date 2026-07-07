@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { formatPrice, getUnitPrice, getOrderAmount, getUnitPriceWithTax } from '../utils/formatters';
 import { createOrder } from '../utils/api';
 
-const VAT_RATE = 0.1;
+const VAT_RATE = 0.08;
 
 const CheckoutForm = ({
   cart,
@@ -51,7 +51,7 @@ const CheckoutForm = ({
         phone,
         address,
         amount: totalWithTax,
-        taxRate: 0.1
+taxRate: 0.08
       };
 
       const result = await createOrder(orderPayload);
@@ -130,7 +130,7 @@ setMessage(`Đặt hàng thành công. Mã chứng từ: ${result?.voucherNumber
           </div>
         )}
         <div className="flex justify-between text-sm text-slate-500">
-          <span>Thuế VAT 10%</span>
+<span>Thuế VAT 8%</span>
           <span>{formatPrice(subtotal * VAT_RATE - discount * VAT_RATE, selectedCurrency)}</span>
         </div>
         <div className="flex justify-between text-lg font-bold text-indigo-600 mt-1">

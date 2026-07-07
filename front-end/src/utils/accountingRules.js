@@ -4,7 +4,7 @@ export const DEFAULT_PAYROLL_RATES = Object.freeze({
 });
 
 const DEFAULT_CURRENCY = 'VND';
-const DEFAULT_TAX_RATE = 0.1;
+const DEFAULT_TAX_RATE = 0.08;
 
 export const getDefaultCurrency = () => DEFAULT_CURRENCY;
 export const getDefaultTaxRate = () => DEFAULT_TAX_RATE;

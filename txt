@@ -1,0 +1,161 @@
+CHIẾN LƯỢC TÁI CẤU TRÚC VÀ NÂNG CẤP MÃ NGUỒN KETOAN ERP
+
+Mục tiêu: Nâng cao tính dễ bảo trì (Maintainability), độ tin cậy (Reliability), và khả năng mở rộng (Scalability) thông qua việc áp dụng Clean Architecture, TypeScript, và các Design Patterns.
+
+1. MỨC KIẾN TRÚC BACKEND (BACKEND ARCHITECTURE)
+
+1.1. Phá vỡ "Fat Controller" bằng Mô hình 3 Lớp (3-Tier Architecture)
+
+Vấn đề hiện tại: Các file trong thư mục controllers/ (như erpController.js, closing.controller.js) đang chứa cả logic xử lý HTTP request (req, res), logic nghiệp vụ kế toán (tính toán giá vốn, định khoản), và logic truy vấn Database (Knex). Điều này vi phạm nguyên tắc Single Responsibility Principle (SRP).
+
+Cách cải thiện: Tách biệt thành 3 lớp rõ ràng:
+
+Controller Layer: Chỉ nhận HTTP Request, Validate Input (zod/joi), và gọi Service. Trả về HTTP Response.
+
+Service Layer: Chứa 100% Business Logic độc lập với Express. (Ví dụ: VoucherService.js).
+
+Repository Layer (DAO): Chuyên chịu trách nhiệm tương tác với Knex/PostgreSQL.
+
+Ví dụ minh họa (Refactoring):
+
+// TRƯỚC KHI CẢI THIỆN (Trong erpController.js)
+exports.createVoucher = async (req, res) => {
+  const trx = await db.transaction();
+  try {
+    // Trộn lẫn logic HTTP, Business và Database
+    if (!req.body.amount) return res.status(400).send("Thiếu tiền");
+    const voucher = await trx('vouchers').insert({...}).returning('*');
+    await trx('voucher_entries').insert({...});
+    await trx.commit();
+    res.json(voucher);
+  } catch (err) { ... }
+}
+
+// SAU KHI CẢI THIỆN (Clean Code)
+// 1. Controller
+exports.createVoucher = async (req, res, next) => {
+  try {
+    const voucherData = VoucherValidator.parse(req.body); // Validate
+    const result = await VoucherService.create(req.tenantId, voucherData);
+    res.status(201).json(result);
+  } catch (err) { next(err); }
+};
+
+// 2. Service (VoucherService.js)
+class VoucherService {
+  static async create(tenantId, data) {
+    // Chỉ chứa logic kế toán, gọi Repository để lưu DB
+    return await UnitOfWork.transaction(async (trx) => {
+       const voucher = await VoucherRepository.insert(trx, tenantId, data);
+       await LedgerRepository.postEntries(trx, voucher.id, data.entries);
+       return voucher;
+    });
+  }
+}
+
+
+1.2. Nâng cấp hệ thống Hàng đợi (Queue) lên cấp Doanh nghiệp
+
+Vấn đề hiện tại: Việc sử dụng file cache/redis.js để tự viết logic Queue thường sẽ thiếu các tính năng chịu lỗi (fault-tolerance).
+Cách cải thiện: * Sử dụng thư viện BullMQ (dựa trên Redis).
+
+Thêm cơ chế Exponential Backoff Retries (thử lại với độ trễ tăng dần nếu database bị lock).
+
+Tạo Dead Letter Queue (DLQ): Lưu trữ các đơn hàng Storefront không thể hạch toán tự động (do sai cấu hình, sai đối tác) để Kế toán trưởng duyệt tay, tuyệt đối không được làm mất (drop) tin nhắn.
+
+2. CHẤT LƯỢNG MÃ NGUỒN (CODE QUALITY & SAFETY)
+
+2.1. Nâng cấp lên TypeScript (Tối quan trọng cho App Tài chính)
+
+Kế toán là lĩnh vực đòi hỏi độ chính xác tuyệt đối. Javascript thuần (như *.jsx, *.js) rất dễ gây ra lỗi đánh vần tên biến hoặc truyền nhầm chuỗi (String) thay vì số thực (Float) vào Database.
+Hành động: 1. Cài đặt TypeScript (tsc).
+2. Định nghĩa các Interfaces chặt chẽ cho toàn bộ Core Domain:
+
+interface LedgerEntry {
+  accountId: string;
+  partnerId?: string | null;
+  debitAmount: number; // Force là number, không được là string
+  creditAmount: number;
+}
+
+
+2.2. Xử lý Lỗi Tập Trung (Centralized Error Handling)
+
+Vấn đề: Hiện tại try/catch nằm rải rác, các câu thông báo lỗi cứng (hard-coded) trả về cho Frontend không nhất quán.
+Cách cải thiện:
+
+Tạo class AppError kế thừa Error chứa mã HTTP status và mã lỗi nghiệp vụ.
+
+Tạo một Middleware Error Handler bắt mọi lỗi ở cuối pipeline Express.
+
+// Tạo mã lỗi nghiệp vụ
+throw new AppError('INVENTORY_SHORTAGE', 'Không đủ tồn kho để xuất', 400);
+
+// Middleware tổng
+app.use((err, req, res, next) => {
+  logger.error({ traceId: req.traceId, err }); // Log ra file/console
+  res.status(err.statusCode || 500).json({
+    success: false,
+    errorCode: err.errorCode || 'INTERNAL_ERROR',
+    message: err.message
+  });
+});
+
+
+3. TỐI ƯU HÓA CƠ SỞ DỮ LIỆU (DATABASE PERFORMANCE)
+
+3.1. Phân mảnh bảng Sổ Cái (Table Partitioning)
+
+Bối cảnh: Bảng voucher_entries (Sổ cái chi tiết) sẽ phình to cực nhanh (hàng chục triệu dòng/năm đối với DN bán lẻ).
+Giải pháp PostgreSQL: Áp dụng Declarative Partitioning theo tháng.
+Thay vì lưu chung 1 bảng, PostgreSQL sẽ tự động chia nhỏ vật lý:
+
+voucher_entries_2026_01
+
+voucher_entries_2026_02
+Điều này giúp lệnh Khóa sổ và Báo cáo tài chính cuối tháng quét dữ liệu nhanh gấp hàng chục lần vì chỉ cần quét trên Partition của tháng đó.
+
+3.2. Materialized Views cho Báo cáo (CQRS Pattern)
+
+Thay vì mỗi lần Frontend mở Dashboard đều bắt Database dùng SUM() và GROUP BY để tính Doanh thu/Chi phí từ bảng Sổ cái, hãy tạo Materialized Views (View vật lý) hoặc bảng Aggregation. Khi Worker chạy ngầm, nó sẽ update bảng View này, Frontend chỉ việc SELECT * ra rất nhanh.
+
+4. TỐI ƯU HÓA FRONTEND (REACT LAYER)
+
+4.1. Thay thế fetch/axios thuần bằng React Query (TanStack Query)
+
+Vấn đề: Frontend tự quản lý trạng thái loading, error, và dữ liệu cache khá thủ công.
+Cải thiện: Sử dụng React Query để quản lý Server State. Nó hỗ trợ tuyệt vời cho việc Cache Invalidation (mà ta đã phân tích ở sơ đồ luồng dữ liệu trước đó).
+
+// Sử dụng React Query
+const { data: vouchers, isLoading } = useQuery({
+  queryKey: ['vouchers', month, year],
+  queryFn: () => api.fetchVouchers(month, year)
+});
+
+// Khi socket.io nhận event có voucher mới -> Tự động vô hiệu hóa cache
+socket.on('voucher:created', () => {
+  queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+});
+
+
+4.2. Tách biệt UI Components và Business Hooks
+
+Chuyển toàn bộ logic gọi API và format dữ liệu ra các Custom Hooks (VD: useInventoryClosing.js).
+
+Các file .jsx (như StorefrontPage.jsx, App.jsx) chỉ nên làm nhiệm vụ "Ngu" (Dumb Components) là hiển thị dữ liệu và nhận sự kiện click.
+
+5. OBSERVABILITY & DEVOPS (TÍNH QUAN SÁT)
+
+Để hệ thống không sụp đổ trong im lặng, bạn cần bổ sung:
+
+Correlation ID (Trace ID): Mỗi request từ Storefront được gán 1 mã UUID. Mã này được truyền theo xuống Worker, xuống Log của PostgreSQL. Khi có lỗi (ví dụ: Khách báo trừ tiền nhưng không thấy đơn), Dev chỉ cần gõ Trace ID này vào hệ thống log để tìm ra toàn bộ vòng đời của yêu cầu.
+
+Structured Logging (Winston / Pino): Không dùng console.log() nữa. Chuyển sang log dưới định dạng JSON để đẩy lên các hệ thống giám sát như ELK Stack (Elasticsearch, Logstash, Kibana) hoặc Datadog.
+
+TỔNG KẾT MỨC ĐỘ ƯU TIÊN (PRIORITY MATRIX)
+
+P0 (Làm ngay): Tách Controller/Service, Implement Transaction Unit Of Work, Quản lý lỗi tập trung.
+
+P1 (Trong tháng tới): Chuyển đổi mã nguồn sang TypeScript, Implement BullMQ thay thế cho Redis thô.
+
+P2 (Dài hạn): Table Partitioning cho PostgreSQL, Áp dụng React Query và Socket.io cho Frontend.

@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
+import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational, assertItemCanBeDeleted } from '../services/cascadeValidation.service.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +35,14 @@ const getItemsColumns = async () => {
      WHERE table_name = 'items'`
   );
   return new Set(rs.rows.map((row) => row.column_name));
+};
+
+const assertCompanyNotLockedForPhysicalDelete = async (companyId) => {
+  const result = await pool.query('SELECT lock_date FROM companies WHERE id = $1', [companyId]);
+  const lockDate = result.rows[0]?.lock_date || null;
+  if (lockDate) {
+    throw new Error(`Doanh nghiệp đã khóa sổ đến ${new Date(lockDate).toISOString().split('T')[0]}. Không cho phép xóa vật tư vật lý, vui lòng dùng phương án điều chỉnh.`);
+  }
 };
 
 const parseImageUrls = (bodyValue, uploadedImages) => {
@@ -183,6 +193,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
 
     if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Không xác định được doanh nghiệp cần khai báo vật tư!' });
+    await assertCompanyOperational(targetCompanyId);
 
     if (req.user.role !== 'admin') {
       const hasAccess = await canAccessCompany(req.user, targetCompanyId);
@@ -248,6 +259,15 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
       `INSERT INTO items (${insertColumns.join(', ')}) VALUES (${placeholders})`,
       insertValues
     );
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_created',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.status(201).json({ success: true, message: 'Đã lưu vật tư/sản phẩm mới.' });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Mã vật tư này đã được đăng ký tại doanh nghiệp hiện tại!' });
@@ -268,6 +288,10 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
       if (!hasAccess) return res.status(403).json({ error: 'Quyền thao tác danh mục bị chặn!' });
     }
 
+    await assertCompanyNotLockedForPhysicalDelete(targetCompanyId);
+    await assertCompanyOperational(targetCompanyId);
+    await assertItemCanBeDeleted({ companyId: targetCompanyId, itemCode: code });
+
     const columns = await getItemsColumns();
     const whereCode = columns.has('item_code')
       ? '(code = $1 OR item_code = $1)'
@@ -278,6 +302,15 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
       [code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_deleted',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Đã xóa vật tư thành công khỏi danh mục.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -299,6 +332,7 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
 
     if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính mới.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp cần cập nhật!' });
+    await assertCompanyOperational(targetCompanyId);
 
     if (req.user.role !== 'admin') {
       const hasAccess = await canAccessCompany(req.user, targetCompanyId);
@@ -369,6 +403,15 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
       [...updateValues, code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    emitInventoryRealtime({
+      companyId: targetCompanyId,
+      itemCode: code,
+      action: 'item_updated',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Cập nhật thông tin vật tư thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

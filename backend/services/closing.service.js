@@ -40,15 +40,21 @@ const getBalanceByPrefix = async (db, companyId, accountPrefix, month, year) => 
  * @param {number} month - Tháng kết chuyển
  * @param {number} year - Năm kết chuyển
  */
-export async function runClosingEntries(companyId, month, year) {
-  // Sử dụng distributed lock để đảm bảo chỉ một process chạy cho mỗi công ty
-  const lock = await acquireLock('closing', { companyId, ttl: 60000 });
-  
-  if (!lock) {
-    throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
+export async function runClosingEntries(companyId, month, year, dbClient = null, options = {}) {
+  const useExternalClient = Boolean(dbClient);
+  const { skipLock = useExternalClient } = options;
+
+  let lock = null;
+  if (!skipLock) {
+    // Sử dụng distributed lock để đảm bảo chỉ một process chạy cho mỗi công ty
+    lock = await acquireLock('closing', { companyId, ttl: 60000 });
+
+    if (!lock) {
+      throw new Error('Có tiến trình kết chuyển đang chạy. Vui lòng thử lại sau.');
+    }
   }
 
-    const client = await pool.connect();
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const closingAccounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
@@ -75,7 +81,9 @@ export async function runClosingEntries(companyId, month, year) {
   const retainedEarningsAccount = String(closingAccounts.retainedEarnings || '4212');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // [PESSIMISTIC LOCK] Khóa bản ghi công ty để tránh race condition
     // Nếu có 2 request đồng thời, request thứ 2 sẽ nhận lỗi ngay lập tức
@@ -115,7 +123,8 @@ export async function runClosingEntries(companyId, month, year) {
       companyId,
       [revenueAccount, ...costAccounts, otherIncomeAccount, otherExpenseAccount, taxExpenseAccount, closingAccount],
       year,
-      month
+      month,
+      client
     );
     const summaryMap = Object.fromEntries(summaryRows.map((row) => [row.account_code, row]));
 
@@ -206,7 +215,7 @@ export async function runClosingEntries(companyId, month, year) {
     if (netProfit > 0) {
       // Tính thuế suất lũy tiến dựa trên doanh thu năm trước
       // Lấy doanh thu năm trước từ TK 511
-      const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1);
+      const prevYearSummary = await getPeriodBalanceSummary(companyId, [revenueAccount], year - 1, null, client);
       const prevYearRevenue = prevYearSummary[0]?.credit || 0;
       
       // Tính thuế lũy tiến thực sự (theo entity_type của công ty)
@@ -249,7 +258,7 @@ export async function runClosingEntries(companyId, month, year) {
     
     // 5. Kết chuyển lãi/lỗ cuối cùng: TK 911 → TK 4212
     // Lấy số dư còn lại trên TK 911 sau khi đã kết chuyển
-    const final911Summary = await getPeriodBalanceSummary(companyId, [closingAccount], year, month);
+    const final911Summary = await getPeriodBalanceSummary(companyId, [closingAccount], year, month, client);
     const final911Balance = (final911Summary[0]?.debit || 0) - (final911Summary[0]?.credit || 0);
     
     if (Math.abs(final911Balance) > 0) {
@@ -288,15 +297,19 @@ export async function runClosingEntries(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
-    // Xóa cache toàn bộ hệ thống sau khi hoàn thành kết chuyển
-    try {
-      await invalidateCache(`dashboard:cashflow:${companyId}:*`);
-      await invalidateCache(`balance-sheet:${companyId}:*`);
-      await invalidateBalance(companyId, year, month);
-    } catch (cacheError) {
-      console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+    // Chỉ xóa cache ngay tại service khi service tự quản transaction riêng.
+    if (!useExternalClient) {
+      try {
+        await invalidateCache(`dashboard:cashflow:${companyId}:*`);
+        await invalidateCache(`balance-sheet:${companyId}:*`);
+        await invalidateBalance(companyId, year, month);
+      } catch (cacheError) {
+        console.error('Lỗi xóa cache sau kết chuyển:', cacheError);
+      }
     }
     
     return {
@@ -312,10 +325,14 @@ export async function runClosingEntries(companyId, month, year) {
     };
     
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
     // Giải phóng distributed lock
     if (lock) {
       await releaseLock(lock);
@@ -417,8 +434,9 @@ export async function createAllowanceEntries(companyId, month, year) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function createDepreciationEntries(companyId, month, year) {
-  const client = await pool.connect();
+export async function createDepreciationEntries(companyId, month, year, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const rates = closingRules.rates || {};
@@ -429,7 +447,9 @@ export async function createDepreciationEntries(companyId, month, year) {
   const depreciationAnnualRate = Number(rates.depreciationAnnualRate ?? 0.2);
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy danh sách TSCĐ cần khấu hao
     const query = `
@@ -469,7 +489,9 @@ export async function createDepreciationEntries(companyId, month, year) {
       }
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -477,10 +499,14 @@ export async function createDepreciationEntries(companyId, month, year) {
       assets_processed: rows.length
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }
 
@@ -581,15 +607,18 @@ export async function createProvisionEntries(companyId, month, year) {
  * @param {string} description - Mô tả bút toán
  * @param {string} resultField - Tên trường kết quả (VD: 'tax_payable', 'vat_payable')
  */
-export async function processTaxGeneric(companyId, month, year, taxAccount, description, resultField) {
-  const client = await pool.connect();
+export async function processTaxGeneric(companyId, month, year, taxAccount, description, resultField, dbClient = null) {
+  const useExternalClient = Boolean(dbClient);
+  const client = dbClient || await pool.connect();
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const closingVoucherType = String(closingRules.voucherType || 'DauKy');
   const taxPaymentOffsetAccount = String(accounts.taxPaymentOffset || '331');
   
   try {
-    await client.query('BEGIN');
+    if (!useExternalClient) {
+      await client.query('BEGIN');
+    }
     
     // Lấy số dư tài khoản thuế
     const taxBalance = await getBalanceByPrefix(client, companyId, taxAccount, month, year);
@@ -613,7 +642,9 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
       );
     }
     
-    await client.query('COMMIT');
+    if (!useExternalClient) {
+      await client.query('COMMIT');
+    }
     
     return {
       success: true,
@@ -621,10 +652,14 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
       [resultField]: taxPayable
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!useExternalClient) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (!useExternalClient) {
+      client.release();
+    }
   }
 }
 
@@ -634,7 +669,7 @@ export async function processTaxGeneric(companyId, month, year, taxAccount, desc
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function processTaxTNCN(companyId, month, year) {
+export async function processTaxTNCN(companyId, month, year, dbClient = null) {
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const tncnPayableAccount = String(accounts.personalIncomeTaxPayable || '3331');
@@ -645,7 +680,8 @@ export async function processTaxTNCN(companyId, month, year) {
     year, 
     tncnPayableAccount, 
     'Nộp thuế TNCN', 
-    'tax_payable'
+    'tax_payable',
+    dbClient
   );
 }
 
@@ -655,7 +691,7 @@ export async function processTaxTNCN(companyId, month, year) {
  * @param {number} month - Tháng
  * @param {number} year - Năm
  */
-export async function processTaxVAT(companyId, month, year) {
+export async function processTaxVAT(companyId, month, year, dbClient = null) {
   const closingRules = getClosingRules();
   const accounts = closingRules.accounts || {};
   const vatPayableAccount = String(accounts.vatPayable || '33311');
@@ -666,6 +702,7 @@ export async function processTaxVAT(companyId, month, year) {
     year, 
     vatPayableAccount, 
     'Nộp thuế GTGT', 
-    'vat_payable'
+    'vat_payable',
+    dbClient
   );
 }

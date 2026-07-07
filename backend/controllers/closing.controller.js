@@ -15,6 +15,7 @@ import { calculateProgressiveTax } from '../utils/accountingEngine.js';
 import { getPeriodBalanceSummary } from '../services/summary.service.js';
 import { invalidateCache } from '../cache/redis.js';
 import { sendToRole } from '../services/webPush.service.js';
+import { emitClosingRealtime } from '../services/voucherRealtime.service.js';
 
 /**
  * Controller xử lý kết chuyển sổ
@@ -118,6 +119,7 @@ export const previewClosing = async (req, res) => {
  * @param {Object} res - Response object
  */
 export const executeClosing = async (req, res) => {
+  let client = null;
   try {
     const companyId = req.companyId || req.body.companyId || req.body.company_id;
     const month = req.body.month || new Date().getMonth() + 1;
@@ -129,30 +131,36 @@ export const executeClosing = async (req, res) => {
 
     // Thực hiện các bước kết chuyển theo workflow
     const results = [];
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await client.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
     
     // Bước 1: Tính giá vốn kho
-    const inventoryResult = await calculateWeightedAverageCost(companyId, month, year);
+    const inventoryResult = await calculateWeightedAverageCost(companyId, month, year, client);
     results.push({ step: 'inventory_costing', result: inventoryResult });
     
     // Bước 2: Phân bổ chi phí logistics
-    const logisticResult = await allocateLogisticCosts(companyId, month, year);
+    const logisticResult = await allocateLogisticCosts(companyId, month, year, client);
     results.push({ step: 'logistic_allocation', result: logisticResult });
     
     // Bước 3: Khấu hao TSCĐ
-    const depreciationResult = await createDepreciationEntries(companyId, month, year);
+    const depreciationResult = await createDepreciationEntries(companyId, month, year, client);
     results.push({ step: 'depreciation', result: depreciationResult });
     
     // Bước 4: Xử lý thuế VAT
-    const vatResult = await processTaxVAT(companyId, month, year);
+    const vatResult = await processTaxVAT(companyId, month, year, client);
     results.push({ step: 'tax_vat', result: vatResult });
     
     // Bước 5: Xử lý thuế TNCN
-    const tncnResult = await processTaxTNCN(companyId, month, year);
+    const tncnResult = await processTaxTNCN(companyId, month, year, client);
     results.push({ step: 'tax_tncn', result: tncnResult });
     
     // Bước 6: Kết chuyển sổ
-    const closingResult = await runClosingEntries(companyId, month, year);
+    const closingResult = await runClosingEntries(companyId, month, year, client, { skipLock: false });
     results.push({ step: 'closing_entries', result: closingResult });
+
+    await client.query('COMMIT');
     
     // Xóa cache
     try {
@@ -175,6 +183,15 @@ export const executeClosing = async (req, res) => {
     } catch (notifyError) {
       console.warn('Push notification failed:', notifyError.message);
     }
+
+    emitClosingRealtime({
+      companyId,
+      month,
+      year,
+      results,
+      source: 'closing.controller.executeClosing',
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
     
     return res.json({
       success: true,
@@ -187,8 +204,19 @@ export const executeClosing = async (req, res) => {
       }
     });
   } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Rollback executeClosing thất bại:', rollbackError.message);
+      }
+    }
     console.error('Lỗi thực thi kết chuyển:', error);
     return res.status(500).json({ error: error.message });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 };
 

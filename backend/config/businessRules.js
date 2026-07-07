@@ -6,8 +6,8 @@ const DEFAULT_BUSINESS_RULES = {
     minOrderQuantity: 1,
     taxRules: [
       { entityType: 'company', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
-      { entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.1, priceMode: 'net' },
-      { entityType: 'company', annualRevenueBand: 'over_3b', category: 'retail', taxRate: 0.1, priceMode: 'net' },
+{ entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
+       { entityType: 'company', annualRevenueBand: 'over_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
       { entityType: 'household', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0, priceMode: 'net' },
       { entityType: 'household', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
       { entityType: 'household', annualRevenueBand: 'over_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },

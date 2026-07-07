@@ -58,7 +58,7 @@ describe('tax rule service', () => {
           taxPrecision: 2,
           taxRules: [
             { entityType: 'company', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0.08 },
-            { entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.1 }
+{ entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.08 }
           ]
         }
       }
@@ -71,7 +71,7 @@ describe('tax rule service', () => {
     expect(result.matchedRule.entityType).toBe('company');
   });
 
-  test('matches company/1b_3b/retail rule with higher rate', () => {
+test('matches company/1b_3b/retail rule with 8% rate', () => {
     const result = resolveTaxBreakdown({
       amount: 500000,
       entityType: 'company',
@@ -83,15 +83,15 @@ describe('tax rule service', () => {
           taxPrecision: 2,
           taxRules: [
             { entityType: 'company', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0.08 },
-            { entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.1 }
+            { entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.08 }
           ]
         }
       }
     });
 
-    expect(result.taxRate).toBe(0.1);
-    expect(result.taxAmount).toBe(50000);
-    expect(result.grossAmount).toBe(550000);
+    expect(result.taxRate).toBe(0.08);
+    expect(result.taxAmount).toBe(40000);
+    expect(result.grossAmount).toBe(540000);
   });
 
   test('household/under_1b/retail has 0% tax rate', () => {

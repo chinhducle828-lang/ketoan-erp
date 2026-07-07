@@ -5,6 +5,8 @@ import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances 
 import { runClosingEntries, getClosingData } from '../services/closing.service.js';
 import { allocateLogisticCosts, calculateFifoCostForPeriod } from '../services/inventory.service.js';
 import { invalidateCache } from '../cache/redis.js';
+import { emitClosingRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ
 const localCache = new Map();
@@ -162,6 +164,8 @@ export const executeClosing = async (req, res) => {
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu mã định danh doanh nghiệp (companyId)!' });
     }
+
+    await assertCompanyOperational(companyId);
     
     // Bước 1: Phân bổ chi phí logistics (nạp phí vào nguyên giá)
     await allocateLogisticCosts(Number(companyId), month, year);
@@ -179,6 +183,15 @@ export const executeClosing = async (req, res) => {
     // Xóa Redis cache
     await invalidateCache(`dashboard:cashflow:${companyId}:*`);
     await invalidateCache(`balance-sheet:${companyId}:*`);
+
+    emitClosingRealtime({
+      companyId: Number(companyId),
+      month,
+      year,
+      source: 'report.controller.executeClosing',
+      result,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
     
     return res.json(result);
   } catch (error) {

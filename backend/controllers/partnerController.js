@@ -1,4 +1,5 @@
 import * as partnerService from '../services/partnerService.js';
+import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 
 /**
  * Controller xử lý tạo mới Đối tác
@@ -8,6 +9,7 @@ export const createPartner = async (req, res) => {
     // BẪY BẢO MẬT: Lấy company_id an toàn từ req.user (do authMiddleware giải mã token cung cấp)
     // Tuyệt đối không tin tưởng company_id do Client tự truyền lên ở body để chống hack chéo dữ liệu
     const { company_id } = req.user; 
+    await assertCompanyOperational(company_id);
     
     // Gom dữ liệu từ client gửi lên và gắn kèm company_id đã được xác thực
     const partnerData = { ...req.body, company_id };
@@ -43,6 +45,7 @@ export const getPartners = async (req, res) => {
   try {
     // Cô lập dữ liệu: Chỉ lấy các đối tác thuộc đúng công ty của user đang đăng nhập
     const { company_id } = req.user; 
+    await assertCompanyOperational(company_id);
     
     const partners = await partnerService.getPartnersByCompanyDB(company_id);
     

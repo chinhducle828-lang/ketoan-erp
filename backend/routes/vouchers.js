@@ -4,9 +4,11 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { validate, createVoucherSchema } from '../middleware/validation.js';
 import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
-import { buildPostingUpdateValues } from '../services/voucherStatus.js';
+import { buildPostingUpdateValues, emitVoucherPostingRealtime } from '../services/voucherStatus.js';
 import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
 import { checkCompanyActive } from '../middleware/waf.js';
+import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
+import { assertCompanyOperational, validateVoucherDetailReferences } from '../services/cascadeValidation.service.js';
 
 const router = express.Router();
 
@@ -17,7 +19,7 @@ async function checkLockDate(companyId, voucherDate) {
     const lockDate = new Date(compQuery.rows[0].lock_date);
     const targetDate = new Date(voucherDate);
     if (targetDate <= lockDate) {
-      throw new Error(`Dữ liệu đã khóa sổ tính đến ngày ${compQuery.rows[0].lock_date.toISOString().split('T')[0]}. Thao tác bị từ chối!`);
+      throw new Error(`Dữ liệu đã khóa sổ tính đến ngày ${compQuery.rows[0].lock_date.toISOString().split('T')[0]}. Không cho phép xóa vật lý, vui lòng dùng bút toán điều chỉnh.`);
     }
   }
 }
@@ -87,6 +89,8 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
 
     // FIX 1: Kiểm tra khóa sổ trước khi thêm mới (prevents post-close modifications)
     await checkLockDate(company_id, voucher_date);
+    await assertCompanyOperational(company_id, { client });
+    await validateVoucherDetailReferences({ client, companyId: company_id, details });
 
     const vMasterQuery = `
       INSERT INTO vouchers (
@@ -130,6 +134,16 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    emitVoucherRealtime('created', {
+      voucherId: vId,
+      companyId: company_id,
+      type: voucher_type,
+      posted: postingValues.is_posted,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.status(201).json({ success: true, message: 'Tạo chứng từ thành công!' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -158,6 +172,15 @@ router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), async (req
       [postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, voucherId]
     );
 
+    emitVoucherPostingRealtime({
+      voucherId,
+      companyId: voucher.company_id,
+      posted: result.rows[0]?.is_posted,
+      postedBy: postingValues.posted_by,
+      postedAt: postingValues.posted_at,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Đã ghi sổ chứng từ', voucher: result.rows[0] });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -179,6 +202,11 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
       return res.status(404).json({ error: 'Chứng từ kế toán không tồn tại' });
     }
     const voucher = voucherRes.rows[0];
+
+    if (voucher.is_posted) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Chứng từ đã ghi sổ. Không cho phép xóa vật lý, vui lòng lập bút toán điều chỉnh.' });
+    }
     
     // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
     await checkLockDate(voucher.company_id, voucher.voucher_date);
@@ -212,6 +240,15 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
     await client.query('DELETE FROM vouchers WHERE id = $1', [voucherId]);
     
     await client.query('COMMIT');
+
+    emitVoucherRealtime('deleted', {
+      voucherId,
+      companyId: voucher.company_id,
+      type: voucher.voucher_type,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Xóa chứng từ kế toán thành công và đã đồng bộ lưu lịch sử vết hệ thống.' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -241,6 +278,8 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     
     // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
     await checkLockDate(voucher.company_id, voucher_date || voucher.voucher_date);
+    await assertCompanyOperational(voucher.company_id, { client });
+    await validateVoucherDetailReferences({ client, companyId: voucher.company_id, details });
     
     // 3. Lưu trữ trạng thái cũ để ghi audit log
     const oldDetailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
@@ -310,6 +349,15 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     );
     
     await client.query('COMMIT');
+
+    emitVoucherRealtime('updated', {
+      voucherId,
+      companyId: voucher.company_id,
+      type: voucher.voucher_type,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
+
     res.json({ success: true, message: 'Cập nhật chứng từ thành công!' });
   } catch (err) {
     await client.query('ROLLBACK');

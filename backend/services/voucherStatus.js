@@ -1,3 +1,5 @@
+import { emitVoucherRealtime } from './voucherRealtime.service.js';
+
 export function normalizePostingState(value) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -23,4 +25,8 @@ export function buildPostingUpdateValues(isPosted, userId = null, postedAt = new
     posted_by: shouldPost ? userId ?? null : null,
     posted_at: shouldPost ? postedAt : null,
   };
+}
+
+export function emitVoucherPostingRealtime(payload = {}) {
+  emitVoucherRealtime('posted', payload);
 }

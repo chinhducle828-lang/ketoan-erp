@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search } from 'lucide-react';
 import api from '../../utils/api.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function InventoryManagement() {
   const { activeCompany } = useAuth();
@@ -11,7 +13,7 @@ export default function InventoryManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
 
-  const loadBalances = async () => {
+  const loadBalances = useCallback(async () => {
     if (!activeCompany) return;
     setLoading(true);
     setError('');
@@ -26,11 +28,31 @@ export default function InventoryManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompany]);
 
   useEffect(() => {
     loadBalances();
-  }, [activeCompany]);
+  }, [loadBalances]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { inventory: loadBalances },
+    {
+      eventMap: {
+        'inventory:updated': ['inventory'],
+        inventoryUpdated: ['inventory'],
+        'voucher:created': ['inventory'],
+        'voucher:updated': ['inventory'],
+        'voucher:deleted': ['inventory'],
+        voucherCreated: ['inventory'],
+        voucherUpdated: ['inventory'],
+        voucherDeleted: ['inventory'],
+        'closing:completed': ['inventory'],
+        closingCompleted: ['inventory']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   const handleRunCosting = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn chạy tính giá vốn cuối kỳ? Quá trình này sẽ tính toán lại giá xuất kho theo phương pháp BQGQ/FIFO.')) return;

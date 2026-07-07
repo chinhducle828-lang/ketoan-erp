@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { FileSpreadsheet, BarChart3, FileText, RefreshCw, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
 export default function FinancialReportsView() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
@@ -19,9 +21,10 @@ export default function FinancialReportsView() {
     if (companyId) {
       fetchReports();
     }
-  }, [companyId, fiscalYear, method]);
+  }, [companyId, fetchReports]);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    if (!companyId) return;
     setLoading(true);
     try {
       const [cashFlowRes, notesRes] = await Promise.all([
@@ -39,7 +42,25 @@ export default function FinancialReportsView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyId, fiscalYear, method]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { reports: fetchReports },
+    {
+      eventMap: {
+        'voucher:created': ['reports'],
+        'voucher:updated': ['reports'],
+        'voucher:deleted': ['reports'],
+        voucherCreated: ['reports'],
+        voucherUpdated: ['reports'],
+        voucherDeleted: ['reports'],
+        'closing:completed': ['reports'],
+        closingCompleted: ['reports']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   const handleExportExcel = async () => {
     try {

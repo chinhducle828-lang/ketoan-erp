@@ -43,7 +43,7 @@ test('buildPayrollInsuranceDetails uses configurable rates', () => {
 
 test('shared accounting defaults are centralized and stable', () => {
   assert.equal(getDefaultCurrency(), 'VND');
-  assert.equal(getDefaultTaxRate(), 0.1);
+assert.equal(getDefaultTaxRate(), 0.08);
 });
 
 test('purchase and cash voucher builders produce balanced accounting lines', () => {
