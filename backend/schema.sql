@@ -180,17 +180,22 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
     action VARCHAR(50) NOT NULL,       -- LOGIN, CREATE, UPDATE, DELETE
-    entity_type VARCHAR(50) NOT NULL,  -- VOUCHERS, USERS, PARTNERS, COMPANIES
+    entity_type VARCHAR(50) NOT NULL,  -- VOUCHERS, USERS, PARTNERS, COMPANIES, ITEMS, INVENTORY_VOUCHERS
     old_values JSONB DEFAULT NULL,     -- Trạng thái dữ liệu TRƯỚC khi thay đổi
     new_values JSONB DEFAULT NULL,     -- Trạng thái dữ liệu SAU khi thay đổi
     ip_address VARCHAR(45) NOT NULL,   -- Hỗ trợ lưu cả địa chỉ IPv4 và IPv6 đầy đủ
+    company_id INT REFERENCES companies(id) ON DELETE SET NULL, -- Doanh nghiệp liên quan
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Thêm cột company_id cho bảng audit_logs hiện có
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS company_id INT REFERENCES companies(id) ON DELETE SET NULL;
 
 -- Tạo Index tăng tốc truy vấn tìm kiếm lịch sử cho Admin
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action_entity ON audit_logs(action, entity_type);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_company_id ON audit_logs(company_id);
 
 -- ====================================================================
 -- BẢNG SESSIONS - QUẢN LÝ PHIÊN LÀM VIỆC (JWT + REFRESH TOKEN)

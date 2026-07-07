@@ -9,6 +9,7 @@ import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
 import { checkCompanyActive } from '../middleware/waf.js';
 import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
 import { assertCompanyOperational, validateVoucherDetailReferences } from '../services/cascadeValidation.service.js';
+import { logAction, getClientIp, logVoucherDetails } from '../services/auditLog.service.js';
 
 const router = express.Router();
 
@@ -133,6 +134,45 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
       await client.query(bulkDetailQuery, queryArgs);
     }
 
+// Ghi log tạo chứng từ
+    await logAction({
+      userId: req.user?.id || null,
+      action: 'CREATE',
+      entityType: 'VOUCHERS',
+      newValues: {
+        voucher_number,
+        voucher_date,
+        voucher_type,
+        description,
+        currency,
+        exchange_rate,
+        is_posted: postingValues.is_posted
+      },
+      ipAddress: getClientIp(req),
+      companyId: company_id
+    });
+
+    // Ghi log từng định khoản
+    if (details && details.length > 0) {
+      const detailRecords = details.map((item) => ({
+        voucher_id: vId,
+        account_code: item.accountCode || item.account_code,
+        entry_type: item.entryType || item.entry_type,
+        amount: item.amount,
+        quantity: item.quantity || 0,
+        partner_id: item.partnerId || item.partner_id || null,
+        item_id: item.itemId || item.item_id || null
+      }));
+      await logVoucherDetails({
+        companyId: company_id,
+        userId: req.user?.id || null,
+        action: 'CREATE',
+        details: detailRecords,
+        ipAddress: getClientIp(req),
+        voucherInfo: { voucher_number, voucher_type }
+      });
+    }
+
     await client.query('COMMIT');
 
     emitVoucherRealtime('created', {
@@ -221,19 +261,27 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
       details: details
     };
     
-    // 4. Ghi nhận vào Audit Logs kèm thông tin IP định danh và dữ liệu Snapshot dạng JSON
-    await client.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address) 
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        req.user?.id || null,
-        'DELETE',
-        'VOUCHERS',
-        JSON.stringify(oldSnapshotValues),
-        null,
-        req.ip
-      ]
-    );
+// 4. Ghi nhận vào Audit Logs kèm thông tin IP định danh và dữ liệu Snapshot dạng JSON
+    await logAction({
+      userId: req.user?.id || null,
+      action: 'DELETE',
+      entityType: 'VOUCHERS',
+      oldValues: oldSnapshotValues,
+      ipAddress: getClientIp(req),
+      companyId: voucher.company_id
+    });
+
+    // 4.1 Ghi log từng định khoản bị xóa
+    if (details && details.length > 0) {
+      await logVoucherDetails({
+        companyId: voucher.company_id,
+        userId: req.user?.id || null,
+        action: 'DELETE',
+        details: details,
+        ipAddress: getClientIp(req),
+        voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
+      });
+    }
     
     // 5. Tiến hành xóa dữ liệu theo thứ tự ưu tiên Khóa ngoại (Details trước, Master sau)
     await client.query('DELETE FROM voucher_details WHERE voucher_id = $1', [voucherId]);
@@ -334,19 +382,50 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
       }
     }
     
-    // 6. Ghi audit log
-    await client.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address) 
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        req.user?.id || null,
-        'UPDATE',
-        'VOUCHERS',
-        JSON.stringify(oldSnapshotValues),
-        JSON.stringify({ ...req.body, id: voucherId }),
-        req.ip
-      ]
-    );
+// 6. Ghi audit log
+    await logAction({
+      userId: req.user?.id || null,
+      action: 'UPDATE',
+      entityType: 'VOUCHERS',
+      oldValues: oldSnapshotValues,
+      newValues: { ...req.body, id: voucherId },
+      ipAddress: getClientIp(req),
+      companyId: voucher.company_id
+    });
+
+    // 6.1 Ghi log từng định khoản được cập nhật
+    if (details && details.length > 0) {
+      // Ghi log xóa định khoản cũ
+      if (oldDetailsRes.rows.length > 0) {
+        await logVoucherDetails({
+          companyId: voucher.company_id,
+          userId: req.user?.id || null,
+          action: 'DELETE',
+          details: oldDetailsRes.rows,
+          ipAddress: getClientIp(req),
+          voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
+        });
+      }
+      
+      // Ghi log tạo định khoản mới
+      const newDetailRecords = details.map((item) => ({
+        voucher_id: voucherId,
+        account_code: item.accountCode || item.account_code,
+        entry_type: item.entryType || item.entry_type,
+        amount: item.amount,
+        quantity: item.quantity || 0,
+        partner_id: item.partnerId || item.partner_id || null,
+        item_id: item.itemId || item.item_id || null
+      }));
+      await logVoucherDetails({
+        companyId: voucher.company_id,
+        userId: req.user?.id || null,
+        action: 'CREATE',
+        details: newDetailRecords,
+        ipAddress: getClientIp(req),
+        voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
+      });
+    }
     
     await client.query('COMMIT');
 

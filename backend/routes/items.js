@@ -6,8 +6,10 @@ import { fileURLToPath } from 'url';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
-import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
+import { emitInventoryRealtime } from './voucherRealtime.service.js';
 import { assertCompanyOperational, assertItemCanBeDeleted } from '../services/cascadeValidation.service.js';
+import { buildPurchaseInventoryDetails } from '../services/logistics.service.js';
+import { logAction, getClientIp } from '../services/auditLog.service.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -254,11 +256,73 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
       insertValues.push(req.user.id);
     }
 
-    const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ');
-    await pool.query(
-      `INSERT INTO items (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ');
+    const itemResult = await pool.query(
+      `INSERT INTO items (${insertColumns.join(', ')}) VALUES (${placeholders}) RETURNING id`,
       insertValues
     );
+    const newItemId = itemResult.rows[0]?.id;
+
+// Ghi log tạo mới item
+    await logAction({
+      userId: req.user?.id || null,
+      action: 'CREATE',
+      entityType: 'ITEMS',
+      newValues: {
+        code: code.toUpperCase().trim(),
+        name: name.trim(),
+        unit: unit.trim(),
+        price_sell: priceSellValue,
+        opening_quantity: openingQuantityValue
+      },
+      ipAddress: getClientIp(req),
+      companyId: targetCompanyId
+    });
+
+    // Tự động tạo voucher NK khi opening_quantity > 0
+    if (openingQuantityValue > 0) {
+      const voucherNumber = `NK-${Date.now().toString().slice(-6)}`;
+      const voucherRes = await pool.query(
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, voucher_number, description, currency, exchange_rate, created_by, is_posted)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [targetCompanyId, 'NK', new Date().toISOString().split('T')[0], voucherNumber, 
+         `Nhập kho đầu kỳ: ${name.trim()}`, 'VND', 1, req.user?.id || null, false]
+      );
+      const voucherId = voucherRes.rows[0]?.id;
+
+      // Tạo bút toán: Nợ 156 (Hàng hóa kho tổng) / Có 331 (Phải trả cho người bán)
+      // Giá vốn mặc định = 0, sẽ được điều chỉnh sau
+      const totalAmount = Math.round(openingQuantityValue * priceSellValue);
+      
+      await pool.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, quantity, item_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [voucherId, '156', 'DR', totalAmount, openingQuantityValue, newItemId]
+      );
+      
+      await pool.query(
+        `INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, quantity, item_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [voucherId, '331', 'CR', totalAmount, openingQuantityValue, newItemId]
+      );
+
+      // Ghi log tạo voucher NK tự động
+      await logAction({
+        userId: req.user?.id || null,
+        action: 'CREATE',
+        entityType: 'INVENTORY_VOUCHERS',
+        newValues: {
+          voucher_number: voucherNumber,
+          voucher_type: 'NK',
+          item_id: newItemId,
+          item_code: code.toUpperCase().trim(),
+          quantity: openingQuantityValue,
+          amount: totalAmount
+        },
+        ipAddress: getClientIp(req),
+        companyId: targetCompanyId
+      });
+    }
 
     emitInventoryRealtime({
       companyId: targetCompanyId,
@@ -297,11 +361,35 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
       ? '(code = $1 OR item_code = $1)'
       : 'code = $1';
 
+// Lấy dữ liệu cũ trước khi xóa để ghi log
+    const oldItem = await pool.query(
+      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $1`,
+      [code, targetCompanyId]
+    );
+
     const result = await pool.query(
       `DELETE FROM items WHERE ${whereCode} AND company_id = $2 RETURNING id`,
       [code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    // Ghi log xóa item
+    if (oldItem.rows.length > 0) {
+      await logAction({
+        userId: req.user?.id || null,
+        action: 'DELETE',
+        entityType: 'ITEMS',
+        oldValues: {
+          code: oldItem.rows[0].code,
+          name: oldItem.rows[0].name,
+          unit: oldItem.rows[0].unit,
+          price_sell: oldItem.rows[0].price_sell,
+          opening_quantity: oldItem.rows[0].opening_quantity
+        },
+        ipAddress: getClientIp(req),
+        companyId: targetCompanyId
+      });
+    }
 
     emitInventoryRealtime({
       companyId: targetCompanyId,
@@ -395,6 +483,12 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
       ? `(code = $${codeIndex} OR item_code = $${codeIndex})`
       : `code = $${codeIndex}`;
 
+// Lấy dữ liệu cũ trước khi cập nhật để ghi log
+    const oldItem = await pool.query(
+      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $1`,
+      [code, targetCompanyId]
+    );
+
     const result = await pool.query(
       `UPDATE items
        SET ${updateSet.join(', ')}
@@ -403,6 +497,31 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
       [...updateValues, code, targetCompanyId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Vật tư không tìm thấy hoặc không thuộc quyền quản lý của đơn vị.' });
+
+    // Ghi log cập nhật item
+    if (oldItem.rows.length > 0) {
+      await logAction({
+        userId: req.user?.id || null,
+        action: 'UPDATE',
+        entityType: 'ITEMS',
+        oldValues: {
+          code: oldItem.rows[0].code,
+          name: oldItem.rows[0].name,
+          unit: oldItem.rows[0].unit,
+          price_sell: oldItem.rows[0].price_sell,
+          opening_quantity: oldItem.rows[0].opening_quantity
+        },
+        newValues: {
+          code: code.toUpperCase().trim(),
+          name: name.trim(),
+          unit: unit.trim(),
+          price_sell: priceSellValue,
+          opening_quantity: openingQuantityValue
+        },
+        ipAddress: getClientIp(req),
+        companyId: targetCompanyId
+      });
+    }
 
     emitInventoryRealtime({
       companyId: targetCompanyId,

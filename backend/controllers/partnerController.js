@@ -1,5 +1,6 @@
 import * as partnerService from '../services/partnerService.js';
 import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
+import { logAction, getClientIp } from '../services/auditLog.service.js';
 
 /**
  * Controller xử lý tạo mới Đối tác
@@ -15,6 +16,22 @@ export const createPartner = async (req, res) => {
     const partnerData = { ...req.body, company_id };
 
     const newPartner = await partnerService.createPartnerDB(partnerData);
+
+    // Ghi log tạo đối tác
+    await logAction({
+      userId: req.user?.id || null,
+      action: 'CREATE',
+      entityType: 'PARTNERS',
+      newValues: {
+        partner_code: req.body.partner_code,
+        partner_name: req.body.partner_name,
+        type: req.body.type,
+        phone: req.body.phone,
+        email: req.body.email
+      },
+      ipAddress: getClientIp(req),
+      companyId: company_id
+    });
     
     return res.status(201).json({
       success: true,
