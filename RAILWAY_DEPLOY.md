@@ -31,7 +31,7 @@ Dự án dùng **3 Dockerfile riêng biệt** (mỗi service một file), mỗi 
   NODE_ENV=production
   PORT=5000
   JWT_SECRET=<chuỗi-bảo-mật-dài>
-  FRONTEND_URL=https://<frontend-url>.railway.app,https://<storefront-url>.railway.app
+  FRONTEND_URL=https://ketoanonline.up.railway.app,https://banhang.up.railway.app
   SERVE_STATIC_FRONTEND=false
   ```
 - Railway tự động đọc `railway.json` để build Docker (`dockerfilePath: Dockerfile.backend`, watch `backend/**`)
@@ -41,14 +41,19 @@ Dự án dùng **3 Dockerfile riêng biệt** (mỗi service một file), mỗi 
 - Settings → Build → Custom Dockerfile → Dockerfile path: `Dockerfile.frontend`
 - Settings → Deploy → Start Command: `npm start` (WORKDIR đã là `/app`, không cần `cd`)
 - Settings → Deploy → Watch / Build filter (nếu có): `front-end/**`
-- Variables: `PORT=3000`, `VITE_API_BASE_URL=https://<backend-url>.railway.app`
+- Variables: `PORT=3000`, `VITE_API_BASE_URL=https://dazzling-grace-production-03a5.up.railway.app`
+- `VITE_API_BASE_URL` đã được set sẵn trong `Dockerfile.frontend` (trỏ về backend), nhưng có thể ghi đè ở đây nếu cần.
 
 ### 6. Cấu hình Storefront Service
 - Tương tự frontend nhưng:
 - Dockerfile path: `Dockerfile.storefront`
 - Start Command: `npm start`
 - Watch / Build filter: `storefront/**`
-- Variables: `PORT=3001`, `VITE_API_BASE_URL=https://<backend-url>.railway.app`
+- Variables: `PORT=3001`, `VITE_API_BASE_URL=https://dazzling-grace-production-03a5.up.railway.app`
+- `VITE_API_BASE_URL` đã được set sẵn trong `Dockerfile.storefront` (trỏ về backend), nhưng có thể ghi đè ở đây nếu cần.
+
+> **Lưu ý quan trọng:** Vite chỉ đọc biến `VITE_*` lúc **build** (`npm run build`), không lúc runtime.
+> Do đó `VITE_API_BASE_URL` phải được set TRƯỚC bước build (đã làm trong Dockerfile) hoặc truyền qua biến môi trường build của Railway, không phải chỉ lúc chạy `vite preview`.
 
 ## Cách 2: Deploy qua Railway CLI
 

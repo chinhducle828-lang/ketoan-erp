@@ -1,15 +1,47 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile.backend",
-    "watchPatterns": ["backend/**", "railway.json", "Dockerfile.backend"]
-  },
-  "deploy": {
-    "startCommand": "node server.js",
-    "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 100,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+  "services": {
+    "backend": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile.backend",
+        "watchPatterns": ["backend/**", "railway.json", "Dockerfile.backend"]
+      },
+      "deploy": {
+        "startCommand": "node server.js",
+        "healthcheckPath": "/api/health",
+        "healthcheckTimeout": 100,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      }
+    },
+    "frontend": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile.frontend",
+        "watchPatterns": ["front-end/**", "railway.json", "Dockerfile.frontend"]
+      },
+      "deploy": {
+        "startCommand": "npm start",
+        "healthcheckPath": "/",
+        "healthcheckTimeout": 100,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      }
+    },
+    "storefront": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile.storefront",
+        "watchPatterns": ["storefront/**", "railway.json", "Dockerfile.storefront"]
+      },
+      "deploy": {
+        "startCommand": "npm start",
+        "healthcheckPath": "/",
+        "healthcheckTimeout": 100,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      }
+    }
   }
 }
