@@ -39,11 +39,15 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000', // Đồng bộ về cổng 5000 của backend kế toán
         changeOrigin: true,
       }
     }
+  },
+  preview: {
+    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app']
   }
 });
