@@ -362,7 +362,7 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
 
 // Lấy dữ liệu cũ trước khi xóa để ghi log
     const oldItem = await pool.query(
-      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $1`,
+      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $2`,
       [code, targetCompanyId]
     );
 
@@ -484,7 +484,7 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
 
 // Lấy dữ liệu cũ trước khi cập nhật để ghi log
     const oldItem = await pool.query(
-      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $1`,
+      `SELECT code, name, unit, price_sell, opening_quantity FROM items WHERE ${whereCode} AND company_id = $2`,
       [code, targetCompanyId]
     );
 
