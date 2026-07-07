@@ -2,8 +2,19 @@ const DEFAULT_BUSINESS_RULES = {
   pricing: {
     amountPrecision: 2,
     taxPrecision: 2,
-    defaultTaxRate: 0.1,
-    minOrderQuantity: 1
+    defaultTaxRate: 0.08,
+    minOrderQuantity: 1,
+    taxRules: [
+      { entityType: 'company', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
+      { entityType: 'company', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.1, priceMode: 'net' },
+      { entityType: 'company', annualRevenueBand: 'over_3b', category: 'retail', taxRate: 0.1, priceMode: 'net' },
+      { entityType: 'household', annualRevenueBand: 'under_1b', category: 'retail', taxRate: 0, priceMode: 'net' },
+      { entityType: 'household', annualRevenueBand: '1b_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
+      { entityType: 'household', annualRevenueBand: 'over_3b', category: 'retail', taxRate: 0.08, priceMode: 'net' },
+      { entityType: 'cooperative', annualRevenueBand: '', category: 'retail', taxRate: 0.08, priceMode: 'net' },
+      { entityType: 'company', annualRevenueBand: '', category: 'service', taxRate: 0.1, priceMode: 'net' },
+      { entityType: 'household', annualRevenueBand: '', category: 'service', taxRate: 0.08, priceMode: 'net' },
+    ]
   },
   voucher: {
     storefrontPrefix: 'WEB',

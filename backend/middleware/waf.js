@@ -117,12 +117,13 @@ export const checkCompanyActive = async (req, res, next) => {
   }
 
   try {
-    const { rows } = await pool.query('SELECT active FROM companies WHERE id = $1', [companyId]);
+    const { rows } = await pool.query('SELECT is_active, active FROM companies WHERE id = $1', [companyId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    if (rows[0].active === false || rows[0].active === 'false') {
+    const isActive = rows[0].is_active ?? rows[0].active;
+    if (isActive === false || isActive === 'false') {
       return res.status(403).json({ error: 'Company is not active' });
     }
 
