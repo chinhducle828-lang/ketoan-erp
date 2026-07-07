@@ -322,8 +322,8 @@ export const parsePriceValue = (value) => {
 export const getUnitPrice = (item) => parsePriceValue(item?.price_sell);
 
 // Get unit price already including VAT (gross price)
-// defaultVatRate: thuế suất áp dụng (mặc định 0.1 - 10%)
-export const getUnitPriceWithTax = (item, defaultVatRate = 0.1) => {
+// defaultVatRate: thuế suất áp dụng (mặc định 0.08 - 8%)
+export const getUnitPriceWithTax = (item, defaultVatRate = 0.08) => {
   const netPrice = getUnitPrice(item);
   const rate = Number(defaultVatRate) || 0;
   return Number((netPrice * (1 + rate)).toFixed(2));

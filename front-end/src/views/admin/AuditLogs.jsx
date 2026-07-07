@@ -313,29 +313,33 @@ export default function AuditLogs() {
                       {formatDate(log.created_at)}
                     </td>
                     <td className="p-3.5 text-center">
-                      <details className="inline-block text-left">
-                        <summary className="text-[10px] font-bold text-rose-600 cursor-pointer hover:text-rose-700 uppercase tracking-wider">
+                      <details className="inline-block text-left group">
+                        <summary className="list-none inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-[10px] font-black text-rose-700 cursor-pointer hover:bg-rose-100 transition-colors uppercase tracking-wider">
+                          <span className="group-open:hidden">▶</span>
+                          <span className="hidden group-open:inline">▼</span>
                           Xem chi tiết
                         </summary>
-                        <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 max-w-md">
+                        <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 w-[22rem] max-w-[80vw] shadow-sm">
                           {log.old_values && (
-                            <div>
-                              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Dữ liệu cũ:</div>
-                              <pre className="text-[10px] bg-white p-2 rounded border border-slate-200 overflow-x-auto max-h-32 overflow-y-auto">
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/60 overflow-hidden">
+                              <div className="text-[10px] font-black text-amber-700 uppercase px-2.5 py-1.5 border-b border-amber-200">Dữ liệu cũ</div>
+                              <pre className="text-[10px] leading-relaxed bg-white/70 p-2.5 overflow-x-auto max-h-40 overflow-y-auto text-slate-700 font-mono">
                                 {formatJSON(log.old_values)}
                               </pre>
                             </div>
                           )}
                           {log.new_values && (
-                            <div>
-                              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Dữ liệu mới:</div>
-                              <pre className="text-[10px] bg-white p-2 rounded border border-slate-200 overflow-x-auto max-h-32 overflow-y-auto">
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 overflow-hidden">
+                              <div className="text-[10px] font-black text-emerald-700 uppercase px-2.5 py-1.5 border-b border-emerald-200">Dữ liệu mới</div>
+                              <pre className="text-[10px] leading-relaxed bg-white/70 p-2.5 overflow-x-auto max-h-40 overflow-y-auto text-slate-700 font-mono">
                                 {formatJSON(log.new_values)}
                               </pre>
                             </div>
                           )}
                           {!log.old_values && !log.new_values && (
-                            <div className="text-[10px] text-slate-400 italic">Không có dữ liệu chi tiết</div>
+                            <div className="text-[10px] text-slate-500 italic bg-white border border-slate-200 rounded-lg px-2.5 py-2">
+                              Không có dữ liệu chi tiết
+                            </div>
                           )}
                         </div>
                       </details>

@@ -44,7 +44,7 @@ export default function FloatingCartBar({
           <span className="text-base font-bold text-indigo-600">
             {subtotal.toLocaleString('vi-VN')}đ
           </span>
-          <span className="text-[10px] text-emerald-600 font-medium">Đã bao gồm Thuế VAT 10%</span>
+          <span className="text-[10px] text-emerald-600 font-medium">Đã bao gồm Thuế VAT 8%</span>
         </div>
 
         {/* Cart Items Preview */}
