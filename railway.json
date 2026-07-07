@@ -3,7 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile.backend",
-    "watchPatterns": ["backend/**"]
+    "watchPatterns": ["backend/**", "railway.json", "Dockerfile.backend"]
   },
   "deploy": {
     "startCommand": "node server.js",
