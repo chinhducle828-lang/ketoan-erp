@@ -183,15 +183,17 @@ router.get('/', authenticate, async (req, res) => {
 
 // Thêm vật tư mới
 router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('images', 6), async (req, res) => {
-  try {
-    const { code, name, description, item_description, unit, price_sell, opening_quantity, image_url, companyId, company_id } = req.body;
-    const targetCompanyId = companyId || company_id || req.query.company_id;
-    const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
-    const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
-    const imageUrlValue = normalizeImageUrlInput(image_url || req.body.imageUrl || null);
-    const descriptionValue = (description ?? item_description ?? '').trim();
-    const uploadedImages = Array.isArray(req.files) ? req.files.map((file) => `/uploads/items/${file.filename}`) : [];
+  // Di chuyển khai báo biến ra ngoài try để catch có thể truy cập
+  const { code, name, description, item_description, unit, price_sell, opening_quantity, image_url, companyId, company_id } = req.body;
+  const targetCompanyId = companyId || company_id || req.query.company_id;
+  const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
+  const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
+  const imageUrlValue = normalizeImageUrlInput(image_url || req.body.imageUrl || null);
+  const descriptionValue = (description ?? item_description ?? '').trim();
+  const uploadedImages = Array.isArray(req.files) ? req.files.map((file) => `/uploads/items/${file.filename}`) : [];
+  let columns;
 
+  try {
     if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
     if (!targetCompanyId) return res.status(400).json({ error: 'Không xác định được doanh nghiệp cần khai báo vật tư!' });
     await assertCompanyOperational(targetCompanyId);
@@ -201,7 +203,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
       if (!hasAccess) return res.status(403).json({ error: 'Bạn không có quyền khai báo danh mục cho đơn vị này!' });
     }
 
-    const columns = await getItemsColumns();
+    columns = await getItemsColumns();
     const imageUrlsValue = (parseImageUrls(req.body.image_urls, uploadedImages) || [])
       .map((value) => normalizeImageUrlInput(value))
       .filter(Boolean);
