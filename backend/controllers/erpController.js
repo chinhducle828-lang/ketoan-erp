@@ -157,7 +157,9 @@ export const getAuditLogs = async (req, res) => {
 
     if (company_id) {
       paramCount++;
-      conditions.push(`al.company_id = $${paramCount}`);
+      // Merge 2 cases: logs thuộc công ty đang chọn + logs toàn cục (company_id IS NULL),
+      // để không bỏ sót LOGIN và các sự kiện hệ thống không gắn doanh nghiệp.
+      conditions.push(`(al.company_id = $${paramCount} OR al.company_id IS NULL)`);
       params.push(Number(company_id));
     }
 
