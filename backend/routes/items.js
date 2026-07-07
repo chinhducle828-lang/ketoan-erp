@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';
-import { emitInventoryRealtime } from './voucherRealtime.service.js';
+import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
 import { assertCompanyOperational, assertItemCanBeDeleted } from '../services/cascadeValidation.service.js';
 import { buildPurchaseInventoryDetails } from '../services/logistics.service.js';
 import { logAction, getClientIp } from '../services/auditLog.service.js';
