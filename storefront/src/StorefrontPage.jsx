@@ -1336,7 +1336,7 @@ taxRate: 0.08
               ) : filteredItems.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-xs text-slate-500">{t('noProducts', selectedLang)}</div>
               ) : (
-                <div className={`grid gap-1.5 ${isSalesRole ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-3">
                   {filteredItems.map((item) => {
                     const isWishlisted = wishlist.includes(item.id);
                     return (
