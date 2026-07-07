@@ -4,6 +4,7 @@ import { getInventoryRules, getOrderIngestionRules, getSaleRules, getBusinessRul
 import { runSaga } from './saga.service.js';
 import { buildAccountingEntries } from './logistics.service.js';
 import { resolveTaxBreakdown } from './taxRule.service.js';
+import { logAudit } from './audit.service.js';
 
 const getSalesVoucherType = () => {
   const rules = getInventoryRules();
@@ -159,6 +160,22 @@ export async function ingestOrderToVoucher(order, userId = null) {
 
     if (sagaResult.status === 'failed') {
       throw new Error(sagaResult.error);
+    }
+
+    // Ghi audit log (fire and forget)
+    try {
+      const voucherType = getSalesVoucherType();
+      const auditAction = voucherType === 'XK' ? 'GOODSISSUE' : 'CREATE';
+      logAudit({
+        userId: userId,
+        action: auditAction,
+        entityType: 'VOUCHERS',
+        newValues: { voucherId: createdVoucherId, orderNumber: order.order_number, items: order.items },
+        ipAddress: null,
+        companyId: order.company_id
+      });
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr.message);
     }
 
     try {
