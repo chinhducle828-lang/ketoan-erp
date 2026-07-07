@@ -95,13 +95,13 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
 
     const vMasterQuery = `
       INSERT INTO vouchers (
-        company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, created_by, is_posted, posted_at, posted_by
+        company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, created_by, is_posted, posted_at, posted_by, amount
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
     `;
     const masterRes = await client.query(vMasterQuery, [
       company_id, voucher_number, voucher_date, voucher_type, description, currency || 'VND', exchange_rate || 1,
-      req.user?.id || null, postingValues.is_posted, postingValues.posted_at, postingValues.posted_by
+      req.user?.id || null, postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, 0
     ]);
     const vId = masterRes.rows[0].id;
 

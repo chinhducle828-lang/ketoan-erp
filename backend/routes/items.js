@@ -282,10 +282,10 @@ const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ')
     if (openingQuantityValue > 0) {
       const voucherNumber = `NK-${Date.now().toString().slice(-6)}`;
       const voucherRes = await pool.query(
-        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, voucher_number, description, currency, exchange_rate, created_by, is_posted)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        `INSERT INTO vouchers (company_id, voucher_type, voucher_date, voucher_number, description, currency, exchange_rate, created_by, is_posted, amount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
         [targetCompanyId, 'NK', new Date().toISOString().split('T')[0], voucherNumber, 
-         `Nhập kho đầu kỳ: ${name.trim()}`, 'VND', 1, req.user?.id || null, false]
+         `Nhập kho đầu kỳ: ${name.trim()}`, 'VND', 1, req.user?.id || null, false, 0]
       );
       const voucherId = voucherRes.rows[0]?.id;
 
@@ -333,7 +333,43 @@ const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ')
 
     res.status(201).json({ success: true, message: 'Đã lưu vật tư/sản phẩm mới.' });
   } catch (err) {
-    if (err.code === '23505') return res.status(400).json({ error: 'Mã vật tư này đã được đăng ký tại doanh nghiệp hiện tại!' });
+    if (err.code === '23505') {
+      // Upsert: mã vật tư đã tồn tại -> cập nhật thông tin
+      try {
+        const updateFields = [];
+        const updateVals = [];
+        let paramIdx = 1;
+
+        if (name) {
+          updateFields.push(`name = $${paramIdx++}`);
+          updateVals.push(name.trim());
+        }
+        if (unit) {
+          updateFields.push(`unit = $${paramIdx++}`);
+          updateVals.push(unit.trim());
+        }
+        if (columns.has('description') && descriptionValue) {
+          updateFields.push(`description = $${paramIdx++}`);
+          updateVals.push(descriptionValue);
+        }
+        if (columns.has('price_sell')) {
+          updateFields.push(`price_sell = $${paramIdx++}`);
+          updateVals.push(priceSellValue);
+        }
+
+        if (updateFields.length > 0) {
+          updateVals.push(code.toUpperCase().trim(), targetCompanyId);
+          await pool.query(
+            `UPDATE items SET ${updateFields.join(', ')} WHERE code = $${paramIdx++} AND company_id = $${paramIdx}`,
+            updateVals
+          );
+        }
+
+        return res.json({ success: true, message: `Mã vật tư "${code}" đã tồn tại, đã cập nhật thông tin.` });
+      } catch (upsertErr) {
+        return res.status(500).json({ error: upsertErr.message });
+      }
+    }
     res.status(500).json({ error: err.message });
   }
 });
