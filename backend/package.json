@@ -11,9 +11,21 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo 'Backend API-only deployment: Skipping frontend build'",
-    "test": "set KETOAN_TEST=1&& set NODE_ENV=test&& node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
-    "test:watch": "set KETOAN_TEST=1&& set NODE_ENV=test&& node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:core": "set KETOAN_TEST=1&& set NODE_ENV=test&& node test-erp-core.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:core": "node test-erp-core.js",
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --runInBand",
+    "test:stats": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/statistical --verbose",
+    "test:perf": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/performance --verbose",
+    "test:property": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/property --verbose",
+    "test:combinatorial": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/combinatorial --verbose",
+    "test:graph": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/graph --verbose",
+    "test:queueing": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/queueing --verbose",
+    "test:stochastic": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/stochastic --verbose",
+    "test:all": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
+    "test:mutation": "stryker run",
+    "perf:update-baseline": "node scripts/perf-regression.mjs --update",
+    "perf:check": "node scripts/perf-regression.mjs"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
@@ -35,8 +47,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/jest-runner": "^8.7.1",
     "@types/jest": "^30.0.0",
     "@types/supertest": "^7.2.0",
+    "fast-check": "^4.8.0",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "supertest": "^7.2.2"

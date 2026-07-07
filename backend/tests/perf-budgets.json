@@ -1,0 +1,28 @@
+{
+  "_comment": "Performance budget registry for regression detection",
+  "_format": "Name: maximum allowed duration in milliseconds",
+  "version": "1.0.0",
+  "budgets": {
+    "_note": "Budgets are for CI runs. Local dev may see 2-5x higher times.",
+    "cacheProcessingLargeDataset": 100,
+    "reportCalculationMultiCompany": 200,
+    "dbQueryWithIndex": 500,
+    "concurrent100Requests": 2000,
+    "memoryUsageLargeDataset": 100,
+    "fifoTenThousandCalculations": 2000,
+    "bqgqTenThousandCalculations": 200,
+    "taxRateTenThousandLookups": 100,
+    "voucherValidationThousand": 200,
+    "formatCurrencyTenThousand": 500
+  },
+  "_baseline": {
+    "_comment": "Update via CI with intentional performance changes",
+    "lastUpdated": null,
+    "values": {}
+  },
+  "_ci": {
+    "_comment": "Configuration for scripts/perf-regression.mjs",
+    "regressionTolerancePct": 20,
+    "baselineFile": "tests/perf-baselines/baseline.json"
+  }
+}
