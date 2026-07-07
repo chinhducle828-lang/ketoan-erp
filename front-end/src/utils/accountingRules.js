@@ -35,7 +35,7 @@ export const normalizeVoucherPayload = (data, activeCompany) => {
 
 export const getCorporateIncomeTaxRate = () => 0.2;
 
-export const buildPurchaseInventoryDetails = ({ baseAmount, quantity = 1, partnerId = null, itemName = '', taxRate = DEFAULT_TAX_RATE }) => {
+export const buildPurchaseInventoryDetails = ({ baseAmount, quantity = 1, partnerId = null, itemName = '', itemId = null, taxRate = DEFAULT_TAX_RATE }) => {
   const amount = Math.round(Number(baseAmount) || 0);
   const qty = Math.max(1, Number(quantity) || 1);
   const effectiveTaxRate = Number(taxRate) || 0;
@@ -43,7 +43,7 @@ export const buildPurchaseInventoryDetails = ({ baseAmount, quantity = 1, partne
   const totalPay = amount + taxAmount;
 
   const details = [
-    { accountCode: '156', entryType: 'DR', amount, quantity: qty, partnerId, itemName },
+    { accountCode: '156', entryType: 'DR', amount, quantity: qty, partnerId, itemId, itemName },
   ];
 
   if (taxAmount > 0) {

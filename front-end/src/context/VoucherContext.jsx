@@ -121,6 +121,21 @@ export function VoucherProvider({ children }) {
     }
   };
 
+  const fetchCashFlow = async (companyId, year, method = 'indirect') => {
+    try {
+      const cid = companyId ?? activeCompany?.id ?? activeCompany;
+      if (!cid) return null;
+      const params = new URLSearchParams({ company_id: cid });
+      if (year) params.append('year', year);
+      params.append('method', method);
+      const res = await api.get(`/cashflow?${params.toString()}`);
+      return res.data?.data ?? res.data ?? null;
+    } catch (err) {
+      console.error('Lỗi tải báo cáo dòng tiền:', err);
+      return null;
+    }
+  };
+
   const removeVoucher = async (id) => {
     if (!id) return { success: false, error: 'Mã định danh chứng từ không hợp lệ.' };
     try {
@@ -140,7 +155,7 @@ export function VoucherProvider({ children }) {
   };
 
   return (
-    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers }}>
+    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers, fetchCashFlow }}>
       {children}
     </VoucherContext.Provider>
   );
