@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Component tests for ProductCard (storefront).
  * Uses @testing-library/react + Vitest (jsdom environment).
  */

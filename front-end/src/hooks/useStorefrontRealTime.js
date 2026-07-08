@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useEffect, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext.jsx';

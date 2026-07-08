@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 const DEFAULT_BUSINESS_RULES = {
   pricing: {
     amountPrecision: 2,
@@ -20,6 +24,17 @@ const DEFAULT_BUSINESS_RULES = {
     storefrontPrefix: 'WEB',
     saleVoucherType: 'XK',
     defaultLoadingStatus: 'pending_loading'
+  },
+  legal: {
+    privacyPolicyVersion: '2.0',
+    termsVersion: '2.0',
+    paymentProceduresVersion: '2.0',
+    refundPolicyVersion: '2.0',
+    dpoName: '[TÊN DPO]',
+    dpoEmail: '[EMAIL DPO]',
+    dpoPhone: '[SỐ ĐIỆN THOẠI DPO]',
+    dataRetentionDays: 3650,
+    complaintProcessingDays: 15
   },
   integration: {
     orderIngestion: {

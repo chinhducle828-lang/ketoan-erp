@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { canAccessCompany } from '../services/helpers.js';

@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Rate Limiter Middleware - Redis-based
  * Giới hạn số lượng request từ một IP trong khoảng thời gian nhất định
  * Bảo vệ các endpoint nhạy cảm khỏi brute force và DDoS

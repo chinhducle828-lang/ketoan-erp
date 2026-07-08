@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import * as partnerService from '../services/partnerService.js';
 import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 import { logAction, getClientIp } from '../services/auditLog.service.js';

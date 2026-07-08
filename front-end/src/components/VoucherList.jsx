@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRealTime } from '../hooks/useRealTime';
 import VirtualTable from './VirtualTable';

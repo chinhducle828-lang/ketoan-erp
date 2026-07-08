@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import crypto from 'crypto'; // ✅ BẮT BUỘC: Thêm thư viện mã hóa gốc của Node.js
 import { pool } from '../config/db.js'; // Sửa lại thành named import nếu config/db.js xuất dạng { pool }
 

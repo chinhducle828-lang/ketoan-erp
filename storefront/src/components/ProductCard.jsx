@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { ShoppingCart, Heart, Eye, Package } from 'lucide-react';
 import StockIndicator from './StockIndicator';

@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * WebSocket Service - Socket.io + Redis Adapter
  * Đồng bộ trạng thái thời gian thực giữa các server
  */

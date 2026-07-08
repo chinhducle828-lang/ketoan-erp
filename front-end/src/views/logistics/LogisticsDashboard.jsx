@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useEffect, useState } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';

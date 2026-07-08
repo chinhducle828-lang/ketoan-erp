@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 // Nạp 2 hàm từ controller xử lý thuật toán dồn tích và giá vốn kho
 import { runInventoryCosting, getLedgerBalances, getAuditLogs } from '../controllers/erpController.js';

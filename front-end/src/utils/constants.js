@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 export const ROLES = {
   ADMIN: 'admin',
   KTT: 'ktt',

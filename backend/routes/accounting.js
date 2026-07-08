@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Accounting API Routes
  * Expose accounting engine functions for frontend consumption
  * Single source of truth: backend/utils/accountingEngine.js

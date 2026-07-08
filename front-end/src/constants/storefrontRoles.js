@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 const STOREFRONT_SUPPORTED_ROLES = ['guest', 'admin', 'nv_banhang', 'nv_kho'];
 const STOREFRONT_ONLY_ROLES = ['nv_banhang', 'nv_kho'];
 

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 
 // Permission matrix - must match backend PERMISSIONS

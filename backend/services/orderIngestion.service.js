@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 import { publishToCompany } from './websocket.service.js';
 import { getInventoryRules, getOrderIngestionRules, getSaleRules, getBusinessRules } from '../config/businessRules.js';

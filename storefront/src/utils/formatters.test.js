@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Unit tests for storefront formatters utility functions.
  * Uses Vitest globals (configured in vitest.config.js).
  */

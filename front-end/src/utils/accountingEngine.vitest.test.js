@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Vitest-based unit tests for the frontend accounting engine.
  * These complement the pre-existing node:test suites and run under Vitest/CI.
  */

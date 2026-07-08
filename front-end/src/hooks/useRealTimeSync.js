@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useEffect, useMemo, useRef } from 'react';
 import { useSocket } from '../context/SocketContext.jsx';
 

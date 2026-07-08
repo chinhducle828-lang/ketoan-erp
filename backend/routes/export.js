@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import ExcelJS from 'exceljs';
 import { pool } from '../config/db.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search } from 'lucide-react';

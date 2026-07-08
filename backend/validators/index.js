@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: backend/validators/index.js
 import { z } from 'zod';
 

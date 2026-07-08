@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { createTenantPool, getTenantDb } from './db';
 
 // Tenant resolution middleware

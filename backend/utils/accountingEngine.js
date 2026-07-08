@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: backend/utils/accountingEngine.js
 import { pool } from '../config/db.js';
 import { getGeneralAccountingRules, getClosingRules } from '../config/businessRules.js';

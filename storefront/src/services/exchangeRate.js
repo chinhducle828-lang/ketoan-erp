@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // Exchange rate service - fetches VND/USD rate from Fixer API
 
 const API_KEY = import.meta.env.VITE_EXCHANGE_RATE_API_KEY || '';

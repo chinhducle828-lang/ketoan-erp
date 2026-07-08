@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState } from 'react';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';

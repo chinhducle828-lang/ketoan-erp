@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: backend/utils/inventoryEngine.js
 import { pool } from '../config/db.js';
 import { getInventoryRules } from '../config/businessRules.js';

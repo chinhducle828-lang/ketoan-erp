@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { Suspense, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle, Lock } from 'lucide-react';

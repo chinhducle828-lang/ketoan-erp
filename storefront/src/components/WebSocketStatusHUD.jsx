@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 

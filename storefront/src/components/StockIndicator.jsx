@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { Package, AlertTriangle } from 'lucide-react';
 import { STOCK_THRESHOLDS, UI_TEXT } from '../constants/storefront';

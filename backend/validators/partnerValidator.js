@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Validator kiểm duyệt dữ liệu Đối tác đầu vào (Partners)
  * Chặn đứng: SQL Injection, dữ liệu rác, sai định dạng nghiệp vụ ERP
  */

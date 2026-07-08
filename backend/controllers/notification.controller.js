@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 import { sendToUser, sendToRole, subscribe, unsubscribe } from '../services/webPush.service.js';
 import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: backend/controllers/erpController.js
 import { calculateBalances } from '../utils/accountingEngine.js';
 import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';

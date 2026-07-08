@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useRealTime, useBalanceUpdates } from '../../hooks/useRealTime';
 import { useAuth } from '../../context/AuthContext';

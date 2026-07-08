@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 export function buildMultiCurrencyDetail(detail, exchangeRate = 1) {
   const amountOrigin = Number(detail?.amountOrigin ?? detail?.amount_origin ?? 0) || 0;
   const currencyOrigin = detail?.currencyOrigin || detail?.currency_origin || 'VND';

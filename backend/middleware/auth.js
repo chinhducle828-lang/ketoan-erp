@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/db.js'; // Đường dẫn chuẩn xác từ middleware sang config/db.js
 

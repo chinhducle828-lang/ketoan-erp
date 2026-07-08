@@ -341,3 +341,93 @@ CREATE INDEX IF NOT EXISTS idx_details_voucher_lookup ON voucher_details(voucher
 CREATE INDEX IF NOT EXISTS idx_details_partner_account ON voucher_details(partner_id, account_code) WHERE partner_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_details_tax_accounts ON voucher_details(account_code) WHERE account_code LIKE '333%';
 CREATE INDEX IF NOT EXISTS idx_details_currency ON voucher_details(currency_origin, voucher_id) WHERE currency_origin != 'VND';
+
+-- ====================================================================
+-- BẢNG HÓA ĐƠN ĐIỆN TỬ (NĐ 254/2026/NĐ-CP)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS e_invoices (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    invoice_no VARCHAR(100) NOT NULL,
+    template VARCHAR(20) NOT NULL DEFAULT '01GTKT0',
+    symbol VARCHAR(50) NOT NULL,
+    buyer_name VARCHAR(255) NOT NULL,
+    buyer_tax_code VARCHAR(50) DEFAULT NULL,
+    buyer_address TEXT DEFAULT NULL,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    tax_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    total NUMERIC(15,2) NOT NULL DEFAULT 0,
+    voucher_id INT DEFAULT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'issued',
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_e_invoices_company_invoice_no ON e_invoices(company_id, invoice_no);
+CREATE INDEX IF NOT EXISTS idx_e_invoices_company ON e_invoices(company_id);
+CREATE INDEX IF NOT EXISTS idx_e_invoices_issued_at ON e_invoices(issued_at DESC);
+
+-- ====================================================================
+-- BẢNG CONSENT / CLICK-WRAP AGREEMENT (NĐ 48/2024/NĐ-CP)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS consents (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    policy_type VARCHAR(50) NOT NULL, -- 'privacy' | 'terms' | 'marketing'
+    policy_version VARCHAR(20) NOT NULL,
+    agreed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT DEFAULT NULL,
+    CONSTRAINT ux_consents_user_policy UNIQUE (user_id, policy_type, policy_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consents_user ON consents(user_id);
+CREATE INDEX IF NOT EXISTS idx_consents_policy ON consents(policy_type, policy_version);
+
+-- ====================================================================
+-- BẢNG COMPANY_PROFILES & COMPLAINTS (NĐ 248/2026 Đ4 + khiếu nại)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS company_profiles (
+    company_id INT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+    legal_name VARCHAR(255) DEFAULT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    hotline VARCHAR(50) DEFAULT NULL,
+    website VARCHAR(255) DEFAULT NULL,
+    license_no VARCHAR(100) DEFAULT NULL,
+    dpo_name VARCHAR(255) DEFAULT NULL,
+    dpo_email VARCHAR(255) DEFAULT NULL,
+    data_retention_days INT DEFAULT 3650,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS complaints (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    content TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_complaints_company ON complaints(company_id);
+
+-- ====================================================================
+-- BẢNG REFUND_REQUESTS (NĐ 248/2026 Đ14 - Hoàn tiền & hủy gói)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS refund_requests (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    voucher_id INT DEFAULT NULL,
+    amount NUMERIC(15,2) NOT NULL CHECK (amount >= 0),
+    reason TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    approved_by INT REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMP DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_refund_requests_company ON refund_requests(company_id);
+CREATE INDEX IF NOT EXISTS idx_refund_requests_status ON refund_requests(status);

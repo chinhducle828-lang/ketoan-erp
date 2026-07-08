@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Storefront Configuration Constants
  * Centralized configuration for easy maintenance and theming
  */

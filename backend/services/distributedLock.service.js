@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Distributed Lock Service
  * Sử dụng Redis để triển khai thuật toán Redlock
  * Đảm bảo chỉ một process xử lý cho mỗi resource tại một thời điểm

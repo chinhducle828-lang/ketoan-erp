@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { loadItems as fetchItems, loadWarehouseQueue as fetchQueue } from '../utils/api';
 import { STOREFRONT_ROLE_KEY } from '../constants';

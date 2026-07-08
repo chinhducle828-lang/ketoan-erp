@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * useAccounting Hook
  * Frontend hook để gọi API accounting từ backend
  * Single source of truth: backend/utils/accountingEngine.js

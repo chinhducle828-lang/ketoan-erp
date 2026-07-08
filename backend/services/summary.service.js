@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 
 export function buildPeriodBalanceSummaryQuery(accountCodes, year = null, month = null) {

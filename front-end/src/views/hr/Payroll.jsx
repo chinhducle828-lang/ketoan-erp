@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: front-end/src/views/hr/Payroll.jsx
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';

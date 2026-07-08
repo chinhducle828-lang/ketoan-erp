@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Package, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';

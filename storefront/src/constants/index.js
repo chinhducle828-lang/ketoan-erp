@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // Constants for Storefront
 export const ROLE_OPTIONS = [
   { value: 'guest', label: 'Khách vãng lai' },

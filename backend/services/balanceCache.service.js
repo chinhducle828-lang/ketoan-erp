@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Balance Cache Service
  * Cache số dư tài khoản qua Redis để đồng bộ giữa các server
  * Sử dụng Redis thay vì Map trong RAM để tránh race condition

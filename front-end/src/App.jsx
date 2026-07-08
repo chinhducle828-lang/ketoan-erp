@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
@@ -18,13 +22,12 @@ import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import ResponsiveContainer from './components/ResponsiveContainer.jsx';
 import CompanyRouteWrapper from './components/CompanyRouteWrapper.jsx';
+import Footer from './components/Footer.jsx';
 
 export default function App() {
-  // ✅ ĐÃ HOÀN THIỆN: Lấy loading từ useAuth để kiểm soát render bảo vệ tuyến đường
   const { user, token, mustChangePassword, loading } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    // Load sidebar state from localStorage
     const saved = localStorage.getItem('sidebarOpen');
     return saved !== null ? JSON.parse(saved) : true;
   });
@@ -35,7 +38,6 @@ export default function App() {
   const defaultModule = MODULES_REGISTER.find((module) => module.allowedRoles?.includes(roleCode));
   const defaultPath = defaultModule ? `/${defaultModule.id}` : '/login';
 
-  // ✅ ĐÃ HOÀN THIỆN: Màn hình chờ đồng bộ an toàn khi F5 ứng dụng
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-3">
@@ -50,9 +52,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ==========================================
-            1. CÁC ĐƯỜNG DẪN XÁC THỰC (AUTH ROUTES)
-           ========================================== */}
         <Route 
           path="/login" 
           element={
@@ -63,7 +62,6 @@ export default function App() {
             )
           } 
         />
-        {/* Route riêng cho Giám đốc Kinh doanh - không dùng sidebar ERP */}
         {isGiamDocKinhDoanh && (
           <Route 
             path="/gd-kinhdoanh/*" 
@@ -81,6 +79,7 @@ export default function App() {
                       </Routes>
                     </ResponsiveContainer>
                   </main>
+                  <Footer />
                 </div>
               </div>
             }
@@ -93,9 +92,6 @@ export default function App() {
         <Route path="/pos" element={<StorefrontAccessNotice />} />
         <Route path="/customer" element={<CustomerView />} />
 
-        {/* ==========================================
-            2. CÁC ĐƯỜNG DẪN PHÂN HỆ CHÍNH (PROTECTED ERP ROUTES)
-           ========================================== */}
         <Route
           path="/*"
           element={
@@ -106,7 +102,6 @@ export default function App() {
             ) : userNeedsStorefrontOnly ? (
               <StorefrontAccessNotice />
             ) : (
-              // Giao diện Layout tổng thể sau khi Login thành công
               <div className="flex min-h-screen bg-slate-50">
                 <Sidebar 
                   mobileOpen={mobileSidebarOpen} 
@@ -128,10 +123,7 @@ export default function App() {
                   <main className="flex-1 overflow-y-auto bg-slate-50">
                     <ResponsiveContainer className="py-6">
                       <Routes>
-                        {/* Trang chủ mặc định nhảy vào Khai báo số dư */}
                         <Route path="/" element={<Navigate to={defaultPath} replace />} />
-                      
-                      {/* 🚀 TỰ ĐỘNG KHAI BÁO TUYẾN ĐƯỜNG (DYNAMIC ROUTING) */}
                       {MODULES_REGISTER.map(mod => (
                         <Route
                           key={mod.id}
@@ -145,12 +137,11 @@ export default function App() {
                           }
                         />
                       ))}
-
-                      {/* Bắt các URL gõ sai quay về trang chủ */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </ResponsiveContainer>
                   </main>
+                  <Footer />
                 </div>
               </div>
             )

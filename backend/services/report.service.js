@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 import { getBalanceSheetRules } from '../config/businessRules.js';
 

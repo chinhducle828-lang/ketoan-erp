@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 
 export default function ResponsiveContainer({ children, className = '' }) {

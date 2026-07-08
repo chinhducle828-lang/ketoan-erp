@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Background Worker cho tính giá vốn kho (BullMQ + Redis)
  */
 import { Queue, Worker } from 'bullmq';

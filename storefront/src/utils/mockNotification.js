@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Mock Notification Data for Testing
  * Use this to simulate voucher notifications
  */
