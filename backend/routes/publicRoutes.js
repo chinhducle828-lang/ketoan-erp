@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { pool } from '../config/db.js';
 import { buildOrderNumber, calculateTaxAmount, buildAccountingEntries } from '../services/logistics.service.js';
@@ -6,6 +10,7 @@ import { getBusinessRules, getSaleRules } from '../config/businessRules.js';
 import { sendToRole } from '../services/webPush.service.js';
 import { resolveTaxBreakdown } from '../services/taxRule.service.js';
 import { logAudit } from '../services/audit.service.js';
+import { rateLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 const SCHEMA_CACHE_TTL_MS = 30 * 1000;
@@ -286,7 +291,7 @@ router.get('/items', async (req, res) => {
   }
 });
 
-router.post('/orders', async (req, res) => {
+router.post('/orders', rateLimiter, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import Redis from 'ioredis';
 
 // Tự động nhận diện chuỗi kết nối từ file .env, nếu không tìm thấy mới dùng localhost làm dự phòng

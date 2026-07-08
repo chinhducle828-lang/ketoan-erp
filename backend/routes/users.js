@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db.js';
@@ -231,6 +235,53 @@ router.post('/:id/set-root-admin', authenticate, async (req, res) => {
   } catch (err) { 
     console.error("Lỗi POST /api/users/set-root-admin:", err);
     return res.status(500).json({ error: "Lỗi hệ thống khi cập nhật quyền Root Admin: " + err.message }); 
+  }
+});
+
+// ==========================================
+// 3. USER DATA RIGHTS (GDPR / Luật BV dữ liệu)
+// ==========================================
+
+/**
+ * Xuất dữ liệu cá nhân của người dùng đăng nhập
+ * GET /api/users/me/export-data
+ */
+router.get('/me/export-data', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await pool.query('SELECT id, username, role, company_ids, staff_ids, manager_id, preferences, created_at FROM users WHERE id = $1', [userId]);
+    if (user.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
+
+    const sessions = await pool.query('SELECT id, created_at, expires_at, ip_address, device_info FROM sessions WHERE user_id = $1', [userId]);
+    const consents = await pool.query('SELECT policy_type, policy_version, agreed_at, ip_address FROM consents WHERE user_id = $1', [userId]);
+
+    res.json({
+      success: true,
+      data: {
+        user: user.rows[0],
+        sessions: sessions.rows,
+        consents: consents.rows
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Xóa dữ liệu cá nhân (quyền bị lãng quên)
+// Xóa dữ liệu cá nhân (quyền bị lãng quên)
+ * DELETE /api/users/me
+ */
+router.delete('/me', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM consents WHERE user_id = $1', [userId]);
+    await pool.query('UPDATE users SET preferences = NULL, company_ids = NULL, staff_ids = NULL, manager_id = NULL WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Đã xóa dữ liệu cá nhân theo yêu cầu.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 const OFFLINE_QUEUE_KEY = 'ketoan_offline_queue_v1';
 const GET_CACHE_KEY = 'ketoan_get_cache_v1';
 const HYBRID_STATE_KEY = 'ketoan_hybrid_state_v1';

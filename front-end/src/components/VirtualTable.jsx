@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useMemo, useCallback } from 'react';
 import { useRealTime } from '../hooks/useRealTime';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';

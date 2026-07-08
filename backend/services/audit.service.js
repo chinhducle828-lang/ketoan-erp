@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Audit Service
  * Ghi lại mọi thay đổi dữ liệu nhạy cảm
  */

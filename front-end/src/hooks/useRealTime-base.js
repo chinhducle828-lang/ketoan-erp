@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * useRealTime Base Hook
  * Base hook chung cho ERP và Storefront
  * Single source of truth cho real-time updates logic

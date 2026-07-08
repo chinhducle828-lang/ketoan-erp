@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Encryption Service
  * Mã hóa dữ liệu nhạy cảm sử dụng AES-256-GCM
  * Bảo vệ các trường như số tài khoản ngân hàng, CMND, số điện thoại

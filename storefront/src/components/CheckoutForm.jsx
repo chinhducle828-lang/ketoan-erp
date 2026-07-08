@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState } from 'react';
 import { formatPrice, getUnitPrice, getOrderAmount, getUnitPriceWithTax } from '../utils/formatters';
 import { createOrder } from '../utils/api';
@@ -35,6 +39,11 @@ const CheckoutForm = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!cart.length) return;
+
+    if (!agreedToTerms) {
+      setShowConsentError(true);
+      return;
+    }
 
     setSubmitting(true);
     setMessage('');

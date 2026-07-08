@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { publishToCompany } from './websocket.service.js';
 
 const EVENT_NAME_MAP = {

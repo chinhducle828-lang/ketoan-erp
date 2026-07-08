@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';

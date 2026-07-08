@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Number Formatting Helper - Currency and Financial Values
  * Provides consistent formatting for financial data across the ERP system
  */

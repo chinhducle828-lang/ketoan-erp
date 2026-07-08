@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // Utility functions for formatting
 
 const DEFAULT_CURRENCY = import.meta.env.VITE_DEFAULT_CURRENCY || 'VND';

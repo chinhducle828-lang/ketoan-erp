@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { useOrderStatus } from '../hooks/useRealTime';
 import { Package, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';

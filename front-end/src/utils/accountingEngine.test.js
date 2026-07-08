@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Unit tests for frontend accounting engine
  * Uses Node.js built-in test runner (no external dependencies)
  */

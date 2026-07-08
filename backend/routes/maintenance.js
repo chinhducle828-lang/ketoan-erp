@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { rebuildLedger } from '../services/maintenance.service.js';

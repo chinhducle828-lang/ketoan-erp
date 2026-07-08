@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: front-end/src/views/inventory/InventoryVoucherForm.jsx
 import React, { useState } from 'react';
 import api from '../../utils/api.js';

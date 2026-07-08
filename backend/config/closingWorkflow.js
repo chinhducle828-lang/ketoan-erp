@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * CẤU HÌNH WORKFLOW KẾT CHUYỂN SỔ - ERP KẾ TOÁN
  * Chuẩn Thông tư 99/2025/TT-BTC
  */

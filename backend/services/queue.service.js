@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Queue Service - BullMQ Integration
  * Xử lý bất đồng bộ các tác vụ nặng (FIFO, Closing, etc.)
  */

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useVoucherNotifications } from '../hooks/useRealTime';
 import { Bell, X, FileText, Check } from 'lucide-react';

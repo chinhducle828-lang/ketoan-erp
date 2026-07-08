@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { Worker } from 'bullmq';
 import { redis } from '../cache/redis.js';
 import { getOrderIngestionRules } from '../config/businessRules.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Calculator, Loader2 } from 'lucide-react';

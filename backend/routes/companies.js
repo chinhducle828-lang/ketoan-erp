@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -55,6 +59,58 @@ router.delete('/:id', authenticate, requireRole(['admin']), async (req, res) => 
     res.json({ success: true, message: 'Đã xóa công ty khỏi hệ thống thành công!' });
   } catch (err) {
     res.status(500).json({ error: 'Lỗi xóa công ty: ' + err.message });
+  }
+});
+
+// ==========================================
+// DPO & RETENTION (P6)
+// ==========================================
+
+/**
+ * Lấy thông tin DPO và chính sách lưu giữ dữ liệu
+ * GET /api/companies/:id/legal-profile
+ */
+router.get('/:id/legal-profile', authenticate, async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const company = await pool.query('SELECT id, name, tax_code, address FROM companies WHERE id = $1 LIMIT 1', [companyId]);
+    if (company.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy công ty' });
+
+    const profile = await pool.query('SELECT * FROM company_profiles WHERE company_id = $1 LIMIT 1', [companyId]);
+    res.json({ success: true, data: { ...company.rows[0], ...(profile.rows[0] || {}) } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Cập nhật thông tin DPO và chính sách lưu giữ
+ * POST /api/companies/:id/legal-profile
+ */
+router.post('/:id/legal-profile', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const { legal_name, email, hotline, website, license_no, dpo_name, dpo_email, data_retention_days } = req.body;
+
+    await pool.query(
+      `INSERT INTO company_profiles (company_id, legal_name, email, hotline, website, license_no, dpo_name, dpo_email, data_retention_days, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+       ON CONFLICT (company_id) DO UPDATE
+         SET legal_name = EXCLUDED.legal_name,
+             email = EXCLUDED.email,
+             hotline = EXCLUDED.hotline,
+             website = EXCLUDED.website,
+             license_no = EXCLUDED.license_no,
+             dpo_name = EXCLUDED.dpo_name,
+             dpo_email = EXCLUDED.dpo_email,
+             data_retention_days = EXCLUDED.data_retention_days,
+             updated_at = EXCLUDED.updated_at`,
+      [companyId, legal_name, email, hotline, website, license_no, dpo_name, dpo_email, data_retention_days]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

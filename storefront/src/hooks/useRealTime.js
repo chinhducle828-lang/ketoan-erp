@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useState, useCallback, useEffect } from 'react';
 import { useRealTimeBase } from './useRealTime-base';
 import wsService from '../services/websocket';

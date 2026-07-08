@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useMemo } from 'react';
 
 const normalizeAbsoluteUrl = (value) => {

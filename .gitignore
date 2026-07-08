@@ -8,6 +8,9 @@ node_modules/
 .env.local
 .env.*.local
 .env.production.local
+.env.production
+.env.staging
+.env.development
 backend/.env
 front-end/.env
 front-end/.env.production
@@ -76,7 +79,8 @@ temp/
 *.temp
 
 # Package manager lock files
-package-lock.json
+# NOTE: Không ignore lock files ở sub-projects (backend/, front-end/, storefront/)
+# để Railway có thể build reproducible. Chỉ ignore yarn/pnpm lock ở root.
 yarn.lock
 pnpm-lock.yaml
 
@@ -89,3 +93,20 @@ backend/logs/
 all_project_code.txt
 backend_test_output.txt
 backend/.stryker-tmp/
+
+# Platform deployment state
+.railway/
+.vercel/
+.netlify/
+.render/
+.fly/
+.heroku/
+
+# SSL / Private keys
+*.pem
+*.key
+*.pfx
+*.crt
+private_key*
+id_rsa
+id_rsa.pub

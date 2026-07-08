@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';

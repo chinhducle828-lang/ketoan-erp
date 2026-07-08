@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: front-end/src/utils/api.js
 import axios from 'axios';
 import { getClientInstanceId } from './clientInstance.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { X, ChevronLeft, ChevronRight, Heart, Package } from 'lucide-react';
 import { formatPrice, resolveMediaUrl, getUnitPrice, getOrderAmount } from '../utils/formatters';

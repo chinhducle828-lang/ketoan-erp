@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import { createPartner, getPartners } from '../controllers/partnerController.js';
 import { validatePartner } from '../validators/partnerValidator.js';

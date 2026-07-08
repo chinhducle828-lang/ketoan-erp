@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 import { getPeriodBalanceSummary } from './summary.service.js';

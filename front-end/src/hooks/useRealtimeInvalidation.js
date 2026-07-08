@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 const DEFAULT_EVENT_MAP = Object.freeze({

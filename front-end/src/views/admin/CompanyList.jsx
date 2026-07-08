@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useEffect, useState } from 'react';
 import api from '../../utils/api.js';
 import { Trash2, Building2 } from 'lucide-react';

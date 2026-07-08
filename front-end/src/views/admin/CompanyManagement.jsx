@@ -1,9 +1,13 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AddCompanyForm from './AddCompanyForm.jsx';
 import CompanyList from './CompanyList.jsx';
-import { ShieldAlert, Users, UserPlus, Trash2, KeyRound, Database } from 'lucide-react';
+import { ShieldAlert, Users, UserPlus, Trash2, KeyRound, Database, RefreshCcw, Link2 } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
@@ -102,6 +106,16 @@ export default function CompanyManagement() {
   const [newCompanyIds, setNewCompanyIds] = useState([]);
   const [exportCompanyId, setExportCompanyId] = useState(null);
   const [importing, setImporting] = useState(false);
+
+  // Casso integration states
+  const [cassoUserInfo, setCassoUserInfo] = useState(null);
+  const [cassoUserLoading, setCassoUserLoading] = useState(false);
+  const [cassoBankAccounts, setCassoBankAccounts] = useState([]);
+  const [cassoAssignCompanyId, setCassoAssignCompanyId] = useState('');
+  const [cassoAssignBankId, setCassoAssignBankId] = useState('');
+  const [cassoAssignLoading, setCassoAssignLoading] = useState(false);
+  const [cassoAssignedAccounts, setCassoAssignedAccounts] = useState([]);
+  const [cassoSyncLoading, setCassoSyncLoading] = useState(false);
 
   const toggleCompanySelection = (companyId) => {
     setNewCompanyIds(prev => {
@@ -274,6 +288,74 @@ export default function CompanyManagement() {
     }
   };
 
+  // Casso helpers
+  const loadCassoUserInfo = async () => {
+    setCassoUserLoading(true);
+    try {
+      const res = await api.get('/api/casso/user');
+      setCassoUserInfo(res.data?.data || null);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Không thể lấy thông tin Casso');
+    } finally {
+      setCassoUserLoading(false);
+    }
+  };
+
+  const loadCassoAssignedAccounts = async (companyId) => {
+    try {
+      const res = await api.get('/api/casso/company-accounts', { params: { company_id: companyId } });
+      setCassoAssignedAccounts(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch {
+      setCassoAssignedAccounts([]);
+    }
+  };
+
+  const handleCassoAssign = async (e) => {
+    e.preventDefault();
+    if (!cassoAssignCompanyId || !cassoAssignBankId) {
+      return alert('Vui lòng chọn công ty và tài khoản ngân hàng');
+    }
+    setCassoAssignLoading(true);
+    try {
+      const bank = cassoBankAccounts.find((b) => b.bank_sub_acc_id === cassoAssignBankId);
+      await api.post('/api/casso/company-accounts', {
+        company_id: Number(cassoAssignCompanyId),
+        bank_sub_acc_id: cassoAssignBankId,
+        bank_name: bank?.bank_name || bank?.name || null,
+        account_number: bank?.account_number || bank?.account_no || null,
+        owner_name: bank?.owner_name || bank?.owner || null
+      });
+      alert('Gán tài khoản Casso thành công');
+      loadCassoAssignedAccounts(Number(cassoAssignCompanyId));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi gán tài khoản Casso');
+    } finally {
+      setCassoAssignLoading(false);
+    }
+  };
+
+  const handleCassoSync = async () => {
+    const bankId = cassoAssignBankId || (cassoBankAccounts[0]?.bank_sub_acc_id || cassoBankAccounts[0]?.id);
+    if (!bankId) {
+      return alert('Chưa chọn tài khoản ngân hàng để đồng bộ');
+    }
+    setCassoSyncLoading(true);
+    try {
+      await api.post('/api/casso/sync', null, { params: { bank_acc_id: bankId } });
+      alert('Đã gửi yêu cầu đồng bộ giao dịch mới');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Lỗi đồng bộ Casso');
+    } finally {
+      setCassoSyncLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (companies.length > 0 && !cassoAssignCompanyId) {
+      setCassoAssignCompanyId(String(companies[0].id));
+    }
+  }, [companies, cassoAssignCompanyId]);
+
   // Xử lý Xóa nhân sự
   const handleDeleteUser = async (userId, username) => {
     if (username === 'admin') {
@@ -295,6 +377,12 @@ export default function CompanyManagement() {
       alert(err.response?.data?.error || 'Lỗi xóa nhân sự!');
     }
   };
+
+  useEffect(() => {
+    if (companies.length > 0) {
+      loadCassoAssignedAccounts(companies[0].id);
+    }
+  }, [companies]);
 
   return (
     <div className="space-y-6 bg-slate-50/50 p-4 rounded-3xl min-h-screen">
@@ -432,6 +520,76 @@ export default function CompanyManagement() {
                 + Tạo tài khoản nhân sự
               </button>
             </form>
+          </div>
+        </div>
+
+        {/* CARD TÍCH HỢP CASSO */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+              <Link2 size={16} className="text-emerald-600" /> Tích hợp thanh toán Casso
+            </h3>
+            <button type="button" onClick={loadCassoUserInfo} disabled={cassoUserLoading} className="text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-lg shadow-sm transition-colors uppercase tracking-wide">
+              {cassoUserLoading ? 'Đang tải...' : 'Lấy thông tin tài khoản Casso'}
+            </button>
+          </div>
+
+          {cassoUserInfo && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+              <p className="text-[11px] font-bold text-slate-900">Email: {cassoUserInfo?.email || cassoUserInfo?.data?.email || '—'}</p>
+              <p className="text-[11px] font-bold text-slate-900">Tên doanh nghiệp: {cassoUserInfo?.business_name || cassoUserInfo?.data?.business_name || '—'}</p>
+              <p className="text-[11px] font-semibold text-slate-700">Danh sách ngân hàng liên kết:</p>
+              <div className="max-h-40 space-y-1 overflow-y-auto">
+                {(cassoUserInfo?.bank_accounts || cassoUserInfo?.data?.bank_accounts || []).map((bank, idx) => (
+                  <div key={idx} className="rounded-lg border border-slate-200 bg-white p-2">
+                    <p className="text-[11px] font-semibold text-slate-900">{bank.bank_name || bank.name || 'Ngân hàng'}</p>
+                    <p className="text-[10px] text-slate-600">Số TK: {bank.account_number || bank.account_no || '—'} • Chủ: {bank.owner_name || bank.owner || '—'}</p>
+                    <p className="text-[10px] text-slate-500">Mã tài khoản: {bank.bank_sub_acc_id || bank.id || '—'}</p>
+                  </div>
+                ))}
+                {(!(cassoUserInfo?.bank_accounts || cassoUserInfo?.data?.bank_accounts) || (cassoUserInfo?.bank_accounts || cassoUserInfo?.data?.bank_accounts || []).length === 0) && (
+                  <p className="text-[10px] text-slate-500 italic">Chưa có ngân hàng liên kết.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleCassoAssign} className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select value={cassoAssignCompanyId} onChange={(e) => setCassoAssignCompanyId(e.target.value)} className="text-xs border rounded-xl p-2.5 bg-slate-50 border-slate-200 text-slate-700">
+                <option value="">-- Chọn công ty --</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={cassoAssignBankId} onChange={(e) => setCassoAssignBankId(e.target.value)} className="text-xs border rounded-xl p-2.5 bg-slate-50 border-slate-200 text-slate-700">
+                <option value="">-- Chọn tài khoản ngân hàng --</option>
+                {(cassoUserInfo?.bank_accounts || cassoUserInfo?.data?.bank_accounts || []).map((bank, idx) => (
+                  <option key={idx} value={bank.bank_sub_acc_id || bank.id}>{bank.bank_name || bank.name} - {bank.account_number || bank.account_no}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" disabled={cassoAssignLoading} className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-60">
+                {cassoAssignLoading ? 'Đang gán...' : 'Gán tài khoản cho công ty'}
+              </button>
+              <button type="button" onClick={handleCassoSync} disabled={cassoSyncLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                {cassoSyncLoading ? 'Đang đồng bộ...' : 'Đồng bộ giao dịch mới'}
+              </button>
+            </div>
+          </form>
+
+          <div>
+            <p className="text-[11px] font-bold text-slate-700 mb-1">Tài khoản đã gán theo công ty:</p>
+            <div className="max-h-48 space-y-1 overflow-y-auto">
+              {cassoAssignedAccounts.length === 0 && <p className="text-[10px] text-slate-500 italic">Chưa gán tài khoản nào.</p>}
+              {cassoAssignedAccounts.map((acc) => (
+                <div key={acc.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-900">{acc.bank_name || 'Ngân hàng'}</p>
+                    <p className="text-[10px] text-slate-600">Công ty ID: {acc.company_id} • TK: {acc.account_number} • {acc.owner_name}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

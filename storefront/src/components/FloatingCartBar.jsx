@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { ShoppingCart, X, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
 import { getUnitPriceWithTax } from '../utils/formatters';

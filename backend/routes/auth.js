@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -290,6 +294,41 @@ router.post('/change-password', authenticate, safeValidate(changePasswordSchema)
     await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
     res.json({ success: true, message: 'Đổi mật khẩu thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Ghi nhận sự đồng ý chính sách (click-wrap)
+router.post('/consent', authenticate, async (req, res) => {
+  try {
+    const { policyType, policyVersion } = req.body;
+    if (!policyType || !policyVersion) {
+      return res.status(400).json({ error: 'Thiếu policyType hoặc policyVersion' });
+    }
+
+    const allowed = ['privacy', 'terms', 'marketing'];
+    if (!allowed.includes(String(policyType))) {
+      return res.status(400).json({ error: 'Loại chính sách không hợp lệ' });
+    }
+
+    await pool.query(
+      `INSERT INTO consents (user_id, policy_type, policy_version, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, policy_type, policy_version) DO UPDATE
+         SET agreed_at = EXCLUDED.agreed_at,
+             ip_address = EXCLUDED.ip_address,
+             user_agent = EXCLUDED.user_agent`,
+      [
+        req.user.id,
+        policyType,
+        policyVersion,
+        req.ip,
+        req.headers['user-agent'] || null
+      ]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Reset Mật khẩu

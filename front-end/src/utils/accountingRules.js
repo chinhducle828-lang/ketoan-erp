@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 export const DEFAULT_PAYROLL_RATES = Object.freeze({
   employer: { bhxh: 0.175, bhyt: 0.03, bhtn: 0.01 },
   employee: { bhxh: 0.08, bhyt: 0.015, bhtn: 0.01 }

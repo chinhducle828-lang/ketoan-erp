@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 // FILE_PATH: front-end/src/constants/modules.js
 // Đăng ký tập trung toàn bộ Module hệ thống với phân quyền nghiêm ngặt
 

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { getBusinessRules } from '../config/businessRules.js';
 
 const roundAmount = (value, precision = 2) => Number(Number(value || 0).toFixed(precision));

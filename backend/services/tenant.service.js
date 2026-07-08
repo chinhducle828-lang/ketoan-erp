@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { getTenantById, createTenantSchema } from '../config/tenant';
 import redisClient from '../config/redis';
 

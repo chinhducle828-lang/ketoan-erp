@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
@@ -26,6 +30,7 @@ import FloatingCartBar from './components/FloatingCartBar';
 import ProductCard from './components/ProductCard';
 import QuickViewModal from './components/QuickViewModal';
 import WebSocketStatusHUD from './components/WebSocketStatusHUD';
+import Footer from './components/Footer';
 import {
   ROLE_OPTIONS,
   ROLE_BADGE_CLASS,
@@ -122,6 +127,9 @@ export default function StorefrontPage() {
   const [showQuickView, setShowQuickView] = useState(false);
   const [quickViewItem, setQuickViewItem] = useState(null);
   const [quickViewImageIndex, setQuickViewImageIndex] = useState(0);
+  const [showCassoModal, setShowCassoModal] = useState(false);
+  const [cassoAccounts, setCassoAccounts] = useState([]);
+  const [cassoLoading, setCassoLoading] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
   const [shippingCode, setShippingCode] = useState('');
@@ -549,6 +557,25 @@ export default function StorefrontPage() {
     if (checkoutSectionRef.current) {
       checkoutSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const loadCassoAccounts = async (targetCompanyId) => {
+    const cid = targetCompanyId || companyId;
+    if (!cid) return;
+    setCassoLoading(true);
+    try {
+      const { data } = await authApi.get('/api/casso/company-accounts/public', { params: { company_id: cid } });
+      setCassoAccounts(Array.isArray(data?.data) ? data.data : []);
+    } catch {
+      setCassoAccounts([]);
+    } finally {
+      setCassoLoading(false);
+    }
+  };
+
+  const openCassoPayment = () => {
+    loadCassoAccounts(companyId);
+    setShowCassoModal(true);
   };
 
   const addToCart = (item, qty = 1) => {
@@ -1435,6 +1462,9 @@ taxRate: 0.08
                     <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
                       {submitting ? 'Đang tạo đơn...' : 'Tạo hóa đơn'} <ArrowRight size={14} />
                     </button>
+                    <button type="button" onClick={openCassoPayment} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      Thanh toán chuyển khoản (Casso)
+                    </button>
                   </form>
                 </div>
 
@@ -1545,6 +1575,9 @@ taxRate: 0.08
                       </div>
                       <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
                         {submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={14} />
+                      </button>
+                      <button type="button" onClick={openCassoPayment} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Thanh toán chuyển khoản (Casso)
                       </button>
                     </form>
                   </div>
@@ -1818,6 +1851,8 @@ taxRate: 0.08
         </div>
       )}
 
+      <Footer companyId={companyId} />
+
       <FloatingCartBar
         cart={cart}
         onUpdateQuantity={updateCartQuantity}
@@ -1827,6 +1862,38 @@ taxRate: 0.08
         subtotal={cartSubtotal}
         itemCount={cartCount}
       />
+
+      {showCassoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900">Thanh toán chuyển khoản</h2>
+              <button onClick={() => setShowCassoModal(false)} className="rounded-full bg-slate-100 p-1.5 text-slate-500">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {cassoLoading ? (
+                <p className="text-xs text-slate-500">Đang tải thông tin tài khoản...</p>
+              ) : cassoAccounts.length === 0 ? (
+                <p className="text-xs text-slate-500">Chưa cấu hình tài khoản nhận tiền cho công ty này.</p>
+              ) : (
+                cassoAccounts.map((acc, idx) => (
+                  <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold text-slate-900">{acc.bank_name || 'Ngân hàng'}</p>
+                    <p className="text-[11px] text-slate-700">Số tài khoản: <span className="font-semibold">{acc.account_number}</span></p>
+                    <p className="text-[11px] text-slate-700">Chủ tài khoản: {acc.owner_name}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">Nội dung chuyển khoản gợi ý: <span className="font-semibold text-slate-700">{salesOrderIds?.[0] ? `ORD-${salesOrderIds[0]}` : 'Mã đơn hàng'}</span></p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] text-amber-700">
+              Lưu ý: Hệ thống sẽ tự động đối soát khi nhận được giao dịch từ Casso. Vui lòng giữ đúng nội dung chuyển khoản để đơn hàng được xử lý tự động.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

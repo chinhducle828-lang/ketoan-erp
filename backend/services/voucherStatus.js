@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { emitVoucherRealtime } from './voucherRealtime.service.js';
 
 export function normalizePostingState(value) {

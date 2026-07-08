@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {

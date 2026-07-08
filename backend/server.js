@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser'; 
@@ -12,6 +16,9 @@ import { pool } from './config/db.js';
 import { validateBusinessRules } from './config/businessRules.js';
 import { initWebSocket } from './services/websocket.service.js';
 import { authenticate } from './middleware/auth.js';
+import { waf } from './middleware/waf.js';
+import { apiRateLimiter } from './middleware/rateLimiter.js';
+import { startDataRetentionWorker } from './workers/dataRetentionWorker.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +36,7 @@ const app = express();
 
 if (!isTestEnv) {
   import('./workers/orderIngestionWorker.js');
+  startDataRetentionWorker();
 }
 
 // KÍCH HOẠT TRUST PROXY: Bắt buộc cấu hình để lấy Real IP của Client qua Proxy bảo mật
@@ -50,16 +58,29 @@ const wildcardOrigins = normalizedOrigins
 
 const allowedRailwayOrigin = normalizedOrigins.some(origin => origin.includes('railway.app') || origin.includes('railway.sh') || origin.includes('railway.com'));
 
+// P9: Trong production, chỉ cho phép origins đã cấu hình rõ ràng (không cho phép tất cả)
+const isProduction = process.env.NODE_ENV === 'production';
+
 console.log('🔧 CORS config: FRONTEND_URL=', rawFrontend);
 console.log('🔧 CORS allowedOrigins=', normalizedOrigins);
 console.log('🔧 CORS allow any Railway origin=', allowedRailwayOrigin);
+console.log('🔧 CORS production strict mode=', isProduction);
 
 app.use(cors({
   origin: (origin, callback) => {
     // Cho phép request không có origin (Postman, server-to-server, internal health check)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.length === 0 || process.env.NODE_ENV !== 'production') {
+    // P9: Trong production, bắt buộc phải cấu hình FRONTEND_URL rõ ràng
+    if (allowedOrigins.length === 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      console.error(`🔴 [CORS BLOCKED]: Production mode yêu cầu FRONTEND_URL phải được cấu hình. Origin bị từ chối: ${origin}`);
+      return callback(new Error('CORS policy: origin not allowed in production'));
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
 
@@ -88,6 +109,10 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser()); 
+
+// WAF & Rate Limiting (P2)
+app.use(waf);
+app.use('/api', apiRateLimiter);
 
 // Constants dùng cho cookie
 export const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30;
@@ -214,7 +239,11 @@ import logisticsRoutes from './routes/logisticsRoutes.js';
 import notificationsRouter from './routes/notifications.js';
 import accountingRouter from './routes/accounting.js';
 import { cashflowRouter } from './routes/cashflow.js';
+import { cassoRouter } from './routes/casso.js';
 import integrationRouter from './routes/integration/index.js';
+import { einvoiceRouter } from './routes/einvoice.js';
+import { refundsRouter } from './routes/refunds.js';
+import { legalPublicRouter } from './routes/legalPublic.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -237,7 +266,11 @@ app.use('/api/logistics', logisticsRoutes);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/accounting', accountingRouter);
 app.use('/api/cashflow', cashflowRouter);
+app.use('/api/casso', cassoRouter);
 app.use('/api/integration', integrationRouter);
+app.use('/api/e-invoices', einvoiceRouter);
+app.use('/api/refunds', refundsRouter);
+app.use('/api/public/legal', legalPublicRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================

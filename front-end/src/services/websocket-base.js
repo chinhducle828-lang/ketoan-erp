@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * WebSocket Base Service
  * Base class chung cho ERP và Storefront
  * Single source of truth cho WebSocket connection logic

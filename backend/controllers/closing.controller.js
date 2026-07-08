@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { pool } from '../config/db.js';
 import { getClosingWorkflow, getTaxRateByRevenue } from '../config/closingWorkflow.js';
 import { calculateWeightedAverageCost } from '../utils/inventoryEngine.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 const STORAGE_KEY = 'erp_client_instance_id';
 
 function generateClientInstanceId() {

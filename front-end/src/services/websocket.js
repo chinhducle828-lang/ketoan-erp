@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import { WebSocketBaseService } from './websocket-base.js';
 
 class WebSocketService extends WebSocketBaseService {

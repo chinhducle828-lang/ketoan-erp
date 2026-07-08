@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { pool } from '../config/db.js';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React, { useState } from 'react';
 import { formatDisplayDate, formatPrice } from '../utils/formatters';
 import { warehouseApi } from '../utils/api';

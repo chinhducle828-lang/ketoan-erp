@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 import React from 'react';
 import { NavLink } from 'react-router-dom'; // 👈 Import NavLink để xử lý chuyển hướng URL
 import { useAuth } from '../context/AuthContext.jsx';

@@ -1,3 +1,7 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
 ﻿/**
  * Data Maintenance Service
  * Rebuild ledger, recalculate balances, repair data

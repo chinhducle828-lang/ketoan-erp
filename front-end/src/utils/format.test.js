@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Unit tests for format utility functions
  * Uses Node.js built-in test runner (no external dependencies)
  */

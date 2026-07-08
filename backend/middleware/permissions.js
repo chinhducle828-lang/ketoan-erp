@@ -1,4 +1,8 @@
 /**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ */
+
+/**
  * Permission-based RBAC Middleware
  * Kiểm tra quyền dựa trên permission thay vì role
  */
