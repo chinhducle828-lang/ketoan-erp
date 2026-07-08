@@ -496,13 +496,10 @@ export default function StorefrontPage() {
     try {
       const { data } = await publicApi.get('/items', { params: { company_id: id } });
       setItems(data || []);
-      if (data?.length) {
-        setSelectedItem(data[0]);
-        setSelectedImageIndex(0);
-        setCheckoutForm((prev) => ({ ...prev, quantity: '1', amount: String(getOrderAmount(data[0], 1)) }));
-      } else {
-        setSelectedItem(null);
-      }
+      // KHÔNG tự động chọn sản phẩm đầu tiên — container "sản phẩm đang chọn"
+      // sẽ hiển thị placeholder cho đến khi user thực sự bấm chọn sản phẩm.
+      setSelectedItem(null);
+      setSelectedImageIndex(0);
     } catch (err) {
       setError(err.response?.data?.error || 'Không thể tải danh sách sản phẩm.');
     } finally {
@@ -1272,8 +1269,8 @@ taxRate: 0.08
   // ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="page-shell h-screen overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
-      <div className="flex h-screen flex-col">
+    <div className="page-shell min-h-screen lg:h-screen lg:overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+      <div className="flex min-h-screen lg:h-screen flex-col">
 
         {/* ========== UPDATED HEADER ========== */}
         <header className="flex-shrink-0 border-b border-slate-200/70 bg-white/95 px-4 py-3 shadow-soft">
@@ -1343,7 +1340,7 @@ taxRate: 0.08
         </header>
 
         {/* ========== MAIN CONTENT GRID ========== */}
-        <div className="flex-1 overflow-hidden grid gap-2 p-2 storefront-grid" style={{ gridTemplateColumns: '1fr 340px', height: 'calc(100vh - 44px)' }}>
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-2 p-2 lg:h-[calc(100vh-44px)] lg:overflow-hidden storefront-grid">
 
           {/* ─── LEFT PANEL: Products ─── */}
           <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-sm">
@@ -1379,13 +1376,14 @@ taxRate: 0.08
               ) : filteredItems.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-xs text-slate-500">{t('noProducts', selectedLang)}</div>
               ) : (
-                <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-3">
+                <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
                   {filteredItems.map((item) => {
                     const isWishlisted = wishlist.includes(item.id);
                     return (
                       <ProductCard
                         key={item.id}
                         product={item}
+                        onSelect={handleItemSelect}
                         onViewDetails={openQuickView}
                         onSecondaryAction={canUseCart ? undefined : handleViewStock}
                         onAction={canUseCart ? (currentItem) => addToCart(currentItem, 1) : undefined}
