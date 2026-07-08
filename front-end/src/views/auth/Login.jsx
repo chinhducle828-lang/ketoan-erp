@@ -47,8 +47,11 @@ export default function Login({ onFirstRun }) {
   // Consolidated redirect handler — single source of truth for all post-login navigation
   const handleRedirect = useCallback((href, mode, hasErpAccess) => {
     if (mode === 'storefront_newtab' && href) {
-      window.open(href, '_blank', 'noopener,noreferrer');
-      if (hasErpAccess) {
+      const popup = window.open(href, '_blank', 'noopener,noreferrer');
+      if (!popup) {
+        // Popup bị chặn (trên mobile) → fallback: thay tab hiện tại
+        window.location.href = href;
+      } else if (hasErpAccess) {
         navigate('/', { replace: true });
       }
     } else if (mode === 'storefront_replace' && href) {
@@ -174,7 +177,11 @@ export default function Login({ onFirstRun }) {
     if (erpToken) params.set('erp_token', erpToken);
     if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
     const href = `${storefrontUrl}${params.toString() ? `?${params.toString()}` : ''}`;
-    window.open(href, '_blank', 'noopener,noreferrer');
+    const popup = window.open(href, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      // Popup bị chặn trên mobile → fallback thay tab hiện tại
+      window.location.href = href;
+    }
   };
 
   return (
