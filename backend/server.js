@@ -19,6 +19,10 @@ import { authenticate } from './middleware/auth.js';
 import { waf } from './middleware/waf.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { startDataRetentionWorker } from './workers/dataRetentionWorker.js';
+import { correlationId } from './middleware/correlationId.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { hitlRouter } from './routes/hitl.js';
+import { startFeedbackLoopWorker } from './cron/trainFeedbackLoop.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
@@ -37,7 +41,18 @@ const app = express();
 if (!isTestEnv) {
   import('./workers/orderIngestionWorker.js');
   startDataRetentionWorker();
+  // Khởi động feedback loop worker cho RLHF
+  startFeedbackLoopWorker();
 }
+
+// ====================================================================
+// MIDDLEWARE MỚI - correlationId + errorHandler
+// ====================================================================
+// Gán correlation ID cho mọi request (đặt sau CORS, trước routes)
+app.use(correlationId);
+
+// Mount HITL routes
+app.use('/api/hitl', hitlRouter);
 
 // KÍCH HOẠT TRUST PROXY: Bắt buộc cấu hình để lấy Real IP của Client qua Proxy bảo mật
 app.set('trust proxy', true);
@@ -244,6 +259,7 @@ import integrationRouter from './routes/integration/index.js';
 import { einvoiceRouter } from './routes/einvoice.js';
 import { refundsRouter } from './routes/refunds.js';
 import { legalPublicRouter } from './routes/legalPublic.js';
+import { aiQueryRouter } from './routes/aiQuery.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
@@ -271,6 +287,7 @@ app.use('/api/integration', integrationRouter);
 app.use('/api/e-invoices', einvoiceRouter);
 app.use('/api/refunds', refundsRouter);
 app.use('/api/public/legal', legalPublicRouter);
+app.use('/api/ai', aiQueryRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ====================================================================
@@ -402,6 +419,11 @@ if (process.env.SERVE_STATIC_FRONTEND === 'true') {
 
 const PORT = process.env.PORT || 5000;
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+
+// ====================================================================
+// ERROR HANDLER - Phải đặt cuối cùng sau tất cả routes
+// ====================================================================
+app.use(errorHandler);
 
 if (isMainModule) {
   // Tạo HTTP server để WebSocket có thể gắn vào
