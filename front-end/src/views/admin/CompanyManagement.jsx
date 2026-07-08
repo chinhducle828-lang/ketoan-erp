@@ -521,10 +521,9 @@ export default function CompanyManagement() {
               </button>
             </form>
           </div>
-        </div>
 
-        {/* CARD TÍCH HỢP CASSO */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          {/* CARD TÍCH HỢP CASSO */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
               <Link2 size={16} className="text-emerald-600" /> Tích hợp thanh toán Casso
@@ -590,6 +589,7 @@ export default function CompanyManagement() {
                 </div>
               ))}
             </div>
+          </div>
           </div>
         </div>
 
