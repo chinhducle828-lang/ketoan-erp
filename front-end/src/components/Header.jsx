@@ -152,10 +152,18 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
       <div className="hidden md:flex items-center gap-2 ml-4">
         {((user?.role === 'admin') || ['nv_banhang','nv_kho','ktt'].includes(user?.role)) && (
           <div className="flex items-center gap-2">
-            <button onClick={openStorefront} className="px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100">
+            <button
+              onClick={openStorefront}
+              title="Mở phân hệ bán hàng web riêng"
+              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 hover:border-slate-300 transition-all active:scale-95"
+            >
               Mở Web Bán Hàng
             </button>
-            <button onClick={openERP} className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50">
+            <button
+              onClick={openERP}
+              title="Về hệ thống kế toán ERP"
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
+            >
               Mở ERP
             </button>
           </div>
@@ -184,7 +192,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
         )}
 
         <button 
-          onClick={logout}
+          onClick={() => logout().finally(() => navigate('/login'))}
           className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-200 active:scale-95"
           title="Đăng xuất khỏi hệ thống"
         >

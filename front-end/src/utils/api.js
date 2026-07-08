@@ -35,23 +35,79 @@ const api = axios.create({
   }
 });
 
-// Response Interceptor: Xử lý 401 toàn hệ thống - không redirect, giữ trạng thái đồng bộ
+// ====================================================================
+// SILENT REFRESH (single-flight + cooldown) - Đồng bộ lại phiên khi access token hết hạn
+// ====================================================================
+// - Chỉ tạo tối đa 1 request /auth/refresh tại một thời điểm (tránh bão hòa).
+// - Có cooldown sau mỗi lần refresh thất bại (lỗi tạm thời 429/500/network)
+//   để KHÔNG tạo vòng lặp gọi refresh trên mọi request khi backend/network gián đoạn.
+// - CHỈ đăng xuất khi refresh trả về 401 (phiên thực sự hết hạn / mất cookie).
+//   Các lỗi tạm thời KHÔNG đăng xuất → giữ nguyên phiên, tránh mất ổn định đột ngột.
+let refreshPromise = null;
+let refreshCooldownUntil = 0;
+const REFRESH_COOLDOWN_MS = 10 * 1000; // 10 giây
+
+const doSilentRefresh = () => {
+  const now = Date.now();
+  if (now < refreshCooldownUntil) {
+    return Promise.reject(new Error('refresh-cooldown'));
+  }
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const { data } = await api.post('/auth/refresh');
+        if (data && data.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+          return data.accessToken;
+        }
+        throw new Error('silent-refresh-no-token');
+      } finally {
+        // Giải phóng để các lần sau có thể thử lại
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+};
+
+// Response Interceptor: Xử lý 401 toàn hệ thống - tự động đồng bộ lại phiên
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
+
+    // Không thử refresh với chính endpoint refresh, và chỉ retry 1 lần/request
+    const isRefreshCall = String(originalRequest.url || '').includes('/auth/refresh');
+    const alreadyRetried = originalRequest._retry === true;
+
+    if (status === 401 && !isRefreshCall && !alreadyRetried) {
       const hadToken = localStorage.getItem('accessToken');
       if (hadToken) {
-        // Token expired - clear local state but keep page functional
-        localStorage.removeItem('accessToken');
-        // Dispatch event so AuthContext and other components can react
         try {
-          window.dispatchEvent(new CustomEvent('erp:auth-expired', {
-            detail: { message: 'Phiên đăng nhập đã hết hạn. Hệ thống tiếp tục hoạt động ở chế độ chỉ đọc.' }
-          }));
-        } catch (e) { /* ignore */ }
+          const newToken = await doSilentRefresh();
+          // Cập nhật token và thử lại request gốc để duy trì đồng bộ phiên
+          originalRequest._retry = true;
+          originalRequest.headers = { ...(originalRequest.headers || {}) };
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } catch (refreshErr) {
+          const refreshStatus = refreshErr?.response?.status;
+          // Chỉ đăng xuất khi refresh thực sự trả về 401 (cookie/phiên đã mất).
+          if (refreshStatus === 401) {
+            localStorage.removeItem('accessToken');
+            try {
+              window.dispatchEvent(new CustomEvent('erp:auth-expired', {
+                detail: { message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' }
+              }));
+            } catch (e) { /* ignore */ }
+          } else {
+            // Lỗi tạm thời (429/500/network): KHÔNG đăng xuất, đặt cooldown để
+            // tránh bão gọi refresh, giữ nguyên trang cho người dùng tiếp tục thao tác.
+            refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
+          }
+        }
       }
-      // Không redirect - giữ nguyên trang, cho phép refresh token hoặc đăng nhập lại
     }
     return Promise.reject(error);
   }

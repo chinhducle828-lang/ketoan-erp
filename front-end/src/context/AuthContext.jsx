@@ -30,48 +30,58 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const initSession = async () => {
+      const existingToken = localStorage.getItem('accessToken');
+      if (!existingToken) {
+        setIsSyncing(false);
+        return;
+      }
       try {
-        // Thực hiện cơ chế Silent Refresh trước để cấp lại Access Token mới từ HttpOnly Cookie
-        const { data } = await api.post('/auth/refresh');
-        if (data && data.accessToken) {
-          localStorage.setItem('accessToken', data.accessToken);
-          
-          // Sau đó tiến hành lấy thông tin tài khoản và niên độ kế toán từ Server
-          const userRes = await api.get('/auth/me');
-          setUser(userRes.data.user);
-          setFiscalYear(userRes.data.fiscal_year);
-          
-          // Phục hồi dữ liệu phân vùng doanh nghiệp làm việc
-          const storedCompany = localStorage.getItem('activeCompany');
-          let parsedStoredCompany = null;
-          if (storedCompany) {
-            try {
-              parsedStoredCompany = JSON.parse(storedCompany);
-            } catch {
-              parsedStoredCompany = null;
-            }
-          }
+        // /auth/me tự động qua interceptor: nếu access token hết hạn sẽ silent-refresh (có cooldown)
+        const userRes = await api.get('/auth/me');
+        setUser(userRes.data.user);
+        setFiscalYear(userRes.data.fiscal_year);
 
-          // ✅ FIX: Tải danh sách công ty từ database khi khởi động phiên làm việc
-          const fetchedCompanies = await fetchCompanies();
-
-          // Nếu tài khoản mới đăng nhập chưa có activeCompany, tự chọn công ty đầu tiên được cấp quyền.
-          const matchedCompany = parsedStoredCompany?.id
-            ? fetchedCompanies.find((c) => Number(c.id) === Number(parsedStoredCompany.id))
-            : null;
-
-          const defaultCompany = matchedCompany || fetchedCompanies[0] || null;
-          if (defaultCompany) {
-            setActiveCompany(defaultCompany);
-            localStorage.setItem('activeCompany', JSON.stringify(defaultCompany));
-          } else {
-            setActiveCompany(null);
-            localStorage.removeItem('activeCompany');
+        // Phục hồi dữ liệu phân vùng doanh nghiệp làm việc
+        const storedCompany = localStorage.getItem('activeCompany');
+        let parsedStoredCompany = null;
+        if (storedCompany) {
+          try {
+            parsedStoredCompany = JSON.parse(storedCompany);
+          } catch {
+            parsedStoredCompany = null;
           }
         }
+
+        // ✅ FIX: Tải danh sách công ty từ database khi khởi động phiên làm việc
+        const fetchedCompanies = await fetchCompanies();
+
+        // Nếu tài khoản mới đăng nhập chưa có activeCompany, tự chọn công ty đầu tiên được cấp quyền.
+        const matchedCompany = parsedStoredCompany?.id
+          ? fetchedCompanies.find((c) => Number(c.id) === Number(parsedStoredCompany.id))
+          : null;
+
+        const defaultCompany = matchedCompany || fetchedCompanies[0] || null;
+        if (defaultCompany) {
+          setActiveCompany(defaultCompany);
+          localStorage.setItem('activeCompany', JSON.stringify(defaultCompany));
+        } else {
+          setActiveCompany(null);
+          localStorage.removeItem('activeCompany');
+        }
       } catch (err) {
-        console.warn('Phiên làm việc hết hạn hoặc chưa được đăng nhập trước đó.');
-        localStorage.removeItem('accessToken');
+        const status = err?.response?.status;
+        if (status === 401) {
+          // Phiên thực sự hết hạn / mất cookie → dọn trạng thái, về trang login
+          console.warn('Phiên làm việc đã hết hạn, yêu cầu đăng nhập lại.');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('activeCompany');
+          setUser(null);
+          setActiveCompany(null);
+        } else {
+          // Lỗi tạm thời (429/500/network): GIỮ nguyên token, KHÔNG ép logout.
+          // Các request tiếp theo sẽ tự động thử lại qua interceptor (có cooldown).
+          console.warn('Khởi tạo phiên tạm thời thất bại, sẽ thử lại khi gọi API:', err?.message);
+        }
       } finally {
         setIsSyncing(false); // Hoàn tất quá trình đồng bộ, cho phép ứng dụng render UI chính thức
       }
@@ -113,11 +123,9 @@ export function AuthProvider({ children }) {
       setActiveCompany(null);
       localStorage.removeItem('activeCompany');
     }
-    
-    // ĐÃ SỬA: Nếu là gd_kinhdoanh, tự động điều hướng sang route riêng
-    if (loggedInUser.role === 'gd_kinhdoanh') {
-      window.location.href = '/gd-kinhdoanh/dashboard';
-    }
+
+    // Điều hướng cho vai trò gd_kinhdoanh được xử lý tại Login.jsx (bên trong Router)
+    // để tránh reload toàn trang (window.location.href) và giữ nguyên trạng thái SPA.
 
     return data;
   };
