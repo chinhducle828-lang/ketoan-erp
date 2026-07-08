@@ -1,6 +1,6 @@
 KIẾN TRÚC BIG DATA & HỒ DỮ LIỆU TÀI CHÍNH (FINANCIAL DATA LAKEHOUSE)
 
-Dự án: Ketoan ERP SaaS Enterprise | Chuẩn kiến trúc: Lambda & Kappa, Medallion (Bronze/Silver/Gold), CDC (Change Data Capture) | Tuân thủ: Nghị định 13/2023/NĐ-CP (Chủ quyền dữ liệu Việt Nam).
+Dự án: Ketoan ERP SaaS Enterprise | Chuẩn kiến trúc: Lambda & Kappa, Medallion (Bronze/Silver/Gold), CDC (Change Data Capture) | Cơ sở Toán học: Đại số tuyến tính nâng cao, Giải tích đa biến tối ưu, Chuỗi Markov | Tuân thủ: Nghị định 13/2023/NĐ-CP (Chủ quyền dữ liệu Việt Nam).
 
 DẪN NHẬP: TẠI SAO ERP CẦN KIẾN TRÚC BIG DATA?
 
@@ -38,7 +38,6 @@ Kiến trúc Big Data dưới đây giải quyết triệt để vấn đề nà
 └────────────────────────────────────────┘                                              └────────────────────────────────────────┘
 
 
-
 2. CHI TIẾT 3 TẦNG XỬ LÝ TRONG HỒ DỮ LIỆU (MEDALLION ARCHITECTURE)
 
 Áp dụng mô hình thiết kế Lakehouse Medallion đạt chuẩn quốc tế để phân loại và làm sạch dữ liệu tài chính:
@@ -67,32 +66,96 @@ Lưu trữ: Đẩy vào PostgreSQL OLTP phục vụ vận hành kế toán hằn
 
 Xử lý: Dữ liệu hạch toán từ PostgreSQL được đồng bộ ngầm bất đồng bộ (qua cơ chế Change Data Capture - CDC) sang cơ sở dữ liệu chuyên phân tích cột (Column-oriented DB) ClickHouse.
 
-Hiệu năng: Một câu lệnh SQL tính toán báo cáo dòng tiền hay phân nhóm RFM CRM quét qua $50.000.000$ bản ghi trên ClickHouse chỉ mất chưa đầy $50\text{ms}$ (PostgreSQL thông thường sẽ mất từ vài chục giây đến vài phút và gây khóa bảng).
+Hiệu năng: Một câu lệnh SQL tính toán báo cáo dòng tiền hay phân nhóm RFM CRM quét qua $50.000.000$ bản ghi trên ClickHouse chỉ mất Chưa đầy $50\text{ms}$ (PostgreSQL thông thường sẽ mất từ vài chục giây đến vài phút và gây khóa bảng).
 
-📈 3. THUẬT TOÁN BIG DATA PHỤC VỤ KINH DOANH VÀ AI KẾ TOÁN
+📈 3. MÔ HÌNH TOÁN HỌC CAO CẤP TRONG PHÂN TÍCH TÀI CHÍNH & AI KẾ TOÁN
 
-Khi sở hữu hạ tầng Big Data, hệ thống Ketoan ERP có khả năng chạy các thuật toán tài chính cấp độ vĩ mô:
+Để tối ưu hóa năng lực cạnh tranh cốt lõi của Ketoan ERP và nâng cao độ chính xác của các quyết định tự trị, hệ thống tích hợp sâu các mô hình toán học giải tích, đại số tuyến tính và xích Markov vào nền tảng Big Data.
 
-3.1. Phân tích Dòng tiền dự báo theo Phương pháp Monte Carlo (Monte Carlo Simulation)
+3.1. Phân tích Dự báo Dòng tiền và Tối ưu hóa Thanh khoản bằng Nhân tử Lagrange
 
-Dự báo biến động dòng tiền không chỉ dựa trên một kịch bản tốt nhất. Hệ thống chạy $10.000$ lần mô phỏng ngẫu nhiên dựa trên phân phối xác suất doanh thu lịch sử từ Storefront và công nợ (TK 131) để tính toán xác suất hụt dòng tiền thanh khoản:
+Dòng tiền trong tương lai của một doanh nghiệp chịu sự ảnh hưởng của phân phối tích lũy và các biến động bất định. Ta mô hình hóa trạng thái dòng tiền liên tục của tài khoản ngân hàng (TK 112) bằng phương trình vi phân ngẫu nhiên (Stochastic Differential Equation) theo mô hình chuyển động hình học Brownian (Geometric Brownian Motion):
 
-$$\text{Xác suất hụt dòng tiền} = \frac{N_{\text{số lần dư quỹ} < \text{Định phí}}}{10.000} \times 100\%$$
+$$dS_t = \mu S_t dt + \sigma S_t dW_t$$
 
-                 Số dư Quỹ (VND)
-                       │
-                       │          /--- Dự báo kịch bản Tốt nhất (15%)
-                       │         /
-                       ├───────────────► Dự báo kịch bản Trung bình (70%)
-                       │         \
-                       │          \--- CẢNH BÁO: Kịch bản Xấu nhất (15%) (Rủi ro hụt lương)
-                       └─────────────────────────────────────► Thời gian (30 ngày tới)
+Trong đó:
 
+$S_t$: Số dư khả dụng tại thời điểm $t$.
 
+$\mu$: Hệ số trôi (drift rate), đại diện cho xu hướng doanh thu ròng kỳ vọng trung bình từ luồng Storefront và Casso.
 
-3.2. Thuật toán Phát hiện Gian lận Tài chính Tự động (Anomalies Detection via Isolation Forest)
+$\sigma$: Biến động dòng tiền (volatility), đại diện cho mức độ bất định của thị trường.
 
-Quét toàn bộ sổ cái tài chính của hàng ngàn Tenant hằng đêm để phát hiện ra các bút toán bất thường (ví dụ: bỗng nhiên phát sinh chứng từ hạch toán Nợ 642/Có 111 có giá trị vượt $3$ lần độ lệch chuẩn $\sigma$ trung bình của Tenant đó trong quá khứ).
+$W_t$: Tiến trình Wiener (chuyển động Brownian tiêu chuẩn).
+
+Để hỗ trợ CEO tối ưu hóa tỷ lệ phân bổ ngân sách $x_i$ đầu tư vào các danh mục hoạt động (R&D, Marketing, Vận hành) nhằm tối đa hóa lợi nhuận ròng $f(x_1, x_2, \dots, x_n)$ dưới ràng buộc tổng ngân sách khả dụng thanh khoản cực biên $g(x_1, x_2, \dots, x_n) = 0$, chúng ta áp dụng Phương pháp nhân tử Lagrange (Lagrange Multipliers):
+
+$$\mathcal{L}(x_1, x_2, \dots, x_n, \lambda) = f(x_1, x_2, \dots, x_n) + \lambda \cdot g(x_1, x_2, \dots, x_n)$$
+
+Bằng cách tìm điểm dừng của hàm Lagrange thông qua hệ phương trình đạo hàm riêng (gradient bằng không):
+
+$$\nabla \mathcal{L} = \mathbf{0} \iff \begin{cases} 
+\frac{\partial \mathcal{L}}{\partial x_i} = \frac{\partial f}{\partial x_i} + \lambda \frac{\partial g}{\partial x_i} = 0, \quad \forall i = 1, \dots, n \\
+g(x_1, x_2, \dots, x_n) = 0
+\end{cases}$$
+
+Hệ thống tính toán ra vector phân bổ tối ưu nguồn vốn $\mathbf{x}^* = [x_1^*, x_2^*, \dots, x_n^*]^T$, đảm bảo doanh nghiệp duy trì khả năng thanh khoản tuyệt đối mà vẫn đạt ROI cao nhất mà không lo ngại rủi ro mất thanh khoản.
+
+3.2. Phát hiện Gian lận Tài chính & Bút toán Bất thường bằng Phân tích Ma trận SVD
+
+Mỗi ngày, hàng triệu dòng hạch toán kế toán tạo thành một ma trận giao dịch khổng lồ $A \in \mathbb{R}^{m \times n}$ (với $m$ dòng bút toán và $n$ thuộc tính như số tiền, mã tài khoản, đối tác, thời gian hạch toán).
+
+Áp dụng lý thuyết Ánh xạ tuyến tính từ không gian dữ liệu gốc $\mathbb{R}^n$ vào không gian phân tích đặc trưng $\mathbb{R}^k$, hệ thống thực hiện phân rã ma trận suy biến Singular Value Decomposition (SVD) trên ma trận chuẩn hóa dữ liệu tài chính $A$:
+
+$$A = U \Sigma V^T$$
+
+Trong đó:
+
+$U \in \mathbb{R}^{m \times m}$ là ma trận trực giao chứa các vector trực chuẩn bên trái (Singular vectors), đại diện cho các hành vi giao dịch mẫu.
+
+$\Sigma \in \mathbb{R}^{m \times n}$ là ma trận đường chéo chứa các giá trị suy biến (Singular values) $\sigma_1 \ge \sigma_2 \ge \dots \ge \sigma_r > 0$.
+
+$V \in \mathbb{R}^{n \times n}$ là ma trận trực giao chứa các đặc trưng của tài khoản hạch toán.
+
+Thông qua phép chiếu cấu trúc không gian con có số chiều thấp hơn (Low-rank Approximation) với $k \ll n$:
+
+$$A_k = \sum_{i=1}^{k} \sigma_i \mathbf{u}_i \mathbf{v}_i^T$$
+
+Hệ thống tính toán ma trận sai số tái cấu trúc (Reconstruction Error Matrix) $E = A - A_k$. Đối với mỗi dòng bút toán thứ $i$, ta định nghĩa chỉ số bất thường (Anomaly Score) $Score_i$:
+
+$$Score_i = \|\mathbf{e}_i\|_2 = \sqrt{\sum_{j=1}^{n} E_{i,j}^2}$$
+
+Nếu $Score_i > \theta$ (với $\theta$ là ngưỡng dung sai xác định bằng phân phối phân vị kiểm định thống kê), giao dịch đó được xác định là nằm ngoài không gian hành vi tuyến tính thông thường của doanh nghiệp và sẽ bị hệ thống tự động gắn cờ cảnh báo rủi ro gian lận hoặc sai lệch hạch toán.
+
+3.3. Mô hình chuỗi Markov phân tích độ tuổi công nợ khách hàng (Aging Debt)
+
+Để dự báo chính xác dòng tiền phải thu (TK 131), hệ thống áp dụng lý thuyết Xích Markov thời gian rời rạc (Discrete-Time Markov Chain). Ta định nghĩa các trạng thái thanh toán của một hóa đơn:
+
+Trạng thái 1 ($S_1$): Hóa đơn mới (Active).
+
+Trạng thái 2 ($S_2$): Quá hạn 1 - 30 ngày.
+
+Trạng thái 3 ($S_3$): Quá hạn 31 - 90 ngày.
+
+Trạng thái 4 ($S_4$): Đã thu được tiền (Trạng thái hấp thụ - Paid).
+
+Trạng thái 5 ($S_5$): Nợ xấu không thể thu hồi (Bad Debt).
+
+Ma trận xác suất chuyển trạng thái $P \in \mathbb{R}^{5 \times 5}$ được thống kê tự động từ hồ dữ liệu lớn:
+
+$$P = \begin{pmatrix}
+p_{11} & p_{12} & 0 & p_{14} & 0 \\
+0 & p_{22} & p_{23} & p_{24} & 0 \\
+0 & 0 & p_{33} & p_{34} & p_{35} \\
+0 & 0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 0 & 1
+\end{pmatrix}$$
+
+Với $p_{ij}$ là xác suất hóa đơn dịch chuyển từ trạng thái $S_i$ sang $S_j$ trong một chu kỳ kế toán (tháng). Số dư công nợ dự kiến tại các trạng thái sau $t$ kỳ được tính bằng:
+
+$$\mathbf{v}(t) = \mathbf{v}(0) \cdot P^t$$
+
+Mô hình này giúp tự động hóa khâu trích lập dự phòng nợ phải thu khó đòi theo đúng quy định kiểm toán mà không cần kế toán phải ước tính thủ công.
 
 ⚖️ 4. CHỦ QUYỀN DỮ LIỆU & PHÁP LÝ (Nghị định 13/2023/NĐ-CP & ISO 27018)
 
@@ -117,7 +180,6 @@ Sự tích hợp giữa Big Data + AI + SRE Hardened Core + Casso + Casso Webhoo
                   ┌────────────────────────────────────────┐
                   │ 2. Định giá Series A: 120.000.000.000  │
                   └────────────────────────────────────────┘
-
 
 
 Giá trị Chuyển nhượng Bản quyền IP (M&A Value): ~18.5 Tỷ VND
