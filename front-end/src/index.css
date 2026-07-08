@@ -64,6 +64,27 @@
 }
 
 /* ========================================
+   SAFE AREA INSERTS (Notched Phones)
+   ======================================== */
+@supports (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: env(safe-area-inset-top);
+    --safe-area-bottom: env(safe-area-inset-bottom);
+    --safe-area-left: env(safe-area-inset-left);
+    --safe-area-right: env(safe-area-inset-right);
+  }
+}
+
+@supports not (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: 0px;
+    --safe-area-bottom: 0px;
+    --safe-area-left: 0px;
+    --safe-area-right: 0px;
+  }
+}
+
+/* ========================================
    GLOBAL BASE STYLES
    ======================================== */
 
@@ -91,6 +112,17 @@
     min-height: 3rem;
     border-radius: var(--ui-radius-md);
     line-height: 1.5;
+  }
+
+  /* Smaller inputs on very small screens */
+  @media (max-width: 480px) {
+    button,
+    input,
+    select,
+    textarea {
+      min-height: 2.75rem;
+      font-size: 0.9375rem;
+    }
   }
 
   input,
@@ -213,6 +245,7 @@
   /* Floating Action Bar */
   .floating-action-bar {
     @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-50;
+    padding-bottom: max(0.5rem, var(--safe-area-bottom, 0px));
   }
 
   /* Stock Indicators */

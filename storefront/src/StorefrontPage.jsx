@@ -1297,11 +1297,11 @@ taxRate: 0.08
 
             {/* Right: lang/currency + cart button */}
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
-                <button type="button" onClick={() => setSelectedLang('VI')} className={`min-w-[64px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VI</button>
-                <button type="button" onClick={() => setSelectedLang('EN')} className={`min-w-[64px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>EN</button>
-                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`min-w-[70px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VND</button>
-                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`min-w-[70px] rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>USD</button>
+              <div className="btn-group-wrap flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
+                <button type="button" onClick={() => setSelectedLang('VI')} className={`min-w-[64px] max-md:min-w-0 max-md:flex-1 rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'VI' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VI</button>
+                <button type="button" onClick={() => setSelectedLang('EN')} className={`min-w-[64px] max-md:min-w-0 max-md:flex-1 rounded-xl px-4 py-2 text-sm font-semibold ${selectedLang === 'EN' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>EN</button>
+                <button type="button" onClick={() => setSelectedCurrency('VND')} className={`min-w-[70px] max-md:min-w-0 max-md:flex-1 rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'VND' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>VND</button>
+                <button type="button" onClick={() => setSelectedCurrency('USD')} className={`min-w-[70px] max-md:min-w-0 max-md:flex-1 rounded-xl px-4 py-2 text-sm font-semibold ${selectedCurrency === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}>USD</button>
               </div>
               {canUseCart && (
                 <button onClick={() => setShowMiniCart((prev) => !prev)} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
@@ -1309,13 +1309,13 @@ taxRate: 0.08
                 </button>
               )}
               {ALLOW_ROLE_SWITCH && (
-                <div className="flex flex-wrap overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
+                <div className="btn-group-wrap flex flex-wrap overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
                   {ROLE_OPTIONS.map((role) => (
                     <button
                       key={role.value}
                       type="button"
                       onClick={() => handleRoleChange(role.value)}
-                      className={`min-w-[72px] rounded-xl px-4 py-2 text-sm font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}
+                      className={`min-w-[72px] max-md:min-w-0 max-md:flex-1 rounded-xl px-4 py-2 text-sm font-semibold ${storefrontRole === role.value ? 'bg-emerald-500 text-slate-950' : 'text-slate-700 hover:bg-white'}`}
                     >
                       {role.label}
                     </button>
@@ -1327,7 +1327,7 @@ taxRate: 0.08
         </header>
 
         {/* ========== MAIN CONTENT GRID ========== */}
-        <div className="flex-1 overflow-hidden grid gap-2 p-2" style={{ gridTemplateColumns: '1fr 340px', height: 'calc(100vh - 44px)' }}>
+        <div className="flex-1 overflow-hidden grid gap-2 p-2 storefront-grid" style={{ gridTemplateColumns: '1fr 340px', height: 'calc(100vh - 44px)' }}>
 
           {/* ─── LEFT PANEL: Products ─── */}
           <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-sm">
@@ -1388,7 +1388,7 @@ taxRate: 0.08
           </div>
 
           {/* ─── RIGHT PANEL: Role-specific ─── */}
-          <aside className="overflow-y-auto space-y-2.5 pr-0.5">
+          <aside className="overflow-y-auto space-y-2.5 pr-0.5 storefront-right-panel">
 
             {/* SALES ROLE — Cart + Checkout */}
             {isSalesRole && (
