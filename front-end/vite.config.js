@@ -23,6 +23,25 @@ function getSafeBase() {
   return '/';
 }
 
+function getApiProxyTarget() {
+  const rawTarget = (
+    process.env.VITE_PROXY_TARGET ||
+    process.env.VITE_BACKEND_URL ||
+    process.env.VITE_API_BASE_URL ||
+    'http://127.0.0.1:5000'
+  ).trim();
+
+  if (!rawTarget) return 'http://127.0.0.1:5000';
+
+  if (/^https?:\/\//i.test(rawTarget)) {
+    return rawTarget.replace(/\/api\/?$/, '');
+  }
+
+  return rawTarget;
+}
+
+const apiProxyTarget = getApiProxyTarget();
+
 export default defineConfig({
   base: getSafeBase(),
   plugins: [react()],
@@ -42,12 +61,18 @@ export default defineConfig({
     allowedHosts: ['ketoanonline.up.railway.app', '.railway.app'],
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000', // Đồng bộ về cổng 5000 của backend kế toán
+        target: apiProxyTarget,
         changeOrigin: true,
       }
     }
   },
   preview: {
-    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app']
+    allowedHosts: ['ketoanonline.up.railway.app', '.railway.app'],
+    proxy: {
+      '/api': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      }
+    }
   }
 });

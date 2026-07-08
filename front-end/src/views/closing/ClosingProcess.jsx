@@ -121,12 +121,11 @@ export default function ClosingProcess() {
 
     try {
       // Sử dụng API endpoint đúng: /api/report/closing
-      const response = await fetch('/api/report/closing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId: currentCompanyId, year: fiscalYear || 2026 })
+      const response = await api.post('/report/closing', {
+        companyId: currentCompanyId,
+        year: fiscalYear || 2026
       });
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         if (result.empty) {

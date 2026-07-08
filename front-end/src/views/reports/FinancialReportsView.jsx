@@ -68,13 +68,15 @@ export default function FinancialReportsView() {
 
   const handleExportExcel = async () => {
     try {
-      const response = await fetch(`/api/report/export/cash-flow-excel?company_id=${companyId}&year=${fiscalYear}&method=${method}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        }
+      const response = await api.get('/report/export/cash-flow-excel', {
+        params: {
+          company_id: companyId,
+          year: fiscalYear,
+          method
+        },
+        responseType: 'blob'
       });
-      if (!response.ok) throw new Error('Lỗi xuất Excel');
-      const blob = await response.blob();
+      const blob = response.data;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
