@@ -4,10 +4,7 @@ Dùng cho dự báo tồn kho, dòng tiền, công nợ
 """
 
 import numpy as np
-import pandas as pd
 from typing import Dict, Any, List, Optional
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +13,6 @@ class TimeSeriesModel:
     def __init__(self, model_type: str = "default"):
         self.model_type = model_type
         self.model = None
-        self.scaler = StandardScaler()
         self.is_trained = False
     
     def train(self, data: List[Dict[str, Any]]) -> bool:
@@ -29,18 +25,27 @@ class TimeSeriesModel:
             return False
         
         try:
-            df = pd.DataFrame(data)
-            
-            # Chuẩn bị features
-            X = np.array(range(len(df))).reshape(-1, 1)
-            y = df['total_debit'].values - df['total_credit'].values
-            
-            # Scale dữ liệu
-            X_scaled = self.scaler.fit_transform(X)
-            
-            # Train model
-            self.model = LinearRegression()
-            self.model.fit(X_scaled, y)
+            y = np.array([
+                float(row.get('total_debit', 0)) - float(row.get('total_credit', 0))
+                for row in data
+            ], dtype=float)
+
+            if len(y) == 0:
+                return False
+
+            x = np.arange(len(y), dtype=float)
+            x_mean = float(x.mean())
+            y_mean = float(y.mean())
+            denominator = float(np.sum((x - x_mean) ** 2))
+
+            slope = 0.0 if denominator == 0 else float(np.sum((x - x_mean) * (y - y_mean)) / denominator)
+            intercept = y_mean - slope * x_mean
+
+            self.model = {
+                'slope': slope,
+                'intercept': intercept,
+                'last_index': float(x[-1]),
+            }
             self.is_trained = True
             
             logger.info(f"TimeSeries model trained with {len(data)} samples")
@@ -58,8 +63,11 @@ class TimeSeriesModel:
         if not self.is_trained:
             return {"predicted": 0, "confidence": 0}
         
-        # Dự báo đơn giản
-        last_value = self.model.predict([[periods]])[0]
+        slope = float(self.model.get('slope', 0.0))
+        intercept = float(self.model.get('intercept', 0.0))
+        last_index = float(self.model.get('last_index', 0.0))
+        forecast_index = last_index + max(1, int(periods))
+        last_value = slope * forecast_index + intercept
         
         return {
             "predicted": float(last_value),

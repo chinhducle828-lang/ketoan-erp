@@ -7,8 +7,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
-import joblib
-import numpy as np
 from datetime import datetime
 import os
 import logging
@@ -71,6 +69,11 @@ model_registry = {
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/")
+async def root():
+    return {"service": "ketoan-ai-service", "status": "ok"}
 
 @app.post("/api/ocr", response_model=OCRResponse)
 async def process_ocr(request: OCRRequest):
