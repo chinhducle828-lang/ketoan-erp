@@ -32,25 +32,42 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     if (import.meta.env.VITE_STOREFRONT_URL) return import.meta.env.VITE_STOREFRONT_URL;
     if (typeof window !== 'undefined') {
       const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:3001';
+      }
       if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
-        return 'http://banhang.railway.internal';
+        return 'https://banhang.up.railway.app';
       }
     }
-    return 'http://localhost:3001';
+    return '';
   };
 
-  const openStorefront = () => {
+  const openStorefront = async () => {
     const STOREFRONT_URL = getStorefrontURL();
+    if (!STOREFRONT_URL) return;
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const roleCode = user?.roleId || user?.role;
-    const erpToken = token || localStorage.getItem('accessToken') || '';
+    let erpToken = token || localStorage.getItem('accessToken') || '';
+    try {
+      const { data } = await api.post('/auth/refresh');
+      if (data?.accessToken) {
+        erpToken = data.accessToken;
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+    } catch {
+      // Fall back to existing token when refresh fails.
+    }
+
     const params = new URLSearchParams();
     if (companyId) params.set('company_id', companyId);
     if (roleCode) params.set('role', roleCode);
     if (erpToken) params.set('erp_token', erpToken);
     if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
     const href = `${STOREFRONT_URL}${params.toString() ? `?${params.toString()}` : ''}`;
-    window.open(href, '_blank', 'noreferrer');
+    const popup = window.open(href, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      window.location.href = href;
+    }
   };
 
   const openERP = () => {

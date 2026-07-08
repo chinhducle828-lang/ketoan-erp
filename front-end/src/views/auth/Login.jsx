@@ -5,6 +5,7 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
+import api from '../../utils/api.js';
 import { Lock, User, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
 import { MODULES_REGISTER } from '../../views/index.js';
 import { useNavigate } from 'react-router-dom';
@@ -16,8 +17,11 @@ const getStorefrontURL = () => {
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:3001';
+    }
     if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
-      return 'http://banhang.railway.internal';
+      return 'https://banhang.up.railway.app';
     }
   }
 
@@ -131,7 +135,7 @@ export default function Login({ onFirstRun }) {
     }
   };
 
-  const openStorefront = () => {
+  const openStorefront = async () => {
     if (!storefrontUrl) {
       setError('Chưa cấu hình VITE_STOREFRONT_URL cho storefront độc lập.');
       return;
@@ -139,7 +143,17 @@ export default function Login({ onFirstRun }) {
 
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const role = user?.roleId || user?.role || '';
-    const erpToken = token || localStorage.getItem('accessToken') || '';
+    let erpToken = token || localStorage.getItem('accessToken') || '';
+    try {
+      const { data } = await api.post('/auth/refresh');
+      if (data?.accessToken) {
+        erpToken = data.accessToken;
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+    } catch {
+      // Keep current token as fallback if refresh is unavailable.
+    }
+
     const params = new URLSearchParams();
     if (companyId) params.set('company_id', companyId);
     if (role) params.set('role', role);
