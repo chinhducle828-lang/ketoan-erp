@@ -61,8 +61,9 @@ router.post('/register-admin', safeValidate(registerAdminSchema), async (req, re
 
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      "INSERT INTO users (username, password, role, company_ids, staff_ids) VALUES ($1, $2, $3, '{}', '{}') RETURNING id, username, role",
-      [username, hashed, 'admin']
+      `INSERT INTO users (username, password, role, is_root_admin, must_change_password, company_ids, staff_ids)
+       VALUES ($1, $2, $3, $4, $5, '{}', '{}') RETURNING id, username, role, is_root_admin`,
+      [username, hashed, 'admin', true, true]
     );
     res.json({ success: true, user: result.rows[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
