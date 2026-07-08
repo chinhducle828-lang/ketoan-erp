@@ -165,6 +165,8 @@ export default function StorefrontPage() {
   const canUseCart = currentRoleCapabilities.canUseCart;
   const canManageItems = currentRoleCapabilities.canManageItems;
   const canTrackQueue = currentRoleCapabilities.canTrackQueue;
+  const hasStorefrontSession = Boolean(storefrontToken || hasAdminSession);
+  const canUseRealtimeQueue = canTrackQueue && hasStorefrontSession;
   const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
 
   // Dynamic categories computed from items
@@ -406,6 +408,13 @@ export default function StorefrontPage() {
     const erpTokenFromUrl = urlParams.get('erp_token');
     if (erpTokenFromUrl && !storefrontToken) {
       // Token from URL hasn't been processed by Effect A yet - wait for next render
+      return;
+    }
+
+    // Không có session nào để xác thực thì dừng luôn, tránh spam /api/auth/me với 401.
+    if (!storefrontToken) {
+      setAdminSessionChecked(true);
+      setHasAdminSession(false);
       return;
     }
 
@@ -877,7 +886,14 @@ taxRate: 0.08
   }, [salesOrderIds]);
 
   useEffect(() => {
-    if (!canTrackQueue) return;
+    if (!canUseRealtimeQueue) {
+      setWarehouseQueue([]);
+      setWarehouseLoading(false);
+      setIsRealtimeConnecting(false);
+      setIsRealtimeConnected(false);
+      setLastRealtimeSync(null);
+      return;
+    }
     if (!companyId) return;
 
     previousQueueRef.current = new Map();
@@ -886,10 +902,10 @@ taxRate: 0.08
     loadWarehouseQueue();
     const timer = setInterval(() => loadWarehouseQueue({ source: 'poll', keepLoadingState: false }), 60000);
     return () => clearInterval(timer);
-  }, [companyId, canTrackQueue]);
+  }, [companyId, canUseRealtimeQueue]);
 
   useEffect(() => {
-    if (!canTrackQueue || !companyId) return;
+    if (!canUseRealtimeQueue || !companyId) return;
 
     if (!storefrontToken) {
       setIsRealtimeConnecting(true);
@@ -1026,7 +1042,7 @@ taxRate: 0.08
         streamRef.current = null;
       }
     };
-  }, [companyId, canTrackQueue, storefrontToken, isAdminRole, isWarehouseRole, isSalesRole]);
+  }, [companyId, canUseRealtimeQueue, storefrontToken, isAdminRole, isWarehouseRole, isSalesRole]);
 
   useEffect(() => {
     if (!rolePopup) return;
@@ -1278,7 +1294,7 @@ taxRate: 0.08
                   Tải
                 </button>
               </form>
-              {canTrackQueue && (
+              {canUseRealtimeQueue && (
                 <WebSocketStatusHUD
                   className="hidden md:inline-flex"
                   isConnected={isRealtimeConnected}
