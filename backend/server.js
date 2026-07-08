@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser'; 
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs'; 
 import { fileURLToPath } from 'url';
@@ -223,6 +224,39 @@ const initializeDatabase = async () => {
           console.error(`❌ Lỗi migration ${migrationFile}:`, err.message);
         }
       }
+    }
+
+    // ====================================================================
+    // ✅ TỰ ĐỘNG TẠO ROOT ADMIN KHI DB TRỐNG
+    // ====================================================================
+    try {
+      const userCountResult = await pool.query('SELECT COUNT(*) FROM users');
+      const userCount = parseInt(userCountResult.rows[0].count, 10);
+      
+      if (userCount === 0) {
+        console.log('🔐 [KHỞI TẠO] Cơ sở dữ liệu trống, đang tạo tài khoản Root Admin...');
+        
+        const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+        
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        
+        await pool.query(
+          `INSERT INTO users (username, password, role, is_root_admin, must_change_password, company_ids, staff_ids) 
+           VALUES ($1, $2, $3, $4, $5, '{}', '{}')`,
+          [adminUsername, hashedPassword, 'admin', true, true]
+        );
+        
+        console.log('✅ [KHỞI TẠO] Tài khoản Root Admin đã được tạo thành công!');
+        console.log('⚠️  [BẢO MẬT] Vui lòng đăng nhập và đổi mật khẩu ngay lập tức!');
+        console.log(`   Username: ${adminUsername}`);
+        console.log(`   Password: ${adminPassword}`);
+        console.log('   ⚠️  Đây là thông tin đăng nhập mặc định. Hãy đổi mật khẩu sau khi đăng nhập!');
+      } else {
+        console.log(`✅ [KHỞI TẠO] Cơ sở dữ liệu đã có ${userCount} người dùng. Bỏ qua tạo Root Admin.`);
+      }
+    } catch (err) {
+      console.error('❌ [LỖI KHỞI TẠO ROOT ADMIN]:', err.message);
     }
   } catch (error) {
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);

@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0109.jpg",
+  "company": "CÔNG TY TRÁCH NHIỆM HỮU HẠN DEF",
+  "invoice_no": "HD508469",
+  "date": "29/03/2026",
+  "product": "Phần mềm kế toán",
+  "amount": 15835540,
+  "tax": 1583554,
+  "total": 17419094
+}

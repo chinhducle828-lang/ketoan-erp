@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0344.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD793012",
+  "date": "31/12/2025",
+  "product": "Tư vấn thuế",
+  "amount": 15180802,
+  "tax": 1518080,
+  "total": 16698882
+}

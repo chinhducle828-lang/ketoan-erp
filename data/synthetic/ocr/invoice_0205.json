@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0205.jpg",
+  "company": "CÔNG TY CỔ PHẦN XYZ",
+  "invoice_no": "HD946791",
+  "date": "27/07/2025",
+  "product": "Thiết bị văn phòng",
+  "amount": 4929438,
+  "tax": 492943,
+  "total": 5422381
+}

@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0404.jpg",
+  "company": "CÔNG TY TRÁCH NHIỆM HỮU HẠN DEF",
+  "invoice_no": "HD560707",
+  "date": "28/12/2025",
+  "product": "Dịch vụ tư vấn",
+  "amount": 32594030,
+  "tax": 3259403,
+  "total": 35853433
+}

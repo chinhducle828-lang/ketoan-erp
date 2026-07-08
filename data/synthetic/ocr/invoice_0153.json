@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0153.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD452813",
+  "date": "30/05/2026",
+  "product": "Dịch vụ tư vấn",
+  "amount": 33078618,
+  "tax": 3307861,
+  "total": 36386479
+}

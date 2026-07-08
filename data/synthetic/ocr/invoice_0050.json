@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0050.jpg",
+  "company": "CÔNG TY TRÁCH NHIỆM HỮU HẠN DEF",
+  "invoice_no": "HD230396",
+  "date": "14/01/2026",
+  "product": "Thiết bị văn phòng",
+  "amount": 35982526,
+  "tax": 3598252,
+  "total": 39580778
+}

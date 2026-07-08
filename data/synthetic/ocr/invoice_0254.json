@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0254.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD816772",
+  "date": "21/09/2025",
+  "product": "Dịch vụ tư vấn",
+  "amount": 3103902,
+  "tax": 310390,
+  "total": 3414292
+}

@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0303.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD258776",
+  "date": "04/05/2026",
+  "product": "Tư vấn thuế",
+  "amount": 44781100,
+  "tax": 4478110,
+  "total": 49259210
+}

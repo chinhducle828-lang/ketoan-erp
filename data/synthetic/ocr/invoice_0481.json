@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0481.jpg",
+  "company": "CÔNG TY CỔ PHẦN XYZ",
+  "invoice_no": "HD829252",
+  "date": "17/07/2025",
+  "product": "Hàng hóa nhập khẩu",
+  "amount": 31223641,
+  "tax": 3122364,
+  "total": 34346005
+}

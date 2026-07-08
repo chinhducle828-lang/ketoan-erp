@@ -1,0 +1,39 @@
+"""Fix config path references in training scripts"""
+import os
+
+# Fix self_fix trainer
+path = 'ai-training/training/self_fix/train_self_fix.py'
+text = open(path, 'r', encoding='utf-8').read()
+text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+open(path, 'w', encoding='utf-8').write(text)
+print(f"Fixed {path}")
+
+# Fix OCR trainer
+path = 'ai-training/training/ocr/train_ocr.py'
+text = open(path, 'r', encoding='utf-8').read()
+text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+open(path, 'w', encoding='utf-8').write(text)
+print(f"Fixed {path}")
+
+# Fix NLP trainer
+path = 'ai-training/training/nlp/train_nlp.py'
+text = open(path, 'r', encoding='utf-8').read()
+text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+open(path, 'w', encoding='utf-8').write(text)
+print(f"Fixed {path}")
+
+# Fix RAG trainer
+path = 'ai-training/training/rag/train_rag.py'
+text = open(path, 'r', encoding='utf-8').read()
+text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+open(path, 'w', encoding='utf-8').write(text)
+print(f"Fixed {path}")
+
+# Fix Time Series trainer
+path = 'ai-training/training/time_series/train_time_series.py'
+text = open(path, 'r', encoding='utf-8').read()
+text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+open(path, 'w', encoding='utf-8').write(text)
+print(f"Fixed {path}")
+
+print("\nAll trainers fixed!")

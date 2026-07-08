@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0037.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD226896",
+  "date": "02/07/2026",
+  "product": "Vật tư tiêu hao",
+  "amount": 32761268,
+  "tax": 3276126,
+  "total": 36037394
+}

@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0384.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD136267",
+  "date": "20/11/2025",
+  "product": "Phần mềm kế toán",
+  "amount": 25129086,
+  "tax": 2512908,
+  "total": 27641994
+}

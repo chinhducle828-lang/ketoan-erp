@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0279.jpg",
+  "company": "CÔNG TY CỔ PHẦN XYZ",
+  "invoice_no": "HD642932",
+  "date": "14/03/2026",
+  "product": "Bảo trì hệ thống",
+  "amount": 49679784,
+  "tax": 4967978,
+  "total": 54647762
+}

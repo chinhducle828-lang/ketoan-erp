@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0250.jpg",
+  "company": "DOANH NGHIỆP TƯ NHÂN 123",
+  "invoice_no": "HD280206",
+  "date": "27/12/2025",
+  "product": "Dịch vụ tư vấn",
+  "amount": 48583346,
+  "tax": 4858334,
+  "total": 53441680
+}

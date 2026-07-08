@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0325.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD402940",
+  "date": "14/05/2026",
+  "product": "Dịch vụ vận chuyển",
+  "amount": 15816801,
+  "tax": 1581680,
+  "total": 17398481
+}

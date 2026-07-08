@@ -1,0 +1,4002 @@
+[
+  {
+    "id": 1,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 2,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 3,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 4,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 5,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 6,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 7,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 8,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 9,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 10,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 11,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 12,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 13,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 14,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 15,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 16,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 17,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 18,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 19,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 20,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 21,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 22,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 23,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 24,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 25,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 26,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 27,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 28,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 29,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 30,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 31,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 32,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 33,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 34,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 35,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 36,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 37,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 38,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 39,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 40,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 41,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 42,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 43,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 44,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 45,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 46,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 47,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 48,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 49,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 50,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 51,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 52,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 53,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 54,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 55,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 56,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 57,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 58,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 59,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 60,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 61,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 62,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 63,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 64,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 65,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 66,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 67,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 68,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 69,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 70,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 71,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 72,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 73,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 74,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 75,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 76,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 77,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 78,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 79,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 80,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 81,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 82,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 83,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 84,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 85,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 86,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 87,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 88,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 89,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 90,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 91,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 92,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 93,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 94,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 95,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 96,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 97,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 98,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 99,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 100,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 101,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 102,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 103,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 104,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 105,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 106,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 107,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 108,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 109,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 110,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 111,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 112,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 113,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 114,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 115,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 116,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 117,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 118,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 119,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 120,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 121,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 122,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 123,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 124,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 125,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 126,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 127,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 128,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 129,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 130,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 131,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 132,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 133,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 134,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 135,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 136,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 137,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 138,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 139,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 140,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 141,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 142,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 143,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 144,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 145,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 146,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 147,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 148,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 149,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 150,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 151,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 152,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 153,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 154,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 155,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 156,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 157,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 158,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 159,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 160,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 161,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 162,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 163,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 164,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 165,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 166,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 167,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 168,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 169,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 170,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 171,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 172,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 173,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 174,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 175,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 176,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 177,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 178,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 179,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 180,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 181,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 182,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 183,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 184,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 185,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 186,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 187,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 188,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 189,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 190,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 191,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 192,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 193,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 194,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 195,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 196,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 197,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 198,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 199,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 200,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 201,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 202,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 203,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 204,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 205,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 206,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 207,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 208,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 209,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 210,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 211,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 212,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 213,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 214,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 215,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 216,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 217,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 218,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 219,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 220,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 221,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 222,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 223,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 224,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 225,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 226,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 227,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 228,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 229,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 230,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 231,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 232,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 233,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 234,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 235,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 236,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 237,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 238,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 239,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 240,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 241,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 242,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 243,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 244,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 245,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 246,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 247,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 248,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 249,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 250,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 251,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 252,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 253,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 254,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 255,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 256,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 257,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 258,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 259,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 260,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 261,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 262,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 263,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 264,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 265,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 266,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 267,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 268,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 269,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 270,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 271,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 272,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 273,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 274,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 275,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 276,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 277,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 278,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 279,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 280,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 281,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 282,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 283,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 284,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 285,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 286,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 287,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 288,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 289,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 290,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 291,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 292,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 293,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 294,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 295,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 296,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 297,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 298,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 299,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 300,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 301,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 302,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 303,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 304,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 305,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 306,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 307,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 308,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 309,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 310,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 311,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 312,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 313,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 314,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 315,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 316,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 317,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 318,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 319,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 320,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 321,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 322,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 323,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 324,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 325,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 326,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 327,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 328,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 329,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 330,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 331,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 332,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 333,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 334,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 335,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 336,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 337,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 338,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 339,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 340,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 341,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 342,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 343,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 344,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 345,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 346,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 347,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 348,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 349,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 350,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 351,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 352,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 353,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 354,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 355,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 356,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 357,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 358,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 359,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 360,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 361,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 362,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 363,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 364,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 365,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 366,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 367,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 368,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 369,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 370,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 371,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 372,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 373,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 374,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 375,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 376,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 377,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 378,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 379,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 380,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 381,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 382,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 383,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 384,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 385,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 386,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 387,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 388,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 389,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 390,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 391,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 392,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 393,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 394,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 395,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 396,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 397,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 398,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 399,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 400,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 401,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 402,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 403,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 404,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 405,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 406,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 407,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 408,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 409,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 410,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 411,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 412,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 413,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 414,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 415,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 416,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 417,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 418,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 419,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 420,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 421,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 422,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 423,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 424,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 425,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 426,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 427,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 428,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 429,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 430,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 431,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 432,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 433,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 434,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 435,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 436,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 437,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 438,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 439,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 440,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 441,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 442,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 443,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 444,
+    "question": "Cho tôi biết: Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 445,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 446,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 447,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 448,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 449,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 450,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 451,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 452,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 453,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 454,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 455,
+    "question": "Cho tôi biết: Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 456,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 457,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 458,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 459,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 460,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 461,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 462,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 463,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 464,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 465,
+    "question": "Cho tôi biết: Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 466,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 467,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 468,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 469,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 470,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 471,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 472,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 473,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 474,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 475,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 476,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 477,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 478,
+    "question": "Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 479,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 480,
+    "question": "Cho tôi biết: Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 481,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 482,
+    "question": "Phương pháp kê khai thuế GTGT là gì?",
+    "answer": "Có 2 phương pháp: 1) Kê khai khấu trừ: Doanh nghiệp kê khai thuế đầu vào và đầu ra, tính thuế phải nộp = Thuế đầu ra - Thuế đầu vào; 2) Kê khai trực tiếp: Doanh nghiệp kê khai theo doanh thu thực tế.",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 483,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 484,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 485,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 486,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 487,
+    "question": "Cho tôi biết: Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 488,
+    "question": "Cho tôi biết: Cách kết chuyển cuối kỳ?",
+    "answer": "Kết chuyển cuối kỳ: 1) Menu 'Kết chuyển' → 'Tạo bút toán kết chuyển'; 2) Chọn loại kết chuyển (doanh thu, chi phí, thuế); 3) Hệ thống tự động tạo bút toán; 4) Kiểm tra và điều chỉnh; 5) Xác nhận kết chuyển.",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 489,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 490,
+    "question": "Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 491,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 492,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 493,
+    "question": "Cách nhập phiếu thu?",
+    "answer": "Nhập phiếu thu: 1) Menu 'Thu tiền' → 'Phiếu thu'; 2) Chọn khách hàng; 3) Nhập số tiền và nội dung; 4) Chọn tài khoản nợ (111/112); 5) Chọn tài khoản có (511/131); 6) Lưu phiếu.",
+    "category": "receipt",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 494,
+    "question": "Làm sao để tạo hóa đơn GTGT?",
+    "answer": "Để tạo hóa đơn GTGT, bạn cần: 1) Vào menu 'Bán hàng' → 'Hóa đơn'; 2) Nhấn 'Tạo mới'; 3) Điền thông tin khách hàng, sản phẩm, số lượng, đơn giá; 4) Hệ thống tự tính thuế GTGT 10%; 5) Lưu hóa đơn.",
+    "category": "invoice",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 495,
+    "question": "Cho tôi biết: Thuế GTGT đầu ra là gì?",
+    "answer": "Thuế GTGT đầu ra là thuế doanh nghiệp phải nộp khi bán hàng/cung cấp dịch vụ. Công thức: Thuế GTGT đầu ra = Doanh thu × 10%. Tài khoản phản ánh: TK 3331 (Thuế GTGT đầu ra).",
+    "category": "tax",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 496,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 497,
+    "question": "Kế toán 511 là gì?",
+    "answer": "TK 511 - Doanh thu bán hàng và cung cấp dịch vụ. Tài khoản này phản ánh doanh thu từ hoạt động bán hàng, cung cấp dịch vụ. Có phát sinh bên Nợ (trả lại hàng, giảm giá) và bên Có (ghi nhận doanh thu).",
+    "category": "accounting",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 498,
+    "question": "Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 499,
+    "question": "Làm sao để xuất báo cáo tài chính?",
+    "answer": "Xuất báo cáo tài chính: 1) Menu 'Báo cáo' → 'Báo cáo tài chính'; 2) Chọn loại báo cáo (CĐKT, KQKD, LCTT); 3) Chọn kỳ báo cáo; 4) Xem trước; 5) Xuất Excel/PDF.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  },
+  {
+    "id": 500,
+    "question": "Cho tôi biết: Làm thế nào để đối chiếu công nợ?",
+    "answer": "Đối chiếu công nợ: 1) Menu 'Báo cáo' → 'Đối chiếu công nợ'; 2) Chọn đối tác (khách hàng/nhà cung cấp); 3) Chọn khoảng thời gian; 4) Hệ thống liệt kê các phát sinh; 5) Đối chiếu với sổ sái đối tác; 6) Xác nhận công nợ.",
+    "category": "report",
+    "source": "synthetic",
+    "confidence": 1.0
+  }
+]

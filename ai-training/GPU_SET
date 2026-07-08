@@ -1,0 +1,134 @@
+# GPU Training Setup Guide for Windows
+
+## Step 1: Install Python 3.11 (Required for CUDA Support)
+
+### Download Python 3.11
+1. Go to: https://www.python.org/downloads/release/python-3119/
+2. Download: Windows installer (64-bit)
+3. **IMPORTANT**: Check "Add Python to PATH" during installation
+4. Install with "Customize installation" → select "Install for all users"
+
+### Verify Installation
+```powershell
+python3.11 --version
+# Should show: Python 3.11.x
+```
+
+## Step 2: Create New Virtual Environment with Python 3.11
+
+```powershell
+# Navigate to ai-training directory
+cd ai-training
+
+# Create venv with Python 3.11
+python3.11 -m venv venv311
+
+# Activate venv
+.\venv311\Scripts\activate
+
+# Verify Python version
+python --version
+# Should show: Python 3.11.x
+```
+
+## Step 3: Install PyTorch with CUDA 12.1
+
+```powershell
+# Install PyTorch with CUDA support
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Verify CUDA is available
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+# Should show: CUDA: True
+```
+
+## Step 4: Install Remaining Dependencies
+
+```powershell
+# Install from compatibility requirements
+pip install -r requirements-compat.txt
+
+# Install any missing packages
+pip install psutil huggingface_hub defusedxml absl-py typer tokenizers==0.22.2
+```
+
+## Step 5: Verify GPU Setup
+
+```powershell
+# Run GPU check
+python check_gpu.py
+
+# Expected output:
+# PyTorch: 2.x.x+cu121
+# CUDA available: True
+# CUDA version: 12.1
+# GPU count: 1
+# GPU name: [Your GPU name]
+```
+
+## Step 6: Train Models with GPU
+
+```powershell
+# Activate environment
+.\venv311\Scripts\activate
+
+# Train NLP model (will now use GPU)
+python training/nlp/train_nlp.py
+
+# Train other models
+python training/self_fix/train_self_fix.py
+python training/rag/train_rag.py
+python training/ocr/train_ocr.py
+python training/time_series/train_time_series.py
+```
+
+## Troubleshooting
+
+### If Python 3.11 is not found:
+```powershell
+# Try these commands
+py -3.11 --version
+py -3.11 -m venv venv311
+```
+
+### If CUDA is still not available:
+1. Update NVIDIA drivers: https://www.nvidia.com/Download/index.aspx
+2. Verify GPU: `nvidia-smi`
+3. Reinstall PyTorch with CUDA
+
+### If pip install is slow:
+```powershell
+# Use faster mirror
+pip install -r requirements-compat.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+## Quick Setup Script
+
+Once Python 3.11 is installed, run this automated setup:
+
+```powershell
+# Save as setup_gpu.ps1
+python3.11 -m venv venv311
+.\venv311\Scripts\activate
+pip install --upgrade pip
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements-compat.txt
+pip install psutil huggingface_hub defusedxml absl-py typer tokenizers==0.22.2
+python check_gpu.py
+```
+
+Execute with:
+```powershell
+.\setup_gpu.ps1
+```
+
+## Expected Results
+
+With GPU training:
+- **NLP model**: ~2-3 minutes (vs 15-20 min on CPU)
+- **Self-Fix model**: ~10 seconds
+- **RAG model**: ~1-2 minutes
+- **OCR model**: ~3-5 minutes
+- **Time Series**: ~30 seconds
+
+**Total training time: ~10-15 minutes with GPU vs ~30-40 minutes on CPU**
