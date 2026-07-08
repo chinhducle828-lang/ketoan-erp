@@ -42,7 +42,8 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     return '';
   };
 
-  const openStorefront = async () => {
+  const openStorefront = async (e) => {
+    if (e) e.preventDefault();
     const STOREFRONT_URL = getStorefrontURL();
     if (!STOREFRONT_URL) return;
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
@@ -70,7 +71,8 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     }
   };
 
-  const openERP = () => {
+  const openERP = (e) => {
+    if (e) e.preventDefault();
     navigate('/');
   };
 
@@ -88,7 +90,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
           : 'Kế toán viên';
 
   return (
-    <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-3 md:px-6 z-10 shrink-0 py-3 md:py-0 gap-2">
+    <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-3 md:px-6 z-10 shrink-0 py-3 md:py-0 gap-2 flex-wrap">
       {/* Nút bật menu trên thiết bị di động */}
       <button
         className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100"
@@ -149,20 +151,22 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
       </div>
 
       {/* Toggle between Storefront and ERP */}
-      <div className="hidden md:flex items-center gap-2 ml-4">
+      <div className="hidden lg:flex items-center gap-2 ml-4 flex-shrink-0">
         {((user?.role === 'admin') || ['nv_banhang','nv_kho','ktt'].includes(user?.role)) && (
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={openStorefront}
               title="Mở phân hệ bán hàng web riêng"
-              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 hover:border-slate-300 transition-all active:scale-95"
+              className="px-3 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-semibold hover:bg-slate-100 hover:border-slate-300 transition-all active:scale-95 whitespace-nowrap"
             >
               Mở Web Bán Hàng
             </button>
             <button
+              type="button"
               onClick={openERP}
               title="Về hệ thống kế toán ERP"
-              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
+              className="px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 whitespace-nowrap"
             >
               Mở ERP
             </button>
@@ -171,7 +175,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
       </div>
 
       {/* Khối hiển thị thông tin tài khoản và Đăng xuất */}
-      <div className="flex items-center gap-3 mt-2 md:mt-0 md:ml-2 self-end md:self-auto">
+      <div className="flex items-center gap-3 mt-2 md:mt-0 md:ml-2 self-end md:self-auto min-w-0">
         <div className="flex items-center gap-2 text-right">
           <div>
             <div className="text-xs font-bold text-slate-800">{user?.fullName || user?.username}</div>
