@@ -63,6 +63,27 @@
 }
 
 /* ========================================
+   SAFE AREA INSERTS (Notched Phones)
+   ======================================== */
+@supports (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: env(safe-area-inset-top);
+    --safe-area-bottom: env(safe-area-inset-bottom);
+    --safe-area-left: env(safe-area-inset-left);
+    --safe-area-right: env(safe-area-inset-right);
+  }
+}
+
+@supports not (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: 0px;
+    --safe-area-bottom: 0px;
+    --safe-area-left: 0px;
+    --safe-area-right: 0px;
+  }
+}
+
+/* ========================================
    GLOBAL BASE STYLES
    ======================================== */
 
@@ -167,6 +188,7 @@
 
   .floating-action-bar {
     @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-50;
+    padding-bottom: max(0.5rem, var(--safe-area-bottom, 0px));
   }
 
   /* Nút có chiều ngang cân đối: cùng min-width, padding đồng đều */
@@ -211,5 +233,41 @@
 
   .status-locked {
     @apply bg-slate-100 text-slate-600 border-slate-200;
+  }
+}
+
+/* ========================================
+   RESPONSIVE UTILITY CLASSES
+   ======================================== */
+
+/* Collapse two-column layout to single column on mobile */
+@media (max-width: 768px) {
+  .storefront-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .storefront-right-panel {
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Prevent horizontal overflow on mobile */
+@media (max-width: 480px) {
+  .page-shell {
+    overflow-x: hidden;
+  }
+
+  /* Scale down button groups to prevent overflow */
+  .btn-group-wrap {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .btn-group-wrap > * {
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 }

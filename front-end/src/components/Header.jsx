@@ -71,7 +71,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
           : 'Kế toán viên';
 
   return (
-    <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-4 md:px-6 z-10 shrink-0 py-3 md:py-0">
+    <header className="bg-white border-b border-slate-200 md:h-16 h-auto flex flex-col md:flex-row items-center justify-between px-3 md:px-6 z-10 shrink-0 py-3 md:py-0 gap-2">
       {/* Nút bật menu trên thiết bị di động */}
       <button
         className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100"
@@ -96,14 +96,14 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
         </button>
       )}
 
-      <div className="flex items-center gap-4 w-full md:w-auto">
+      <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
         {/* Bộ chọn doanh nghiệp hạch toán (ĐỒNG BỘ THEO CHUỖI ID AN TOÀN) */}
-        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold w-full md:w-auto">
-          <Building2 size={16} className="text-emerald-600 animate-pulse" />
+        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold flex-1 md:flex-none min-w-0">
+          <Building2 size={16} className="text-emerald-600 animate-pulse shrink-0" />
           <select 
             value={activeCompany?.id || activeCompany || ''} 
             onChange={handleCompanyChange}
-            className="bg-transparent border-none focus:outline-none font-bold text-slate-800 w-full cursor-pointer"
+            className="bg-transparent border-none focus:outline-none font-bold text-slate-800 w-full cursor-pointer min-w-0 truncate"
             disabled={companies.length <= 1} // Tài khoản có nhiều đơn vị được phân quyền có thể chuyển trực tiếp.
           >
             <option value="" disabled>-- Chọn doanh nghiệp hạch toán --</option>
@@ -116,9 +116,9 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
         </div>
         
         {/* Bộ chọn Niên độ kế toán động */}
-        <div className="text-xs text-slate-500 font-medium flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
-          <Calendar size={14} className="text-blue-500" />
-          <span className="text-slate-600">Niên độ kế toán:</span>
+        <div className="text-xs text-slate-500 font-medium flex items-center gap-1 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
+          <Calendar size={14} className="text-blue-500 shrink-0" />
+          <span className="text-slate-600 hidden sm:inline whitespace-nowrap">Niên độ:</span>
           <select
             value={fiscalYear || 2026}
             onChange={(e) => setFiscalYear && setFiscalYear(Number(e.target.value))}
@@ -146,7 +146,7 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
       </div>
 
       {/* Khối hiển thị thông tin tài khoản và Đăng xuất */}
-      <div className="flex items-center gap-4 mt-3 md:mt-0 md:ml-2">
+      <div className="flex items-center gap-3 mt-2 md:mt-0 md:ml-2 self-end md:self-auto">
         <div className="flex items-center gap-2 text-right">
           <div>
             <div className="text-xs font-bold text-slate-800">{user?.fullName || user?.username}</div>
