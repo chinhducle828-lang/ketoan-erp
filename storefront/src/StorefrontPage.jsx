@@ -319,9 +319,9 @@ export default function StorefrontPage() {
           const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
           window.history.replaceState({}, '', nextUrl);
 
-          // validate session with the same token that backend stores in sessions.token
+          // Validate session with the token that backend just stored in sessions.token.
           try {
-            const { data } = await authApi.get('/api/auth/me', buildBearerConfig(erpToken));
+            const { data } = await authApi.get('/api/auth/me', buildBearerConfig(finalToken));
             const roleCode = data?.user?.role || '';
             const targetRole = paramRole || storefrontRole;
             const canUseSession = isSessionAllowedForRole(targetRole, roleCode);

@@ -4,6 +4,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import api from '../../utils/api.js';
 import { normalizeStorefrontRole } from '../../constants/storefrontRoles.js';
 
 const getStorefrontURL = () => {
@@ -22,6 +23,32 @@ const getStorefrontURL = () => {
 export default function StorefrontAccessNotice({ skipAutoRedirect }) {
   const { user, token, activeCompany } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
+  const [erpToken, setErpToken] = useState(() => token || localStorage.getItem('accessToken') || '');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshToken = async () => {
+      try {
+        const { data } = await api.post('/auth/refresh');
+        if (!cancelled && data?.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+          setErpToken(data.accessToken);
+          return;
+        }
+      } catch {
+        // Keep current token when refresh fails.
+      }
+      if (!cancelled) {
+        setErpToken(token || localStorage.getItem('accessToken') || '');
+      }
+    };
+
+    refreshToken();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const storefrontHref = useMemo(() => {
     const baseUrl = getStorefrontURL();
@@ -30,15 +57,15 @@ export default function StorefrontAccessNotice({ skipAutoRedirect }) {
     const params = new URLSearchParams();
     const companyId = activeCompany?.id ? String(activeCompany.id) : '';
     const storefrontRole = normalizeStorefrontRole(user?.roleId || user?.role);
-    const erpToken = token || localStorage.getItem('accessToken') || '';
+    const latestErpToken = erpToken || token || localStorage.getItem('accessToken') || '';
 
     if (companyId) params.set('company_id', companyId);
     params.set('role', storefrontRole);
-    if (erpToken) params.set('erp_token', erpToken);
+    if (latestErpToken) params.set('erp_token', latestErpToken);
     if (typeof window !== 'undefined') params.set('erp_url', window.location.origin);
 
     return `${baseUrl}${params.toString() ? `?${params.toString()}` : ''}`;
-  }, [activeCompany?.id, token, user?.role, user?.roleId]);
+  }, [activeCompany?.id, erpToken, token, user?.role, user?.roleId]);
 
   useEffect(() => {
     // ✅ Nếu skipAutoRedirect = true, không tự động chuyển hướng
@@ -46,17 +73,8 @@ export default function StorefrontAccessNotice({ skipAutoRedirect }) {
     if (!storefrontHref || redirecting) return;
     setRedirecting(true);
 
-    // Vào ERP bằng link nhưng role chỉ dùng storefront: mở storefront trong tab mới
-    // Sử dụng window.open thay vì window.location.replace để tránh vòng tròn chuyển hướng
-    try {
-      const popup = window.open(storefrontHref, '_blank', 'noopener,noreferrer');
-      if (!popup) {
-        // Nếu popup bị chặn, fallback sang cửa sổ mới
-        window.location.href = storefrontHref;
-      }
-    } catch (e) {
-      window.location.href = storefrontHref;
-    }
+    // Auto-redirect should stay in current tab to avoid popup blockers on mobile.
+    window.location.replace(storefrontHref);
   }, [storefrontHref, redirecting, skipAutoRedirect]);
 
   const openStorefront = () => {

@@ -154,6 +154,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
     res.json({ 
       accessToken, 
+      storefrontToken,
       user: {
         id: user.id,
         username: user.username,
