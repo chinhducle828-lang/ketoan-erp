@@ -36,7 +36,8 @@ export default function App() {
   const userNeedsStorefrontOnly = isStorefrontOnlyRole(roleCode);
   const isGiamDocKinhDoanh = roleCode === 'gd_kinhdoanh';
   const defaultModule = MODULES_REGISTER.find((module) => module.allowedRoles?.includes(roleCode));
-  const defaultPath = defaultModule ? `/${defaultModule.id}` : '/login';
+  // Không bao giờ trỏ về /login để tránh vòng lặp redirect vô hạn (/ <-> /login)
+  const defaultPath = defaultModule ? `/${defaultModule.id}` : `/${MODULES_REGISTER[0]?.id || 'dashboard'}`;
 
   if (loading) {
     return (
@@ -55,8 +56,10 @@ export default function App() {
         <Route 
           path="/login" 
           element={
-            !token || userNeedsStorefrontOnly ? (
+            !token ? (
               isFirstRun ? <Register onSwitch={() => setIsFirstRun(false)} /> : <Login onFirstRun={() => setIsFirstRun(true)} />
+            ) : userNeedsStorefrontOnly ? (
+              <Navigate to="/pos" replace />
             ) : (
               <Navigate to="/" replace />
             )

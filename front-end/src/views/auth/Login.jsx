@@ -87,6 +87,12 @@ export default function Login({ onFirstRun }) {
             const roleToCheck = response.user?.roleId || response.user?.role || (user && (user.roleId || user.role));
             const hasErpAccess = MODULES_REGISTER.some((m) => Array.isArray(m.allowedRoles) && m.allowedRoles.includes(roleToCheck));
 
+            // gd_kinhdoanh có route riêng → điều hướng trong Router (không reload trang)
+            if (roleToCheck === 'gd_kinhdoanh') {
+              navigate('/gd-kinhdoanh/dashboard', { replace: true });
+              return;
+            }
+
         // Record token issue time for expiration checks
         setTokenTimestamp(Date.now());
 

@@ -16,7 +16,7 @@ const MAX_REQUESTS = 100; // Tối đa 100 request trong 15 phút
 
 // Cấu hình riêng cho các endpoint nhạy cảm
 const SENSITIVE_ENDPOINTS = {
-  '/api/auth/login': { maxRequests: 10, windowMs: 15 * 60 * 1000 }, // 10 lần/15 phút
+  '/api/auth/login': { maxRequests: 15, windowMs: 15 * 60 * 1000 }, // 15 lần/15 phút (đủ headroom cho đăng nhập lại hợp lệ, vẫn chặn brute-force)
   '/api/auth/register': { maxRequests: 5, windowMs: 60 * 60 * 1000 }, // 5 lần/giờ
   '/api/auth/change-password': { maxRequests: 3, windowMs: 60 * 60 * 1000 }, // 3 lần/giờ
 };
