@@ -17,6 +17,7 @@ export default function ProductCard({
   actionLabel = 'Thêm',
   actionClassName = 'btn-balanced-primary flex-1',
   onViewDetails,
+  onSelect,
   onSecondaryAction,
   isInWishlist = false,
   onToggleWishlist,
@@ -69,7 +70,7 @@ export default function ProductCard({
       <div className="flex-1 p-2 flex flex-col">
         <h3 
           className="text-[11px] font-bold text-slate-800 mb-0.5 line-clamp-1 cursor-pointer hover:text-indigo-600 transition"
-          onClick={() => onViewDetails(product)}
+          onClick={() => onSelect?.(product)}
         >
           {product.name}
         </h3>
