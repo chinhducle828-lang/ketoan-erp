@@ -74,13 +74,20 @@ export async function rateLimiter(req, res, next) {
  */
 export async function apiRateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
+  const method = String(req.method || 'GET').toUpperCase();
+  const path = String(req.path || req.originalUrl || '/');
   
   // Fallback nếu Redis không sẵn sàng
   if (redis.status !== 'ready') {
     return next();
   }
 
-  const key = `rate_limit:api:${ip}`;
+  // SSE stream giữ kết nối mở lâu dài, không nên tính vào bucket burst ngắn.
+  if (method === 'GET' && path.startsWith('/logistics/stream')) {
+    return next();
+  }
+
+  const key = `rate_limit:api:${ip}:${method}:${path}`;
   const windowSec = 1; // 1 giây
   
   try {
