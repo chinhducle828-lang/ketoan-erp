@@ -2,7 +2,7 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import api from '../../utils/api.js';
@@ -42,6 +42,7 @@ export default function Login({ onFirstRun }) {
   const [showPostLoginChoice, setShowPostLoginChoice] = useState(false);
   const [postLoginHref, setPostLoginHref] = useState('');
   const [tokenTimestamp, setTokenTimestamp] = useState(null);
+  const submitLockRef = useRef(false);
 
   // Consolidated redirect handler — single source of truth for all post-login navigation
   const handleRedirect = useCallback((href, mode, hasErpAccess) => {
@@ -67,6 +68,8 @@ export default function Login({ onFirstRun }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setError('');
     setLocalLoading(true);
     try {
@@ -116,9 +119,14 @@ export default function Login({ onFirstRun }) {
         setError(response?.message || 'Tên người dùng hoặc mật khẩu không chính xác.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+      if (err.response?.status === 429) {
+        setError(err.response?.data?.error || err.response?.data?.message || 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi một lát rồi thử lại.');
+      } else {
+        setError(err.response?.data?.error || err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+      }
     } finally {
       setLocalLoading(false);
+      submitLockRef.current = false;
     }
   };
 
