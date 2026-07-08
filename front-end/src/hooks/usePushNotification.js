@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import api from '../utils/api.js';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -64,18 +65,14 @@ export function usePushNotification() {
       });
 
       // Send subscription to backend
-      const response = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: subscription.endpoint,
-          p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))),
-          auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))),
-          companyId
-        })
+      const response = await api.post('/notifications/subscribe', {
+        endpoint: subscription.endpoint,
+        p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))),
+        auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))),
+        companyId
       });
 
-      if (response.ok) {
+      if (response?.status >= 200 && response?.status < 300) {
         setSubscription(subscription);
         return { success: true };
       } else {
@@ -97,11 +94,7 @@ export function usePushNotification() {
       await subscription.unsubscribe();
       
       // Notify backend
-      await fetch('/api/notifications/unsubscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: subscription.endpoint })
-      });
+      await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint });
 
       setSubscription(null);
       return { success: true };

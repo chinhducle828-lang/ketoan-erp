@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePushNotification } from '../hooks/usePushNotification';
 import { useRealTimeBase } from '../hooks/useRealTime-base';
 import wsService from '../services/websocket.js';
+import api from '../utils/api.js';
 
 export default function NotificationBell({ companyId, userId }) {
   const [notifications, setNotifications] = useState([]);
@@ -18,11 +19,15 @@ export default function NotificationBell({ companyId, userId }) {
   // Load notifications from API
   const loadNotifications = useCallback(() => {
     if (!companyId) return;
-    
-    fetch(`/api/notifications?company_id=${companyId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setNotifications(data.data || []);
+
+    api
+      .get('/notifications', { params: { company_id: companyId } })
+      .then((res) => {
+        const data = res.data;
+        if (data?.success) setNotifications(data.data || []);
+      })
+      .catch((error) => {
+        console.error('Failed to load notifications:', error);
       });
   }, [companyId]);
 

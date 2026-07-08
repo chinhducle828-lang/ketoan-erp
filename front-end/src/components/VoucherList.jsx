@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRealTime } from '../hooks/useRealTime';
 import VirtualTable from './VirtualTable';
 import { FileText, RefreshCw, Filter } from 'lucide-react';
+import api from '../utils/api.js';
 
 // Voucher list with real-time updates
 export default function VoucherList({ companyId, userId }) {
@@ -23,9 +24,9 @@ export default function VoucherList({ companyId, userId }) {
   const loadVouchers = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/vouchers?companyId=${companyId}`);
-      const data = await response.json();
-      setVouchers(data);
+      const response = await api.get('/vouchers', { params: { companyId } });
+      const data = response.data?.data || response.data || [];
+      setVouchers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load vouchers:', error);
     } finally {
