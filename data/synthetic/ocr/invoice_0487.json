@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0487.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD228447",
+  "date": "29/10/2025",
+  "product": "Dịch vụ tư vấn",
+  "amount": 4933763,
+  "tax": 493376,
+  "total": 5427139
+}

@@ -1,0 +1,12 @@
+"""Fix config path references in training scripts"""
+import glob
+
+paths = glob.glob('ai-training/training/*/train_*.py')
+for path in paths:
+    text = open(path, 'r', encoding='utf-8').read()
+    if "self.config['models']['trained']" in text:
+        text = text.replace("self.config['models']['trained']", "self.config['paths']['models_trained']")
+        open(path, 'w', encoding='utf-8').write(text)
+        print(f'Fixed: {path}')
+    else:
+        print(f'OK: {path}')

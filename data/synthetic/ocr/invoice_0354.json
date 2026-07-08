@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0354.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD758443",
+  "date": "10/01/2026",
+  "product": "Thiết bị văn phòng",
+  "amount": 23961077,
+  "tax": 2396107,
+  "total": 26357184
+}

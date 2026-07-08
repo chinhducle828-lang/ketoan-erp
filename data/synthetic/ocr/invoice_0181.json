@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0181.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD860352",
+  "date": "19/12/2025",
+  "product": "Thiết bị văn phòng",
+  "amount": 42420858,
+  "tax": 4242085,
+  "total": 46662943
+}

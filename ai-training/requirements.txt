@@ -1,0 +1,115 @@
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# OCR
+paddlepaddle>=2.5.0
+paddleocr>=2.7.0
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+pillow>=10.0.0
+albumentations>=1.3.0
+
+# NLP & Transformers
+transformers>=4.30.0
+tokenizers>=0.13.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Vietnamese NLP
+vncorenlp>=1.0.3
+underthesea>=6.7.0
+pyvi>=0.1.1
+
+# Embeddings & Vector DB
+sentence-transformers>=2.2.0
+qdrant-client>=1.5.0
+faiss-cpu>=1.7.4
+
+# Machine Learning
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
+catboost>=1.2.0
+
+# Time Series
+prophet>=1.1.5
+statsmodels>=0.14.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tqdm>=4.65.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+pymongo>=4.5.0
+
+# Visualization
+plotly>=5.15.0
+tensorboard>=2.13.0
+wandb>=0.15.0
+
+# Model Export
+onnx>=1.14.0
+onnxruntime>=1.15.0
+joblib>=1.3.0
+pickle5>=0.0.11
+
+# Data Version Control
+dvc>=3.0.0
+
+# Annotation Tools
+label-studio>=1.8.0
+
+# Synthetic Data Generation
+faker>=19.0.0
+nlpaug>=1.1.11
+
+# Evaluation Metrics
+nltk>=3.8.0
+rouge-score>=0.1.2
+sacrebleu>=2.3.0
+jiwer>=3.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pdfplumber>=0.9.0
+python-docx>=0.8.11
+
+# Jupyter
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+ipykernel>=6.25.0
+ipywidgets>=8.1.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-benchmark>=4.0.0
+
+# Code Quality
+black>=23.0.0
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Progress Bars
+rich>=13.5.0
+
+# Logging
+loguru>=0.7.0
+
+# Type Hints
+typing-extensions>=4.7.0
+
+# GPU Monitoring
+gpustat>=1.1.0
+nvidia-ml-py>=12.535.0

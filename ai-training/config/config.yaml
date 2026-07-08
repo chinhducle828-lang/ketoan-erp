@@ -1,0 +1,177 @@
+checkpoints:
+  keep_last_n: 3
+  save_dir: training/checkpoints
+  save_every_n_epochs: 5
+data_targets:
+  nlp:
+    manual_annotation: 50
+    public_datasets: 1000
+    real_samples: 100
+    synthetic_samples: 2000
+    total: 2150
+  ocr:
+    public_datasets: 1000
+    real_samples: 200
+    synthetic_samples: 500
+    total: 1700
+  rag:
+    documentation: 300
+    existing_kb: 200
+    synthetic_qa: 500
+    total: 1000
+  self_fix:
+    historical_export: 500
+    manual_review: 500
+    synthetic_samples: 5000
+    total: 5500
+deployment:
+  gpu_required: true
+  gpu_type: T4
+  max_batch_size: 16
+  min_ram_gb: 8
+  min_storage_gb: 20
+  platform: Railway
+  timeout_seconds: 300
+evaluation:
+  nlp:
+  - exact_match
+  - component_accuracy
+  - bleu
+  - rouge
+  - sql_complexity
+  ocr:
+  - CER
+  - WER
+  - field_accuracy
+  - confidence_calibration
+  rag:
+  - precision_at_k
+  - recall_at_k
+  - mrr
+  - ndcg
+  - map
+  self_fix:
+  - precision
+  - recall
+  - f1_score
+  - improvement_rate
+  - human_acceptance_rate
+  time_series:
+  - mae
+  - rmse
+  - mape
+  - directional_accuracy
+experiment:
+  description: Training AI models for Ketoan ERP
+  name: ketoan-ai-training
+  tags:
+  - vietnamese
+  - accounting
+  - erp
+  - ocr
+  - nlp
+  - rag
+  version: v1.0
+hardware:
+  batch_size: 32
+  cpu_cores: 8
+  gpu_enabled: true
+  gpu_name: NVIDIA GeForce RTX 5060
+  gpu_vram_gb: 8
+  num_workers: 4
+  ram_gb: 32
+  storage_type: NVMe SSD
+logging:
+  file: logs/training.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  tensorboard: true
+  wandb: false
+models:
+  nlp:
+    base_model: t5-small
+    batch_size: 8
+    epochs: 30
+    learning_rate: 0.0001
+    max_source_length: 128
+    max_target_length: 256
+    model_type: t5
+  ocr:
+    base_model: PaddleOCR
+    batch_size: 16
+    epochs: 50
+    image_size:
+    - 1024
+    - 1024
+    language: vi
+    max_text_length: 100
+  rag:
+    batch_size: 32
+    chunk_overlap: 100
+    chunk_size: 256
+    embedding_dim: 768
+    embedding_model: keepitreal/vietnamese-sbert
+    epochs: 10
+    top_k: 5
+    use_hybrid_search: true
+    bm25_weight: 0.3
+    vector_weight: 0.7
+    use_reranker: true
+    reranker_model: cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
+    reranker_top_k: 30
+  self_fix:
+    algorithm: XGBoost
+    batch_size: 64
+    epochs: 1
+    learning_rate: 0.1
+    max_depth: 10
+    n_estimators: 200
+  time_series:
+    algorithm: Prophet
+    batch_size: 32
+    epochs: 100
+    lstm_layers: 2
+    lstm_units: 128
+    sequence_length: 30
+paths:
+  data_ground_truth: data/ground_truth
+  data_processed: data/processed
+  data_raw: data/raw
+  data_synthetic: data/synthetic
+  evaluation_metrics: evaluation/metrics
+  evaluation_reports: evaluation/reports
+  logs: logs
+  models_exported: models/exported
+  models_trained: models/trained
+thresholds:
+  nlp:
+    bleu: 0.75
+    component_accuracy: 0.85
+    exact_match: 0.7
+  ocr:
+    cer: 0.05
+    field_accuracy: 0.9
+    wer: 0.1
+  rag:
+    mrr: 0.8
+    ndcg: 0.85
+    precision_at_5: 0.85
+  self_fix:
+    f1_score: 0.77
+    precision: 0.8
+    recall: 0.75
+  time_series:
+    directional_accuracy: 0.7
+    mape: 0.15
+training:
+  early_stopping_patience: 5
+  learning_rate: 2e-5
+  mixed_precision: true
+  optimizer: AdamW
+  random_seed: 42
+  save_best_only: true
+  scheduler: linear
+  test_split: 0.1
+  validation_split: 0.2
+  warmup_steps: 500
+  weight_decay: 0.01

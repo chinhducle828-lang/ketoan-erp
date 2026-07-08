@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0065.jpg",
+  "company": "CÔNG TY CỔ PHẦN XYZ",
+  "invoice_no": "HD240428",
+  "date": "20/11/2025",
+  "product": "Hàng hóa nhập khẩu",
+  "amount": 10325674,
+  "tax": 1032567,
+  "total": 11358241
+}

@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0402.jpg",
+  "company": "CÔNG TY CỔ PHẦN XYZ",
+  "invoice_no": "HD184314",
+  "date": "29/06/2026",
+  "product": "Phần mềm kế toán",
+  "amount": 5076403,
+  "tax": 507640,
+  "total": 5584043
+}

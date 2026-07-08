@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0387.jpg",
+  "company": "DOANH NGHIỆP TƯ NHÂN 123",
+  "invoice_no": "HD161917",
+  "date": "22/06/2026",
+  "product": "Bảo trì hệ thống",
+  "amount": 36058550,
+  "tax": 3605855,
+  "total": 39664405
+}

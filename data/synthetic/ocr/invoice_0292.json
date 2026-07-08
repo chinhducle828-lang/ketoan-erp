@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0292.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD300716",
+  "date": "23/08/2025",
+  "product": "Bảo trì hệ thống",
+  "amount": 32184984,
+  "tax": 3218498,
+  "total": 35403482
+}

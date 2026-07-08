@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0410.jpg",
+  "company": "DOANH NGHIỆP TƯ NHÂN 123",
+  "invoice_no": "HD977212",
+  "date": "19/03/2026",
+  "product": "Thiết bị văn phòng",
+  "amount": 29589248,
+  "tax": 2958924,
+  "total": 32548172
+}

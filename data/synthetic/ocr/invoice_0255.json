@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0255.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD470276",
+  "date": "02/01/2026",
+  "product": "Dịch vụ vận chuyển",
+  "amount": 45990541,
+  "tax": 4599054,
+  "total": 50589595
+}

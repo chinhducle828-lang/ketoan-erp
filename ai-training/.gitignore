@@ -1,0 +1,106 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (large files - use DVC instead)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/synthetic/*
+!data/synthetic/.gitkeep
+data/ground_truth/*
+!data/ground_truth/.gitkeep
+
+# Models (large files - use DVC or Git LFS)
+models/trained/*
+!models/trained/.gitkeep
+models/exported/*
+!models/exported/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# TensorBoard
+tensorboard/
+
+# Weights & Biases
+wandb/
+
+# DVC
+.dvc/cache
+
+# Test outputs
+evaluation/metrics/*
+!evaluation/metrics/.gitkeep
+evaluation/reports/*
+!evaluation/reports/.gitkeep
+
+# Notebooks checkpoints
+notebooks/.ipynb_checkpoints/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# CUDA
+*.cu
+*.cuh
+
+# Model checkpoints (keep only best)
+training/**/checkpoints/*
+!training/**/checkpoints/.gitkeep
+
+# Large binary files
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.h5
+*.pkl
+*.joblib
+
+# Keep directory structure
+**/.gitkeep

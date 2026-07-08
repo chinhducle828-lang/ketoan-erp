@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0098.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD153600",
+  "date": "26/11/2025",
+  "product": "Hàng hóa nhập khẩu",
+  "amount": 41122891,
+  "tax": 4112289,
+  "total": 45235180
+}

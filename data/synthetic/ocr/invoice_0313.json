@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0313.jpg",
+  "company": "HỘ KINH DOANH GHI",
+  "invoice_no": "HD926650",
+  "date": "21/02/2026",
+  "product": "Bảo trì hệ thống",
+  "amount": 35027394,
+  "tax": 3502739,
+  "total": 38530133
+}

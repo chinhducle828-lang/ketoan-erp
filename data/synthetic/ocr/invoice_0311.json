@@ -1,0 +1,10 @@
+{
+  "image_path": "data\\synthetic\\ocr\\invoice_0311.jpg",
+  "company": "CÔNG TY TNHH ABC",
+  "invoice_no": "HD986010",
+  "date": "10/08/2025",
+  "product": "Dịch vụ tư vấn",
+  "amount": 47801733,
+  "tax": 4780173,
+  "total": 52581906
+}
