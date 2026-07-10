@@ -90,7 +90,7 @@ async function withRetry(operation, maxAttempts = AI_CONFIG.GEMINI.RETRY_ATTEMPT
 /**
  * Call Gemini API with timeout
  */
-async function callGemini(prompt, options = {}) {
+export async function callGemini(prompt, options = {}) {
   if (!isGeminiAvailable()) {
     throw new Error('Gemini AI not available');
   }
@@ -590,6 +590,7 @@ Return JSON format:
 export default {
   initializeGemini,
   isGeminiAvailable,
+  callGemini,
   generateSQL,
   analyzeData,
   solveMathProblem,
