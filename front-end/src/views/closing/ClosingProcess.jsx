@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 
@@ -263,7 +264,8 @@ export default function ClosingProcess() {
           <p className="text-xs text-slate-400 mt-1">Dữ liệu được xử lý real-time tự động dựa trên các chứng từ kết chuyển đầu cuối từ Backend</p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportExcelButton />
+          <ImportExcelButton endpoint="opening-balances" filename="So_Du_Dau_Ky" label="Nhập Số Dư" accountCodeField="accountCode" />
+          <ExportExcelButton endpoint="vouchers" filename="Chung_Tu" label="Xuất Chứng Từ" />
           <button
             onClick={executeClosing}
             disabled={loading || loadingBalances}

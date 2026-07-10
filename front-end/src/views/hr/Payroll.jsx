@@ -15,6 +15,7 @@ import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
 import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function Payroll() {
   const { createNewVoucher } = useVouchers();
@@ -68,7 +69,10 @@ export default function Payroll() {
         <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
           <Users className="text-orange-600" size={24} /> PHÂN HỆ TIỀN LƯƠNG & TRÍCH THEO LƯƠNG
         </h1>
-        <ExportExcelButton endpoint="vouchers" filename="Bang_Trich_Luong_BHXH" label="Xuất bảng trích" accountCodes={ACCOUNTS_TT99.filter(a => a.group === 'payroll' || a.group === 'tax').map(a => a.code)} />
+        <div className="flex gap-2">
+          <ImportExcelButton endpoint="vouchers" filename="Chung_Tu" label="Nhập Excel" accountCodeField="accountCode" />
+          <ExportExcelButton endpoint="vouchers" filename="Bang_Trich_Luong_BHXH" label="Xuất bảng trích" accountCodes={ACCOUNTS_TT99.filter(a => a.group === 'payroll' || a.group === 'tax').map(a => a.code)} />
+        </div>
       </div>
       
       <div className="bg-white p-6 rounded-2xl border shadow-sm max-w-md space-y-4">

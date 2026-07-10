@@ -3,6 +3,7 @@
  */
 
 import { pool } from '../config/db.js';
+import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
 
 /**
  * @desc    Tạo mới Phiếu Nhập / Xuất kho (Hạch toán đa dòng - Master Detail)
@@ -109,6 +110,15 @@ export const createInventoryVoucher = async (req, res) => {
 
     // 4. Nếu mọi thứ trơn tru, tiến hành COMMIT ghi dữ liệu vĩnh viễn vào DB
     await client.query('COMMIT');
+
+    // Emit realtime event
+    emitInventoryRealtime({
+      inventoryVoucherId: inventory_voucher_id,
+      companyId: company_id,
+      io_type: io_type,
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
+    });
 
     res.status(201).json({
       success: true,

@@ -8,6 +8,8 @@ import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function PartnerManagement({ onRefresh }) {
   const { activeCompany } = useAuth();
@@ -57,7 +59,12 @@ export default function PartnerManagement({ onRefresh }) {
   };
 
   return (
-    <form onSubmit={handleCreatePartner} className="p-4 bg-white rounded-xl space-y-3">
+    <div className="p-4 bg-white rounded-xl space-y-3">
+      <div className="flex gap-2">
+        <ImportExcelButton endpoint="partners" filename="Doi_Tac" label="Nhập Excel" />
+        <ExportExcelButton endpoint="partners" filename="Doi_Tac" label="Xuất Excel" />
+      </div>
+      <form onSubmit={handleCreatePartner} className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <input placeholder="Mã đối tác (Mã KH/NCC)..." required value={partner.partner_code}
           onChange={e => setPartner({...partner, partner_code: e.target.value})}
@@ -77,5 +84,6 @@ export default function PartnerManagement({ onRefresh }) {
         {loading ? 'Đang cập nhật danh mục công nợ...' : 'Lưu thông tin đối tác'}
       </button>
     </form>
+    </div>
   );
 }
