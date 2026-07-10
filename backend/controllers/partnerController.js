@@ -5,6 +5,7 @@
 import * as partnerService from '../services/partnerService.js';
 import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 import { logAction, getClientIp } from '../services/auditLog.service.js';
+import { emitPartnerRealtime } from '../services/voucherRealtime.service.js';
 
 /**
  * Controller xử lý tạo mới Đối tác
@@ -35,6 +36,15 @@ export const createPartner = async (req, res) => {
       },
       ipAddress: getClientIp(req),
       companyId: company_id
+    });
+
+    // Emit realtime event
+    emitPartnerRealtime({
+      partnerId: newPartner.id,
+      companyId: company_id,
+      action: 'created',
+      userId: req.user?.id || null,
+      clientInstanceId: req.headers['x-client-instance-id'] || null
     });
     
     return res.status(201).json({

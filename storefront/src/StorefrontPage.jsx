@@ -54,7 +54,8 @@ import {
   buildBearerConfig,
   isSessionAllowedForRole,
   getRoleDisplayName,
-  isExplicitNonAdminRole
+  isExplicitNonAdminRole,
+  getUnitPriceWithTax
 } from './utils/formatters';
 import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi, setAuthenticating } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
@@ -284,7 +285,8 @@ export default function StorefrontPage() {
   };
 
   const getUnitPrice = (item) => parsePriceValue(item?.price_sell);
-  const getOrderAmount = (item, quantity) => Number((getUnitPrice(item) * Math.max(Number(quantity) || 1, 1)).toFixed(2));
+  const getUnitPriceTax = (item) => getUnitPriceWithTax(item, 0.08);
+  const getOrderAmount = (item, quantity) => Number((getUnitPriceTax(item) * Math.max(Number(quantity) || 1, 1)).toFixed(2));
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -648,7 +650,7 @@ export default function StorefrontPage() {
       const name = String(item?.name || '').toLowerCase();
       const code = String(item?.code || '').toLowerCase();
       const category = String(item?.category || 'Phổ biến').toLowerCase();
-      const price = getUnitPrice(item);
+      const price = getUnitPriceTax(item);
 
       const matchCategory = activeCategory === 'Tất cả' || category.includes(normalizedCategory);
       const matchSearch = !term || name.includes(term) || code.includes(term);
@@ -660,9 +662,9 @@ export default function StorefrontPage() {
     }
 
     if (sortBy === 'priceAsc') {
-      nextItems.sort((a, b) => getUnitPrice(a) - getUnitPrice(b));
+      nextItems.sort((a, b) => getUnitPriceTax(a) - getUnitPriceTax(b));
     } else if (sortBy === 'priceDesc') {
-      nextItems.sort((a, b) => getUnitPrice(b) - getUnitPrice(a));
+      nextItems.sort((a, b) => getUnitPriceTax(b) - getUnitPriceTax(a));
     } else if (sortBy === 'newest') {
       nextItems.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     }
@@ -671,7 +673,7 @@ export default function StorefrontPage() {
   }, [items, searchTerm, activeCategory, sortBy, priceMax]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
-  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPrice(item) * item.quantity, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPriceTax(item) * item.quantity, 0), [cart]);
   const discountAmount = couponCode.trim().toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
@@ -693,9 +695,9 @@ export default function StorefrontPage() {
     }
 
     const fromProducts = [...items]
-      .sort((a, b) => getUnitPrice(a) - getUnitPrice(b))
+      .sort((a, b) => getUnitPriceTax(a) - getUnitPriceTax(b))
       .slice(0, 2)
-      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPrice(item), selectedCurrency)}.`);
+      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPriceTax(item), selectedCurrency)}.`);
 
     if (fromProducts.length > 0) {
       return fromProducts;
@@ -1427,7 +1429,7 @@ taxRate: 0.08
                             <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">-</button>
                             <span className="w-5 text-center text-[10px] font-semibold text-slate-800">{entry.quantity}</span>
                             <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">+</button>
-                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}</div>
+                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceTax(entry) * entry.quantity, selectedCurrency)}</div>
                           </div>
                         </div>
                       ))
@@ -1524,7 +1526,7 @@ taxRate: 0.08
                       {cart.map((entry) => (
                         <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1.5">
                           <span className="truncate text-[10px] font-semibold text-slate-900">{entry.name} x{entry.quantity}</span>
-                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPrice(entry) * entry.quantity, selectedCurrency)}</span>
+                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceTax(entry) * entry.quantity, selectedCurrency)}</span>
                         </div>
                       ))}
                     </div>
@@ -1539,7 +1541,7 @@ taxRate: 0.08
                     <h3 className="text-xs font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <p className="text-xs font-semibold text-slate-900">{selectedItem.name}</p>
-                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPrice(selectedItem), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
+                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPriceTax(selectedItem), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) - 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700">-</button>
                         <input type="number" min="1" value={checkoutForm.quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-14 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center text-xs text-slate-900 outline-none" />
@@ -1689,7 +1691,7 @@ taxRate: 0.08
                         <div key={item.id || item.code} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[10px] font-semibold text-slate-900">{item.code} - {item.name}</p>
-                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
+                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPriceTax(item), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
                           </div>
                           <div className="ml-1 flex gap-0.5">
                             <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-100">{t('editAction', selectedLang)}</button>
@@ -1843,7 +1845,7 @@ taxRate: 0.08
                   <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2">
                     <div>
                       <p className="text-xs font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPrice(item), selectedCurrency)}</p>
+                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPriceTax(item), selectedCurrency)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">-</button>

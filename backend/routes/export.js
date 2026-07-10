@@ -432,4 +432,36 @@ router.get('/dashboard', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 11. Xuất Danh sách đối tác (KH/NCC)
+router.get('/partners', authenticate, async (req, res) => {
+  try {
+    const { company_id } = req.query;
+    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
+    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+
+    const result = await pool.query(
+      'SELECT partner_code, partner_name, type, phone, email, address FROM partners WHERE company_id = $1 AND is_active = TRUE ORDER BY partner_code',
+      [company_id]
+    );
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Danh_Muc_Doi_Tac');
+    ws.columns = [
+      { header: 'Mã đối tác', key: 'code', width: 15 },
+      { header: 'Tên đối tác', key: 'name', width: 40 },
+      { header: 'Loại (KH/NCC)', key: 'type', width: 12 },
+      { header: 'Điện thoại', key: 'phone', width: 15 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Địa chỉ', key: 'address', width: 50 }
+    ];
+    styleHeader(ws);
+    addRows(ws, result.rows);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=Danh_Muc_Doi_Tac_${company_id}.xlsx`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export { router as exportRouter };

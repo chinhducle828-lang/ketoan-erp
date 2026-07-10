@@ -8,6 +8,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Percent, ArrowUpRight, ArrowDownRight, Users, Landmark, Building2, Calendar } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function TaxReporting() {
   const { vouchers } = useVouchers();
@@ -71,7 +72,10 @@ export default function TaxReporting() {
             <span className="italic text-slate-400">Theo Thông tư 99/2025/TT-BTC</span>
           </div>
         </div>
-        <ExportExcelButton endpoint="vouchers" filename={`Bao_Cao_Thue_${fiscalYear}`} label="Xuất Excel Dữ Liệu" />
+        <div className="flex gap-2">
+          <ImportExcelButton endpoint="vouchers" filename="Chung_Tu" label="Nhập Excel" accountCodeField="accountCode" />
+          <ExportExcelButton endpoint="vouchers" filename={`Bao_Cao_Thue_${fiscalYear}`} label="Xuất Excel Dữ Liệu" />
+        </div>
       </div>
 
       {/* PHÂN HỆ 1: THUẾ GIÁ TRỊ GIA TĂNG (GTGT) */}

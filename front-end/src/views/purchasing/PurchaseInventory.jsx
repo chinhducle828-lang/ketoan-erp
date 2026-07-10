@@ -2,12 +2,15 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { ShoppingBag, Loader2, Plus, Package } from 'lucide-react';
 import { buildPurchaseInventoryDetails, getDefaultCurrency, getDefaultTaxRate } from '../../utils/accountingRules.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function PurchaseInventory() {
@@ -30,7 +33,7 @@ export default function PurchaseInventory() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     if (!companyId) return;
     setItemsLoading(true);
     try {
@@ -42,12 +45,30 @@ export default function PurchaseInventory() {
     } finally {
       setItemsLoading(false);
     }
-  };
+  }, [companyId]);
 
   useEffect(() => {
     if (companyId) fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  // Realtime: subscribe voucher and inventory events
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { 
+      items: fetchItems,
+      vouchers: () => {} // Will be handled by VoucherContext
+    },
+    {
+      eventMap: {
+        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['items'],
+        [WORKFLOW_EVENTS.INVENTORY_UPDATED]: ['items'],
+        voucherCreated: ['items'],
+        inventoryUpdated: ['items']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   const selectedItem = useMemo(
     () => items.find((it) => String(it.id) === String(selectedItemId)) || null,

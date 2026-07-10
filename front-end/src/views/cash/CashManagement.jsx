@@ -2,12 +2,15 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Wallet, Trash2, Loader2 } from 'lucide-react';
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function CashManagement() {
@@ -28,14 +31,46 @@ export default function CashManagement() {
     ]
   });
 
+  const loadVouchers = useCallback(async () => {
+    if (!activeCompany) return;
+    try {
+      const companyId = activeCompany?.id ?? activeCompany;
+      const res = await api.get(`/vouchers?company_id=${companyId}`);
+      // Note: This will update the vouchers from context if we add a reload function
+      console.log('Cash vouchers loaded:', res.data?.length || 0);
+    } catch (err) {
+      console.error('Lỗi tải chứng từ:', err);
+    }
+  }, [activeCompany]);
+
   useEffect(() => {
     if (activeCompany) {
       const companyId = activeCompany?.id ?? activeCompany;
       api.get(`/partners?company_id=${companyId}`)
          .then(res => setPartners(res.data))
          .catch(() => {});
+      loadVouchers();
     }
-  }, [activeCompany]);
+  }, [activeCompany, loadVouchers]);
+
+  // Realtime: subscribe voucher workflow events
+  const companyId = activeCompany?.id ?? activeCompany;
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { vouchers: loadVouchers },
+    {
+      eventMap: {
+        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['vouchers'],
+        [WORKFLOW_EVENTS.VOUCHER_POSTED]: ['vouchers'],
+        [WORKFLOW_EVENTS.VOUCHER_DELETED]: ['vouchers'],
+        voucherCreated: ['vouchers'],
+        voucherUpdated: ['vouchers'],
+        voucherDeleted: ['vouchers'],
+        voucherPosted: ['vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   const handleDetailChange = (index, field, value) => {
     const newDetails = [...form.details];
