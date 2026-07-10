@@ -3,8 +3,8 @@
  */
 
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import { useAuth } from '../context/AuthContext.jsx';
+import api from '../utils/api.js';
 import { Building2, LogOut, User, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';

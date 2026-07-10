@@ -92,7 +92,10 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
  * Chuyển tính toán từ RAM Node.js xuống Database, giảm OOM
  */
 export async function getBalancesWithWindowFunction(companyId, year, month = null) {
-  const { pool } = await import('../config/db.js');
+  // Validate inputs
+  if (!companyId || !year) {
+    throw new Error('companyId and year are required parameters');
+  }
   
   let query = `
     WITH period_aggregation AS (
@@ -136,7 +139,14 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
     ORDER BY account_code
   `;
   
-  const { rows } = await pool.query(query, params);
+  let rows;
+  try {
+    const result = await pool.query(query, params);
+    rows = result.rows;
+  } catch (err) {
+    console.error('Error in getBalancesWithWindowFunction:', err.message);
+    throw err;
+  }
   
   // Chuyển đổi kết quả về format ledger
   const ledger = {};

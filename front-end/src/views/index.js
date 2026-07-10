@@ -22,7 +22,8 @@ import {
   ClipboardList,
   Warehouse,
   Truck,
-  Boxes
+  Boxes,
+  Brain
 } from 'lucide-react';
 
 export { ACCOUNTS_TT99, ACCOUNT_GROUPS, getAccountsByDepartment, getAccountByCode, getAccountsByType, getAccountsByGroup } from '../constants/accountsTT99.js';
@@ -232,6 +233,24 @@ export const MODULES_REGISTER = [
     allowedRoles: ['admin', 'ktt', 'nv', 'gd_kinhdoanh'],
     requiresActiveCompany: false,
     department: 'admin'
+  },
+  {
+    id: 'admin/ai-config',
+    name: 'AI Configuration',
+    icon: Settings,
+    component: React.lazy(() => import('./admin/AIConfigManagement.jsx')),
+    allowedRoles: ['admin'],
+    requiresActiveCompany: false,
+    department: 'admin'
+  },
+  {
+    id: 'ai-copilot',
+    name: 'AI Copilot - Hỏi Đáp Tài Chính',
+    icon: Brain,
+    component: React.lazy(() => import('./dashboard/AIFinancialCopilot.jsx')),
+    allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'income-statement',

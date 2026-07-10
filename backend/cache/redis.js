@@ -7,6 +7,9 @@ import Redis from 'ioredis';
 // Tự động nhận diện chuỗi kết nối từ file .env, nếu không tìm thấy mới dùng localhost làm dự phòng
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+// Biến flag theo dõi trạng thái kết nối Redis
+let isRedisReady = false;
+
 // Khởi tạo kết nối thực tế tới hệ thống Redis
 export const redis = new Redis(redisUrl, {
   retryStrategy: (times) => {
@@ -22,12 +25,21 @@ export const redis = new Redis(redisUrl, {
 
 // Bọc lỗi kết nối an toàn để không làm sập tiến trình Node.js
 redis.on('error', (err) => {
+  isRedisReady = false;
   console.log('⚠️ Trạng thái: Redis chưa sẵn sàng (Dữ liệu sẽ chạy trực tiếp qua SQL gốc):', err.message);
 });
 
 redis.on('connect', () => {
+  isRedisReady = true;
   console.log('🚀 Chúc mừng: Đã kết nối thành công tới máy chủ cơ sở dữ liệu Redis!');
 });
+
+redis.on('ready', () => {
+  isRedisReady = true;
+});
+
+// Helper function để kiểm tra Redis sẵn sàng
+export const isRedisReadyCheck = () => isRedisReady;
 
 // Middleware xử lý Cache thực tế cho các request GET
 export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
@@ -38,7 +50,7 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
     }
 
     // Nếu Redis chưa sẵn sàng hoạt động, cho đi thẳng xuống SQL ngay lập tức
-    if (redis.status !== 'ready') {
+    if (!isRedisReadyCheck()) {
       return next();
     }
 
@@ -57,7 +69,7 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
     // Nếu chưa có cache, ghi đè tạm thời res.json để tự lưu dữ liệu sau khi SQL truy vấn xong
     const originalJson = res.json.bind(res);
     res.json = (data) => {
-      if (res.statusCode === 200 && redis.status === 'ready') {
+      if (res.statusCode === 200 && isRedisReadyCheck()) {
         redis.setex(cacheKey, ttlSeconds, JSON.stringify(data)).catch((err) => {
           console.error('Lỗi ghi Cache:', err.message);
         });
@@ -75,7 +87,7 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
  * @param {string} pattern - Pattern để match keys (ví dụ: 'company:1:year:2026:*')
  */
 export const invalidateCache = async (pattern) => {
-  if (redis.status !== 'ready') return;
+  if (!isRedisReadyCheck()) return;
   
   try {
     const keysToDelete = [];
@@ -118,7 +130,7 @@ export const invalidateCache = async (pattern) => {
  * @param {number} month - Tháng (optional)
  */
 export const invalidateSelectiveCache = async (companyId, year, month = null) => {
-  if (redis.status !== 'ready') return;
+  if (!isRedisReadyCheck()) return;
   
   try {
     let pattern;
@@ -140,7 +152,7 @@ export const invalidateSelectiveCache = async (companyId, year, month = null) =>
  * @param {string} voucherDate - Ngày chứng từ (YYYY-MM-DD)
  */
 export const invalidateVoucherCache = async (companyId, voucherDate) => {
-  if (redis.status !== 'ready') return;
+  if (!isRedisReadyCheck()) return;
   
   try {
     const date = new Date(voucherDate);

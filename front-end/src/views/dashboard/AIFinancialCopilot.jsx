@@ -1,42 +1,98 @@
 /**
- * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
- * 
- * AIFinancialCopilot - Giao diện hỏi đáp tài chính bằng AI
+ * AI Financial Copilot - Main AI Interface
+ * Chat-based interface with Gemini AI integration
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, Lightbulb } from 'lucide-react';
-import api from '../../utils/api.js';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  MessageSquare,
+  Calculator,
+  Workflow,
+  TrendingUp,
+  Send,
+  Mic,
+  Paperclip,
+  Sparkles,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  ChevronRight,
+  Lightbulb,
+  BarChart3,
+  FileText,
+  Download,
+  Eye,
+  Zap
+} from 'lucide-react';
 
-export default function AIFinancialCopilot({ companyId }) {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'ai',
-      content: 'Xin chào! Tôi là AI Copilot của bạn. Bạn có thể hỏi tôi bất kỳ câu hỏi nào về tài chính kế toán. Ví dụ: "Doanh thu tháng này là bao nhiêu?" hoặc "Công nợ phải thu của khách hàng A là bao nhiêu?"',
-      timestamp: new Date()
-    }
-  ]);
+// API base URL
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+export default function AIFinancialCopilot() {
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState('chat'); // chat, math, workflow, insights
+  const [companyId, setCompanyId] = useState('demo-company');
+  const [geminiAvailable, setGeminiAvailable] = useState(true);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Auto-scroll to bottom
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  // Load conversation history on mount
+  useEffect(() => {
+    loadConversationHistory();
+    checkGeminiStatus();
+  }, []);
+
+  const checkGeminiStatus = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/ai/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: 'test', company_id: companyId })
+      });
+      setGeminiAvailable(response.ok);
+    } catch (error) {
+      setGeminiAvailable(false);
+    }
+  };
+
+  const loadConversationHistory = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/ai/suggested?company_id=${companyId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const history = data.data.map(q => ({
+            id: q.id || Date.now() + Math.random(),
+            role: 'user',
+            content: q.question,
+            timestamp: q.created_at
+          }));
+          setMessages(history);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    }
+  };
+
+  const sendMessage = async (messageText = input) => {
+    if (!messageText.trim() || loading) return;
 
     const userMessage = {
       id: Date.now(),
-      type: 'user',
-      content: input,
-      timestamp: new Date()
+      role: 'user',
+      content: messageText,
+      timestamp: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -44,28 +100,41 @@ export default function AIFinancialCopilot({ companyId }) {
     setLoading(true);
 
     try {
-      const response = await api.post('/api/ai/query', {
-        question: input,
-        company_id: companyId
-      });
+      let result;
+
+      if (mode === 'math') {
+        result = await solveMath(messageText);
+      } else if (mode === 'workflow') {
+        result = await executeWorkflow(messageText);
+      } else if (mode === 'insights') {
+        result = await getInsights(messageText);
+      } else {
+        result = await askQuestion(messageText);
+      }
 
       const aiMessage = {
         id: Date.now() + 1,
-        type: 'ai',
-        content: response.data.answer || 'Xin lỗi, tôi không thể trả lời câu hỏi này.',
-        data: response.data.data,
-        sql: response.data.sql,
-        timestamp: new Date()
+        role: 'assistant',
+        content: result.answer || result.insights || result.analysis || 'Không có phản hồi',
+        data: result.data,
+        sql: result.sql,
+        confidence: result.confidence,
+        model: result.model,
+        timestamp: new Date().toISOString()
       };
 
       setMessages(prev => [...prev, aiMessage]);
-    } catch (err) {
+
+      // Save to knowledge base
+      await saveToKnowledgeBase(messageText, aiMessage.content);
+
+    } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
-        type: 'ai',
-        content: 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.',
+        role: 'assistant',
+        content: `❌ Lỗi: ${error.message}`,
         error: true,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -73,130 +142,386 @@ export default function AIFinancialCopilot({ companyId }) {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const askQuestion = async (question) => {
+    const response = await fetch(`${API_BASE}/ai/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, company_id: companyId })
+    });
+
+    if (!response.ok) throw new Error('Failed to get AI response');
+    const data = await response.json();
+    return data.data;
+  };
+
+  const solveMath = async (problem) => {
+    const response = await fetch(`${API_BASE}/ai/math`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ problem, context: 'financial', company_id: companyId })
+    });
+
+    if (!response.ok) throw new Error('Failed to solve math problem');
+    const data = await response.json();
+    return data.data;
+  };
+
+  const executeWorkflow = async (workflowType) => {
+    const response = await fetch(`${API_BASE}/ai/workflow/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflowType, context: { period: 'current_month' }, company_id: companyId })
+    });
+
+    if (!response.ok) throw new Error('Failed to execute workflow');
+    const data = await response.json();
+    return data.data;
+  };
+
+  const getInsights = async (question) => {
+    const response = await fetch(`${API_BASE}/ai/cross-module`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, company_id: companyId })
+    });
+
+    if (!response.ok) throw new Error('Failed to get insights');
+    const data = await response.json();
+    return data.data;
+  };
+
+  const saveToKnowledgeBase = async (question, answer) => {
+    try {
+      await fetch(`${API_BASE}/ai/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, answer, company_id: companyId })
+      });
+    } catch (error) {
+      console.error('Failed to save to knowledge base:', error);
     }
   };
 
-  const formatCurrency = (value) => {
-    return Math.round(value || 0)?.toLocaleString('vi-VN');
+  const handleQuickAction = (action) => {
+    const actions = {
+      'Doanh thu tháng này': 'Doanh thu tháng này là bao nhiêu?',
+      'Tính lãi suất': 'Tính lãi suất 12% trên số tiền 100 triệu VND trong 1 năm',
+      'Kết sổ kỳ': 'CLOSING',
+      'Phân tích tài chính': 'Phân tích sức khỏe tài chính tổng quan của công ty',
+      'Đối chiếu công nợ': 'Đối chiếu công nợ phải thu và phải trả',
+      'Kiểm kê kho': 'INVENTORY_AUDIT'
+    };
+
+    const text = actions[action] || action;
+    setMode(action.includes('Kết sổ') || action.includes('Kiểm kê') ? 'workflow' : 
+           action.includes('Tính') ? 'math' : 
+           action.includes('Phân tích') ? 'insights' : 'chat');
+    sendMessage(text);
   };
 
+  const quickActions = [
+    { icon: TrendingUp, label: 'Doanh thu tháng này', color: 'blue' },
+    { icon: Calculator, label: 'Tính lãi suất', color: 'green' },
+    { icon: Workflow, label: 'Kết sổ kỳ', color: 'purple' },
+    { icon: BarChart3, label: 'Phân tích tài chính', color: 'orange' },
+    { icon: FileText, label: 'Đối chiếu công nợ', color: 'red' },
+    { icon: Eye, label: 'Kiểm kê kho', color: 'cyan' }
+  ];
+
+  const suggestedQuestions = [
+    'Tổng doanh thu hôm nay?',
+    'Công nợ phải thu hiện tại?',
+    'Tồn kho đang có bao nhiêu?',
+    'Dự báo dòng tiền tháng tới?'
+  ];
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 flex flex-col h-[500px]">
+    <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <div className="p-4 border-b flex items-center gap-3">
-        <Bot size={24} className="text-indigo-600" />
-        <div>
-          <h3 className="font-bold text-slate-800">AI Financial Copilot</h3>
-          <p className="text-xs text-slate-500">Hỏi đáp tài chính bằng ngôn ngữ tự nhiên</p>
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">AI Financial Copilot</h1>
+              <p className="text-sm text-gray-500">
+                {geminiAvailable ? '✨ Gemini 2.5 Flash đã kết nối' : '⚠️ Chế độ offline (Python service)'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMode('chat')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                mode === 'chat' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Chat
+            </button>
+            <button
+              onClick={() => setMode('math')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                mode === 'math' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Calculator className="w-4 h-4" />
+              Calculator
+            </button>
+            <button
+              onClick={() => setMode('workflow')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                mode === 'workflow' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Workflow className="w-4 h-4" />
+              Workflow
+            </button>
+            <button
+              onClick={() => setMode('insights')}
+              className={`px-4 py-2 rounded-lg flex items gap-2 ${
+                mode === 'insights' ? 'bg-orange-100 text-orange-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Lightbulb className="w-4 h-4" />
+              Insights
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(message => (
-          <div key={message.id} className={`flex gap-3 ${
-            message.type === 'user' ? 'justify-end' : 'justify-start'
-          }`}>
-            {message.type === 'ai' && (
-              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Bot size={16} className="text-indigo-600" />
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar - Quick Actions */}
+        <div className="w-80 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h2>
+          <div className="space-y-2">
+            {quickActions.map((action, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleQuickAction(action.label)}
+                className={`w-full p-3 rounded-lg border-2 border-${action.color}-200 hover:border-${action.color}-400 bg-${action.color}-50 hover:bg-${action.color}-100 transition-all flex items-center gap-3`}
+              >
+                <action.icon className={`w-5 h-5 text-${action.color}-600`} />
+                <span className="text-sm font-medium text-gray-700">{action.label}</span>
+                <ChevronRight className="w-4 h-4 ml-auto text-gray-400" />
+              </button>
+            ))}
+          </div>
+
+          <h2 className="text-sm font-semibold text-gray-700 mt-6 mb-3">Suggested Questions</h2>
+          <div className="space-y-2">
+            {suggestedQuestions.map((q, idx) => (
+              <button
+                key={idx}
+                onClick={() => sendMessage(q)}
+                className="w-full p-2 text-left text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {messages.length === 0 && (
+              <div className="text-center py-12">
+                <Sparkles className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                  Chào mừng đến với AI Financial Copilot
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Hỏi đáp tài chính bằng ngôn ngữ tự nhiên, giải bài toán, phân tích workflow
+                </p>
+                <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto">
+                  {suggestedQuestions.map((q, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => sendMessage(q)}
+                      className="p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-sm text-left"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
-            
-            <div className={`max-w-[70%] p-3 rounded-2xl ${
-              message.type === 'user' 
-                ? 'bg-indigo-600 text-white' 
-                : message.error 
-                  ? 'bg-rose-50 text-rose-700' 
-                  : 'bg-slate-100 text-slate-800'
-            }`}>
-              <p className="text-sm">{message.content}</p>
-              
-              {/* Hiển thị dữ liệu nếu có */}
-              {message.data && message.data.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-slate-200">
-                  <p className="text-xs font-semibold mb-1">Kết quả:</p>
-                  <div className="max-h-32 overflow-y-auto">
-                    {message.data.slice(0, 5).map((row, idx) => (
-                      <div key={idx} className="text-xs py-1">
-                        {Object.entries(row).map(([key, value]) => (
-                          <span key={key} className="mr-3">
-                            <strong>{key}:</strong> {typeof value === 'number' ? formatCurrency(value) : value}
-                          </span>
-                        ))}
+
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-3xl rounded-lg p-4 ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : msg.error
+                      ? 'bg-red-50 border-2 border-red-200'
+                      : 'bg-white border border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {msg.role === 'assistant' && (
+                      <div className="p-1 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                        <Sparkles className="w-5 h-5 text-white" />
                       </div>
-                    ))}
+                    )}
+                    <div className="flex-1">
+                      <div className="prose prose-sm max-w-none">
+                        {msg.content}
+                      </div>
+
+                      {/* SQL Query Display */}
+                      {msg.sql && (
+                        <div className="mt-3 p-3 bg-gray-900 text-green-400 rounded-lg font-mono text-xs overflow-x-auto">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-gray-400">SQL Query:</span>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(msg.sql)}
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                          {msg.sql}
+                        </div>
+                      )}
+
+                      {/* Data Table */}
+                      {msg.data && msg.data.length > 0 && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-xs border border-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                {Object.keys(msg.data[0]).map(key => (
+                                  <th key={key} className="px-3 py-2 text-left text-gray-700 font-medium">
+                                    {key}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {msg.data.slice(0, 10).map((row, idx) => (
+                                <tr key={idx} className="border-t border-gray-200">
+                                  {Object.values(row).map((val, vidx) => (
+                                    <td key={vidx} className="px-3 py-2 text-gray-600">
+                                      {val !== null && val !== undefined ? String(val) : '-'}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {msg.data.length > 10 && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Hiển thị 10/{msg.data.length} bản ghi
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Confidence & Meta */}
+                      <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+                        {msg.confidence && (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            {msg.confidence}% confidence
+                          </span>
+                        )}
+                        {msg.model && <span>Model: {msg.model}</span>}
+                        <span>{new Date(msg.timestamp).toLocaleTimeString('vi-VN')}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ))}
 
-            {message.type === 'user' && (
-              <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center flex-shrink-0">
-                <User size={16} className="text-slate-600" />
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                    <span className="text-gray-600">Đang suy nghĩ...</span>
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-        ))}
-        
-        {loading && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-              <Bot size={16} className="text-indigo-600" />
-            </div>
-            <div className="bg-slate-100 p-3 rounded-2xl">
-              <Loader2 size={16} className="animate-spin text-slate-600" />
-            </div>
-          </div>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Input */}
-      <div className="p-4 border-t">
-        <div className="flex gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Nhập câu hỏi của bạn..."
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            rows={2}
-            disabled={loading}
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
-          >
-            <Send size={16} />
-          </button>
-        </div>
+            <div ref={messagesEndRef} />
+          </div>
 
-        {/* Suggested questions */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="text-xs text-slate-500 flex items-center gap-1">
-            <Lightbulb size={12} /> Gợi ý:
-          </span>
-          {[
-            'Doanh thu tháng này?',
-            'Công nợ phải thu?',
-            'Tiền mặt trong két?',
-            'Hàng tồn kho nhiều?'
-          ].map((q, idx) => (
-            <button
-              key={idx}
-              onClick={() => setInput(q)}
-              className="text-xs px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
-            >
-              {q}
-            </button>
-          ))}
+          {/* Input Area */}
+          <div className="bg-white border-t border-gray-200 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder={
+                      mode === 'math' ? 'Nhập bài toán...' :
+                      mode === 'workflow' ? 'Nhập loại workflow (CLOSING, RECONCILIATION, TAX_REPORT, INVENTORY_AUDIT)...' :
+                      mode === 'insights' ? 'Nhập câu hỏi phân tích...' :
+                      'Hỏi đáp tài chính...'
+                    }
+                    className="w-full px-4 py-3 pr-24 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                    rows={1}
+                    disabled={loading}
+                  />
+                  <div className="absolute right-2 bottom-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                      title="Voice input (coming soon)"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                      title="Attach file (coming soon)"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim() || loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                  Gửi
+                </button>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                <span>Enter để gửi, Shift+Enter để xuống dòng</span>
+                <span>{geminiAvailable ? '✨ Gemini 2.5 Flash' : '⚠️ Fallback mode'}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
