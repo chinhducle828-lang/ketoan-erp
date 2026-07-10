@@ -27,7 +27,7 @@ export default function InventoryManagement() {
     setError('');
     try {
       const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.get(`/api/inventory/balances?company_id=${companyId}`);
+      const res = await api.get(`/inventory/balances?company_id=${companyId}`);
       setBalances(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Lỗi tải tồn kho:', err);
@@ -67,7 +67,7 @@ export default function InventoryManagement() {
     setCostingLoading(true);
     try {
       const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.post('/api/inventory/costing', { company_id: companyId });
+      const res = await api.post('/inventory/costing', { company_id: companyId });
       alert(res.data?.message || 'Tính giá vốn hoàn tất!');
       loadBalances();
     } catch (err) {

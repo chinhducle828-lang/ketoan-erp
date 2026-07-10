@@ -30,7 +30,15 @@ export default function LoadingDock() {
 
   const handleConfirm = async (voucherId) => {
     if (!companyId) return;
-    await api.post('/logistics/confirm-loaded', { companyId, voucherId, amount: 1000000, costAmount: 500000, taxAmount: 100000 });
+    // Lấy thông tin order để có số tiền thực tế
+    const order = orders.find(o => o.id === voucherId);
+    await api.post('/logistics/confirm-loaded', { 
+      companyId, 
+      voucherId, 
+      amount: order?.total_amount || 0, 
+      costAmount: order?.cost_amount || 0, 
+      taxAmount: order?.tax_amount || 0 
+    });
     setOrders((prev) => prev.filter((order) => order.id !== voucherId));
   };
 

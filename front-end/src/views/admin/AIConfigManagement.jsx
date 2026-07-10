@@ -354,6 +354,7 @@ function DepartmentsManager({ departments, onRefresh }) {
 // ==================== WORKFLOWS MANAGER ====================
 function WorkflowsManager({ workflows, onRefresh }) {
   const [editingWorkflow, setEditingWorkflow] = useState(null);
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     workflow_code: '',
     workflow_name: '',
@@ -362,15 +363,135 @@ function WorkflowsManager({ workflows, onRefresh }) {
     conditions: {}
   });
 
+  const resetForm = () => {
+    setEditingWorkflow(null);
+    setShowForm(false);
+    setFormData({
+      workflow_code: '',
+      workflow_name: '',
+      description: '',
+      steps: [],
+      conditions: {}
+    });
+  };
+
+  const handleCreate = () => {
+    setEditingWorkflow(null);
+    setShowForm(true);
+    setFormData({
+      workflow_code: '',
+      workflow_name: '',
+      description: '',
+      steps: [],
+      conditions: {}
+    });
+  };
+
+  const handleEdit = (workflow) => {
+    setEditingWorkflow(workflow.id);
+    setShowForm(true);
+    setFormData({
+      workflow_code: workflow.workflow_code,
+      workflow_name: workflow.workflow_name,
+      description: workflow.description || '',
+      steps: workflow.steps || [],
+      conditions: workflow.conditions || {}
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      const url = editingWorkflow
+        ? `${API_BASE}/ai/workflows/${editingWorkflow}`
+        : `${API_BASE}/ai/workflows`;
+      const method = editingWorkflow ? 'PUT' : 'POST';
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (response.ok) {
+        onRefresh();
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bạn có chắc muốn xóa workflow này?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/ai/workflows/${id}`, { method: 'DELETE' });
+      if (response.ok) onRefresh();
+    } catch (error) {
+      console.error('Failed to delete workflow:', error);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Workflows</h2>
-        <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
           <Plus className="w-4 h-4" />
           Add Workflow
         </button>
       </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+          <h3 className="font-semibold mb-3">{editingWorkflow ? 'Edit' : 'New'} Workflow</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Code</label>
+              <input
+                type="text"
+                value={formData.workflow_code}
+                onChange={e => setFormData({ ...formData, workflow_code: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+                disabled={editingWorkflow}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.workflow_name}
+                onChange={e => setFormData({ ...formData, workflow_name: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+                rows={2}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Save className="w-4 h-4" /> Save
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {workflows.map(workflow => (
@@ -389,10 +510,16 @@ function WorkflowsManager({ workflows, onRefresh }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                <button
+                  onClick={() => handleEdit(workflow)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                >
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                <button
+                  onClick={() => handleDelete(workflow.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -406,15 +533,166 @@ function WorkflowsManager({ workflows, onRefresh }) {
 
 // ==================== SUGGESTIONS MANAGER ====================
 function SuggestionsManager({ rules, onRefresh }) {
+  const [editingRule, setEditingRule] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    rule_code: '',
+    rule_name: '',
+    priority: 1,
+    conditions: {},
+    action: ''
+  });
+
+  const resetForm = () => {
+    setEditingRule(null);
+    setShowForm(false);
+    setFormData({
+      rule_code: '',
+      rule_name: '',
+      priority: 1,
+      conditions: {},
+      action: ''
+    });
+  };
+
+  const handleCreate = () => {
+    setEditingRule(null);
+    setShowForm(true);
+    setFormData({
+      rule_code: '',
+      rule_name: '',
+      priority: 1,
+      conditions: {},
+      action: ''
+    });
+  };
+
+  const handleEdit = (rule) => {
+    setEditingRule(rule.id);
+    setShowForm(true);
+    setFormData({
+      rule_code: rule.rule_code,
+      rule_name: rule.rule_name,
+      priority: rule.priority || 1,
+      conditions: rule.conditions || {},
+      action: rule.action || ''
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      const url = editingRule
+        ? `${API_BASE}/ai/suggestion-rules/${editingRule}`
+        : `${API_BASE}/ai/suggestion-rules`;
+      const method = editingRule ? 'PUT' : 'POST';
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (response.ok) {
+        onRefresh();
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Failed to save suggestion rule:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bạn có chắc muốn xóa rule này?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/ai/suggestion-rules/${id}`, { method: 'DELETE' });
+      if (response.ok) onRefresh();
+    } catch (error) {
+      console.error('Failed to delete suggestion rule:', error);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Suggestion Rules</h2>
-        <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
           <Plus className="w-4 h-4" />
           Add Rule
         </button>
       </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+          <h3 className="font-semibold mb-3">{editingRule ? 'Edit' : 'New'} Suggestion Rule</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Code</label>
+              <input
+                type="text"
+                value={formData.rule_code}
+                onChange={e => setFormData({ ...formData, rule_code: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+                disabled={editingRule}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.rule_name}
+                onChange={e => setFormData({ ...formData, rule_name: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Priority</label>
+              <input
+                type="number"
+                value={formData.priority}
+                onChange={e => setFormData({ ...formData, priority: Number(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Action</label>
+              <input
+                type="text"
+                value={formData.action}
+                onChange={e => setFormData({ ...formData, action: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Conditions (JSON)</label>
+              <textarea
+                value={JSON.stringify(formData.conditions, null, 2)}
+                onChange={e => {
+                  try { setFormData({ ...formData, conditions: JSON.parse(e.target.value) }); }
+                  catch { /* allow editing */ }
+                }}
+                className="w-full border rounded-lg px-3 py-2 font-mono text-xs"
+                rows={3}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Save className="w-4 h-4" /> Save
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {rules.map(rule => (
@@ -436,10 +714,16 @@ function SuggestionsManager({ rules, onRefresh }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                <button
+                  onClick={() => handleEdit(rule)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                >
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                <button
+                  onClick={() => handleDelete(rule.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -453,15 +737,176 @@ function SuggestionsManager({ rules, onRefresh }) {
 
 // ==================== BATCH CONFIGS MANAGER ====================
 function BatchConfigsManager({ configs, onRefresh }) {
+  const [editingConfig, setEditingConfig] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    config_code: '',
+    config_name: '',
+    max_batch_size: 50,
+    parallel_workers: 2,
+    confidence_threshold: 85,
+    auto_approve_threshold: 95
+  });
+
+  const resetForm = () => {
+    setEditingConfig(null);
+    setShowForm(false);
+    setFormData({
+      config_code: '',
+      config_name: '',
+      max_batch_size: 50,
+      parallel_workers: 2,
+      confidence_threshold: 85,
+      auto_approve_threshold: 95
+    });
+  };
+
+  const handleCreate = () => {
+    setEditingConfig(null);
+    setShowForm(true);
+    setFormData({
+      config_code: '',
+      config_name: '',
+      max_batch_size: 50,
+      parallel_workers: 2,
+      confidence_threshold: 85,
+      auto_approve_threshold: 95
+    });
+  };
+
+  const handleEdit = (config) => {
+    setEditingConfig(config.id);
+    setShowForm(true);
+    setFormData({
+      config_code: config.config_code,
+      config_name: config.config_name,
+      max_batch_size: config.max_batch_size || 50,
+      parallel_workers: config.parallel_workers || 2,
+      confidence_threshold: config.confidence_threshold || 85,
+      auto_approve_threshold: config.auto_approve_threshold || 95
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      const url = editingConfig
+        ? `${API_BASE}/ai/batch-configs/${editingConfig}`
+        : `${API_BASE}/ai/batch-configs`;
+      const method = editingConfig ? 'PUT' : 'POST';
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (response.ok) {
+        onRefresh();
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Failed to save batch config:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bạn có chắc muốn xóa config này?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/ai/batch-configs/${id}`, { method: 'DELETE' });
+      if (response.ok) onRefresh();
+    } catch (error) {
+      console.error('Failed to delete batch config:', error);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Batch Configurations</h2>
-        <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
           <Plus className="w-4 h-4" />
           Add Config
         </button>
       </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+          <h3 className="font-semibold mb-3">{editingConfig ? 'Edit' : 'New'} Batch Config</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Code</label>
+              <input
+                type="text"
+                value={formData.config_code}
+                onChange={e => setFormData({ ...formData, config_code: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+                disabled={editingConfig}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.config_name}
+                onChange={e => setFormData({ ...formData, config_name: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Max Batch Size</label>
+              <input
+                type="number"
+                value={formData.max_batch_size}
+                onChange={e => setFormData({ ...formData, max_batch_size: Number(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Parallel Workers</label>
+              <input
+                type="number"
+                value={formData.parallel_workers}
+                onChange={e => setFormData({ ...formData, parallel_workers: Number(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Confidence Threshold (%)</label>
+              <input
+                type="number"
+                value={formData.confidence_threshold}
+                onChange={e => setFormData({ ...formData, confidence_threshold: Number(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Auto-Approve Threshold (%)</label>
+              <input
+                type="number"
+                value={formData.auto_approve_threshold}
+                onChange={e => setFormData({ ...formData, auto_approve_threshold: Number(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Save className="w-4 h-4" /> Save
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {configs.map(config => (
@@ -486,10 +931,16 @@ function BatchConfigsManager({ configs, onRefresh }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                <button
+                  onClick={() => handleEdit(config)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                >
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                <button
+                  onClick={() => handleDelete(config.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
