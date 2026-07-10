@@ -18,7 +18,13 @@ const DEFAULT_EVENT_MAP = Object.freeze({
   'inventory:updated': ['inventory'],
   inventoryUpdated: ['inventory'],
   'partner:updated': ['partners'],
-  partnerUpdated: ['partners']
+  partnerUpdated: ['partners'],
+  'orderStatusChanged': ['orders', 'dashboard', 'logistics'],
+  orderStatusChanged: ['orders', 'dashboard', 'logistics'],
+  'orderCreated': ['orders', 'dashboard'],
+  orderCreated: ['orders', 'dashboard'],
+  'balanceUpdated': ['dashboard'],
+  balanceUpdated: ['dashboard']
 });
 
 const toArray = (value) => {

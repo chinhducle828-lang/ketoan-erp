@@ -7,6 +7,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { calculateBalances } from '../../utils/accountingEngine.js'; 
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 import { BookOpenCheck, Loader2 } from 'lucide-react';
 
 export default function WorkInProcess() {
@@ -17,8 +18,8 @@ export default function WorkInProcess() {
 
   // Dùng Engine dồn tích để lấy tổng chi phí sản xuất dở dang (Nợ 154)
   const materialCosts = useMemo(() => {
-    const { accountLedger } = calculateBalances(vouchers);
-    return accountLedger['154'] ? accountLedger['154'].patsinhDr : 0;
+    const ledger = calculateBalances(vouchers);
+    return ledger['154'] ? ledger['154'].patsinhDr : 0;
   }, [vouchers]);
 
   const handleProductIn = async () => {
@@ -79,6 +80,14 @@ export default function WorkInProcess() {
           </div>
         </div>
       </div>
+
+      <VoucherFormTemplate
+        moduleType="costs"
+        title="Tạo chứng từ chi phí / giá thành"
+        description="Hạch toán chi phí sản xuất, giá thành (TK 154, 155, 621, 622, 627...)"
+        defaultVoucherType="PKT"
+        accountGroupFilter={['wip', 'costs', 'manufacturing', 'inventory', 'prepaid']}
+      />
     </div>
   );
 }

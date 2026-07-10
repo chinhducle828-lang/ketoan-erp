@@ -16,6 +16,7 @@ import {
   Layers, 
   BarChart3,
   ShieldAlert,
+  BellRing,
   TrendingUp,
   FileText,
   ClipboardList,
@@ -24,6 +25,42 @@ import {
   Boxes
 } from 'lucide-react';
 
+export { ACCOUNTS_TT99, ACCOUNT_GROUPS, getAccountsByDepartment, getAccountByCode, getAccountsByType, getAccountsByGroup } from '../constants/accountsTT99.js';
+export { WORKFLOW_EVENTS, WORKFLOW_MATRIX, createWorkflowHandlers, getAccountsForEvent, getDepartmentsForEvent } from '../workflow/accountingWorkflow.js';
+
+export const DEPARTMENTS = {
+  finance: {
+    id: 'finance',
+    name: 'Phòng Tài chính - Kế toán',
+    icon: Calculator,
+    order: 0
+  },
+  sales: {
+    id: 'sales',
+    name: 'Phòng Bán hàng',
+    icon: ShoppingCart,
+    order: 1
+  },
+  warehouse: {
+    id: 'warehouse',
+    name: 'Phòng Kho vận',
+    icon: Warehouse,
+    order: 2
+  },
+  hr: {
+    id: 'hr',
+    name: 'Phòng Nhân sự',
+    icon: Users,
+    order: 3
+  },
+  admin: {
+    id: 'admin',
+    name: 'Phòng Quản trị',
+    icon: Settings,
+    order: 4
+  }
+};
+
 export const MODULES_REGISTER = [
   {
     id: 'opening',
@@ -31,7 +68,8 @@ export const MODULES_REGISTER = [
     icon: Coins,
     component: React.lazy(() => import('./closing/OpeningBalances.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'cash',
@@ -39,7 +77,8 @@ export const MODULES_REGISTER = [
     icon: Wallet,
     component: React.lazy(() => import('./cash/CashManagement.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'purchasing',
@@ -47,31 +86,35 @@ export const MODULES_REGISTER = [
     icon: ShoppingBag,
     component: React.lazy(() => import('./purchasing/PurchaseInventory.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'pos',
     name: 'Bán hàng tại quầy',
     icon: ShoppingCart,
     component: React.lazy(() => import('./auth/StorefrontAccessNotice.jsx')),
-    allowedRoles: ['admin'], // Non-accounting module, chỉ admin mới được xem trong ERP
-    requiresActiveCompany: true
+    allowedRoles: ['admin'],
+    requiresActiveCompany: true,
+    department: 'sales'
   },
   {
-    id: 'partners', // 👈 1. Đăng ký ID duy nhất đại diện cho URL: /partners
+    id: 'partners',
     name: 'Danh mục Đối tác (KH & NCC)',
-    icon: Users,    // 👈 2. Tái sử dụng icon nhóm người dùng thích hợp cho đối tác
-    component: React.lazy(() => import('./sales/PartnerManagement.jsx')), // 👈 3. Lazy load chuẩn chỉ
-    allowedRoles: ['admin', 'ktt', 'nv'], // Cho phép cả ban quản trị, kế toán trưởng và nhân viên nội bộ ERP
-    requiresActiveCompany: true // Bắt buộc phải có một công ty đang active mới cho dùng dữ liệu
+    icon: Users,
+    component: React.lazy(() => import('./sales/PartnerManagement.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv'],
+    requiresActiveCompany: true,
+    department: 'sales'
   },
   {
     id: 'sales_excel',
     name: 'Hóa đơn bán hàng Excel',
     icon: Layers,
     component: React.lazy(() => import('./sales/AutoSalesExcel.jsx')),
-    allowedRoles: ['admin'], // Non-accounting module, chỉ admin mới được xem
-    requiresActiveCompany: true
+    allowedRoles: ['admin'],
+    requiresActiveCompany: true,
+    department: 'sales'
   },
   {
     id: 'assets',
@@ -79,7 +122,8 @@ export const MODULES_REGISTER = [
     icon: Calculator,
     component: React.lazy(() => import('./assets/FixedAssets.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'hr',
@@ -87,7 +131,8 @@ export const MODULES_REGISTER = [
     icon: Users,
     component: React.lazy(() => import('./hr/Payroll.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'hr'
   },
   {
     id: 'costs',
@@ -95,7 +140,8 @@ export const MODULES_REGISTER = [
     icon: BookOpenCheck,
     component: React.lazy(() => import('./costs/WorkInProcess.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'tax',
@@ -103,7 +149,8 @@ export const MODULES_REGISTER = [
     icon: Percent,
     component: React.lazy(() => import('./tax/TaxReporting.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'closing_process',
@@ -111,7 +158,8 @@ export const MODULES_REGISTER = [
     icon: BookOpenCheck,
     component: React.lazy(() => import('./closing/ClosingProcess.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'companies',
@@ -119,7 +167,8 @@ export const MODULES_REGISTER = [
     icon: Settings,
     component: React.lazy(() => import('./admin/CompanyManagement.jsx')),
     allowedRoles: ['admin'],
-    requiresActiveCompany: false
+    requiresActiveCompany: false,
+    department: 'admin'
   },
   {
     id: 'dashboard',
@@ -127,7 +176,8 @@ export const MODULES_REGISTER = [
     icon: BarChart3,
     component: React.lazy(() => import('./dashboard/CashFlowDashboard.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'vouchers',
@@ -135,7 +185,8 @@ export const MODULES_REGISTER = [
     icon: ClipboardList,
     component: React.lazy(() => import('./vouchers/VoucherManagement.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'inventory',
@@ -143,23 +194,26 @@ export const MODULES_REGISTER = [
     icon: Warehouse,
     component: React.lazy(() => import('./inventory/InventoryManagement.jsx')),
     allowedRoles: ['admin', 'ktt', 'nv'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'warehouse'
   },
   {
     id: 'logistics-dashboard',
     name: 'Logistics / Giao Hàng',
     icon: Truck,
     component: React.lazy(() => import('./logistics/LogisticsDashboard.jsx')),
-    allowedRoles: ['admin'], // Non-accounting logistics module, chỉ admin được xem
-    requiresActiveCompany: true
+    allowedRoles: ['admin'],
+    requiresActiveCompany: true,
+    department: 'warehouse'
   },
   {
     id: 'bai-xuc',
     name: 'Màn Hình Bãi Xúc',
     icon: Boxes,
     component: React.lazy(() => import('./logistics/LoadingDock.jsx')),
-    allowedRoles: ['admin'], // Non-accounting logistics module, chỉ admin được xem
-    requiresActiveCompany: true
+    allowedRoles: ['admin'],
+    requiresActiveCompany: true,
+    department: 'warehouse'
   },
   {
     id: 'audit-logs',
@@ -167,7 +221,17 @@ export const MODULES_REGISTER = [
     icon: ShieldAlert,
     component: React.lazy(() => import('./admin/AuditLogs.jsx')),
     allowedRoles: ['admin'],
-    requiresActiveCompany: false
+    requiresActiveCompany: false,
+    department: 'admin'
+  },
+  {
+    id: 'settings/notifications',
+    name: 'Cài Đặt Thông Báo Đẩy',
+    icon: BellRing,
+    component: React.lazy(() => import('./settings/NotificationSettings.jsx')),
+    allowedRoles: ['admin', 'ktt', 'nv', 'gd_kinhdoanh'],
+    requiresActiveCompany: false,
+    department: 'admin'
   },
   {
     id: 'income-statement',
@@ -175,7 +239,8 @@ export const MODULES_REGISTER = [
     icon: TrendingUp,
     component: React.lazy(() => import('./financial/IncomeStatement.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'balance-sheet',
@@ -183,7 +248,8 @@ export const MODULES_REGISTER = [
     icon: FileText,
     component: React.lazy(() => import('./financial/BalanceSheetB01.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'income-statement-b02',
@@ -191,7 +257,8 @@ export const MODULES_REGISTER = [
     icon: TrendingUp,
     component: React.lazy(() => import('./financial/IncomeStatementB02.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'cash-flow',
@@ -199,7 +266,8 @@ export const MODULES_REGISTER = [
     icon: BarChart3,
     component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   },
   {
     id: 'financial-notes',
@@ -207,6 +275,7 @@ export const MODULES_REGISTER = [
     icon: FileText,
     component: React.lazy(() => import('./reports/FinancialReportsView.jsx')),
     allowedRoles: ['admin', 'ktt', 'gd_kinhdoanh'],
-    requiresActiveCompany: true
+    requiresActiveCompany: true,
+    department: 'finance'
   }
 ];

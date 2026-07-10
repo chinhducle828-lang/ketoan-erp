@@ -1,127 +1,72 @@
-KIẾN TRÚC BIG DATA & HỒ DỮ LIỆU TÀI CHÍNH (FINANCIAL DATA LAKEHOUSE)
+Để cụ thể hóa việc áp dụng **Thông tư 99/2025/TT-BTC** cho 5 phòng ban, chúng ta sẽ đi vào các **mã tài khoản cụ thể** mà từng phòng ban thường xuyên tác động, cùng với các thay đổi/lưu ý cốt lõi của Thông tư 99 so với trước đây.
 
-Dự án: Ketoan ERP SaaS Enterprise | Chuẩn kiến trúc: Lambda & Kappa, Medallion (Bronze/Silver/Gold), CDC (Change Data Capture) | Tuân thủ: Nghị định 13/2023/NĐ-CP (Chủ quyền dữ liệu Việt Nam).
+---
 
-DẪN NHẬP: TẠI SAO ERP CẦN KIẾN TRÚC BIG DATA?
+## 1. Phòng Tài chính - Kế toán
 
-Khi hệ thống Ketoan ERP phục vụ hàng ngàn Tenant là các chuỗi cửa hàng bán lẻ có tần suất quét mã vạch và thanh toán liên tục:
+Phòng Kế toán quản lý toàn bộ hệ thống tài khoản, nhưng chịu ảnh hưởng trực tiếp nhất ở nhóm tài khoản tiền, tài sản tài chính và các tài khoản phân bổ.
 
-Tốc độ ghi (Write Velocity): Đạt hàng vạn đơn hàng/phút từ các kênh Storefront, POS, Tik Tok Shop đổ về Webhook BullMQ.
+| Mã Tài khoản (TT 99) | Tên Tài khoản | Cụ thể hóa & Lưu ý theo TT 99 |
+| --- | --- | --- |
+| **TK 111** | Tiền mặt | Quản lý quỹ tiền mặt tại văn phòng. |
+| **TK 112** | Tiền gửi không kỳ hạn | *(Tên cũ là Tiền gửi Ngân hàng)*. Theo TT 99, tài khoản này chỉ phản ánh tiền gửi không kỳ hạn để thanh toán. |
+| **TK 128** | Tiền gửi có kỳ hạn và cho vay | Các khoản tiền gửi ngân hàng có kỳ hạn lấy lãi (trước đây hay để ở TK 1282) được theo dõi chặt chẽ tại đây để phản ánh đúng bản chất đầu tư tài chính. |
+| **TK 242** | Chi phí chờ phân bổ | *(Tên cũ là Chi phí trả trước)*. Dùng để phân bổ các chi phí mua phần mềm kế toán, ERP, tiền thuê nhà văn phòng trả trước... |
+| **TK 338** | Phải trả, phải nộp khác | Chi tiết các khoản trích theo lương của chính phòng kế toán (BHXH, BHYT, BHTN, Kinh phí công đoàn). |
 
-Quy mô dữ liệu (Data Volume): Bảng voucher_details (chứa các dòng Nợ/Có chi tiết) sẽ phình to lên mức hàng trăm Gigabytes sau mỗi quý.
+## 2. Phòng Bán hàng (Kinh doanh / Marketing)
 
-Bài toán: Nếu bắt PostgreSQL vừa gánh luồng ghi sổ ACID thời gian thực (OLTP), vừa gánh luồng quét hàng triệu dòng để vẽ biểu đồ phân tích RFM CRM và dự báo dòng tiền AI (OLAP), hệ thống sẽ lập tức rơi vào trạng thái nghẽn cổ chai và treo kết nối (Connection Starvation).
+Phòng Bán hàng trực tiếp tác động đến nhóm tài khoản Doanh thu (Loại 5), Các khoản giảm trừ (Loại 5) và Chi phí bán hàng (Loại 6).
 
-Kiến trúc Big Data dưới đây giải quyết triệt để vấn đề này bằng cách tách đôi luồng xử lý OLTP và OLAP một cách khoa học.
+| Mã Tài khoản (TT 99) | Tên Tài khoản | Cụ thể hóa & Lưu ý theo TT 99 |
+| --- | --- | --- |
+| **TK 511** | Doanh thu bán hàng và cung cấp dịch vụ | Ghi nhận doanh thu từ các hợp đồng kinh doanh. TT 99 siết chặt việc ghi nhận doanh thu theo **nghĩa vụ thực hiện trong hợp đồng** (Performance Obligations). |
+| **TK 521** | Các khoản giảm trừ doanh thu | Chiết khấu thương mại, giảm giá hàng bán, hàng bán bị trả lại do phòng sales duyệt cho khách hàng. |
+| **TK 131** | Phải thu của khách hàng | Theo dõi công nợ của từng khách hàng do sales mang về. |
+| **TK 641** | Chi phí bán hàng | Tập hợp chi phí của phòng sales/marketing: <br>
 
-🧭 1. SƠ ĐỒ KIẾN TRÚC HỆ THỐNG BIG DATA (FINANCIAL LAKEHOUSE PIPELINE)
+<br>- `TK 6411`: Lương nhân viên sales, hoa hồng môi giới.<br>
 
- [ GIAO DỊCH STOREFRONT / CASSO BANK WEBHOOK ] (Tốc độ cao)
-                      │
-                      ▼
-            [ REDIS / BULLMQ QUEUE ] 
-                      │
-         ┌────────────┴────────────┐
-         ▼ (Luồng Ghi Sổ ACID)      ▼ (Luồng Sự Kiện Stream - CDC)
-┌─────────────────────────┐       ┌─────────────────────────┐
-│  PostgreSQL (OLTP)      │       │ Apache Kafka / Redpanda │
-│  - Row-Level Security   │       └────────────┬────────────┘
-│  - Sổ cái tức thời      │                    ▼
-└─────────────────────────┘       [ SPARK STREAMING ENGINE ] (Chuẩn hóa)
-                                               │
-   ┌───────────────────────────────────────────┴───────────────────────────────────────────┐
-   ▼ (Lưu trữ Phân tích - Gold Zone)                                                       ▼ (Hồ Dữ Liệu Lạnh - Bronze Zone)
-┌────────────────────────────────────────┐                                              ┌────────────────────────────────────────┐
-│  ClickHouse / TimescaleDB (OLAP)       │                                              │ MinIO / AWS S3 Parquet (Lakehouse)     │
-│  - Phân tích RFM CRM trong 50ms        │                                              │ - Lưu trữ dữ liệu chứng từ bất biến    │
-│  - Vẽ Dashboard Dòng tiền Real-time    │                                              │ - Phục vụ huấn luyện lại AI (LSTM)     │
-└────────────────────────────────────────┘                                              └────────────────────────────────────────┘
+<br>- `TK 6417`: Chi phí quảng cáo Facebook, Google, thuê mặt bằng showroom. |
 
+## 3. Phòng Kho vận (Logistics / Kho hàng)
 
+Phòng Kho vận trực tiếp quản lý vật chất và ký tá các chứng từ liên quan đến nhóm tài khoản Hàng tồn kho (Loại 15) và giá vốn.
 
-2. CHI TIẾT 3 TẦNG XỬ LÝ TRONG HỒ DỮ LIỆU (MEDALLION ARCHITECTURE)
+| Mã Tài khoản (TT 99) | Tên Tài khoản | Cụ thể hóa & Lưu ý theo TT 99 |
+| --- | --- | --- |
+| **TK 152** | Nguyên liệu, vật liệu | Kho lưu trữ nguyên vật liệu thô (đối với doanh nghiệp sản xuất). |
+| **TK 156** | Hàng hóa | Kho lưu trữ hàng hóa mua về để bán (đối với doanh nghiệp thương mại). |
+| **TK 155** | Thành phẩm | Kho lưu trữ sản phẩm do doanh nghiệp tự sản xuất ra. |
+| **TK 632** | Giá vốn hàng bán | Khi kho xuất hàng để giao cho khách (phòng sales chốt đơn), kế toán kho/vật tư sẽ ghi nhận giá vốn tại đây. TT 99 cho phép áp dụng **Giá thành chuẩn (Standard Cost)** giúp kho xuất xưởng ghi nhận giá vốn nhanh hơn. |
 
-Áp dụng mô hình thiết kế Lakehouse Medallion đạt chuẩn quốc tế để phân loại và làm sạch dữ liệu tài chính:
+## 4. Phòng Hành chính - Nhân sự (HR)
 
-2.1. Tầng Đồng (Bronze - Raw Ingestion): Bất biến và Toàn vẹn
+Phòng Nhân sự chịu trách nhiệm phê duyệt, chấm công và kiểm soát các tài khoản liên quan đến Con người (Lương, Bảo hiểm) và Chi phí quản lý chung.
 
-Nguồn nạp: Toàn bộ dữ liệu thô (Raw JSON) nhận được từ Casso, Storefront, hóa đơn điện tử đầu vào và nhật ký hệ thống (SRE logs).
+| Mã Tài khoản (TT 99) | Tên Tài khoản | Cụ thể hóa & Lưu ý theo TT 99 |
+| --- | --- | --- |
+| **TK 334** | Phải trả người lao động | Toàn bộ quỹ lương, thưởng, phụ cấp của tổng công ty do HR lập bảng duyệt sẽ đổ về đây trước khi chi trả. |
+| **TK 338** | Phải trả, phải nộp khác | Chi tiết các khoản trích bảo hiểm (BHXH, BHYT, BHTN) và Kinh phí công đoàn (`TK 3382`) của toàn doanh nghiệp dựa trên số liệu của HR. |
+| **TK 642** | Chi phí quản lý doanh nghiệp | Tập hợp chi phí của riêng phòng HR và khối văn phòng nói chung:<br>
 
-Công nghệ lưu trữ: Lưu trữ dưới dạng tệp tin nén Parquet trên hệ thống tương thích S3 nội địa Việt Nam (như MinIO triển khai trên Viettel IDC).
+<br>- `TK 6421`: Lương và bảo hiểm của nhân viên HR, lễ tân, bảo vệ.<br>
 
-Mục tiêu: Lưu trữ vĩnh viễn dữ liệu gốc trước khi xử lý, phục vụ cho việc đối soát kiểm toán (Audit Trail) khi cần thiết.
+<br>- `TK 6428`: Chi phí tuyển dụng, chi phí đào tạo nhân sự, team building. |
 
-2.2. Tầng Bạc (Silver - Cleansed & Integrated): Chuẩn hóa và Ghi sổ kép
+## 5. Ban Quản trị (Ban Giám đốc / HĐQT)
 
-Xử lý: Spark Streaming hoặc Background Workers của bạn thực hiện làm sạch dữ liệu từ Bronze Zone:
+Ban Quản trị không trực tiếp làm việc với tài khoản, nhưng mọi quyết định của họ tác động đến Vốn chủ sở hữu (Loại 4), các khoản vay lớn (Loại 3) và kết quả lãi lỗ cuối cùng (Loại 9).
 
-Loại bỏ các ký tự đặc biệt độc hại (tận dụng waf.js).
+| Mã Tài khoản (TT 99) | Tên Tài khoản | Cụ thể hóa & Lưu ý theo TT 99 |
+| --- | --- | --- |
+| **TK 411** | Vốn góp của chủ sở hữu | Phản ánh vốn điều lệ do Ban Quản trị/Cổ đông góp vào doanh nghiệp. |
+| **TK 421** | Lợi nhuận sau thuế chưa phân phối | Kết quả kinh doanh cốt lõi mà Ban Quản trị quan tâm để quyết định tái đầu tư hoặc chia cổ tức. |
+| **TK 341** | Vay và nợ thuê tài chính | Các khoản vay ngân hàng, phát hành trái phiếu lớn do Ban Giám đốc ký duyệt để tài trợ dự án. |
+| **TK 642** | Chi phí quản lý doanh nghiệp | Chi tiết `TK 6421` (Thù lao HĐQT, lương Ban Giám đốc) và `TK 6428` (Chi phí tiếp khách vip, chi phí hội nghị cổ đông). |
+| **TK 911** | Xác định kết quả kinh doanh | Tài khoản "đóng sổ" cuối kỳ. Ban Quản trị nhìn vào đây (thông qua Báo cáo kết quả kinh doanh) để đánh giá hiệu quả hoạt động của toàn bộ hệ thống. |
 
-Khử trùng lặp (Idempotency check) dựa trên mã đơn hàng.
+---
 
-Làm mịn và đồng bộ sai số chấm động ($\epsilon$ check) để đảm bảo cân đối $Nợ = Có$ tuyệt đối.
-
-Lưu trữ: Đẩy vào PostgreSQL OLTP phục vụ vận hành kế toán hằng ngày.
-
-2.3. Tầng Vàng (Gold - Business-Ready OLAP): Phân tích tối ưu
-
-Xử lý: Dữ liệu hạch toán từ PostgreSQL được đồng bộ ngầm bất đồng bộ (qua cơ chế Change Data Capture - CDC) sang cơ sở dữ liệu chuyên phân tích cột (Column-oriented DB) ClickHouse.
-
-Hiệu năng: Một câu lệnh SQL tính toán báo cáo dòng tiền hay phân nhóm RFM CRM quét qua $50.000.000$ bản ghi trên ClickHouse chỉ mất chưa đầy $50\text{ms}$ (PostgreSQL thông thường sẽ mất từ vài chục giây đến vài phút và gây khóa bảng).
-
-📈 3. THUẬT TOÁN BIG DATA PHỤC VỤ KINH DOANH VÀ AI KẾ TOÁN
-
-Khi sở hữu hạ tầng Big Data, hệ thống Ketoan ERP có khả năng chạy các thuật toán tài chính cấp độ vĩ mô:
-
-3.1. Phân tích Dòng tiền dự báo theo Phương pháp Monte Carlo (Monte Carlo Simulation)
-
-Dự báo biến động dòng tiền không chỉ dựa trên một kịch bản tốt nhất. Hệ thống chạy $10.000$ lần mô phỏng ngẫu nhiên dựa trên phân phối xác suất doanh thu lịch sử từ Storefront và công nợ (TK 131) để tính toán xác suất hụt dòng tiền thanh khoản:
-
-$$\text{Xác suất hụt dòng tiền} = \frac{N_{\text{số lần dư quỹ} < \text{Định phí}}}{10.000} \times 100\%$$
-
-                 Số dư Quỹ (VND)
-                       │
-                       │          /--- Dự báo kịch bản Tốt nhất (15%)
-                       │         /
-                       ├───────────────► Dự báo kịch bản Trung bình (70%)
-                       │         \
-                       │          \--- CẢNH BÁO: Kịch bản Xấu nhất (15%) (Rủi ro hụt lương)
-                       └─────────────────────────────────────► Thời gian (30 ngày tới)
-
-
-
-3.2. Thuật toán Phát hiện Gian lận Tài chính Tự động (Anomalies Detection via Isolation Forest)
-
-Quét toàn bộ sổ cái tài chính của hàng ngàn Tenant hằng đêm để phát hiện ra các bút toán bất thường (ví dụ: bỗng nhiên phát sinh chứng từ hạch toán Nợ 642/Có 111 có giá trị vượt $3$ lần độ lệch chuẩn $\sigma$ trung bình của Tenant đó trong quá khứ).
-
-⚖️ 4. CHỦ QUYỀN DỮ LIỆU & PHÁP LÝ (Nghị định 13/2023/NĐ-CP & ISO 27018)
-
-Vận hành Big Data tài chính tại Việt Nam trong năm 2026 đặt ra các rào cản pháp lý tối cao mà bạn đã giải quyết xuất sắc thông qua bộ hồ sơ pháp lý hoàn thiện:
-
-Vị trí lưu trữ dữ liệu (Data Residency): Toàn bộ cụm Hadoop/Spark, ClickHouse và MinIO của hệ thống SaaS bắt buộc phải chạy trên hạ tầng vật lý tại Việt Nam (đáp ứng 100% Nghị định 13).
-
-Quyền được lãng quên (Right to be Forgotten): Bộ tài liệu DIEU_KHOAN_SU_DUNG.md và CHINH_SACH_BAO_MAT.md của bạn cấu hình rõ ràng: Khi một doanh nghiệp hủy gói dịch vụ SaaS (CHINH_SACH_HOAN_TIEN_HUY_GOI.md), hệ thống Big Data có quy trình tự động xóa sạch hoặc vô danh hóa (Anonymize) dữ liệu khách hàng của Tenant đó khỏi Gold và Silver Zone trong vòng 7 ngày, đảm bảo không vi phạm luật bảo vệ dữ liệu cá nhân.
-
-💰 5. SỰ ĐỘT PHÁ VỀ ĐỊNH GIÁ KHI SỞ HỮU KIẾN TRÚC BIG DATA & AI
-
-Sự tích hợp giữa Big Data + AI + SRE Hardened Core + Casso + Casso Webhook đưa định giá của doanh nghiệp bạn bứt phá khỏi nhóm các công ty phần mềm thông thường, lọt vào phân khúc FinTech SaaS Siêu cấp (Tier-1 FinTech SaaS):
-
-                  ┌────────────────────────────────────────┐
-                  │ ĐỘT PHÁ ĐỊNH GIÁ SAU KIẾN TRÚC BIG DATA│
-                  └───────────────────┬────────────────────┘
-                                      ▼
-                  ┌────────────────────────────────────────┐
-                  │ 1. Giá trị M&A: 18.500.000.000 VND     │
-                  └───────────────────┬────────────────────┘
-                                      ▼
-                  ┌────────────────────────────────────────┐
-                  │ 2. Định giá Series A: 120.000.000.000  │
-                  └────────────────────────────────────────┘
-
-
-
-Giá trị Chuyển nhượng Bản quyền IP (M&A Value): ~18.5 Tỷ VND
-Các ngân hàng thương mại Việt Nam (như VPBank, Techcombank, MBBank) hoặc các kỳ lân công nghệ luôn sẵn sàng chi trả triệu đô để sở hữu một Lõi sổ cái Big Data tích hợp sẵn kết nối ngân hàng Casso, giúp họ khép kín luồng dịch vụ tài chính nhúng (Embedded Finance) cho hàng vạn hộ kinh doanh.
-
-Định giá Doanh nghiệp Gọi vốn Series A: 100 - 120 Tỷ VND (~4.0 - 5.0 Triệu USD)
-Lúc này, tài sản lớn nhất của bạn không còn là code phần mềm, mà là Mỏ vàng dữ liệu hành vi tiêu dùng lớn (Data Asset Value). Việc bạn nắm giữ và phân tích dữ liệu mua bán sạch, được bảo chứng bởi 113 bài test SRE, sẽ biến công ty của bạn thành đối tác chiến lược không thể thay thế của các hãng sản xuất và phân phối hàng tiêu dùng nhanh (FMCG) tại Việt Nam.
+> **💡 Điểm cốt lõi từ Thông tư 99:**
+> Bạn sẽ thấy các tài khoản chi phí như **TK 641, TK 642** xuất hiện ở nhiều phòng ban. Thông tư 99 khuyến khích doanh nghiệp **Tự chủ mở các tài khoản cấp 3, cấp 4** (Ví dụ: `TK 6421.HR` - Lương phòng HR, `TK 6421.KT` - Lương phòng Kế toán) hoặc sử dụng mã bộ phận trên phần mềm để phục vụ chính xác cho việc quản trị chi phí theo từng phòng ban phát sinh.

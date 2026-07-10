@@ -64,8 +64,9 @@ export default function IncomeStatementB02() {
       let total = 0;
       item.accounts.forEach(accCode => {
         // Doanh thu = Tổng Có, Chi phí = Tổng Nợ
-        const debit = getTotalDebit(ledger, accCode);
-        const credit = getTotalCredit(ledger, accCode);
+        const accountData = ledger[accCode];
+        const debit = accountData?.patsinhDr || 0;
+        const credit = accountData?.patsinhCr || 0;
         // Với TK doanh thu (5, 7), lấy credit. Với TK chi phí (6, 8), lấy debit
         if (accCode.startsWith('5') || accCode.startsWith('7')) {
           total += credit;

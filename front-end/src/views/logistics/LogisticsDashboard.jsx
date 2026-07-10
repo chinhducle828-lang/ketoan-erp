@@ -2,7 +2,7 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { 
@@ -14,6 +14,9 @@ import {
   RefreshCw,
   ClipboardList
 } from 'lucide-react';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { notify } from '../../utils/notify.jsx';
 
 const STATUS_LABELS = {
   pending_loading: 'Chờ phân xe',
@@ -69,6 +72,30 @@ export default function LogisticsDashboard() {
     loadAllOrders().catch(() => setAllOrders([]));
   }, [companyId]);
 
+  // Realtime sync cho logistics
+  const loadCallback = useCallback(() => loadAllOrders(), [companyId]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { logistics: loadCallback },
+    {
+      eventMap: {
+        'orderStatusChanged': ['logistics'],
+        'voucher:created': ['logistics'],
+        'voucher:updated': ['logistics'],
+        'voucher:deleted': ['logistics'],
+        voucherCreated: ['logistics'],
+        voucherUpdated: ['logistics'],
+        voucherDeleted: ['logistics'],
+        'inventory:updated': ['logistics'],
+        inventoryUpdated: ['logistics'],
+        'closing:completed': ['logistics'],
+        closingCompleted: ['logistics']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+
   // Thống kê số lượng theo trạng thái
   const summary = useMemo(() => {
     const counts = { pending_loading: 0, assigned: 0, delivering: 0, completed: 0 };
@@ -94,8 +121,9 @@ export default function LogisticsDashboard() {
     try {
       await api.post('/logistics/assign-truck', { companyId, voucherId, truckId: 1 });
       await loadAllOrders();
+      notify.success('Đã phân xe thành công!');
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi khi phân xe!');
+      notify.error(err.response?.data?.error || 'Lỗi khi phân xe!');
     }
   };
 
@@ -104,8 +132,9 @@ export default function LogisticsDashboard() {
     try {
       await api.post('/logistics/confirm-loaded', { companyId, voucherId });
       await loadAllOrders();
+      notify.success('Đã xác nhận bốc hàng!');
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi khi xác nhận!');
+      notify.error(err.response?.data?.error || 'Lỗi khi xác nhận!');
     }
   };
 
@@ -114,8 +143,9 @@ export default function LogisticsDashboard() {
     try {
       await api.post('/logistics/mark-completed', { companyId, voucherId });
       await loadAllOrders();
+      notify.success('Đã hoàn thành xuất kho!');
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi khi hoàn thành!');
+      notify.error(err.response?.data?.error || 'Lỗi khi hoàn thành!');
     }
   };
 

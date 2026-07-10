@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { FileText, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 
 // Bảng cân đối kế toán mẫu B01-DN theo Thông tư 99/2025/TT-BTC

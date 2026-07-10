@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { ShoppingBag, Loader2, Plus, Package } from 'lucide-react';
 import { buildPurchaseInventoryDetails, getDefaultCurrency, getDefaultTaxRate } from '../../utils/accountingRules.js';
+import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function PurchaseInventory() {
   const { createNewVoucher } = useVouchers();
@@ -297,6 +298,14 @@ export default function PurchaseInventory() {
           {loading ? <Loader2 size={16} className="animate-spin" /> : 'Ghi sổ Phiếu Nhập Kho (NK)'}
         </button>
       </form>
+
+      <VoucherFormTemplate
+        moduleType="purchasing"
+        title="Tạo chứng từ mua hàng nhanh"
+        description="Hạch toán nhập kho, công nợ phải trả (TK 152, 156, 331, 133...)"
+        defaultVoucherType="NK"
+        accountGroupFilter={['inventory', 'payables', 'receivables', 'tax', 'other_payables']}
+      />
     </div>
   );
 }

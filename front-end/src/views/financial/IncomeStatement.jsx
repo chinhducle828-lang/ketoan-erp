@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getCorporateIncomeTaxRate } from '../../utils/accountingRules.js';
+import { getCorporateIncomeTaxRate, getDefaultCurrency } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';

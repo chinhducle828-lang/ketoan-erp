@@ -3,7 +3,6 @@
  */
 
 import React, { useMemo, useCallback } from 'react';
-import { useRealTime } from '../hooks/useRealTime';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { formatCurrency, formatNumber, getAlignmentClass } from '../utils/format.js';
 

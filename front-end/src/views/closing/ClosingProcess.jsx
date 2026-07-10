@@ -159,7 +159,7 @@ export default function ClosingProcess() {
     let totalEquity = 0;
 
     // Quét toàn bộ danh mục tài khoản từ điển để xử lý số liệu cuối kỳ động
-    Object.keys(ACCOUNT_DICTIONARY).forEach(code => {
+    Object.keys(accountDictionary).forEach(code => {
       const accountData = ledger[code];
       const dr = accountData?.closingDr || 0;
       const cr = accountData?.closingCr || 0;
@@ -168,7 +168,7 @@ export default function ClosingProcess() {
       if (dr !== 0 || cr !== 0) {
         const payload = {
           code,
-          name: ACCOUNT_DICTIONARY[code],
+          name: accountDictionary[code],
           dr,
           cr
         };
