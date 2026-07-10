@@ -7,6 +7,7 @@ import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Calculator, Trash2, Loader2, Plus } from 'lucide-react';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function FixedAssets() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -103,6 +104,14 @@ export default function FixedAssets() {
           </tbody>
         </table>
       </div>
+
+      <VoucherFormTemplate
+        moduleType="assets"
+        title="Tạo chứng từ TSCĐ nhanh"
+        description="Hạch toán tăng/giảm tài sản cố định (TK 211, 213, 214, 331, 341...)"
+        defaultVoucherType="PC"
+        accountGroupFilter={['fixed_assets', 'payables', 'loans', 'construction']}
+      />
     </div>
   );
 }

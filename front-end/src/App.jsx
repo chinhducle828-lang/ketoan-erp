@@ -8,6 +8,7 @@ import { useAuth } from './context/AuthContext.jsx';
 import { MODULES_REGISTER } from './views/index.js';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import PopupNotification from './components/PopupNotification.jsx';
 
 // Import các trang Auth
 import Login from './views/auth/Login.jsx';
@@ -163,6 +164,7 @@ export default function App() {
         pauseOnHover
         theme="light"
       />
+      <PopupNotification />
     </BrowserRouter>
   );
 }

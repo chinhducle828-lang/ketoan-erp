@@ -3,7 +3,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useRealTimeBase } from './useRealTime-base';
+import { useStorefrontRealtime } from './useStorefrontRealtime.js';
 import wsService from '../services/websocket';
 import { authApi } from '../utils/api';
 
@@ -13,18 +13,18 @@ export function useRealTime(companyId, userId) {
 
   // Handle order status changed
   const handleOrderStatusChanged = useCallback((order) => {
-    setOrders(prev => 
+    setOrders(prev =>
       prev.map(o => o.id === order.id ? { ...o, ...order } : o)
     );
   }, []);
 
-  // Use base hook
-  const base = useRealTimeBase(companyId, userId, {
-    orderStatusChanged: handleOrderStatusChanged
-  });
+  // Use standardized realtime hook
+  useStorefrontRealtime(
+    { orderStatusChanged: handleOrderStatusChanged },
+    { enabled: Boolean(companyId) }
+  );
 
   return {
-    ...base,
     orders,
     setOrders
   };
@@ -34,23 +34,20 @@ export function useRealTime(companyId, userId) {
 export function useOrderStatus() {
   const [orderUpdates, setOrderUpdates] = useState({});
 
-  useEffect(() => {
-    const handleOrderStatusChanged = (order) => {
-      setOrderUpdates(prev => ({
-        ...prev,
-        [order.id]: {
-          ...order,
-          lastUpdate: new Date()
-        }
-      }));
-    };
-
-    wsService.on('orderStatusChanged', handleOrderStatusChanged);
-
-    return () => {
-      wsService.off('orderStatusChanged', handleOrderStatusChanged);
-    };
+  const handleOrderStatusChanged = useCallback((order) => {
+    setOrderUpdates(prev => ({
+      ...prev,
+      [order.id]: {
+        ...order,
+        lastUpdate: new Date()
+      }
+    }));
   }, []);
+
+  useStorefrontRealtime(
+    { orderStatusChanged: handleOrderStatusChanged },
+    { enabled: true }
+  );
 
   return {
     orderUpdates
@@ -78,25 +75,22 @@ export function useVoucherNotifications() {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Listen for real-time notification events via WebSocket
-  useEffect(() => {
-    const handleNewNotification = (notification) => {
-      setNotifications(prev => [notification, ...prev]);
-      setUnreadCount(prev => prev + 1);
-    };
-
-    wsService.on('notification:new', handleNewNotification);
-
-    return () => {
-      wsService.off('notification:new', handleNewNotification);
-    };
+  // Listen for real-time notification events via standardized hook
+  const handleNewNotification = useCallback((notification) => {
+    setNotifications(prev => [notification, ...prev]);
+    setUnreadCount(prev => prev + 1);
   }, []);
+
+  useStorefrontRealtime(
+    { 'notification:new': handleNewNotification },
+    { enabled: true }
+  );
 
   // Mark a notification as read
   const markAsRead = useCallback(async (notificationId) => {
     try {
       await authApi.put(`/notifications/${notificationId}/read`);
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));

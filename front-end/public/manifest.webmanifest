@@ -1,0 +1,23 @@
+{
+  "name": "Kế Toán ERP - Thông Báo Đẩy",
+  "short_name": "KetoanERP",
+  "description": "Hệ thống kế toán ERP SaaS với thông báo đẩy trạng thái đơn hàng",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/icons/notification-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/notification-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

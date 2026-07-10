@@ -6,8 +6,9 @@ import React, { useRef } from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../utils/api.js';
+import { getAccountByCode, ACCOUNTS_TT99 } from '../constants/accountsTT99.js';
 
-export default function ImportExcelButton({ endpoint, filename, label = 'Nhập Excel' }) {
+export default function ImportExcelButton({ endpoint, filename, label = 'Nhập Excel', accountCodeField = 'accountCode' }) {
   const { activeCompany, fiscalYear } = useAuth();
   const fileInputRef = useRef(null);
 

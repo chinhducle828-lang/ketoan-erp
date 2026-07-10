@@ -5,10 +5,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useVouchers } from '../../context/VoucherContext.jsx';
-import { FileText, Trash2, Loader2, Plus, Search, Filter, X } from 'lucide-react';
+import { FileText, Trash2, Loader2, Plus, Search, Filter, X, FileSpreadsheet } from 'lucide-react';
 import api from '../../utils/api.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import { notify } from '../../utils/notify.jsx';
+import { useSocket } from '../../context/SocketContext.jsx';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { ACCOUNTS_TT99, getAccountsByDepartment, getAccountByCode } from '../../constants/accountsTT99.js';
+import { createWorkflowHandlers, WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
+import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -25,6 +34,15 @@ export default function VoucherManagement() {
   const { vouchers, createNewVoucher, removeVoucher, reloadVouchers } = useVouchers();
   
   const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    voucherType: 'PKT',
+    date: new Date().toISOString().split('T')[0],
+    desc: '',
+    partnerId: '',
+    currency: getDefaultCurrency(),
+    exchangeRate: 1,
+    details: [{ accountCode: '', entryType: 'DR', amount: '', partnerId: '', itemId: '', quantity: '' }]
+  });
   const [showForm, setShowForm] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,7 +102,7 @@ export default function VoucherManagement() {
       const totalDr = processedDetails.filter(d => d.entryType === 'DR').reduce((a, b) => a + b.amount, 0);
       const totalCr = processedDetails.filter(d => d.entryType === 'CR').reduce((a, b) => a + b.amount, 0);
       if (totalDr !== totalCr) {
-        alert(`Lỗi định khoản: Tổng Nợ (${totalDr.toLocaleString('vi-VN')}) phải bằng Tổng Có (${totalCr.toLocaleString('vi-VN')})!`);
+        notify.error(`Lỗi định khoản: Tổng Nợ (${totalDr.toLocaleString('vi-VN')}) phải bằng Tổng Có (${totalCr.toLocaleString('vi-VN')})!`);
         setLoading(false);
         return;
       }
@@ -101,14 +119,14 @@ export default function VoucherManagement() {
       });
 
       if (result.success) {
-        alert('Tạo chứng từ thành công!');
+        notify.success('Tạo chứng từ thành công!');
         setShowForm(false);
         resetForm();
       } else {
-        alert(result.error || 'Lỗi tạo chứng từ!');
+        notify.error(result.error || 'Lỗi tạo chứng từ!');
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ!');
+      notify.error(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ!');
     } finally {
       setLoading(false);
     }
@@ -127,16 +145,17 @@ export default function VoucherManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa chứng từ này?')) return;
+    const confirmed = await notify.confirm('Bạn có chắc chắn muốn xóa chứng từ này?');
+    if (!confirmed) return;
     try {
       const result = await removeVoucher(id);
       if (result.success) {
-        alert('Xóa chứng từ thành công!');
+        notify.success('Xóa chứng từ thành công!');
       } else {
-        alert(result.error || 'Lỗi xóa chứng từ!');
+        notify.error(result.error || 'Lỗi xóa chứng từ!');
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi xóa chứng từ!');
+      notify.error(err.response?.data?.error || 'Lỗi xóa chứng từ!');
     }
   };
 
@@ -211,26 +230,52 @@ export default function VoucherManagement() {
     enabled: true
   });
 
+  const companyId = activeCompany?.id ?? activeCompany;
+
+  // Realtime: subscribe voucher workflow events
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { vouchers: reloadVouchers },
+    {
+      eventMap: {
+        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['vouchers'],
+        [WORKFLOW_EVENTS.VOUCHER_POSTED]: ['vouchers'],
+        [WORKFLOW_EVENTS.VOUCHER_DELETED]: ['vouchers'],
+        [WORKFLOW_EVENTS.CLOSING_COMPLETED]: ['vouchers'],
+        voucherCreated: ['vouchers'],
+        voucherUpdated: ['vouchers'],
+        voucherDeleted: ['vouchers'],
+        voucherPosted: ['vouchers'],
+        closingCompleted: ['vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <FileText size={22} className="text-indigo-600" />
-            Quản Lý Chứng Từ Tổng Hợp
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">Quản lý tất cả chứng từ kế toán (PT, PC, NK, XK, PKT)</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <FileText size={22} className="text-indigo-600" />
+              Quản Lý Chứng Từ Tổng Hợp
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">Quản lý tất cả chứng từ kế toán (PT, PC, NK, XK, PKT)</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportExcelButton endpoint="vouchers" filename="Chung_Tu" accountCodeField="accountCode" />
+            <ExportExcelButton endpoint="vouchers" filename="Chung_Tu" accountCodes={ACCOUNTS_TT99.slice(0, 20).map(a => a.code)} />
+            <button
+              onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
+              title="[Alt+N] Tạo chứng từ mới"
+            >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới [Alt+N]'}
+          </button>
+          </div>
         </div>
-        <button
-          onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
-          title="[Alt+N] Tạo chứng từ mới"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Đóng Form' : 'Tạo Chứng Từ Mới [Alt+N]'}
-        </button>
-      </div>
 
       {/* Form tạo chứng từ */}
       {showForm && (
@@ -526,6 +571,13 @@ export default function VoucherManagement() {
           </table>
         </div>
       </div>
+
+      <VoucherFormTemplate
+        moduleType="vouchers"
+        title="Tạo chứng từ tổng hợp nhanh"
+        description="Hạch toán bút toán kế toán tổng hợp (Nợ = Có)"
+        defaultVoucherType="PKT"
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { Wallet, Trash2, Loader2 } from 'lucide-react';
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
@@ -167,6 +168,14 @@ export default function CashManagement() {
           </tbody>
         </table>
       </div>
+
+      <VoucherFormTemplate
+        moduleType="cash"
+        title="Tạo chứng từ quỹ nhanh"
+        description="Hạch toán thu/chi tiền mặt, tiền gửi (TK 111, 112, 131, 331...)"
+        defaultVoucherType="PT"
+        accountGroupFilter={['cash', 'receivables', 'payables', 'tax', 'other_payables']}
+      />
     </div>
   );
 }

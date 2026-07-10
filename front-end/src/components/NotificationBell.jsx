@@ -5,8 +5,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, CheckCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { usePushNotification } from '../hooks/usePushNotification';
-import { useRealTimeBase } from '../hooks/useRealTime-base';
-import wsService from '../services/websocket.js';
+import { useSocket } from '../context/SocketContext.jsx';
+import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
+import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
 import api from '../utils/api.js';
 
 export default function NotificationBell({ companyId, userId }) {
@@ -15,10 +16,8 @@ export default function NotificationBell({ companyId, userId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const containerRef = useRef(null);
-  const { isSupported, permission, requestPermission, subscribe, isLoading } = usePushNotification();
-
-  // Auto-connect WebSocket via base hook
-  useRealTimeBase(companyId, userId);
+  const { isSupported, permission, requestPermission, isLoading } = usePushNotification();
+  const { subscribe } = useSocket();
 
   // Load notifications from API
   const loadNotifications = useCallback(() => {
@@ -52,20 +51,32 @@ export default function NotificationBell({ companyId, userId }) {
   }, [loadNotifications]);
 
   // WebSocket listener for real-time notification updates
+  const reloadNotifications = useCallback(() => loadNotifications(), [loadNotifications]);
+
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { notifications: reloadNotifications },
+    {
+      eventMap: {
+        'notification:new': ['notifications'],
+        notificationNew: ['notifications'],
+        'voucher:created': ['notifications'],
+        voucherCreated: ['notifications']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+
   useEffect(() => {
-    if (!companyId) return;
+    if (!subscribe) return;
 
     const handleNotificationNew = (notification) => {
       // Prepend new notification to list
       setNotifications((prev) => [notification, ...prev]);
     };
 
-    wsService.on('notification:new', handleNotificationNew);
-
-    return () => {
-      wsService.off('notification:new', handleNotificationNew);
-    };
-  }, [companyId]);
+    subscribe('notification:new', handleNotificationNew);
+  }, [subscribe]);
 
   // Đóng dropdown khi click ra ngoài hoặc nhấn Escape
   useEffect(() => {

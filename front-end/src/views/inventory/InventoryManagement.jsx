@@ -4,10 +4,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search } from 'lucide-react';
+import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search, FileSpreadsheet } from 'lucide-react';
 import api from '../../utils/api.js';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
+import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import ExportExcelButton from '../../components/ExportExcelButton.jsx';
+import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function InventoryManagement() {
   const { activeCompany } = useAuth();
@@ -100,6 +104,8 @@ export default function InventoryManagement() {
           <p className="text-xs text-slate-400 mt-1">Dashboard tồn kho, lịch sử nhập/xuất và tính giá vốn cuối kỳ</p>
         </div>
         <div className="flex gap-2">
+          <ImportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodeField="accountCode" />
+          <ExportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodes={ACCOUNTS_TT99.filter(a => a.group === 'inventory' || a.group === 'cogs').map(a => a.code)} />
           <button
             onClick={loadBalances}
             disabled={loading}

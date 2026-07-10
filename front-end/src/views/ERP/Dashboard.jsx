@@ -2,9 +2,11 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect } from 'react';
-import { useRealTime, useBalanceUpdates } from '../../hooks/useRealTime';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSocket } from '../../context/SocketContext';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync';
+import api from '../../utils/api';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -19,11 +21,9 @@ import {
 // Dashboard with real-time metrics
 export default function Dashboard() {
   const { user, activeCompany } = useAuth();
-  const { vouchers, orders, isConnected } = useRealTime(
-    activeCompany?.id, 
-    user?.id
-  );
-  const { balanceUpdates } = useBalanceUpdates();
+  const { isConnected } = useSocket();
+  const [vouchers, setVouchers] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
@@ -31,6 +31,52 @@ export default function Dashboard() {
     pendingOrders: 0,
     totalVouchers: 0
   });
+
+  const companyId = activeCompany?.id;
+
+  const loadDashboard = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const res = await api.get('/vouchers', { params: { company_id: companyId } });
+      const data = res.data?.data || res.data || [];
+      setVouchers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load dashboard vouchers:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  // Load initial data
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  // Realtime: invalidate dashboard on voucher/order events
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { dashboard: loadDashboard },
+    {
+      eventMap: {
+        'voucher:created': ['dashboard'],
+        'voucher:updated': ['dashboard'],
+        'voucher:deleted': ['dashboard'],
+        'voucher:posted': ['dashboard'],
+        voucherCreated: ['dashboard'],
+        voucherUpdated: ['dashboard'],
+        voucherDeleted: ['dashboard'],
+        voucherPosted: ['dashboard'],
+        'orderStatusChanged': ['dashboard'],
+        orderStatusChanged: ['dashboard'],
+        'balanceUpdated': ['dashboard'],
+        balanceUpdated: ['dashboard'],
+        'closing:completed': ['dashboard'],
+        closingCompleted: ['dashboard']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   // Calculate metrics from real-time data
   useEffect(() => {
@@ -51,13 +97,6 @@ export default function Dashboard() {
       totalVouchers: vouchers.length
     });
   }, [vouchers, orders]);
-
-  // Load initial data
-  useEffect(() => {
-    if (activeCompany) {
-      setLoading(false);
-    }
-  }, [activeCompany]);
 
   // Metric card component
   const MetricCard = ({ icon: Icon, title, value, trend, color }) => (

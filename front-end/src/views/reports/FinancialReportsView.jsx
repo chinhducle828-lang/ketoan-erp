@@ -21,12 +21,6 @@ export default function FinancialReportsView() {
 
   const companyId = activeCompany?.id || activeCompany;
 
-  useEffect(() => {
-    if (companyId) {
-      fetchReports();
-    }
-  }, [companyId, fetchReports]);
-
   const fetchReports = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
@@ -47,6 +41,12 @@ export default function FinancialReportsView() {
       setLoading(false);
     }
   }, [companyId, fiscalYear, method]);
+
+  useEffect(() => {
+    if (companyId) {
+      fetchReports();
+    }
+  }, [companyId, fetchReports]);
 
   const { handlers: realtimeHandlers } = useRealtimeInvalidation(
     { reports: fetchReports },

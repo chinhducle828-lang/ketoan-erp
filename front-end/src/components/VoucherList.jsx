@@ -3,25 +3,22 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRealTime } from '../hooks/useRealTime';
 import VirtualTable from './VirtualTable';
 import { FileText, RefreshCw, Filter } from 'lucide-react';
 import api from '../utils/api.js';
+import { useSocket } from '../context/SocketContext.jsx';
+import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
+import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
 
 // Voucher list with real-time updates
 export default function VoucherList({ companyId, userId }) {
-  const { vouchers, setVouchers, isConnected } = useRealTime(companyId, userId);
+  const { isConnected } = useSocket();
+  const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  // Load vouchers on mount
-  useEffect(() => {
-    if (companyId) {
-      loadVouchers();
-    }
-  }, [companyId]);
-
-  const loadVouchers = async () => {
+  const loadVouchers = useCallback(async () => {
+    if (!companyId) return;
     setLoading(true);
     try {
       const response = await api.get('/vouchers', { params: { companyId } });
@@ -32,7 +29,33 @@ export default function VoucherList({ companyId, userId }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyId]);
+
+  // Load vouchers on mount
+  useEffect(() => {
+    loadVouchers();
+  }, [loadVouchers]);
+
+  // Realtime: invalidate vouchers on voucher events
+  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
+    { vouchers: loadVouchers },
+    {
+      eventMap: {
+        'voucher:created': ['vouchers'],
+        'voucher:updated': ['vouchers'],
+        'voucher:deleted': ['vouchers'],
+        'voucher:posted': ['vouchers'],
+        voucherCreated: ['vouchers'],
+        voucherUpdated: ['vouchers'],
+        voucherDeleted: ['vouchers'],
+        voucherPosted: ['vouchers'],
+        'closing:completed': ['vouchers'],
+        closingCompleted: ['vouchers']
+      }
+    }
+  );
+
+  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   // Filter vouchers
   const filteredVouchers = vouchers.filter(voucher => {
