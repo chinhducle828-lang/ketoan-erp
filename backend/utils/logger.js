@@ -8,18 +8,14 @@
 import pino from 'pino';
 
 // Tạo logger instance
+// Note: pino-pretty transport requires pino to be called with transport config
+// In Node.js v24+, pino-pretty may not be available, so we use a simple approach
+const isProduction = process.env.NODE_ENV === 'production';
+
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  transport: process.env.NODE_ENV !== 'production' 
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss DD/MM/yyyy',
-          ignore: 'pid,hostname'
-        }
-      }
-    : undefined,
+  // Only use transport in development and if pino-pretty is available
+  // For simplicity, we skip transport in all environments to avoid the error
   formatters: {
     level: (label) => ({ level: label }),
     bindings: (bindings) => ({
