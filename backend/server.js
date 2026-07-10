@@ -294,11 +294,13 @@ import { einvoiceRouter } from './routes/einvoice.js';
 import { refundsRouter } from './routes/refunds.js';
 import { legalPublicRouter } from './routes/legalPublic.js';
 import { aiQueryRouter } from './routes/aiQuery.js';
+import signingRouter from './routes/signing.js';
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
 // ====================================================================
 app.use('/api/auth', authRouter);
+app.use('/api/signing', signingRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/items', itemsRouter); 
 app.use('/api/opening-balances', openingBalancesRouter);

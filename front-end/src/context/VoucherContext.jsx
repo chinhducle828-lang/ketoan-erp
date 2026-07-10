@@ -180,8 +180,44 @@ export function VoucherProvider({ children }) {
     }
   };
 
+  /**
+   * Post voucher (ghi sổ) - for XK/PT types that require signing
+   */
+  const postVoucher = async (voucherId, companyId) => {
+    if (!voucherId) return { success: false, error: 'Mã chứng từ không hợp lệ.' };
+    try {
+      const res = await api.post(`/vouchers/${voucherId}/post`, {
+        company_id: companyId
+      });
+      if (res.data?.success) {
+        // Update voucher status in local state
+        setVouchers(prev => prev.map(v => 
+          v.id === voucherId 
+            ? { ...v, isPosted: true, postedAt: new Date().toISOString() }
+            : v
+        ));
+        return { success: true, voucher: res.data.voucher };
+      }
+      return { success: false, error: res.data?.error || res.data?.message || 'Ghi sổ chứng từ thất bại.' };
+    } catch (err) {
+      // Check if signing is required
+      if (err.response?.data?.code === 'SIGNING_REQUIRED') {
+        return { 
+          success: false, 
+          error: err.response?.data?.error,
+          requiresSigning: true,
+          voucherType: err.response?.data?.voucherType
+        };
+      }
+      return { 
+        success: false, 
+        error: err.response?.data?.error || err.response?.data?.message || err.message || 'Lỗi không thể ghi sổ chứng từ' 
+      };
+    }
+  };
+
   return (
-    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers, fetchCashFlow }}>
+    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, postVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers, fetchCashFlow }}>
       {children}
     </VoucherContext.Provider>
   );

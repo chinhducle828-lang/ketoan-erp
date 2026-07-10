@@ -18,6 +18,7 @@ import { createWorkflowHandlers, WORKFLOW_EVENTS } from '../../workflow/accounti
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
+import OtpSignModal from '../../components/OtpSignModal.jsx';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -44,6 +45,8 @@ export default function VoucherManagement() {
     details: [{ accountCode: '', entryType: 'DR', amount: '', partnerId: '', itemId: '', quantity: '' }]
   });
   const [showForm, setShowForm] = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [pendingVoucher, setPendingVoucher] = useState(null);
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [partners, setPartners] = useState([]);
@@ -196,6 +199,49 @@ export default function VoucherManagement() {
   const lockedCount = filteredVouchers.filter(v => v.locked || v.isLocked || v.lock_date || v.lockDate).length;
   const draftCount = totalVouchers - postedCount - lockedCount;
 
+  // Handle posting voucher from list (for XK/PT types)
+  const handlePostDocument = async (voucherId, voucherType) => {
+    if (!voucherId) return;
+    
+    const requiresSigning = ['XK', 'PT'].includes(voucherType);
+    
+    if (requiresSigning) {
+      // Show OTP modal for signing
+      setPendingVoucher({ id: voucherId, type: voucherType });
+      setShowSignModal(true);
+    } else {
+      // Direct post for other voucher types
+      try {
+        const companyId = activeCompany?.id ?? activeCompany;
+        const res = await api.post(`/vouchers/${voucherId}/post`, { company_id: companyId });
+        if (res.data?.success) {
+          notify.success('Ghi sổ chứng từ thành công!');
+          reloadVouchers();
+        }
+      } catch (err) {
+        notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
+      }
+    }
+  };
+
+  // Handle OTP success
+  const handleSignSuccess = async () => {
+    if (pendingVoucher) {
+      try {
+        const companyId = activeCompany?.id ?? activeCompany;
+        const res = await api.post(`/vouchers/${pendingVoucher.id}/post`, { company_id: companyId });
+        if (res.data?.success) {
+          notify.success('Ghi sổ chứng từ thành công!');
+          reloadVouchers();
+        }
+      } catch (err) {
+        notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
+      }
+    }
+    setPendingVoucher(null);
+    setShowSignModal(false);
+  };
+
   // Keyboard shortcuts for ERP power users
   const handleSearchFocus = () => {
     searchInputRef.current?.focus();
@@ -206,7 +252,7 @@ export default function VoucherManagement() {
     resetForm();
   };
 
-  const handlePostDocument = () => {
+  const handlePostFromForm = () => {
     if (showForm) {
       const formElement = document.querySelector('form');
       if (formElement) {
@@ -554,15 +600,26 @@ export default function VoucherManagement() {
                       <td className="p-1.5 px-3 text-right tabular-nums font-mono font-bold text-slate-700 whitespace-nowrap">
                         {formatAmount(totalAmount)}
                       </td>
-                      <td className="p-1.5 px-3 text-center">
-                        <button
-                          onClick={() => handleDelete(v.id)}
-                          className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition"
-                          title="Xóa chứng từ"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
+<td className="p-1.5 px-3 text-center">
+                         <div className="flex items-center justify-center gap-1">
+                           {!v.isPosted && ['XK', 'PT'].includes(v.type) && (
+                             <button
+                               onClick={() => handlePostDocument(v.id, v.type)}
+                               className="text-emerald-600 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-emerald-50 transition"
+                               title="Ghi sổ chứng từ"
+                             >
+                               <Plus size={15} />
+                             </button>
+                           )}
+                           <button
+                             onClick={() => handleDelete(v.id)}
+                             className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                             title="Xóa chứng từ"
+                           >
+                             <Trash2 size={15} />
+                           </button>
+                         </div>
+                       </td>
                     </tr>
                   );
                 })
@@ -577,6 +634,18 @@ export default function VoucherManagement() {
         title="Tạo chứng từ tổng hợp nhanh"
         description="Hạch toán bút toán kế toán tổng hợp (Nợ = Có)"
         defaultVoucherType="PKT"
+      />
+
+      {/* OTP Sign Modal for XK/PT vouchers */}
+      <OtpSignModal
+        isOpen={showSignModal}
+        onClose={() => {
+          setShowSignModal(false);
+          setPendingVoucher(null);
+        }}
+        voucherId={pendingVoucher?.id}
+        voucherType={pendingVoucher?.type}
+        onSuccess={handleSignSuccess}
       />
     </div>
   );

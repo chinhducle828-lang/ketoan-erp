@@ -390,7 +390,7 @@ router.post('/inventory', authenticate, upload.single('file'), async (req, res) 
     let successCount = 0;
     const errors = [];
 
-    ws.eachRow((row, rowNumber) => {
+    ws.eachRow(async (row, rowNumber) => {
       if (rowNumber === 1) return; // Skip header
 
       try {
@@ -403,7 +403,7 @@ router.post('/inventory', authenticate, upload.single('file'), async (req, res) 
           return;
         }
 
-        client.query(
+        await client.query(
           'INSERT INTO items (company_id, code, name, unit) VALUES ($1, $2, $3, $4) ON CONFLICT (company_id, code) DO UPDATE SET name = $3, unit = $4',
           [companyId, code, name, unit || 'Cái']
         );
@@ -467,7 +467,7 @@ router.post('/opening-balances', authenticate, upload.single('file'), async (req
     // Clear existing opening balances for this year
     await client.query('DELETE FROM opening_balances WHERE company_id = $1 AND fiscal_year = $2', [companyId, fiscalYear]);
 
-    ws.eachRow((row, rowNumber) => {
+    ws.eachRow(async (row, rowNumber) => {
       if (rowNumber === 1) return; // Skip header
 
       try {
@@ -484,7 +484,7 @@ router.post('/opening-balances', authenticate, upload.single('file'), async (req
           return; // Skip empty rows
         }
 
-        client.query(
+        await client.query(
           'INSERT INTO opening_balances (company_id, fiscal_year, account_code, debit_balance, credit_balance) VALUES ($1, $2, $3, $4, $5)',
           [companyId, fiscalYear, accountCode, debitBalance, creditBalance]
         );
