@@ -59,7 +59,7 @@ export default function AutoSalesExcel() {
         const payload = {
           companyId: parseInt(companyId, 10),
           voucherDate: new Date().toISOString().split('T')[0],
-          type: 'PK', // Dùng phiếu khác cho doanh thu
+          type: 'PKT', // Phiếu kế toán tổng hợp cho doanh thu
           description: `Doanh thu bán hàng Excel: ${inv.id} - ${inv.customer}`,
           currency: getDefaultCurrency(),
           exchangeRate: 1,
