@@ -6,9 +6,6 @@
  */
 
 import { askFinancialCopilot, solveMathProblem, analyzeWorkflow } from './aiCopilot.service.js';
-import { analyzeData as analyzeInventory } from './aiInventory.service.js';
-import { analyzeData as analyzeCashflow } from './aiCashflow.service.js';
-import { analyzeData as analyzeJournal } from './aiJournal.service.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -259,15 +256,15 @@ async function executeCopilotStep(step, companyId, context) {
  */
 async function executeJournalStep(step, companyId, context) {
   // Import journal service
-  const { analyzeJournalEntries } = await import('./aiJournal.service.js');
+  const { analyzeLedger } = await import('./aiJournal.service.js');
   
-  const result = await analyzeJournalEntries(companyId, context.period);
+  const result = await analyzeLedger(companyId, { period: context.period });
   
   return {
     module: 'journal',
-    analysis: result.analysis,
+    analysis: result.account_stats,
     anomalies: result.anomalies,
-    confidence: result.confidence
+    confidence: 85
   };
 }
 
@@ -275,14 +272,14 @@ async function executeJournalStep(step, companyId, context) {
  * Execute step using AI Inventory
  */
 async function executeInventoryStep(step, companyId, context) {
-  const { analyzeInventoryLevels } = await import('./aiInventory.service.js');
+  const { predictInventoryNeeds } = await import('./aiInventory.service.js');
   
-  const result = await analyzeInventoryLevels(companyId);
+  const result = await predictInventoryNeeds(companyId);
   
   return {
     module: 'inventory',
-    analysis: result.analysis,
-    recommendations: result.recommendations,
+    analysis: { predictions: result.predictions, alerts: result.alerts },
+    recommendations: result.alerts,
     confidence: result.confidence
   };
 }
@@ -291,14 +288,15 @@ async function executeInventoryStep(step, companyId, context) {
  * Execute step using AI Cashflow
  */
 async function executeCashflowStep(step, companyId, context) {
-  const { analyzeCashflow } = await import('./aiCashflow.service.js');
+  const { predictCashflow } = await import('./aiCashflow.service.js');
   
-  const result = await analyzeCashflow(companyId, 30); // Last 30 days
+  const result = await predictCashflow(companyId, 30); // Last 30 days
   
   return {
     module: 'cashflow',
-    analysis: result.analysis,
-    forecast: result.forecast,
+    analysis: { current_cash: result.current_cash, predictions: result.predictions },
+    forecast: result.predictions,
+    alerts: result.alerts,
     confidence: result.confidence
   };
 }
@@ -388,14 +386,14 @@ export async function getProactiveInsights(companyId) {
       insights.categories.financial = { status: 'failed', error: error.message };
     }
 
-    // 2. Inventory Alerts
+// 2. Inventory Alerts
     try {
-      const { analyzeInventoryLevels } = await import('./aiInventory.service.js');
-      const inventoryResult = await analyzeInventoryLevels(companyId);
+      const { predictInventoryNeeds } = await import('./aiInventory.service.js');
+      const inventoryResult = await predictInventoryNeeds(companyId);
       insights.categories.inventory = {
         status: 'completed',
-        insight: inventoryResult.analysis,
-        recommendations: inventoryResult.recommendations,
+        insight: { predictions: inventoryResult.predictions, alerts: inventoryResult.alerts },
+        recommendations: inventoryResult.alerts,
         confidence: inventoryResult.confidence
       };
     } catch (error) {
@@ -405,12 +403,13 @@ export async function getProactiveInsights(companyId) {
 
     // 3. Cashflow Alerts
     try {
-      const { analyzeCashflow } = await import('./aiCashflow.service.js');
-      const cashflowResult = await analyzeCashflow(companyId, 30);
+      const { predictCashflow } = await import('./aiCashflow.service.js');
+      const cashflowResult = await predictCashflow(companyId, 30);
       insights.categories.cashflow = {
         status: 'completed',
-        insight: cashflowResult.analysis,
-        forecast: cashflowResult.forecast,
+        insight: { current_cash: cashflowResult.current_cash, predictions: cashflowResult.predictions },
+        forecast: cashflowResult.predictions,
+        alerts: cashflowResult.alerts,
         confidence: cashflowResult.confidence
       };
     } catch (error) {
@@ -420,12 +419,12 @@ export async function getProactiveInsights(companyId) {
 
     // 4. Journal Anomalies
     try {
-      const { detectAnomalies } = await import('./aiJournal.service.js');
-      const anomaliesResult = await detectAnomalies(companyId);
+      const { analyzeLedger } = await import('./aiJournal.service.js');
+      const anomaliesResult = await analyzeLedger(companyId);
       insights.categories.anomalies = {
         status: 'completed',
         anomalies: anomaliesResult.anomalies,
-        confidence: anomaliesResult.confidence
+        confidence: 85
       };
     } catch (error) {
       logger.warn('Anomaly detection failed', error);
@@ -486,13 +485,13 @@ export async function analyzeCrossModule(companyId, question) {
       logger.warn('Financial data fetch failed', error);
     }
 
-    // 2. Inventory data
+// 2. Inventory data
     try {
-      const { analyzeInventoryLevels } = await import('./aiInventory.service.js');
-      const inventoryResult = await analyzeInventoryLevels(companyId);
+      const { predictInventoryNeeds } = await import('./aiInventory.service.js');
+      const inventoryResult = await predictInventoryNeeds(companyId);
       dataSources.push({
         name: 'Kho',
-        data: inventoryResult.analysis || {}
+        data: { predictions: inventoryResult.predictions, alerts: inventoryResult.alerts } || {}
       });
     } catch (error) {
       logger.warn('Inventory data fetch failed', error);
@@ -500,11 +499,11 @@ export async function analyzeCrossModule(companyId, question) {
 
     // 3. Cashflow data
     try {
-      const { analyzeCashflow } = await import('./aiCashflow.service.js');
-      const cashflowResult = await analyzeCashflow(companyId, 30);
+      const { predictCashflow } = await import('./aiCashflow.service.js');
+      const cashflowResult = await predictCashflow(companyId, 30);
       dataSources.push({
         name: 'Dòng tiền',
-        data: cashflowResult.analysis || {}
+        data: { current_cash: cashflowResult.current_cash, predictions: cashflowResult.predictions } || {}
       });
     } catch (error) {
       logger.warn('Cashflow data fetch failed', error);
