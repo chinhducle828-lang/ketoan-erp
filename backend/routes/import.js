@@ -153,7 +153,7 @@ router.post('/vouchers', authenticate, upload.single('file'), async (req, res) =
     await client.query('BEGIN');
 
     // Process each row
-    ws.eachRow((row, rowNumber) => {
+    ws.eachRow(async (row, rowNumber) => {
       if (rowNumber === 1) return; // Skip header
 
       const parsedRow = parseVoucherRow(row, rowNumber, validation.headers);
