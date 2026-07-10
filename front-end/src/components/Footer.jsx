@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
+import api from '../utils/api.js';
 
 export default function Footer({ companyId }) {
   const [showModal, setShowModal] = useState(false);

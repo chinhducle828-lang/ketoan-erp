@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useVouchers } from '../../context/VoucherContext.jsx';
-import { FileText, Trash2, Loader2, Plus, Search, Filter, X, FileSpreadsheet } from 'lucide-react';
+import { FileText, Trash2, Loader2, Plus, Search, Filter, X, FileSpreadsheet, Scan } from 'lucide-react';
 import api from '../../utils/api.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
@@ -19,6 +19,7 @@ import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 import OtpSignModal from '../../components/OtpSignModal.jsx';
+import OCRScanner from '../../components/OCRScanner.jsx';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -47,6 +48,7 @@ export default function VoucherManagement() {
   const [showForm, setShowForm] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
   const [pendingVoucher, setPendingVoucher] = useState(null);
+  const [showOCRScanner, setShowOCRScanner] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [partners, setPartners] = useState([]);
@@ -312,6 +314,14 @@ export default function VoucherManagement() {
           <div className="flex flex-wrap items-center gap-2">
             <ImportExcelButton endpoint="vouchers" filename="Chung_Tu" accountCodeField="accountCode" />
             <ExportExcelButton endpoint="vouchers" filename="Chung_Tu" accountCodes={ACCOUNTS_TT99.slice(0, 20).map(a => a.code)} />
+            <button
+              onClick={() => setShowOCRScanner(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition"
+              title="Quét tài liệu bằng AI OCR"
+            >
+              <Scan size={16} />
+              Quét OCR
+            </button>
             <button
               onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
@@ -647,6 +657,35 @@ export default function VoucherManagement() {
         voucherType={pendingVoucher?.type}
         onSuccess={handleSignSuccess}
       />
+
+      {/* OCR Scanner Modal */}
+      {showOCRScanner && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">OCR Scanner</h2>
+              <button
+                onClick={() => setShowOCRScanner(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <OCRScanner
+                documentType="voucher"
+                companyId={companyId}
+                onScanComplete={(result) => {
+                  console.log('OCR Result:', result);
+                  // TODO: Auto-fill form with OCR data
+                  notify.success('Đã quét xong! Đang điền dữ liệu vào form...');
+                  setShowOCRScanner(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -39,6 +39,19 @@ export const AI_CONFIG = {
 
   // Python AI service
   PYTHON_SERVICE_URL: process.env.PYTHON_AI_SERVICE_URL || 'http://localhost:8000',
+
+  // Gemini AI Configuration
+  GEMINI: {
+    API_KEY: process.env.GEMINI_API_KEY,
+    MODEL: 'gemini-2.0-flash-exp',
+    MAX_TOKENS: 8192,
+    TEMPERATURE: 0.7,
+    RATE_LIMIT_RPM: 15, // Free tier: 15 requests per minute
+    RATE_LIMIT_TPM: 1000000, // Free tier: 1M tokens per minute
+    TIMEOUT: 30000, // 30 seconds
+    RETRY_ATTEMPTS: 3,
+    RETRY_DELAY: 1000, // 1 second
+  },
 };
 
 export default AI_CONFIG;

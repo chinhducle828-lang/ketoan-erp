@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, CheckCheck, Loader2, AlertTriangle } from 'lucide-react';
-import { usePushNotification } from '../hooks/usePushNotification';
+import { usePushNotification } from '../hooks/usePushNotification.js';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';

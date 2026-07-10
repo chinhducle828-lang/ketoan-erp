@@ -9,7 +9,7 @@
  * Sử dụng Redis thay vì Map để đồng bộ giữa các server
  */
 
-import { redis } from '../cache/redis.js';
+import { redis, isRedisReadyCheck } from '../cache/redis.js';
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 phút
 const MAX_REQUESTS = 100; // Tối đa 100 request trong 15 phút
@@ -28,7 +28,7 @@ export async function rateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
   
   // Fallback nếu Redis không sẵn sàng
-  if (redis.status !== 'ready') {
+  if (!isRedisReadyCheck()) {
     return next();
   }
 
@@ -78,7 +78,7 @@ export async function apiRateLimiter(req, res, next) {
   const path = String(req.path || req.originalUrl || '/');
   
   // Fallback nếu Redis không sẵn sàng
-  if (redis.status !== 'ready') {
+  if (!isRedisReadyCheck()) {
     return next();
   }
 

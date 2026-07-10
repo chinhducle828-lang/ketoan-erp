@@ -28,6 +28,7 @@
     "perf:check": "node scripts/perf-regression.mjs"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^4.18.3",

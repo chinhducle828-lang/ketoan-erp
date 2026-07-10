@@ -89,7 +89,7 @@ export default function NotificationSettings() {
         type: 'order',
         title: 'Thông báo thử nghiệm',
         message: 'Đây là thông báo test trạng thái đơn hàng từ hệ thống.',
-        recipient_role: 'admin'
+        recipientRole: 'admin'
       });
       notify.success('Đã gửi thông báo test. Kiểm tra OS Notification góc màn hình!');
     } catch (err) {
