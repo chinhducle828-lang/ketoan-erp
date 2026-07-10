@@ -14,6 +14,7 @@ import { checkCompanyActive } from '../middleware/waf.js';
 import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
 import { assertCompanyOperational, validateVoucherDetailReferences } from '../services/cascadeValidation.service.js';
 import { logAction, getClientIp, logVoucherDetails } from '../services/auditLog.service.js';
+import { requireSignedVoucher } from '../middleware/signingCheck.js';
 
 const router = express.Router();
 
@@ -198,7 +199,7 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
 });
 
 // 3. POST: GHI SỔ CHỨNG TỪ
-router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), requireSignedVoucher, async (req, res) => {
   try {
     const voucherId = parseInt(req.params.id, 10);
     const postingValues = buildPostingUpdateValues(true, req.user?.id || null, new Date());

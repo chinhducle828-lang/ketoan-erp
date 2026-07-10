@@ -6,8 +6,37 @@
  * E-Invoice Service
  * Sinh hóa đơn điện tử theo chuẩn dữ liệu NĐ 254/2026/NĐ-CP
  * Lưu vào bảng e_invoices, có thể tra cứu qua GET /api/e-invoices/:id
+ * Tuân thủ Luật 108/2025/QH15 (OTP signing required for e-invoice issuance)
  */
 import { pool } from '../config/db.js';
+import { hashOtp } from './otpRouting.service.js';
+import { logAction } from './auditLog.service.js';
+
+/**
+ * Check if e-invoice requires signing before issuance
+ * @param {number} voucherId - Voucher ID linked to e-invoice
+ * @param {number} companyId - Company ID
+ * @returns {boolean} Whether signing is required
+ */
+export async function isEInvoiceSigningRequired({ voucherId, companyId }) {
+  // Check if linked voucher is XK or PT type and not yet signed
+  const voucherRes = await pool.query(
+    `SELECT v.voucher_type, v.sign_status 
+     FROM vouchers v 
+     WHERE v.id = $1 AND v.company_id = $2`,
+    [voucherId, companyId]
+  );
+
+  if (voucherRes.rows.length === 0) {
+    return false;
+  }
+
+  const voucher = voucherRes.rows[0];
+  const requiresSigning = ['XK', 'PT'].includes(voucher.voucher_type);
+  const alreadySigned = voucher.sign_status === 'signed';
+
+  return requiresSigning && !alreadySigned;
+}
 
 /**
  * Sinh số hóa đơn theo quy tắc: Mẫu số + Ký hiệu + Số tăng dần theo năm/tháng
@@ -53,13 +82,25 @@ export async function generateEInvoice({ companyId, buyerName, buyerTaxCode, buy
 }
 
 /**
- * Lưu hóa đơn điện tử vào DB
+ * Lưu hóa đơn điện tử vào DB (với kiểm tra ký số)
  */
-export async function saveEInvoice(invoice) {
+export async function saveEInvoice(invoice, { userId, otpHash } = {}) {
+  // If voucher is linked, check signing status
+  if (invoice.voucher_id) {
+    const signingRequired = await isEInvoiceSigningRequired({
+      voucherId: invoice.voucher_id,
+      companyId: invoice.company_id
+    });
+    
+    if (signingRequired) {
+      throw new Error('Hóa đơn điện tử cần được ký số trước khi phát hành. Vui lòng sử dụng API /api/signing/request-otp.');
+    }
+  }
+
   const result = await pool.query(
     `INSERT INTO e_invoices
-      (company_id, invoice_no, template, symbol, buyer_name, buyer_tax_code, buyer_address, amount, tax_amount, total, voucher_id, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      (company_id, invoice_no, template, symbol, buyer_name, buyer_tax_code, buyer_address, amount, tax_amount, total, voucher_id, status, sign_status, signed_by, sign_otp_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       invoice.company_id,
@@ -73,9 +114,28 @@ export async function saveEInvoice(invoice) {
       invoice.tax_amount,
       invoice.total,
       invoice.voucher_id,
-      invoice.status
+      invoice.status,
+      'signed', // sign_status
+      userId || null, // signed_by
+      otpHash || null // sign_otp_hash
     ]
   );
+
+  // Log e-invoice issuance
+  if (userId) {
+    await logAction({
+      userId,
+      action: 'ISSUE_E_INVOICE',
+      entityType: 'E_INVOICES',
+      newValues: {
+        invoice_id: result.rows[0].id,
+        invoice_no: invoice.invoice_no,
+        voucher_id: invoice.voucher_id
+      },
+      companyId: invoice.company_id
+    });
+  }
+
   return result.rows[0];
 }
 

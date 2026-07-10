@@ -1,6 +1,7 @@
 /**
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  * Reusable voucher form template for all modules
+ * Tích hợp OTP Signing cho XK/PT
  */
 
 import React, { useState } from 'react';
@@ -12,6 +13,8 @@ import { notify } from '../utils/notify.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { WORKFLOW_EVENTS } from '../workflow/accountingWorkflow.js';
 import { ACCOUNTS_TT99 } from '../constants/accountsTT99.js';
+import { requestOtpForSigning, verifyOtpAndSign } from '../utils/api.js';
+import OtpSignModal from './OtpSignModal.jsx';
 
 export default function VoucherFormTemplate({ 
   moduleType,
@@ -21,9 +24,11 @@ export default function VoucherFormTemplate({
   accountGroupFilter
 }) {
   const { activeCompany } = useAuth();
-  const { createNewVoucher } = useVouchers();
+  const { createNewVoucher, postVoucher } = useVouchers();
   const { socket } = useSocket();
   const [loading, setLoading] = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [pendingVoucher, setPendingVoucher] = useState(null);
   const [form, setForm] = useState({
     voucherType: defaultVoucherType || 'PT',
     date: new Date().toISOString().split('T')[0],
@@ -108,9 +113,60 @@ export default function VoucherFormTemplate({
     setForm({ ...form, details: newDetails });
   };
 
+  // Handle posting voucher (for XK/PT types that require signing)
+  const handlePostVoucher = async (voucherId, voucherType) => {
+    const requiresSigning = ['XK', 'PT'].includes(voucherType);
+    
+    if (requiresSigning) {
+      // Show OTP modal for signing
+      setPendingVoucher({ id: voucherId, type: voucherType });
+      setShowSignModal(true);
+    } else {
+      // Direct post for other voucher types
+      try {
+        const companyId = activeCompany?.id || activeCompany || 1;
+        const result = await postVoucher(voucherId, companyId);
+        if (result.success) {
+          notify.success('Ghi sổ chứng từ thành công!');
+        }
+      } catch (err) {
+        notify.error(err.message || 'Lỗi ghi sổ chứng từ!');
+      }
+    }
+  };
+
+  // Handle OTP success
+  const handleSignSuccess = async (signedVoucher) => {
+    if (pendingVoucher && postVoucher) {
+      try {
+        const companyId = activeCompany?.id || activeCompany || 1;
+        const result = await postVoucher(pendingVoucher.id, companyId);
+        if (result.success) {
+          notify.success('Ghi sổ chứng từ thành công!');
+        }
+      } catch (err) {
+        notify.error(err.message || 'Lỗi ghi sổ chứng từ!');
+      }
+    }
+    setPendingVoucher(null);
+  };
+
   return (
     <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
       <h2 className="text-lg font-bold text-slate-800">{title || 'Tạo Chứng Từ'}</h2>
+      
+      {/* OTP Sign Modal for XK/PT vouchers */}
+      <OtpSignModal
+        isOpen={showSignModal}
+        onClose={() => {
+          setShowSignModal(false);
+          setPendingVoucher(null);
+        }}
+        voucherId={pendingVoucher?.id}
+        voucherType={pendingVoucher?.type}
+        onSuccess={handleSignSuccess}
+      />
+      
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>

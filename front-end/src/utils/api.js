@@ -153,6 +153,54 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-export default api;
+// ====================================================================
+// OTP SIGNING API FUNCTIONS
+// ====================================================================
 
-//
+/**
+ * Request OTP for document signing
+ */
+export const requestOtpForSigning = async ({ voucherId, companyId, documentType = 'voucher' }) => {
+  const response = await api.post('/signing/request-otp', {
+    voucherId,
+    companyId,
+    documentType
+  });
+  return response.data;
+};
+
+/**
+ * Verify OTP and sign document
+ */
+export const verifyOtpAndSign = async ({ voucherId, companyId, otp, documentType = 'voucher' }) => {
+  const response = await api.post('/signing/verify', {
+    voucherId,
+    companyId,
+    otp,
+    documentType
+  });
+  return response.data;
+};
+
+/**
+ * Get signing status of a document
+ */
+export const getSigningStatus = async (voucherId, companyId) => {
+  const response = await api.get(`/signing/status/${voucherId}`, {
+    params: { companyId }
+  });
+  return response.data;
+};
+
+/**
+ * Cancel signing request
+ */
+export const cancelSigningRequest = async ({ voucherId, companyId }) => {
+  const response = await api.post('/signing/cancel', {
+    voucherId,
+    companyId
+  });
+  return response.data;
+};
+
+export default api;
