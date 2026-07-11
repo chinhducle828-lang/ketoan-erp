@@ -76,16 +76,36 @@ export const getStockLevels = async (req, res) => {
         i.name as item_name,
         i.unit,
         COALESCE(i.opening_quantity, 0) as opening_quantity,
-        COALESCE(SUM(CASE WHEN iv.io_type = 'IMPORT' THEN ivd.quantity ELSE 0 END), 0) as inbound,
-        COALESCE(SUM(CASE WHEN iv.io_type = 'EXPORT' THEN ivd.quantity ELSE 0 END), 0) as outbound,
+        COALESCE(SUM(CASE 
+          WHEN iv.io_type = 'NK' THEN ivd.quantity 
+          WHEN vd.entry_type = 'debit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('151','152','153','155','156','157') THEN vd.quantity
+          ELSE 0 
+        END), 0) as inbound,
+        COALESCE(SUM(CASE 
+          WHEN iv.io_type = 'XK' THEN ivd.quantity
+          WHEN vd.entry_type = 'credit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('151','152','153','155','156','157') THEN vd.quantity
+          WHEN vd.entry_type = 'debit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('611','632') THEN vd.quantity
+          ELSE 0 
+        END), 0) as outbound,
         COALESCE(i.opening_quantity, 0) + 
-        COALESCE(SUM(CASE WHEN iv.io_type = 'IMPORT' THEN ivd.quantity ELSE 0 END), 0) -
-        COALESCE(SUM(CASE WHEN iv.io_type = 'EXPORT' THEN ivd.quantity ELSE 0 END), 0) as current_stock,
+        COALESCE(SUM(CASE 
+          WHEN iv.io_type = 'NK' THEN ivd.quantity 
+          WHEN vd.entry_type = 'debit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('151','152','153','155','156','157') THEN vd.quantity
+          ELSE 0 
+        END), 0) -
+        COALESCE(SUM(CASE 
+          WHEN iv.io_type = 'XK' THEN ivd.quantity
+          WHEN vd.entry_type = 'credit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('151','152','153','155','156','157') THEN vd.quantity
+          WHEN vd.entry_type = 'debit' AND vd.item_id IS NOT NULL AND vd.account_code IN ('611','632') THEN vd.quantity
+          ELSE 0 
+        END), 0) as current_stock,
         COALESCE(i.price_sell, 0) as unit_price
       FROM items i
       LEFT JOIN inventory_voucher_details ivd ON i.id = ivd.item_id
       LEFT JOIN inventory_vouchers iv ON ivd.inventory_voucher_id = iv.id 
         AND iv.company_id = i.company_id
+      LEFT JOIN vouchers v ON v.company_id = i.company_id
+      LEFT JOIN voucher_details vd ON vd.voucher_id = v.id AND vd.item_id = i.id
       WHERE i.company_id = $1
       GROUP BY i.id, i.code, i.name, i.unit, i.opening_quantity, i.price_sell
       ORDER BY i.code
