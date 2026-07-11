@@ -38,7 +38,7 @@ export const AI_CONFIG = {
   },
 
   // Python AI service
-  PYTHON_SERVICE_URL: process.env.PYTHON_AI_SERVICE_URL || 'http://localhost:8000',
+  PYTHON_SERVICE_URL: process.env.PYTHON_AI_SERVICE_URL || '',
 
   // Gemini AI Configuration
   GEMINI: {

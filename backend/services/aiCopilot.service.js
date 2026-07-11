@@ -58,7 +58,12 @@ export async function textToSQL(question, companyId) {
       return result;
     }
 
-    // Fallback to Python service
+    // Fallback to Python service (only if configured)
+    if (!PYTHON_AI_SERVICE_URL) {
+      logger.warn('Neither Gemini nor Python AI service available');
+      throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI service chưa được cấu hình', 503);
+    }
+
     logger.warn('Gemini not available, falling back to Python service');
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/text-to-sql`, {
       method: 'POST',
@@ -71,6 +76,8 @@ export async function textToSQL(question, companyId) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      logger.error({ status: response.status, error: errorText }, 'Python AI service error');
       throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI Copilot service không phản hồi', 503);
     }
 
@@ -84,7 +91,11 @@ export async function textToSQL(question, companyId) {
 
     return result;
   } catch (error) {
-    if (error instanceof AppError) throw error;
+    if (error instanceof AppError) {
+      logger.error({ error: error.message, question, companyId }, 'textToSQL error');
+      throw error;
+    }
+    logger.error({ error: error.message, question, companyId }, 'textToSQL unexpected error');
     throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'Lỗi kết nối AI Copilot service', 503);
   }
 }
