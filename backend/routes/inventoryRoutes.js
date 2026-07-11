@@ -5,6 +5,7 @@
 import express from 'express';
 // Nạp 2 hàm từ controller xử lý thuật toán dồn tích và giá vốn kho
 import { runInventoryCosting, getLedgerBalances, getAuditLogs } from '../controllers/erpController.js';
+import { getStockLevels } from '../controllers/inventoryController.js';
 import { authenticate, checkCompanyAccess, requireRootAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
