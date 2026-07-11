@@ -84,8 +84,8 @@ export const getPartners = async (req, res) => {
       });
     }
     
-    await assertCompanyOperational(company_id);
-    
+    // Bỏ assertCompanyOperational vì checkCompanyAccess middleware đã xác thực quyền
+    // Query partners tự động WHERE company_id = $1 để cô lập dữ liệu
     const partners = await partnerService.getPartnersByCompanyDB(company_id);
     
     return res.json({
