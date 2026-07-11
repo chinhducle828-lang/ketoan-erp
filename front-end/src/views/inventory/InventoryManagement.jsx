@@ -29,7 +29,7 @@ export default function InventoryManagement() {
     try {
       const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.get(`/inventory/stock-levels?company_id=${companyId}`);
-      setStockLevels(Array.isArray(res.data) ? res.data : []);
+      setStockLevels(Array.isArray(res.data?.data) ? res.data.data : []);
     } catch (err) {
       console.error('Lỗi tải tồn kho:', err);
       setError('Không thể tải dữ liệu tồn kho. Vui lòng thử lại.');
