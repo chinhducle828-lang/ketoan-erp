@@ -90,39 +90,6 @@ const ImageWithFallback = ({
   );
 };
 
-const buildErpLoginUrl = (baseUrl, companyId, role) => {
-  const url = new URL(baseUrl);
-  if (!url.pathname || url.pathname === '/') {
-    url.pathname = '/login';
-  }
-  if (companyId) url.searchParams.set('company_id', companyId);
-  if (role) url.searchParams.set('role', role);
-  return url.toString();
-};
-
-const buildBearerConfig = (token) => {
-  if (!token) return {};
-  return { headers: { Authorization: `Bearer ${token}` } };
-};
-
-const isSessionAllowedForRole = (targetRole, sessionRole) => {
-  if (!targetRole || targetRole === 'guest') return true;
-  if (!sessionRole) return false;
-  if (targetRole === 'admin') return sessionRole === 'admin';
-  if (targetRole === 'nv_kho') return sessionRole === 'nv_kho' || sessionRole === 'admin';
-  if (targetRole === 'nv_banhang') return sessionRole === 'nv_banhang' || sessionRole === 'admin';
-  return false;
-};
-
-const getRoleDisplayName = (role) => {
-  if (role === 'admin') return 'admin';
-  if (role === 'nv_kho') return 'nhân viên kho';
-  if (role === 'nv_banhang') return 'nhân viên bán hàng';
-  return 'người dùng';
-};
-
-const STOREFRONT_ROLE_KEY = 'storefrontRole';
-
 const getStoredRole = () => {
   if (typeof window === 'undefined') return 'guest';
 
