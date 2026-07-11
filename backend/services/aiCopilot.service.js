@@ -189,7 +189,21 @@ export async function executeSafeQuery(sql, companyId) {
 export async function askFinancialCopilot(question, companyId) {
   try {
     // Bước 1: Tạo SQL từ câu hỏi
-    const sqlResult = await textToSQL(question, companyId);
+    let sqlResult;
+    try {
+      sqlResult = await textToSQL(question, companyId);
+    } catch (sqlError) {
+      // If AI service unavailable, return friendly message instead of 503
+      logger.warn({ error: sqlError.message, question, companyId }, 'textToSQL failed, returning fallback');
+      return {
+        question,
+        answer: `Xin lỗi, AI Copilot chưa được cấu hình. Vui lòng liên hệ quản trị viên để kích hoạt tính năng AI.\n\nCâu hỏi của bạn: "${question}"`,
+        data: [],
+        sql: '',
+        confidence: 0,
+        requiresConfig: true
+      };
+    }
     
     // Bước 2: Thực thi SQL
     const data = await executeSafeQuery(sqlResult.sql, companyId);
@@ -213,14 +227,21 @@ export async function askFinancialCopilot(question, companyId) {
     logger.warn('Gemini not available, returning raw data');
     return {
       question,
-      answer: `Tìm được ${data.length} bản ghi`,
+      answer: `Tìm được ${data.length} bản ghi phù hợp với câu hỏi của bạn.`,
       data,
       sql: sqlResult.sql,
       confidence: 70
     };
   } catch (error) {
     logger.error({ error: error.message, question, companyId }, 'askFinancialCopilot error');
-    throw error;
+    // Trả về response thân thiện thay vì 503
+    return {
+      question,
+      answer: `Xin lỗi, đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng thử lại sau.`,
+      data: [],
+      sql: '',
+      confidence: 0
+    };
   }
 }
 
@@ -232,12 +253,17 @@ export async function askFinancialCopilot(question, companyId) {
  * @returns {Promise<void>}
  */
 export async function saveQueryToKnowledgeBase(question, companyId, answer) {
-  await pool.query(
-    `INSERT INTO ai_copilot_kb (
-      company_id, question, answer, created_at
-    ) VALUES ($1, $2, $3, NOW())`,
-    [companyId, question, answer]
-  );
+  try {
+    await pool.query(
+      `INSERT INTO ai_copilot_kb (
+        company_id, question, answer, created_at
+      ) VALUES ($1, $2, $3, NOW())`,
+      [companyId, question, answer]
+    );
+  } catch (error) {
+    // Table may not exist yet - just log and ignore
+    logger.warn({ error: error.message, companyId }, 'saveQueryToKnowledgeBase failed, table may not exist');
+  }
 }
 
 /**
@@ -246,16 +272,21 @@ export async function saveQueryToKnowledgeBase(question, companyId, answer) {
  * @returns {Promise<Array>}
  */
 export async function getSuggestedQueries(companyId) {
-  const { rows } = await pool.query(
-    `SELECT question, answer 
-     FROM ai_copilot_kb 
-     WHERE company_id = $1 
-     ORDER BY created_at DESC 
-     LIMIT 10`,
-    [companyId]
-  );
-
-  return rows;
+  try {
+    const { rows } = await pool.query(
+      `SELECT question, answer 
+       FROM ai_copilot_kb 
+       WHERE company_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [companyId]
+    );
+    return rows;
+  } catch (error) {
+    // Table may not exist yet - return empty array instead of 500
+    logger.warn({ error: error.message, companyId }, 'getSuggestedQueries failed, table may not exist');
+    return [];
+  }
 }
 
 /**
