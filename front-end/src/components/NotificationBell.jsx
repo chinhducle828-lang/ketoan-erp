@@ -111,7 +111,7 @@ export default function NotificationBell({ companyId, userId }) {
   const handleMarkAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     try {
-      await api.put('/notifications/mark-read', { company_id: companyId });
+      await api.put('/notifications/read-all', { company_id: companyId });
     } catch (err) {
       // Không làm hỏng UI nếu endpoint chưa tồn tại; chỉ log
       console.warn('Mark-all-read API not available:', err?.message);

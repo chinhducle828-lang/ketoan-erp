@@ -176,14 +176,14 @@ export default function ClosingProcess() {
 
         if (code.startsWith('1')) {
           assetShort.push(payload);
-          totalAssetShort += dr;
+          totalAssetShort += dr - cr;
         } else if (code.startsWith('2')) {
           assetLong.push(payload);
-          // Tài khoản hao mòn (214) hoặc dự phòng (229) ghi giảm tài sản
+          // Tài khoản hao mòn (214) hoặc dự phòng (229) có số dư bên Có
           if (code === '214' || code === '229') {
-            totalAssetLong -= cr;
+            totalAssetLong += cr - dr;  // Net credit balance for contra-asset accounts
           } else {
-            totalAssetLong += dr;
+            totalAssetLong += dr - cr;  // Net balance for other asset accounts
           }
         } else if (code.startsWith('3')) {
           liabilities.push(payload);
