@@ -27,7 +27,16 @@ router.post('/orders', authenticate, async (req, res) => {
       order_date,
       customer_id,
       items,
-      description
+      description,
+      discount_amount,
+      coupon_code,
+      tax_rate,
+      tax_amount,
+      shipping_fee,
+      payment_method,
+      payment_status,
+      sales_channel,
+      partner_id
     } = req.body;
 
     if (!company_id || !order_number || !order_date || !items || !Array.isArray(items) || items.length === 0) {
@@ -51,7 +60,16 @@ router.post('/orders', authenticate, async (req, res) => {
         order_date,
         customer_id,
         items,
-        description
+        description,
+        discount_amount,
+        coupon_code,
+        tax_rate,
+        tax_amount,
+        shipping_fee,
+        payment_method,
+        payment_status,
+        sales_channel,
+        partner_id
       },
       userId: req.user?.id || null
     });

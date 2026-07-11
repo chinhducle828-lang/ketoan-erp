@@ -311,7 +311,12 @@ router.post('/orders', rateLimiter, async (req, res) => {
       .filter(Boolean)
     );
 
-    const { companyId, itemId, quantity, items, customerName, phone, address, taxRate, entityType, annualRevenueBand, category, priceMode } = req.body;
+    const {
+      companyId, itemId, quantity, items, customerName, phone, address, taxRate,
+      entityType, annualRevenueBand, category, priceMode,
+      discount_amount, coupon_code, tax_rate, tax_amount, shipping_fee,
+      payment_method, payment_status, sales_channel, partner_id
+    } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
@@ -535,6 +540,44 @@ router.post('/orders', rateLimiter, async (req, res) => {
       voucherInsertValues.push(defaultLoadingStatus);
     }
 
+    // 2-Way Sales Template fields
+    if (hasVoucherColumn('discount_amount')) {
+      voucherInsertColumns.push('discount_amount');
+      voucherInsertValues.push(Number(discount_amount || 0));
+    }
+    if (hasVoucherColumn('coupon_code')) {
+      voucherInsertColumns.push('coupon_code');
+      voucherInsertValues.push(coupon_code || null);
+    }
+    if (hasVoucherColumn('tax_rate')) {
+      voucherInsertColumns.push('tax_rate');
+      voucherInsertValues.push(Number(tax_rate || 0));
+    }
+    if (hasVoucherColumn('tax_amount')) {
+      voucherInsertColumns.push('tax_amount');
+      voucherInsertValues.push(Number(tax_amount || 0));
+    }
+    if (hasVoucherColumn('shipping_fee')) {
+      voucherInsertColumns.push('shipping_fee');
+      voucherInsertValues.push(Number(shipping_fee || 0));
+    }
+    if (hasVoucherColumn('payment_method')) {
+      voucherInsertColumns.push('payment_method');
+      voucherInsertValues.push(payment_method || 'cod');
+    }
+    if (hasVoucherColumn('payment_status')) {
+      voucherInsertColumns.push('payment_status');
+      voucherInsertValues.push(payment_status || 'pending');
+    }
+    if (hasVoucherColumn('sales_channel')) {
+      voucherInsertColumns.push('sales_channel');
+      voucherInsertValues.push(sales_channel || 'storefront');
+    }
+    if (hasVoucherColumn('partner_id')) {
+      voucherInsertColumns.push('partner_id');
+      voucherInsertValues.push(partner_id || null);
+    }
+
     const voucherInsertPlaceholders = voucherInsertColumns
       .map((_, index) => `$${index + 1}`)
       .join(', ');
@@ -694,6 +737,50 @@ router.post('/orders', rateLimiter, async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     client.release();
+  }
+});
+
+/**
+ * POST /partners/find-or-create
+ * Tìm partner theo số điện thoại, nếu chưa có thì tạo mới
+ */
+router.post('/partners/find-or-create', async (req, res) => {
+  try {
+    const { company_id, partner_name, phone, address, type } = req.body;
+    
+    if (!company_id || !partner_name || !phone) {
+      return res.status(400).json({ error: 'Thiếu thông tin: company_id, partner_name, phone' });
+    }
+    
+    // 1. Tìm partner theo số điện thoại
+    const existingRes = await pool.query(
+      'SELECT id, partner_code, partner_name, phone FROM partners WHERE company_id = $1 AND phone = $2 AND is_active = TRUE LIMIT 1',
+      [company_id, phone]
+    );
+    
+    if (existingRes.rows.length > 0) {
+      return res.json({ partner: existingRes.rows[0], created: false });
+    }
+    
+    // 2. Tạo partner_code tự động
+    const codeRes = await pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM partners WHERE company_id = $1',
+      [company_id]
+    );
+    const nextNum = (codeRes.rows[0]?.cnt || 0) + 1;
+    const partnerCode = `KH${String(nextNum).padStart(4, '0')}`;
+    
+    // 3. Tạo mới partner
+    const insertRes = await pool.query(
+      `INSERT INTO partners (company_id, partner_code, partner_name, phone, address, type, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+       RETURNING id, partner_code, partner_name, phone, address, type`,
+      [company_id, partnerCode, partner_name, phone, address || '', type || 'customer']
+    );
+    
+    res.status(201).json({ partner: insertRes.rows[0], created: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

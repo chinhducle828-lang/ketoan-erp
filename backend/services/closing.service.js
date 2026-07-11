@@ -2,12 +2,29 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
+/**
+ * @module ClosingService
+ * @description Dịch vụ kết chuyển sổ cuối kỳ (Month-End Closing Service).
+ * Thực hiện các bút toán kết chuyển tự động: doanh thu, chi phí, thuế TNDN, lãi/lỗ.
+ * 
+ * @IMPORTANT Sau khi kết chuyển thành công, service sẽ tự động cập nhật monthly_balances
+ * để đảm bảo số dư cuối kỳ bao gồm cả số dư đầu kỳ (opening balances).
+ * 
+ * @FLOW:
+ * 1. Kiểm tra khóa sổ và distributed lock
+ * 2. Tạo bút toán kết chuyển doanh thu (511 → 911)
+ * 3. Tạo bút toán kết chuyển chi phí (632/641/642 → 911)
+ * 4. Tính và hạch toán thuế TNDN (lũy tiến theo doanh thu năm trước)
+ * 5. Kết chuyển lãi/lỗ cuối cùng (911 → 4212)
+ * 6. Cập nhật monthly_balances với số dư đầu kỳ
+ */
 import { pool } from '../config/db.js';
 import { invalidateCache } from '../cache/redis.js';
 import { getPeriodBalanceSummary } from './summary.service.js';
 import { getClosingRules } from '../config/businessRules.js';
 import { withLock, acquireLock, releaseLock } from './distributedLock.service.js';
 import { invalidateBalance } from './balanceCache.service.js';
+import { updateMonthlyBalanceForMonth } from './maintenance.service.js';
 import { getTaxRateByRevenue } from '../utils/accountingEngine.js';
 
 const getClosingDate = (year, month) => `${year}-${String(month).padStart(2, '0')}-31`;
@@ -303,6 +320,23 @@ export async function runClosingEntries(companyId, month, year, dbClient = null,
     
     if (!useExternalClient) {
       await client.query('COMMIT');
+    }
+    
+    // Cập nhật monthly_balances sau khi kết chuyển (tính cả số dư đầu kỳ)
+    if (!useExternalClient) {
+      try {
+        const closeClient = await pool.connect();
+        try {
+          await closeClient.query('BEGIN');
+          await updateMonthlyBalanceForMonth(companyId, month, year, closeClient);
+          await closeClient.query('COMMIT');
+        } finally {
+          closeClient.release();
+        }
+      } catch (mbError) {
+        console.error('Lỗi cập nhật monthly_balances sau kết chuyển:', mbError);
+        // Không throw lỗi - closing đã thành công, chỉ log warning
+      }
     }
     
     // Chỉ xóa cache ngay tại service khi service tự quản transaction riêng.

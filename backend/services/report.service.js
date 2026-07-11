@@ -3,7 +3,8 @@
  */
 
 import { pool } from '../config/db.js';
-import { getBalanceSheetRules } from '../config/businessRules.js';
+import { getBalanceSheetRules, getAccountNature, ACCOUNT_NATURES } from '../config/businessRules.js';
+import { calculateNetBalance } from '../utils/accountNature.js';
 
 /**
  * BÁO CÁO TÀI CHÍNH - ERP KẾ TOÁN
@@ -255,41 +256,49 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
   const equity = [];
   
   for (const row of rows) {
-    const balance = row.total_debit - row.total_credit;
     const accCode = row.account_code;
+    const debit = parseFloat(row.total_debit) || 0;
+    const credit = parseFloat(row.total_credit) || 0;
+    
+    // Sử dụng calculateNetBalance() thay vì công thức cứng
+    // Đảm bảo xử lý đúng cho TK đối tài (214, 229 - CREDIT) và đối vốn (419 - DEBIT)
+    const nature = getAccountNature(accCode);
+    const { netBalance, balanceType } = calculateNetBalance(debit, credit, nature);
+    
+    if (netBalance === 0) continue;
     
     // Tài sản (1xx, 2xx)
     if (startsWithAny(accCode, assetPrefixes)) {
       if (!startsWithAny(accCode, excludeAssetPrefixes)) {
         // Bỏ qua TSCĐ (214) và Hao mòn (223) vì sẽ xử lý riêng
-        if (balance !== 0) {
-          assets.push({
-            account_code: accCode,
-            amount: Math.abs(balance),
-            is_debit: balance > 0
-          });
-        }
+        assets.push({
+          account_code: accCode,
+          amount: netBalance,
+          is_debit: balanceType === ACCOUNT_NATURES.DEBIT,
+          balance_type: balanceType,
+          account_nature: nature
+        });
       }
     }
     // Nợ phải trả (3xx)
     else if (startsWithAny(accCode, liabilityPrefixes)) {
-      if (balance !== 0) {
-        liabilities.push({
-          account_code: accCode,
-          amount: Math.abs(balance),
-          is_credit: balance < 0
-        });
-      }
+      liabilities.push({
+        account_code: accCode,
+        amount: netBalance,
+        is_credit: balanceType === ACCOUNT_NATURES.CREDIT,
+        balance_type: balanceType,
+        account_nature: nature
+      });
     }
     // Vốn (4xx)
     else if (startsWithAny(accCode, equityPrefixes)) {
-      if (balance !== 0) {
-        equity.push({
-          account_code: accCode,
-          amount: Math.abs(balance),
-          is_credit: balance < 0
-        });
-      }
+      equity.push({
+        account_code: accCode,
+        amount: netBalance,
+        is_credit: balanceType === ACCOUNT_NATURES.CREDIT,
+        balance_type: balanceType,
+        account_nature: nature
+      });
     }
   }
   

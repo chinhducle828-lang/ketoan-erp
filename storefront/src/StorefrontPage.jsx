@@ -57,7 +57,7 @@ import {
   isExplicitNonAdminRole,
   getUnitPriceWithTax
 } from './utils/formatters';
-import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi, setAuthenticating } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi, setAuthenticating, findOrCreatePartner } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
@@ -133,6 +133,7 @@ export default function StorefrontPage() {
   const [cassoLoading, setCassoLoading] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [shippingCode, setShippingCode] = useState('');
   const [shippingNote, setShippingNote] = useState('');
   const [checkoutForm, setCheckoutForm] = useState({
@@ -727,6 +728,21 @@ export default function StorefrontPage() {
     setSuccess('');
 
     try {
+      // 1. Find or create partner by phone
+      let orderPartnerId = null;
+      try {
+        const partnerResult = await findOrCreatePartner(companyId, {
+          partner_name: checkoutForm.customerName,
+          phone: checkoutForm.phone,
+          address: checkoutForm.address
+        });
+        orderPartnerId = partnerResult?.partner?.id || partnerResult?.id || null;
+      } catch (partnerErr) {
+        // Partner creation is non-blocking - proceed without partner_id
+        console.warn('Could not find/create partner:', partnerErr);
+      }
+
+      // 2. Build order payload with all 2-way sales fields
       const payload = {
         companyId: Number(companyId),
         ...(hasCheckoutCart
@@ -744,7 +760,16 @@ export default function StorefrontPage() {
         phone: checkoutForm.phone,
         address: checkoutForm.address,
         amount: checkoutPreviewAmount,
-taxRate: 0.08
+        taxRate: 0.08,
+        discount_amount: discountAmount,
+        coupon_code: couponCode.trim() || null,
+        tax_rate: 8.00,
+        tax_amount: Math.round(checkoutPreviewAmount * 0.08 / 1.08),
+        shipping_fee: 0,
+        payment_method: paymentMethod,
+        payment_status: 'pending',
+        sales_channel: 'storefront',
+        partner_id: orderPartnerId
       };
 
       const { data } = await publicApi.post('/orders', payload);
@@ -1463,10 +1488,6 @@ taxRate: 0.08
                         <input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
                       </label>
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-900">
-                      <span>{t('total', selectedLang)}</span>
-                      <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
-                    </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <div className="flex items-center gap-1 text-[10px] text-slate-600"><BadgePercent size={10} /> {t('coupon', selectedLang)}</div>
                       <div className="mt-1 flex gap-1">
@@ -1475,11 +1496,23 @@ taxRate: 0.08
                       </div>
                       {couponMessage && <p className="mt-1 text-[10px] text-emerald-700">{couponMessage}</p>}
                     </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-900">
+                      <span>{t('total', selectedLang)}</span>
+                      <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><Building2 size={10} /> Phương thức thanh toán</div>
+                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] text-slate-900 outline-none">
+                        <option value="cod">Tiền mặt (COD)</option>
+                        <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+                        <option value="casso">Chuyển khoản (Casso)</option>
+                      </select>
+                    </div>
                     <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
                       {submitting ? 'Đang tạo đơn...' : 'Tạo hóa đơn'} <ArrowRight size={14} />
                     </button>
                     <button type="button" onClick={openCassoPayment} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                      Thanh toán chuyển khoản (Casso)
+                      {paymentMethod === 'casso' ? 'Xem tài khoản Casso' : 'Thanh toán chuyển khoản (Casso)'}
                     </button>
                   </form>
                 </div>
@@ -1577,10 +1610,6 @@ taxRate: 0.08
                           <input required value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-900 outline-none" />
                         </label>
                       </div>
-                      <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs font-bold text-slate-900">
-                        <span>{t('total', selectedLang)}</span>
-                        <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
-                      </div>
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                         <div className="flex items-center gap-1 text-[10px] text-slate-600"><BadgePercent size={10} /> {t('coupon', selectedLang)}</div>
                         <div className="mt-1 flex gap-1">
@@ -1589,11 +1618,23 @@ taxRate: 0.08
                         </div>
                         {couponMessage && <p className="mt-1 text-[10px] text-emerald-700">{couponMessage}</p>}
                       </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs font-bold text-slate-900">
+                        <span>{t('total', selectedLang)}</span>
+                        <span>{formatPrice(checkoutPreviewAmount, selectedCurrency)}</span>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><Building2 size={10} /> Phương thức thanh toán</div>
+                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] text-slate-900 outline-none">
+                          <option value="cod">Tiền mặt (COD)</option>
+                          <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+                          <option value="casso">Chuyển khoản (Casso)</option>
+                        </select>
+                      </div>
                       <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60">
                         {submitting ? 'Đang tạo đơn...' : t('checkout', selectedLang)} <ArrowRight size={14} />
                       </button>
                       <button type="button" onClick={openCassoPayment} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                        Thanh toán chuyển khoản (Casso)
+                        {paymentMethod === 'casso' ? 'Xem tài khoản Casso' : 'Thanh toán chuyển khoản (Casso)'}
                       </button>
                     </form>
                   </div>
