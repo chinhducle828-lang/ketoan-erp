@@ -74,8 +74,16 @@ export const createPartner = async (req, res) => {
  */
 export const getPartners = async (req, res) => {
   try {
-    // Cô lập dữ liệu: Chỉ lấy các đối tác thuộc đúng công ty của user đang đăng nhập
-    const { company_id } = req.user; 
+    // Cô lập dữ liệu: Ưu tiên company_id từ token xác thực, fallback từ query param
+    const company_id = req.user?.company_id || req.query.company_id;
+    
+    if (!company_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Thiếu company_id. Vui lòng đăng nhập lại.' 
+      });
+    }
+    
     await assertCompanyOperational(company_id);
     
     const partners = await partnerService.getPartnersByCompanyDB(company_id);
