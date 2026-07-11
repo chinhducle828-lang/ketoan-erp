@@ -20,7 +20,12 @@ import {
   BarChart3
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// API base URL - tự động normalize để đảm bảo có /api
+const getApiBase = () => {
+  const raw = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return raw.endsWith('/api') ? raw : `${raw.replace(/\/$/, '')}/api`;
+};
+const API_BASE = getApiBase();
 
 export default function AIConfigManagement() {
   const [activeTab, setActiveTab] = useState('departments');
@@ -53,25 +58,37 @@ export default function AIConfigManagement() {
   };
 
   const loadDepartments = async () => {
-    const response = await fetch(`${API_BASE}/ai/departments`);
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE}/ai/departments`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await response.json();
     if (data.success) setDepartments(data.data);
   };
 
   const loadWorkflows = async () => {
-    const response = await fetch(`${API_BASE}/ai/workflows`);
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE}/ai/workflows`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await response.json();
     if (data.success) setWorkflows(data.data);
   };
 
   const loadSuggestionRules = async () => {
-    const response = await fetch(`${API_BASE}/ai/suggestion-rules`);
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE}/ai/suggestion-rules`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await response.json();
     if (data.success) setSuggestionRules(data.data);
   };
 
   const loadBatchConfigs = async () => {
-    const response = await fetch(`${API_BASE}/ai/batch-configs`);
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE}/ai/batch-configs`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await response.json();
     if (data.success) setBatchConfigs(data.data);
   };
