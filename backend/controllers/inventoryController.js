@@ -5,6 +5,11 @@
 import { pool } from '../config/db.js';
 import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
 
+const normalizeCompanyId = (companyId) => {
+  if (Array.isArray(companyId)) return companyId[0];
+  return companyId;
+};
+
 /**
  * @desc    Tạo mới Phiếu Nhập / Xuất kho (Hạch toán đa dòng - Master Detail)
  * @route   POST /api/inventory/vouchers
@@ -71,9 +76,11 @@ export const getStockLevels = async (req, res) => {
         i.name as item_name,
         i.unit,
         COALESCE(i.opening_quantity, 0) as opening_quantity,
-        COALESCE(SUM(CASE WHEN ivd.quantity > 0 THEN ivd.quantity ELSE 0 END), 0) as inbound,
-        COALESCE(SUM(CASE WHEN ivd.quantity < 0 THEN ABS(ivd.quantity) ELSE 0 END), 0) as outbound,
-        COALESCE(i.opening_quantity, 0) + COALESCE(SUM(ivd.quantity), 0) as current_stock,
+        COALESCE(SUM(CASE WHEN iv.io_type = 'IMPORT' THEN ivd.quantity ELSE 0 END), 0) as inbound,
+        COALESCE(SUM(CASE WHEN iv.io_type = 'EXPORT' THEN ivd.quantity ELSE 0 END), 0) as outbound,
+        COALESCE(i.opening_quantity, 0) + 
+        COALESCE(SUM(CASE WHEN iv.io_type = 'IMPORT' THEN ivd.quantity ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN iv.io_type = 'EXPORT' THEN ivd.quantity ELSE 0 END), 0) as current_stock,
         COALESCE(i.price_sell, 0) as unit_price
       FROM items i
       LEFT JOIN inventory_voucher_details ivd ON i.id = ivd.item_id
