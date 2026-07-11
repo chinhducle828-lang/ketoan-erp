@@ -52,6 +52,50 @@ export const getInventoryVouchers = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi hệ thống: ' + error.message });
   }
 };
+/**
+ * @desc    Lấy tồn kho thực tế theo mã hàng
+ * @route   GET /api/inventory/stock-levels
+ * @access  Private
+ */
+export const getStockLevels = async (req, res) => {
+  try {
+    const companyId = normalizeCompanyId(req.companyId || req.query.company_id || req.body.company_id);
+    
+    if (!companyId) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin ID công ty!' });
+    }
+
+    const query = `
+      SELECT 
+        i.code as item_code,
+        i.name as item_name,
+        i.unit,
+        COALESCE(i.opening_quantity, 0) as opening_quantity,
+        COALESCE(SUM(CASE WHEN ivd.quantity > 0 THEN ivd.quantity ELSE 0 END), 0) as inbound,
+        COALESCE(SUM(CASE WHEN ivd.quantity < 0 THEN ABS(ivd.quantity) ELSE 0 END), 0) as outbound,
+        COALESCE(i.opening_quantity, 0) + COALESCE(SUM(ivd.quantity), 0) as current_stock,
+        COALESCE(i.price_sell, 0) as unit_price
+      FROM items i
+      LEFT JOIN inventory_voucher_details ivd ON i.id = ivd.item_id
+      LEFT JOIN inventory_vouchers iv ON ivd.inventory_voucher_id = iv.id 
+        AND iv.company_id = i.company_id
+      WHERE i.company_id = $1
+      GROUP BY i.id, i.code, i.name, i.unit, i.opening_quantity, i.price_sell
+      ORDER BY i.code
+    `;
+
+    const result = await pool.query(query, [companyId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Lỗi lấy tồn kho thực tế:', error.message);
+    res.status(500).json({ success: false, message: 'Lỗi hệ thống: ' + error.message });
+  }
+};
+
 export const createInventoryVoucher = async (req, res) => {
   // Lấy kết nối client từ pool để chạy Transaction độc lập
   const client = await pool.connect();
