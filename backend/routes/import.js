@@ -403,10 +403,72 @@ router.post('/inventory', authenticate, upload.single('file'), async (req, res) 
           return;
         }
 
-        await client.query(
-          'INSERT INTO items (company_id, code, name, unit) VALUES ($1, $2, $3, $4) ON CONFLICT (company_id, code) DO UPDATE SET name = $3, unit = $4',
-          [companyId, code, name, unit || 'Cái']
+        // Kiểm tra xem mã đã tồn tại chưa
+        const existingItem = await client.query(
+          'SELECT code, name FROM items WHERE company_id = $1 AND code = $2',
+          [companyId, code]
         );
+
+        if (existingItem.rows.length === 0) {
+          // Mã chưa tồn tại -> Insert bình thường
+          await client.query(
+            'INSERT INTO items (company_id, code, name, unit) VALUES ($1, $2, $3, $4)',
+            [companyId, code, name, unit || 'Cái']
+          );
+        } else {
+          // Mã đã tồn tại
+          const existingName = existingItem.rows[0].name;
+          
+          if (existingName === name) {
+            // Tên trùng khớp -> Cập nhật thông tin
+            await client.query(
+              'UPDATE items SET name = $3, unit = $4 WHERE company_id = $1 AND code = $2',
+              [companyId, code, name, unit || 'Cái']
+            );
+          } else {
+            // Tên khác -> Tạo mã mới với hậu tố số
+            let newCode = code;
+            let counter = 1;
+            
+            // Tìm mã mới chưa tồn tại
+            while (true) {
+              const candidateCode = `${code}-${counter}`;
+              const candidateExists = await client.query(
+                'SELECT code FROM items WHERE company_id = $1 AND code = $2',
+                [companyId, candidateCode]
+              );
+              
+              if (candidateExists.rows.length === 0) {
+                newCode = candidateCode;
+                break;
+              }
+              
+              // Kiểm tra nếu mã candidate đã có tên trùng với tên mới
+              const candidateItem = await client.query(
+                'SELECT name FROM items WHERE company_id = $1 AND code = $2',
+                [companyId, candidateCode]
+              );
+              
+              if (candidateItem.rows.length > 0 && candidateItem.rows[0].name === name) {
+                // Đã có sản phẩm cùng tên với mã candidate -> cập nhật
+                await client.query(
+                  'UPDATE items SET unit = $4 WHERE company_id = $1 AND code = $2',
+                  [companyId, candidateCode, name, unit || 'Cái']
+                );
+                newCode = candidateCode;
+                break;
+              }
+              
+              counter++;
+            }
+            
+            // Insert sản phẩm mới với mã đã được xử lý
+            await client.query(
+              'INSERT INTO items (company_id, code, name, unit) VALUES ($1, $2, $3, $4)',
+              [companyId, newCode, name, unit || 'Cái']
+            );
+          }
+        }
 
         successCount++;
       } catch (err) {
