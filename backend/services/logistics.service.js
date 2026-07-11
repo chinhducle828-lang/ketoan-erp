@@ -14,10 +14,10 @@ export function buildOrderNumber(prefix = 'WEB') {
   return `${effectivePrefix}-${stamp}-${random}`;
 }
 
-export function calculateTaxAmount(amount, taxRate = 0.1) {
+export function calculateTaxAmount(amount, taxRate = 0.08) {
   const rules = getBusinessRules();
   const precision = Number(rules.pricing?.taxPrecision ?? 2);
-  const fallbackTaxRate = Number(rules.pricing?.defaultTaxRate ?? 0.1);
+  const fallbackTaxRate = Number(rules.pricing?.defaultTaxRate ?? 0.08);
   const safeTaxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : fallbackTaxRate;
   return Number((Number(amount || 0) * safeTaxRate).toFixed(precision));
 }

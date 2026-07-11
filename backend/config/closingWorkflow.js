@@ -85,7 +85,7 @@ export const CLOSING_WORKFLOW = {
       rate2: 0.17,
       rate3: 0.20
     },
-    vat: 0.1, // 10%
+    vat: 0.08, // 8%
     minimumCorporateTax: 0.015 // 15% thuế tối thiểu TNDN
   },
   
