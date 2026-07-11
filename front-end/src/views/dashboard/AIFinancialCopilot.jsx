@@ -27,8 +27,12 @@ import {
   Zap
 } from 'lucide-react';
 
-// API base URL
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// API base URL - tự động normalize để đảm bảo có /api
+const getApiBase = () => {
+  const raw = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return raw.endsWith('/api') ? raw : `${raw.replace(/\/$/, '')}/api`;
+};
+const API_BASE = getApiBase();
 
 export default function AIFinancialCopilot() {
   const navigate = useNavigate();
@@ -54,9 +58,13 @@ export default function AIFinancialCopilot() {
 
   const checkGeminiStatus = async () => {
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/ai/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ question: 'test', company_id: companyId })
       });
       setGeminiAvailable(response.ok);
@@ -67,7 +75,10 @@ export default function AIFinancialCopilot() {
 
   const loadConversationHistory = async () => {
     try {
-      const response = await fetch(`${API_BASE}/ai/suggested?company_id=${companyId}`);
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${API_BASE}/ai/suggested?company_id=${companyId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
@@ -143,9 +154,13 @@ export default function AIFinancialCopilot() {
   };
 
   const askQuestion = async (question) => {
+    const token = localStorage.getItem('accessToken');
     const response = await fetch(`${API_BASE}/ai/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ question, company_id: companyId })
     });
 
@@ -155,9 +170,13 @@ export default function AIFinancialCopilot() {
   };
 
   const solveMath = async (problem) => {
+    const token = localStorage.getItem('accessToken');
     const response = await fetch(`${API_BASE}/ai/math`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ problem, context: 'financial', company_id: companyId })
     });
 
@@ -167,9 +186,13 @@ export default function AIFinancialCopilot() {
   };
 
   const executeWorkflow = async (workflowType) => {
+    const token = localStorage.getItem('accessToken');
     const response = await fetch(`${API_BASE}/ai/workflow/execute`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ workflowType, context: { period: 'current_month' }, company_id: companyId })
     });
 
@@ -179,9 +202,13 @@ export default function AIFinancialCopilot() {
   };
 
   const getInsights = async (question) => {
+    const token = localStorage.getItem('accessToken');
     const response = await fetch(`${API_BASE}/ai/cross-module`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ question, company_id: companyId })
     });
 
@@ -192,9 +219,13 @@ export default function AIFinancialCopilot() {
 
   const saveToKnowledgeBase = async (question, answer) => {
     try {
+      const token = localStorage.getItem('accessToken');
       await fetch(`${API_BASE}/ai/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ question, answer, company_id: companyId })
       });
     } catch (error) {

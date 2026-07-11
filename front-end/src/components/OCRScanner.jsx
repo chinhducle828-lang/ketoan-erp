@@ -18,7 +18,12 @@ import {
   Camera
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// API base URL - tự động normalize để đảm bảo có /api
+const getApiBase = () => {
+  const raw = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return raw.endsWith('/api') ? raw : `${raw.replace(/\/$/, '')}/api`;
+};
+const API_BASE = getApiBase();
 
 export default function OCRScanner({ 
   onScanComplete, 
@@ -77,9 +82,13 @@ export default function OCRScanner({
     setError(null);
 
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/ai/ocr/process`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           image_base64: imageBase64,
           document_type: documentType,
@@ -119,9 +128,13 @@ export default function OCRScanner({
     if (!scanResult) return;
 
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/ai/ocr/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           ocr_result: editedData,
           document_type: documentType,
