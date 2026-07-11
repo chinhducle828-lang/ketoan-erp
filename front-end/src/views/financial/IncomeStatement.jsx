@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getCorporateIncomeTaxRate, getDefaultCurrency } from '../../utils/accountingRules.js';
+import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
@@ -20,9 +20,18 @@ export default function IncomeStatement() {
   const [cycleData, setCycleData] = useState(null);
   const [cycleLoading, setCycleLoading] = useState(false);
   
-  const appliedTaxRate = getCorporateIncomeTaxRate();
-  const taxRateLabel = `${Math.round(appliedTaxRate * 100)}%`;
-  const taxModeLabel = 'Cố định';
+  // Thuế suất lũy tiến theo doanh thu (đồng bộ với backend calculateProgressiveTax)
+  const getProgressiveTaxRate = (revenue) => {
+    if (revenue <= 3000000000) return 0.15;
+    if (revenue <= 50000000000) return 0.17;
+    return 0.20;
+  };
+  
+  const getTaxModeLabel = (revenue) => {
+    if (revenue <= 3000000000) return '15% (≤ 3 tỷ)';
+    if (revenue <= 50000000000) return '17% (3-50 tỷ)';
+    return '20% (> 50 tỷ)';
+  };
 
   useEffect(() => {
     if (activeCompany) {
@@ -60,10 +69,47 @@ export default function IncomeStatement() {
     setLoading(true);
     try {
       const companyId = activeCompany.id || activeCompany;
-      const response = await api.get(`/inventory/balances?company_id=${companyId}&year=${fiscalYear}`);
+      // Sử dụng API báo cáo kết quả kinh doanh B02-DN
+      const response = await api.get(`/report/b02?company_id=${companyId}&year=${fiscalYear}`);
       
-      if (response.data?.success && response.data.data?.accountLedger) {
-        setLedger(response.data.data.accountLedger);
+      if (response.data?.success && response.data.data) {
+        // Backend trả về dữ liệu income statement dạng { revenue, cogs, ... }
+        // Chuyển đổi thành ledger format để tương thích với code hiện tại
+        const data = response.data.data;
+        const ledgerData = {};
+        
+        // Map các giá trị từ API response vào ledger format
+        if (data.revenue !== undefined) {
+          ledgerData['511'] = { patsinhDr: 0, patsinhCr: data.revenue, closingDr: 0, closingCr: data.revenue };
+        }
+        if (data.cogs !== undefined) {
+          ledgerData['632'] = { patsinhDr: data.cogs, patsinhCr: 0, closingDr: data.cogs, closingCr: 0 };
+        }
+        if (data.financialRevenue !== undefined) {
+          ledgerData['515'] = { patsinhDr: 0, patsinhCr: data.financialRevenue, closingDr: 0, closingCr: data.financialRevenue };
+        }
+        if (data.operatingExpenses) {
+          if (data.operatingExpenses['635']) {
+            ledgerData['635'] = { patsinhDr: data.operatingExpenses['635'], patsinhCr: 0, closingDr: data.operatingExpenses['635'], closingCr: 0 };
+          }
+          if (data.operatingExpenses['641']) {
+            ledgerData['641'] = { patsinhDr: data.operatingExpenses['641'], patsinhCr: 0, closingDr: data.operatingExpenses['641'], closingCr: 0 };
+          }
+          if (data.operatingExpenses['642']) {
+            ledgerData['642'] = { patsinhDr: data.operatingExpenses['642'], patsinhCr: 0, closingDr: data.operatingExpenses['642'], closingCr: 0 };
+          }
+        }
+        if (data.otherIncome !== undefined) {
+          ledgerData['711'] = { patsinhDr: 0, patsinhCr: data.otherIncome, closingDr: 0, closingCr: data.otherIncome };
+        }
+        if (data.otherExpenses !== undefined) {
+          ledgerData['811'] = { patsinhDr: data.otherExpenses, patsinhCr: 0, closingDr: data.otherExpenses, closingCr: 0 };
+        }
+        if (data.taxExpense !== undefined) {
+          ledgerData['821'] = { patsinhDr: data.taxExpense, patsinhCr: 0, closingDr: data.taxExpense, closingCr: 0 };
+        }
+        
+        setLedger(ledgerData);
       }
     } catch (error) {
       console.error('Lỗi tải số liệu:', error);
@@ -123,14 +169,19 @@ export default function IncomeStatement() {
     const totalOtherIncome = getLedgerValue('711', 'credit');
     const totalOtherExpenses = getLedgerValue('811', 'debit');
     const profitBeforeTax = operatingProfit + (totalOtherIncome - totalOtherExpenses);
-    const incomeTaxExpense = getLedgerValue('821', 'debit');
+    // Tính thuế lũy tiến dựa trên doanh thu (giống backend calculateProgressiveTax)
+    const progressiveRate = getProgressiveTaxRate(revenue);
+    const calculatedTax = profitBeforeTax > 0 ? profitBeforeTax * progressiveRate : 0;
+    const incomeTaxExpense = getLedgerValue('821', 'debit') || calculatedTax;
     const netProfit = profitBeforeTax - incomeTaxExpense;
 
     return {
       revenue, cogs, grossProfit, financialRevenue,
       operatingExpenses, totalOperatingExpenses, operatingProfit,
       totalOtherIncome, totalOtherExpenses, profitBeforeTax,
-      incomeTaxExpense, netProfit
+      incomeTaxExpense, netProfit,
+      progressiveRate: getProgressiveTaxRate(revenue),
+      taxModeLabel: getTaxModeLabel(revenue)
     };
   };
 
@@ -316,8 +367,8 @@ export default function IncomeStatement() {
           </div>
           
           <div className="flex items-center gap-2 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200">
-            <span>Thuế suất TNDN áp dụng: {taxRateLabel}</span>
-            <span className="text-[10px] bg-emerald-100 px-1.5 py-0.5 rounded">{taxModeLabel}</span>
+            <span>Thuế suất TNDN áp dụng: {Math.round(metrics.progressiveRate * 100)}%</span>
+            <span className="text-[10px] bg-emerald-100 px-1.5 py-0.5 rounded">{metrics.taxModeLabel}</span>
           </div>
         </div>
       )}

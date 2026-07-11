@@ -45,12 +45,8 @@ export const getBalanceSheet = async (req, res) => {
       await calculateWeightedAverageCost(Number(companyId), month, year);
     }
     
-    // Bước 2: Chạy kết chuyển sổ nếu có tháng/năm
-    if (month && year) {
-      await runClosingEntries(Number(companyId), month, year);
-    }
-    
-    // Bước 3: Lấy dữ liệu báo cáo
+    // Bước 2: Lấy dữ liệu báo cáo (KHÔNG tự động kết chuyển sổ)
+    // Việc kết chuyển sổ phải do người dùng chủ động gọi API riêng: POST /api/report/closing
     const balanceSheetData = await getBalanceSheetData(Number(companyId), month, year);
     
     // Lưu cache

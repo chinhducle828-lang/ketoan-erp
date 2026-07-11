@@ -4,19 +4,13 @@
 
 // FILE_PATH: backend/utils/accountingEngine.js
 import { pool } from '../config/db.js';
-import { getGeneralAccountingRules, getClosingRules } from '../config/businessRules.js';
-
-const getHermaphroditicAccounts = () => {
-  const rules = getGeneralAccountingRules();
-  return Array.isArray(rules.hermaphroditicAccounts) && rules.hermaphroditicAccounts.length > 0
-    ? rules.hermaphroditicAccounts.map((account) => String(account || '').trim()).filter(Boolean)
-    : ['131', '331', '138', '338', '3334', '3335', '3381'];
-};
+import { getGeneralAccountingRules, getClosingRules, getAccountNature, ACCOUNT_NATURES } from '../config/businessRules.js';
+import { calculateNetBalance } from './accountNature.js';
 
 const isHermaphroditicAccount = (accountCode) => {
   const normalized = String(accountCode || '').trim();
   if (!normalized) return false;
-  return getHermaphroditicAccounts().some((account) => normalized.startsWith(account));
+  return getAccountNature(normalized) === ACCOUNT_NATURES.BOTH;
 };
 
 /**
@@ -33,31 +27,67 @@ export async function checkLockDate(companyId, voucherDate) {
 }
 
 /**
- * Tính toán số dư tài khoản thông thường và tài khoản lưỡng tính theo TT 99/2025/TT-BTC
- * Danh sách tài khoản lưỡng tính quản lý chi tiết theo đối tượng:
- * - 131, 331, 138, 338: Nhóm công nợ khách hàng, nhà cung cấp, phải thu/phải trả khác
- * - 3334, 3335: Thuế TNDN và Thuế TNCN (Dư Nợ khi tạm nộp thừa vào NSNN)
- * - 3381: Tài sản thừa chờ giải quyết
+ * @function getAccountBalance
+ * @description [CƠ CHẾ SỐ DƯ] Tính toán số dư tức thời (Real-time Net Balance) của một tài khoản.
+ * Bắt buộc phải gộp Số dư đầu kỳ (Opening Balance) và các Phát sinh (Transactions) trong năm tài chính.
+ * 
+ * @IMPORTANT Dùng cho các logic chặn chi vượt hạn mức, kiểm tra điều kiện xuất quỹ/kho.
+ * KHÔNG dùng làm sổ chi tiết giao dịch.
+ * 
+ * @param {number} companyId - ID của công ty/doanh nghiệp.
+ * @param {string} accountCode - Mã tài khoản kế toán (ví dụ: '1111', '112%').
+ * @param {number} partnerId - ID đối tác (bắt buộc cho tài khoản lưỡng tính: 131, 331, 138, 338, 3334, 3335, 3381).
+ * @returns {Promise<Object>} Đối tượng chứa số dư:
+ *   - {balance: number} cho tài khoản thông thường (số dư Nợ dương/Có âm)
+ *   - {debit_balance: number, credit_balance: number, is_hermaphroditic: true} cho tài khoản lưỡng tính
  */
 export async function getAccountBalance(companyId, accountCode, partnerId = null) {
   const isHermaphroditic = isHermaphroditicAccount(accountCode);
 
+  // Query bao gồm opening balances + transactions
   let query = `
+    WITH opening AS (
+      SELECT 'DR' as entry_type, opening_debit as amount
+      FROM opening_balances
+      WHERE company_id = $1 AND account_code LIKE $2
+    `;
+  
+  const params = [companyId, `${accountCode}%`];
+  let paramIdx = 3;
+
+  if (isHermaphroditic && partnerId) {
+    query += ` AND partner_id = $${paramIdx}`;
+    params.push(partnerId);
+    paramIdx++;
+  }
+  
+  query += ` UNION ALL SELECT 'CR' as entry_type, opening_credit FROM opening_balances WHERE company_id = $1 AND account_code LIKE $2`;
+  if (isHermaphroditic && partnerId) {
+    query += ` AND partner_id = $${paramIdx - 1}`;
+  }
+  
+  query += `),
+  transactions AS (
     SELECT vd.entry_type, SUM(vd.amount) as total_amount
     FROM voucher_details vd
     JOIN vouchers v ON vd.voucher_id = v.id
     WHERE v.company_id = $1 AND v.is_posted = TRUE AND vd.account_code LIKE $2
   `;
   
-  const params = [companyId, `${accountCode}%`];
-
-  // Nếu là tài khoản lưỡng tính đặc biệt, bắt buộc phải lọc nghiêm ngặt theo đối tác cụ thể
   if (isHermaphroditic && partnerId) {
-    query += ` AND vd.partner_id = $3`;
+    query += ` AND vd.partner_id = $${paramIdx}`;
     params.push(partnerId);
   }
 
-  query += ` GROUP BY vd.entry_type`;
+  query += ` GROUP BY vd.entry_type
+  )
+  SELECT entry_type, SUM(amount) as total_amount
+  FROM (
+    SELECT * FROM opening
+    UNION ALL
+    SELECT * FROM transactions
+  ) combined
+  GROUP BY entry_type`;
 
   const { rows } = await pool.query(query, params);
   
@@ -69,27 +99,39 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
     if (row.entry_type === 'CR') creditSum += parseFloat(row.total_amount) || 0;
   });
 
-  const isAsset = accountCode.startsWith('1') || accountCode.startsWith('2') || accountCode.startsWith('6') || accountCode.startsWith('8');
-  const isProfitLoss = accountCode.startsWith('421'); // Hỗ trợ tài khoản 421 lãi/lỗ
+  const accountNature = getAccountNature(accountCode);
   
-  if (isHermaphroditic) {
+  if (accountNature === ACCOUNT_NATURES.BOTH) {
     return { 
       debit_balance: debitSum, 
       credit_balance: creditSum,
-      is_hermaphroditic: true 
+      is_hermaphroditic: true,
+      account_nature: accountNature
     };
   }
 
-  if (isAsset || isProfitLoss) {
-    return { balance: debitSum - creditSum }; // Số dư Nợ (hoặc âm nếu dư Có)
-  } else {
-    return { balance: creditSum - debitSum }; // Số dư Có (hoặc âm nếu dư Nợ)
-  }
+  // Use dynamic account nature to calculate balance
+  const { netBalance, balanceType } = calculateNetBalance(debitSum, creditSum, accountNature);
+  
+  return { 
+    balance: balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance,
+    account_nature: accountNature,
+    balance_type: balanceType
+  };
 }
 
 /**
- * [TỐI ƯU] Tính số dư tài khoản bằng Window Function PostgreSQL
- * Chuyển tính toán từ RAM Node.js xuống Database, giảm OOM
+ * @function getBalancesWithWindowFunction
+ * @description [CƠ CHẾ SỐ DƯ] Tính toán bảng tiến trình số dư chạy liên tục (Running Balance Cumulative) 
+ * cho mục đích lập Báo Cáo Tài Chính (Bảng Cân đối phát sinh).
+ * 
+ * @NOTE Sử dụng Window Function tối ưu hiệu năng SQL bằng cách gộp `opening_balances` làm mốc thời gian 0,
+ * sau đó cộng dồn tịnh tiến với các dòng trong `voucher_details`.
+ * 
+ * @param {number} companyId - ID của công ty.
+ * @param {number} fiscalYear - Năm tài chính cần quét báo cáo.
+ * @param {number} month - Tháng cuối kỳ cần báo cáo (null = cả năm).
+ * @returns {Promise<Object>} Bảng số dư theo tài khoản: { [account_code]: { patsinhDr, patsinhCr, closingDr, closingCr } }
  */
 export async function getBalancesWithWindowFunction(companyId, year, month = null) {
   // Validate inputs
@@ -97,45 +139,59 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
     throw new Error('companyId and year are required parameters');
   }
   
+  const params = [companyId, year];
+  let paramIdx = 3;
+  
+  // Month filter for vouchers
+  let voucherMonthFilter = '';
+  if (month) {
+    voucherMonthFilter = ` AND EXTRACT(MONTH FROM v.voucher_date) <= $${paramIdx}`;
+    params.push(month);
+    paramIdx++;
+  }
+  
   let query = `
-    WITH period_aggregation AS (
+    WITH base_balances AS (
+      -- Số dư đầu kỳ từ opening_balances
+      SELECT 
+        account_code,
+        COALESCE(partner_id, 0) as partner_id,
+        SUM(opening_debit) as base_debit,
+        SUM(opening_credit) as base_credit
+      FROM opening_balances
+      WHERE company_id = $1 AND fiscal_year = $2
+      GROUP BY account_code, partner_id
+    ),
+    period_aggregation AS (
+      -- Phát sinh trong kỳ từ vouchers
       SELECT 
         vd.account_code,
-        vd.partner_id,
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) OVER (
-          PARTITION BY vd.account_code, vd.partner_id
-          ORDER BY v.voucher_date, v.id
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) as running_debit,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) OVER (
-          PARTITION BY vd.account_code, vd.partner_id
-          ORDER BY v.voucher_date, v.id
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) as running_credit
+        COALESCE(vd.partner_id, 0) as partner_id,
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as period_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as period_credit
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE v.company_id = $1
         AND v.is_posted = TRUE
         AND EXTRACT(YEAR FROM v.voucher_date) = $2
-  `;
-  
-  const params = [companyId, year];
-  let paramIdx = 3;
-  
-  if (month) {
-    query += ` AND EXTRACT(MONTH FROM v.voucher_date) <= $${paramIdx}`;
-    params.push(month);
-    paramIdx++;
-  }
-  
-  query += `
+        ${voucherMonthFilter}
+      GROUP BY vd.account_code, vd.partner_id
+    ),
+    combined AS (
+      -- Kết hợp số dư đầu kỳ + phát sinh trong kỳ
+      SELECT 
+        COALESCE(b.account_code, p.account_code) as account_code,
+        COALESCE(b.base_debit, 0) + COALESCE(p.period_debit, 0) as final_debit,
+        COALESCE(b.base_credit, 0) + COALESCE(p.period_credit, 0) as final_credit
+      FROM base_balances b
+      FULL OUTER JOIN period_aggregation p
+        ON b.account_code = p.account_code AND b.partner_id = p.partner_id
     )
     SELECT 
       account_code,
-      MAX(running_debit) as final_debit,
-      MAX(running_credit) as final_credit
-    FROM period_aggregation
-    GROUP BY account_code
+      final_debit,
+      final_credit
+    FROM combined
     ORDER BY account_code
   `;
   
@@ -165,8 +221,16 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
 }
 
 /**
- * Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản)
- * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
+ * @function calculateBalances
+ * @description [CƠ CHẾ SỐ DƯ] Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản).
+ * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331, 138, 338, 3334, 3335, 3381).
+ * 
+ * @NOTE Hàm này yêu cầu truyền vào mảng openingBalances từ bảng `opening_balances` để đảm bảo tính đúng đắn.
+ * Nếu không có opening balances, truyền mảng rỗng [].
+ * 
+ * @param {Array} vouchers - Danh sách chứng từ có details: [{ details: [{ accountCode, entryType, amount, partnerId }] }]
+ * @param {Array} openingBalances - Số dư đầu kỳ: [{ account_code, opening_debit, opening_credit, partner_id }]
+ * @returns {Object} Bảng số dư: { [account_code]: { patsinhDr, patsinhCr, closingDr, closingCr, accountCode, partnerId } }
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
@@ -240,6 +304,16 @@ export function calculateBalances(vouchers, openingBalances = []) {
   return ledger;
 }
 
+/**
+ * @function getClosingBalance
+ * @description [CƠ CHẾ SỐ DƯ] Lấy số dư cuối kỳ (Net Closing Balance) từ bảng số dư đã tính toán.
+ * 
+ * @param {Object} ledger - Bảng số dư từ calculateBalances() hoặc getBalancesWithWindowFunction()
+ * @param {string} accountCode - Mã tài khoản cần lấy số dư
+ * @param {string} accountType - Loại tài khoản: 'asset' | 'liability' | 'expense' | 'revenue' | 'equity'
+ * @param {number} partnerId - ID đối tác (bắt buộc cho tài khoản lưỡng tính)
+ * @returns {number|Object} Số dư cuối kỳ (số dương = Nợ cho tài sản, Có cho nợ phải trả)
+ */
 export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
   const isHermaphroditic = isHermaphroditicAccount(accountCode);
   
@@ -252,31 +326,57 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset', pa
   if (!ledger[ledgerKey]) return 0;
   
   const { patsinhDr, patsinhCr } = ledger[ledgerKey];
+  const accountNature = getAccountNature(accountCode);
   
-  if (isHermaphroditic) {
+  if (accountNature === ACCOUNT_NATURES.BOTH) {
     return {
       type: 'hermaphroditic',
       debit: patsinhDr,
       credit: patsinhCr,
-      net: patsinhDr - patsinhCr
+      net: patsinhDr - patsinhCr,
+      account_nature: accountNature
     };
   }
   
-  const isProfitLoss = accountCode.startsWith('421');
-  if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
-    return patsinhDr - patsinhCr;
-  } else {
-    return patsinhCr - patsinhDr;
-  }
+  // Use dynamic account nature to calculate closing balance
+  const { netBalance, balanceType } = calculateNetBalance(patsinhDr, patsinhCr, accountNature);
+  
+  return {
+    net: balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance,
+    account_nature: accountNature,
+    balance_type: balanceType,
+    debit: patsinhDr,
+    credit: patsinhCr
+  };
 }
 
-// BỔ SUNG: Lấy tổng phát sinh Nợ phục vụ báo cáo KQKD Thông tư 99
+/**
+ * @function getTotalDebit
+ * @description [CƠ CHẾ PHÁT SINH] Lấy tổng phát sinh Nợ (Total Debit Movement) trong kỳ.
+ * Dùng cho báo cáo KQKD theo Thông tư 99/2025/TT-BTC.
+ * 
+ * @WARNING Chỉ trả về phát sinh trong kỳ, KHÔNG bao gồm số dư đầu kỳ.
+ * 
+ * @param {Object} ledger - Bảng số dư từ calculateBalances()
+ * @param {string} accountCode - Mã tài khoản
+ * @returns {number} Tổng phát sinh Nợ
+ */
 export function getTotalDebit(ledger, accountCode) {
   if (!ledger[accountCode]) return 0;
   return ledger[accountCode].patsinhDr || 0;
 }
 
-// BỔ SUNG: Lấy tổng phát sinh Có phục vụ báo cáo KQKD Thông tư 99
+/**
+ * @function getTotalCredit
+ * @description [CƠ CHẾ PHÁT SINH] Lấy tổng phát sinh Có (Total Credit Movement) trong kỳ.
+ * Dùng cho báo cáo KQKD theo Thông tư 99/2025/TT-BTC.
+ * 
+ * @WARNING Chỉ trả về phát sinh trong kỳ, KHÔNG bao gồm số dư đầu kỳ.
+ * 
+ * @param {Object} ledger - Bảng số dư từ calculateBalances()
+ * @param {string} accountCode - Mã tài khoản
+ * @returns {number} Tổng phát sinh Có
+ */
 export function getTotalCredit(ledger, accountCode) {
   if (!ledger[accountCode]) return 0;
   return ledger[accountCode].patsinhCr || 0;
@@ -400,7 +500,8 @@ export function calculateProgressiveTax(revenue, profit, entityType = 'company')
 
   // Tính thuế lũy tiến dựa trên tỷ lệ lợi nhuận/doanh thu
   // Giả sử lợi nhuận phân bố tương ứng với doanh thu
-  const effectiveRate = profit / revenue; // Tỷ lệ lợi nhuận trên doanh thu
+  // FIX: Tránh division by zero khi revenue = 0
+  const effectiveRate = revenue > 0 ? profit / revenue : 0; // Tỷ lệ lợi nhuận trên doanh thu
   
   let remainingProfit = profit;
   let totalTax = 0;

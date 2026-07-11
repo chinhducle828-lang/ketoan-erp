@@ -2,6 +2,78 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
+// Account Nature Configuration - Dynamic Chart of Accounts
+// Không hard-code logic trong hàm xử lý, chỉ cấu hình ở đây
+export const ACCOUNT_NATURES = {
+  DEBIT: 'DEBIT',     // Tài sản, Chi phí (Số dư Thuần bên Nợ)
+  CREDIT: 'CREDIT',   // Nguồn vốn, Doanh thu (Số dư Thuần bên Có)
+  BOTH: 'BOTH'        // Lưỡng tính (Cần theo dõi chi tiết theo đối tác)
+};
+
+export const chartOfAccountsConfig = {
+  // Quy tắc quét theo đầu số (Prefix) - Sắp xếp từ dài đến ngắn để khớp chi tiết trước
+  rules: [
+    { prefix: '1', nature: ACCOUNT_NATURES.DEBIT, name: 'Tài sản ngắn hạn' },
+    { prefix: '2', nature: ACCOUNT_NATURES.DEBIT, name: 'Tài sản dài hạn' },
+    { prefix: '3', nature: ACCOUNT_NATURES.CREDIT, name: 'Nợ phải trả' },
+    { prefix: '4', nature: ACCOUNT_NATURES.CREDIT, name: 'Vốn chủ sở hữu' },
+    { prefix: '5', nature: ACCOUNT_NATURES.CREDIT, name: 'Doanh thu' },
+    { prefix: '6', nature: ACCOUNT_NATURES.DEBIT, name: 'Chi phí sản xuất, kinh doanh' },
+    { prefix: '7', nature: ACCOUNT_NATURES.CREDIT, name: 'Thu nhập khác' },
+    { prefix: '8', nature: ACCOUNT_NATURES.DEBIT, name: 'Chi phí khác' },
+    { prefix: '9', nature: ACCOUNT_NATURES.DEBIT, name: 'Tài khoản ngoài bảng' }
+  ],
+  
+  // Ngoại lệ khớp chính xác mã tài khoản (Exact Match) hoặc tài khoản mẹ
+  exceptions: {
+    '131': { nature: ACCOUNT_NATURES.BOTH, name: 'Phải thu của khách hàng' },
+    '331': { nature: ACCOUNT_NATURES.BOTH, name: 'Phải trả cho người bán' },
+    '138': { nature: ACCOUNT_NATURES.BOTH, name: 'Phải thu khác' },
+    '338': { nature: ACCOUNT_NATURES.BOTH, name: 'Phải trả, phải nộp khác' },
+    '214': { nature: ACCOUNT_NATURES.CREDIT, name: 'Hao mòn tài sản cố định' }, // Tài khoản đối tài, dư Có
+    '229': { nature: ACCOUNT_NATURES.CREDIT, name: 'Dự phòng tổn thất tài sản' }, // Dư Có
+    '419': { nature: ACCOUNT_NATURES.DEBIT, name: 'Cổ phiếu quỹ' } // Tài khoản đối tài, dư Nợ
+  }
+};
+
+/**
+ * Hàm helper xác định tính chất (Nature) của một tài khoản kế toán
+ * @param {string} accountCode - Mã tài khoản (Ví dụ: '111', '131', '2141')
+ * @returns {string} ACCOUNT_NATURES (DEBIT, CREDIT, hoặc BOTH)
+ */
+export const getAccountNature = (accountCode) => {
+  if (!accountCode) return ACCOUNT_NATURES.DEBIT; // Fallback an toàn
+  
+  const codeStr = accountCode.toString().trim();
+
+  // Bước 1: Kiểm tra danh sách ngoại lệ trước (Exact match)
+  if (chartOfAccountsConfig.exceptions[codeStr]) {
+    return chartOfAccountsConfig.exceptions[codeStr].nature;
+  }
+
+  // Bước 2: Nếu tài khoản con (ví dụ: 1311), kiểm tra xem tài khoản mẹ có trong exception không
+  // Quét ngược từ chiều dài của code về 3 ký tự để tìm tài khoản mẹ lưỡng tính
+  for (let len = codeStr.length; len >= 3; len--) {
+    const subCode = codeStr.substring(0, len);
+    if (chartOfAccountsConfig.exceptions[subCode]) {
+      return chartOfAccountsConfig.exceptions[subCode].nature;
+    }
+  }
+
+  // Bước 3: Kiểm tra theo quy tắc đầu số (Rules)
+  // Sắp xếp prefix từ dài đến ngắn để khớp quy tắc chi tiết trước (nếu có)
+  const matchedRule = chartOfAccountsConfig.rules
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+    .find(rule => codeStr.startsWith(rule.prefix));
+
+  if (matchedRule) {
+    return matchedRule.nature;
+  }
+
+  // Bước 4: Fallback mặc định nếu không khớp bất kỳ quy tắc nào
+  return ACCOUNT_NATURES.DEBIT;
+};
+
 const DEFAULT_BUSINESS_RULES = {
   pricing: {
     amountPrecision: 2,

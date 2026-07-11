@@ -464,4 +464,90 @@ router.get('/partners', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 12. Xuất dữ liệu doanh thu bán hàng (PKT) theo mẫu 2 chiều
+router.get('/sales-revenue', authenticate, async (req, res) => {
+  try {
+    const { company_id, year, month } = req.query;
+    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
+    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+
+    let queryStr = `
+      SELECT 
+        v.voucher_date,
+        v.voucher_number AS "ID",
+        v.description,
+        v.voucher_type,
+        v.amount,
+        v.discount_amount,
+        v.coupon_code,
+        v.tax_rate,
+        v.tax_amount,
+        v.shipping_fee,
+        v.payment_method,
+        v.payment_status,
+        v.sales_channel,
+        v.partner_id,
+        p.partner_name AS "Customer",
+        p.phone AS customer_phone,
+        p.address AS customer_address
+      FROM vouchers v
+      LEFT JOIN partners p ON p.id = v.partner_id
+      WHERE v.company_id = $1
+        AND (v.voucher_type = 'PKT' OR v.sales_channel IS NOT NULL)
+        AND EXTRACT(YEAR FROM v.voucher_date) = $2
+    `;
+    const params = [company_id, year || 2026];
+
+    if (month) {
+      queryStr += ` AND EXTRACT(MONTH FROM v.voucher_date) = $3`;
+      params.push(month);
+    }
+
+    queryStr += ` ORDER BY v.voucher_date DESC, v.id DESC`;
+
+    const result = await pool.query(queryStr, params);
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Doanh_Thu_Ban_Hang');
+
+    ws.columns = [
+      { header: 'ID', key: 'id', width: 18 },
+      { header: 'Customer', key: 'customer', width: 30 },
+      { header: 'Amount', key: 'amount', width: 18, style: { numFmt: '#,##0' } },
+      { header: 'TaxRate', key: 'taxRate', width: 10 },
+      { header: 'Discount', key: 'discount', width: 18, style: { numFmt: '#,##0' } },
+      { header: 'Coupon', key: 'coupon', width: 15 },
+      { header: 'ShippingFee', key: 'shippingFee', width: 18, style: { numFmt: '#,##0' } },
+      { header: 'PaymentMethod', key: 'paymentMethod', width: 18 },
+      { header: 'SalesChannel', key: 'salesChannel', width: 18 },
+      { header: 'PaymentStatus', key: 'paymentStatus', width: 15 },
+      { header: 'Ngày', key: 'date', width: 14 },
+      { header: 'Mô tả', key: 'desc', width: 50 }
+    ];
+    styleHeader(ws);
+
+    const formattedRows = result.rows.map(v => ({
+      id: v.ID || v.voucher_number || '',
+      customer: v.Customer || (v.description || '').split(' - ')[0] || 'Khách lẻ',
+      amount: Number(v.amount || 0),
+      taxRate: Number(v.tax_rate || 0),
+      discount: Number(v.discount_amount || 0),
+      coupon: v.coupon_code || '',
+      shippingFee: Number(v.shipping_fee || 0),
+      paymentMethod: v.payment_method || 'cod',
+      salesChannel: v.sales_channel || 'erp',
+      paymentStatus: v.payment_status || 'pending',
+      date: v.voucher_date ? new Date(v.voucher_date).toISOString().slice(0, 10) : '',
+      desc: v.description || ''
+    }));
+
+    addRows(ws, formattedRows);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=Doanh_Thu_Ban_Hang_${company_id}_${year || 2026}${month ? `_T${month}` : ''}.xlsx`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export { router as exportRouter };

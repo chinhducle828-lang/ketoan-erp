@@ -117,6 +117,16 @@ ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS posted_by INT REFERENCES users(id)
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS loading_status VARCHAR(20) DEFAULT 'pending_loading';
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS truck_id INT DEFAULT NULL;
 
+-- 2-Way Sales Template fields
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50) DEFAULT NULL;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT NULL;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending';
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS sales_channel VARCHAR(50) DEFAULT 'storefront';
+
 CREATE TABLE IF NOT EXISTS voucher_details (
     id SERIAL PRIMARY KEY,
     voucher_id INT NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
@@ -291,6 +301,8 @@ CREATE TABLE IF NOT EXISTS monthly_balances (
     year INTEGER NOT NULL,
     closing_debit NUMERIC(18,2) NOT NULL DEFAULT 0,
     closing_credit NUMERIC(18,2) NOT NULL DEFAULT 0,
+    net_balance NUMERIC(18,2) NOT NULL DEFAULT 0,
+    balance_type VARCHAR(10) NOT NULL DEFAULT 'DEBIT' CHECK (balance_type IN ('DEBIT', 'CREDIT')),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -301,6 +313,7 @@ ON monthly_balances(company_id, account_code, COALESCE(partner_id, 0), month, ye
 CREATE INDEX IF NOT EXISTS idx_monthly_balances_lookup ON monthly_balances(company_id, year, month);
 CREATE INDEX IF NOT EXISTS idx_monthly_balances_account ON monthly_balances(account_code);
 CREATE INDEX IF NOT EXISTS idx_monthly_balances_partner ON monthly_balances(partner_id, account_code) WHERE partner_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_monthly_balances_net_balance ON monthly_balances(company_id, year, month, balance_type);
 
 CREATE TABLE IF NOT EXISTS inventory_vouchers (
     id SERIAL PRIMARY KEY,

@@ -6,9 +6,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
-import { FileText, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { FileText, CheckCircle2, AlertCircle, Download, Info } from 'lucide-react';
 
-// Bảng cân đối kế toán mẫu B01-DN theo Thông tư 99/2025/TT-BTC
+// ====================================================================
+// CẤU HÌNH BẢNG CÂN ĐỐI KẾ TOÁN B01-DN
+// Theo Thông tư 99/2025/TT-BTC
+// 
+// QUY TẮC HIỂN THỊ:
+// - type='debit': Tài khoản thuần Nợ (Tài sản) → hiển thị bên Nợ
+// - type='credit': Tài khoản thuần Có (Nguồn vốn) → hiển thị bên Có
+// - type='hermaphroditic': Tài khoản lưỡng tính (131, 331, 138, 338) → bóc tách theo đối tác
+// - type='contra-asset': Tài khoản đối tài (214, 229) → hiển thị âm (...) bên Tài sản
+// - type='contra-equity': Tài khoản đối vốn (419) → hiển thị âm (...) bên VCSH
+// ====================================================================
 const ACCOUNT_GROUPS = {
   assets: {
     title: 'A. TÀI SẢN NGẮN HẠN (100=110+120+130+140+150)',
@@ -24,7 +34,7 @@ const ACCOUNT_GROUPS = {
       { code: '131', name: '  Phải thu khách hàng', type: 'hermaphroditic', parentCode: '130' },
       { code: '133', name: '  Thuế GTGT được khấu trừ', type: 'debit', parentCode: '130' },
       { code: '136', name: '  Phải thu nội bộ', type: 'debit', parentCode: '130' },
-      { code: '138', name: '  Phải thu khác', type: 'debit', parentCode: '130' },
+      { code: '138', name: '  Phải thu khác', type: 'hermaphroditic', parentCode: '130' },
       { code: '141', name: '  Tạm ứng', type: 'debit', parentCode: '130' },
       { code: '140', name: 'Hàng tồn kho', type: 'debit', isTotal: true },
       { code: '151', name: '  Hàng mua đang đi đường', type: 'debit', parentCode: '140' },
@@ -39,7 +49,7 @@ const ACCOUNT_GROUPS = {
       { code: '200', name: 'B. TÀI SẢN DÀI HẠN (200=210+220+230+240+250+260)', type: 'debit', isTotal: true },
       { code: '211', name: '  Tài sản cố định hữu hình', type: 'debit', parentCode: '210' },
       { code: '213', name: '  Tài sản cố định vô hình', type: 'debit', parentCode: '210' },
-      { code: '214', name: '  Hao mòn tài sản cố định', type: 'credit', parentCode: '210' },
+      { code: '214', name: '  Hao mòn tài sản cố định', type: 'contra-asset', parentCode: '210' },
       { code: '217', name: '  Bất động sản đầu tư', type: 'debit', parentCode: '220' },
       { code: '241', name: '  XDCB dở dang', type: 'debit', parentCode: '230' },
       { code: '244', name: '  Cầm cố, ký quỹ, ký cược dài hạn', type: 'debit', parentCode: '250' },
@@ -54,7 +64,7 @@ const ACCOUNT_GROUPS = {
       { code: '333', name: '  Thuế và các khoản phải nộp NN', type: 'credit', parentCode: '310' },
       { code: '334', name: '  Phải trả người lao động', type: 'credit', parentCode: '310' },
       { code: '336', name: '  Phải trả nội bộ', type: 'credit', parentCode: '310' },
-      { code: '338', name: '  Phải trả, phải nộp khác', type: 'credit', parentCode: '310' },
+      { code: '338', name: '  Phải trả, phải nộp khác', type: 'hermaphroditic', parentCode: '310' },
       { code: '341', name: '  Vay và nợ thuê tài chính', type: 'credit', parentCode: '310' },
       { code: '320', name: 'Nợ dài hạn', type: 'credit', isTotal: true },
       { code: '352', name: '  Dự phòng phải trả dài hạn', type: 'credit', parentCode: '320' },
@@ -69,7 +79,7 @@ const ACCOUNT_GROUPS = {
       { code: '412', name: '  Chênh lệch đánh giá lại tài sản', type: 'credit', parentCode: '410' },
       { code: '414', name: '  Quỹ đầu tư phát triển', type: 'credit', parentCode: '410' },
       { code: '418', name: '  Các quỹ khác thuộc VCSH', type: 'credit', parentCode: '410' },
-      { code: '419', name: '  Cổ phiếu quỹ', type: 'debit', parentCode: '410' },
+      { code: '419', name: '  Cổ phiếu quỹ', type: 'contra-equity', parentCode: '410' },
       { code: '421', name: '  Lợi nhuận sau thuế chưa PP', type: 'credit', parentCode: '410' },
       { code: '430', name: 'Nguồn kinh phí, quỹ khác', type: 'credit', isTotal: true },
       { code: '353', name: '  Quỹ khen thưởng, phúc lợi', type: 'credit', parentCode: '430' },
@@ -77,10 +87,106 @@ const ACCOUNT_GROUPS = {
   }
 };
 
+// ====================================================================
+// HẰNG SỐ TÍNH CHẤT TÀI KHOẢN (ACCOUNT NATURE)
+// ====================================================================
+const ACCOUNT_NATURES = {
+  DEBIT: 'DEBIT',
+  CREDIT: 'CREDIT',
+  BOTH: 'BOTH'
+};
+
+// ====================================================================
+// HÀM TÍNH NET BALANCE THEO ĐÚNG CHUẨN (GIỐNG backend/accountNature.js)
+// ====================================================================
+
+/**
+ * Xác định tính chất tài khoản dựa trên mã số
+ * Quy tắc giống backend businessRules.js
+ */
+function getAccountNature(accountCode) {
+  if (!accountCode) return ACCOUNT_NATURES.DEBIT;
+  const code = accountCode.toString().trim();
+
+  // Ngoại lệ - tài khoản lưỡng tính
+  const exceptions = {
+    '131': ACCOUNT_NATURES.BOTH,
+    '331': ACCOUNT_NATURES.BOTH,
+    '138': ACCOUNT_NATURES.BOTH,
+    '338': ACCOUNT_NATURES.BOTH,
+    '214': ACCOUNT_NATURES.CREDIT,  // Đối tài - dư Có
+    '229': ACCOUNT_NATURES.CREDIT,  // Đối tài - dư Có
+    '419': ACCOUNT_NATURES.DEBIT,   // Đối vốn - dư Nợ
+  };
+
+  // Kiểm tra ngoại lệ (bao gồm tài khoản con)
+  for (let len = code.length; len >= 3; len--) {
+    const subCode = code.substring(0, len);
+    if (exceptions[subCode]) return exceptions[subCode];
+  }
+
+  // Quy tắc prefix
+  const rules = [
+    { prefix: '1', nature: ACCOUNT_NATURES.DEBIT },
+    { prefix: '2', nature: ACCOUNT_NATURES.DEBIT },
+    { prefix: '3', nature: ACCOUNT_NATURES.CREDIT },
+    { prefix: '4', nature: ACCOUNT_NATURES.CREDIT },
+    { prefix: '5', nature: ACCOUNT_NATURES.CREDIT },
+    { prefix: '6', nature: ACCOUNT_NATURES.DEBIT },
+    { prefix: '7', nature: ACCOUNT_NATURES.CREDIT },
+    { prefix: '8', nature: ACCOUNT_NATURES.DEBIT },
+    { prefix: '9', nature: ACCOUNT_NATURES.DEBIT },
+  ];
+
+  const matched = rules.find(r => code.startsWith(r.prefix));
+  return matched ? matched.nature : ACCOUNT_NATURES.DEBIT;
+}
+
+/**
+ * Tính NET Balance theo đúng công thức kế toán
+ * Giống hệt backend calculateNetBalance()
+ */
+function calculateNetBalance(debit, credit, nature) {
+  const d = parseFloat(debit) || 0;
+  const c = parseFloat(credit) || 0;
+
+  switch (nature) {
+    case ACCOUNT_NATURES.DEBIT: {
+      const net = d - c;
+      return {
+        netBalance: Math.abs(net),
+        balanceType: net >= 0 ? ACCOUNT_NATURES.DEBIT : ACCOUNT_NATURES.CREDIT
+      };
+    }
+    case ACCOUNT_NATURES.CREDIT: {
+      const net = c - d;
+      return {
+        netBalance: Math.abs(net),
+        balanceType: net >= 0 ? ACCOUNT_NATURES.CREDIT : ACCOUNT_NATURES.DEBIT
+      };
+    }
+    case ACCOUNT_NATURES.BOTH: {
+      if (d >= c) {
+        return { netBalance: d - c, balanceType: ACCOUNT_NATURES.DEBIT };
+      } else {
+        return { netBalance: c - d, balanceType: ACCOUNT_NATURES.CREDIT };
+      }
+    }
+    default:
+      return { netBalance: Math.abs(d - c), balanceType: d >= c ? ACCOUNT_NATURES.DEBIT : ACCOUNT_NATURES.CREDIT };
+  }
+}
+
+// ====================================================================
+// COMPONENT CHÍNH
+// ====================================================================
+
 export default function BalanceSheetB01() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
   const [loading, setLoading] = useState(true);
   const [ledger, setLedger] = useState({});
+  const [customerBalances, setCustomerBalances] = useState({});
+  const [supplierBalances, setSupplierBalances] = useState({});
   const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
   const [balanceData, setBalanceData] = useState({
     totalAssets: 0,
@@ -88,24 +194,66 @@ export default function BalanceSheetB01() {
     totalEquity: 0,
     isBalanced: true
   });
+  const [auditWarnings, setAuditWarnings] = useState([]);
   const reportRef = useRef(null);
 
   useEffect(() => {
     if (activeCompany) {
-      fetchBalanceSheet();
+      fetchAllData();
     }
   }, [activeCompany, fiscalYear]);
 
-  const fetchBalanceSheet = async () => {
+  const fetchAllData = async () => {
     if (!activeCompany) return;
     setLoading(true);
     try {
       const companyId = activeCompany.id || activeCompany;
-      const response = await api.get(`/api/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`);
-      if (response.data?.success && response.data.data) {
-        setLedger(response.data.data);
-        calculateTotals(response.data.data);
+
+      // 1. Lấy số dư tổng hợp từ backend
+      const [balanceRes, customerRes, supplierRes] = await Promise.all([
+        api.get(`/api/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`),
+        api.get(`/api/report/customer-balances?company_id=${companyId}&year=${fiscalYear}`),
+        api.get(`/api/report/supplier-balances?company_id=${companyId}&year=${fiscalYear}`)
+      ]);
+
+      const ledgerData = balanceRes.data?.data || balanceRes.data || {};
+      setLedger(ledgerData);
+
+      // 2. Lấy số dư chi tiết theo đối tác cho TK lưỡng tính
+      const customerMap = {};
+      if (customerRes.data?.success && customerRes.data.data) {
+        customerRes.data.data.forEach(item => {
+          const accCode = item.account_code || '131';
+          if (!customerMap[accCode]) customerMap[accCode] = { debit: 0, credit: 0, details: [] };
+          if (item.balance_type === 'asset') {
+            customerMap[accCode].debit += parseFloat(item.amount) || 0;
+          } else {
+            customerMap[accCode].credit += parseFloat(item.amount) || 0;
+          }
+          customerMap[accCode].details.push(item);
+        });
       }
+      setCustomerBalances(customerMap);
+
+      const supplierMap = {};
+      if (supplierRes.data?.success && supplierRes.data.data) {
+        supplierRes.data.data.forEach(item => {
+          const accCode = item.account_code || '331';
+          if (!supplierMap[accCode]) supplierMap[accCode] = { debit: 0, credit: 0, details: [] };
+          if (item.balance_type === 'asset') {
+            supplierMap[accCode].debit += parseFloat(item.amount) || 0;
+          } else {
+            supplierMap[accCode].credit += parseFloat(item.amount) || 0;
+          }
+          supplierMap[accCode].details.push(item);
+        });
+      }
+      setSupplierBalances(supplierMap);
+
+      // 3. Tính tổng và kiểm tra audit
+      calculateTotals(ledgerData, customerMap, supplierMap);
+      runAuditChecks(ledgerData, customerMap, supplierMap);
+
     } catch (error) {
       console.error('Lỗi tải bảng cân đối:', error);
     } finally {
@@ -113,30 +261,77 @@ export default function BalanceSheetB01() {
     }
   };
 
-  const calculateTotals = (data) => {
+  /**
+   * Kiểm tra các bất thường kế toán (Audit Warnings)
+   * - Tổ hợp 3: Tài khoản DEBIT có dư Có (ví dụ: âm quỹ)
+   * - Tổ hợp 6: Tài khoản CREDIT có dư Nợ (ví dụ: trả nợ quá số phải trả)
+   * - Tổ hợp 11: Khấu hao > Nguyên giá
+   */
+  const runAuditChecks = (data, customerMap, supplierMap) => {
+    const warnings = [];
+
+    // Kiểm tra tài khoản DEBIT có dư Có bất thường
+    Object.keys(data).forEach(accCode => {
+      if (!data[accCode]) return;
+      const { patsinhDr, patsinhCr } = data[accCode];
+      const nature = getAccountNature(accCode);
+      const { netBalance, balanceType } = calculateNetBalance(patsinhDr, patsinhCr, nature);
+
+      if (nature === ACCOUNT_NATURES.DEBIT && balanceType === ACCOUNT_NATURES.CREDIT && netBalance > 0) {
+        warnings.push({
+          type: 'warning',
+          account: accCode,
+          message: `TK ${accCode} (thuần Nợ) đang có số dư Có ${netBalance.toLocaleString('vi-VN')}. Kiểm tra bất thường (âm quỹ, âm kho,...)`
+        });
+      }
+      if (nature === ACCOUNT_NATURES.CREDIT && balanceType === ACCOUNT_NATURES.DEBIT && netBalance > 0) {
+        warnings.push({
+          type: 'warning',
+          account: accCode,
+          message: `TK ${accCode} (thuần Có) đang có số dư Nợ ${netBalance.toLocaleString('vi-VN')}. Kiểm tra bất thường (trả nợ quá số phải trả)`
+        });
+      }
+    });
+
+    // Kiểm tra khấu hao > nguyên giá (TK 214 vs 211)
+    if (data['211'] && data['214']) {
+      const assetValue = (parseFloat(data['211'].patsinhDr) || 0) - (parseFloat(data['211'].patsinhCr) || 0);
+      const depreValue = (parseFloat(data['214'].patsinhCr) || 0) - (parseFloat(data['214'].patsinhDr) || 0);
+      if (depreValue > assetValue && assetValue > 0) {
+        warnings.push({
+          type: 'error',
+          account: '214',
+          message: `Khấu hao (${depreValue.toLocaleString('vi-VN')}) > Nguyên giá TSCĐ (${assetValue.toLocaleString('vi-VN')}). Sai lệch nghiêm trọng!`
+        });
+      }
+    }
+
+    setAuditWarnings(warnings);
+  };
+
+  const calculateTotals = (data, customerMap, supplierMap) => {
     let totalAssets = 0;
     let totalLiabilities = 0;
     let totalEquity = 0;
 
-    ACCOUNT_GROUPS.assets.accounts.forEach(acc => {
-      const balance = getAccountBalance(data, acc.code, acc.type);
-      if (!acc.isTotal) return;
-      if (acc.code === '110') {
-        totalAssets += Math.abs(balance);
-      } else if (acc.code === '200') {
-        totalAssets += Math.abs(balance);
-      }
+    // Tính tổng Tài sản từ các chỉ tiêu tổng hợp cấp 1
+    const assetTotalCodes = ['110', '120', '130', '140', '150', '200'];
+    assetTotalCodes.forEach(code => {
+      const balance = getAccountBalanceForTotal(data, code, 'debit', customerMap, supplierMap);
+      totalAssets += Math.abs(balance);
     });
 
-    ACCOUNT_GROUPS.liabilities.accounts.forEach(acc => {
-      if (!acc.isTotal) return;
-      const balance = getAccountBalance(data, acc.code, acc.type);
+    // Tính tổng Nợ phải trả
+    const liabilityTotalCodes = ['310', '320'];
+    liabilityTotalCodes.forEach(code => {
+      const balance = getAccountBalanceForTotal(data, code, 'credit', customerMap, supplierMap);
       totalLiabilities += Math.abs(balance);
     });
 
-    ACCOUNT_GROUPS.equity.accounts.forEach(acc => {
-      if (!acc.isTotal) return;
-      const balance = getAccountBalance(data, acc.code, acc.type);
+    // Tính tổng VCSH
+    const equityTotalCodes = ['410', '430'];
+    equityTotalCodes.forEach(code => {
+      const balance = getAccountBalanceForTotal(data, code, 'credit', customerMap, supplierMap);
       totalEquity += Math.abs(balance);
     });
 
@@ -148,27 +343,107 @@ export default function BalanceSheetB01() {
     });
   };
 
-  const getAccountBalance = (data, accountCode, accountType) => {
-    if (!data[accountCode]) {
-      // Tính tổng cho các chỉ tiêu tổng hợp
-      const children = findChildren(accountCode);
-      if (children.length > 0) {
-        let sum = 0;
-        children.forEach(childCode => {
-          sum += getDirectBalance(data, childCode);
-        });
-        return sum;
-      }
-      return 0;
+  /**
+   * Lấy số dư cho chỉ tiêu tổng hợp (tính tổng các tài khoản con)
+   */
+  const getAccountBalanceForTotal = (data, parentCode, defaultType, customerMap, supplierMap) => {
+    const children = findChildren(parentCode);
+    if (children.length === 0) {
+      return getDirectBalance(data, parentCode, defaultType, customerMap, supplierMap);
     }
-    return getDirectBalance(data, accountCode, accountType);
+
+    let sum = 0;
+    children.forEach(childCode => {
+      sum += getDirectBalance(data, childCode, defaultType, customerMap, supplierMap);
+    });
+    return sum;
   };
 
-  const getDirectBalance = (data, accountCode, accountType) => {
+  /**
+   * Lấy số dư trực tiếp cho 1 tài khoản
+   * ĐÃ SỬA: Dùng calculateNetBalance() thay vì công thức cứng
+   * ĐÃ SỬA: Bóc tách tài khoản lưỡng tính theo đối tác
+   * ĐÃ SỬA: Xử lý tài khoản đối tài (contra-asset, contra-equity)
+   */
+  const getDirectBalance = (data, accountCode, accountType, customerMap, supplierMap) => {
+    const nature = getAccountNature(accountCode);
+
+    // ================================================================
+    // TRƯỜNG HỢP 1: Tài khoản lưỡng tính (BOTH) - 131, 331, 138, 338
+    // Phải bóc tách theo đối tác, không gộp
+    // ================================================================
+    if (nature === ACCOUNT_NATURES.BOTH) {
+      // Lấy số dư chi tiết theo đối tác từ API
+      const partnerData = customerMap?.[accountCode] || supplierMap?.[accountCode];
+      if (partnerData) {
+        // Nếu chỉ tiêu là Tài sản (debit) → lấy phần dư Nợ
+        // Nếu chỉ tiêu là Nguồn vốn (credit) → lấy phần dư Có
+        if (accountType === 'debit' || accountType === 'hermaphroditic') {
+          return partnerData.debit - partnerData.credit; // Dư Nợ - Dư Có (có thể âm nếu tổng thể dư Có)
+        } else {
+          return partnerData.credit - partnerData.debit; // Dư Có - Dư Nợ
+        }
+      }
+      
+      // FALLBACK: Nếu không có partner data từ API, dùng ledger gộp
+      // Tính net balance từ tổng debit/credit trong ledger
+      if (data[accountCode]) {
+        const { patsinhDr, patsinhCr } = data[accountCode];
+        const d = parseFloat(patsinhDr) || 0;
+        const c = parseFloat(patsinhCr) || 0;
+        const { netBalance, balanceType } = calculateNetBalance(d, c, nature);
+        if (accountType === 'debit' || accountType === 'hermaphroditic') {
+          return balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance;
+        } else {
+          return balanceType === ACCOUNT_NATURES.CREDIT ? netBalance : -netBalance;
+        }
+      }
+    }
+
+    // ================================================================
+    // TRƯỜNG HỢP 2: Tài khoản đối tài (contra-asset) - 214, 229
+    // Hiển thị số âm bên Tài sản: balance = -(credit - debit)
+    // ================================================================
+    if (accountType === 'contra-asset') {
+      if (!data[accountCode]) return 0;
+      const { patsinhDr, patsinhCr } = data[accountCode];
+      const d = parseFloat(patsinhDr) || 0;
+      const c = parseFloat(patsinhCr) || 0;
+      // Giá trị hao mòn = -(Có - Nợ) → luôn âm hoặc 0
+      return -(c - d);
+    }
+
+    // ================================================================
+    // TRƯỜNG HỢP 3: Tài khoản đối vốn (contra-equity) - 419
+    // Hiển thị số âm bên VCSH
+    // ================================================================
+    if (accountType === 'contra-equity') {
+      if (!data[accountCode]) return 0;
+      const { patsinhDr, patsinhCr } = data[accountCode];
+      const d = parseFloat(patsinhDr) || 0;
+      const c = parseFloat(patsinhCr) || 0;
+      // Cổ phiếu quỹ: Nợ - Có → luôn dương, nhưng hiển thị âm
+      return -(d - c);
+    }
+
+    // ================================================================
+    // TRƯỜNG HỢP 4: Tài khoản thông thường (DEBIT / CREDIT)
+    // Dùng calculateNetBalance() để tính đúng
+    // ================================================================
     if (!data[accountCode]) return 0;
     const { patsinhDr, patsinhCr } = data[accountCode];
-    const balance = accountType === 'credit' ? patsinhCr - patsinhDr : patsinhDr - patsinhCr;
-    return balance;
+    const d = parseFloat(patsinhDr) || 0;
+    const c = parseFloat(patsinhCr) || 0;
+
+    const { netBalance, balanceType } = calculateNetBalance(d, c, nature);
+
+    // Với chỉ tiêu Tài sản (debit): trả về dương nếu balanceType = DEBIT, âm nếu CREDIT
+    // Với chỉ tiêu Nguồn vốn (credit): trả về dương nếu balanceType = CREDIT, âm nếu DEBIT
+    if (accountType === 'debit') {
+      return balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance;
+    } else {
+      return balanceType === ACCOUNT_NATURES.CREDIT ? netBalance : -netBalance;
+    }
   };
 
   const findChildren = (parentCode) => {
@@ -191,25 +466,74 @@ export default function BalanceSheetB01() {
     }).format(value || 0);
   };
 
-  const getDisplayBalance = (acc, data) => {
-    const balance = getAccountBalance(data, acc.code, acc.type);
-    const displayValue = Math.abs(balance);
+  /**
+   * Lấy số dư hiển thị cho 1 chỉ tiêu
+   * Trả về { debitDisplay, creditDisplay, netDisplay, isNegative }
+   * - debitDisplay: số hiển thị bên Nợ (Tài sản)
+   * - creditDisplay: số hiển thị bên Có (Nguồn vốn)
+   * - netDisplay: số dư thuần (có thể âm)
+   * - isNegative: true nếu cần hiển thị trong ngoặc (...)
+   */
+  const getDisplayBalances = (acc, data, customerMap, supplierMap) => {
+    const balance = getDirectBalance(data, acc.code, acc.type, customerMap, supplierMap);
+    const absBalance = Math.abs(balance);
 
-    if (acc.type === 'debit' || acc.type === 'hermaphroditic') {
-      return balance > 0 ? displayValue : 0;
-    } else {
-      return balance > 0 ? displayValue : 0;
+    // Tài khoản đối tài/đối vốn: luôn hiển thị âm (...)
+    if (acc.type === 'contra-asset' || acc.type === 'contra-equity') {
+      return {
+        debitDisplay: acc.type === 'contra-asset' ? 0 : 0,
+        creditDisplay: acc.type === 'contra-equity' ? 0 : 0,
+        netDisplay: -absBalance,
+        isNegative: true,
+        displayValue: absBalance
+      };
     }
-  };
 
-  const getCreditBalance = (acc, data) => {
-    const balance = getAccountBalance(data, acc.code, acc.type);
-    const displayValue = Math.abs(balance);
+    // Tài khoản lưỡng tính: hiển thị bên Nợ nếu dư Nợ, bên Có nếu dư Có
+    if (acc.type === 'hermaphroditic') {
+      if (balance > 0) {
+        return {
+          debitDisplay: absBalance,
+          creditDisplay: 0,
+          netDisplay: absBalance,
+          isNegative: false,
+          displayValue: absBalance
+        };
+      } else if (balance < 0) {
+        return {
+          debitDisplay: 0,
+          creditDisplay: absBalance,
+          netDisplay: -absBalance,
+          isNegative: false,
+          displayValue: absBalance
+        };
+      }
+      return {
+        debitDisplay: 0,
+        creditDisplay: 0,
+        netDisplay: 0,
+        isNegative: false,
+        displayValue: 0
+      };
+    }
 
-    if (acc.type === 'credit' || acc.type === 'hermaphroditic') {
-      return balance > 0 ? displayValue : 0;
+    // Tài khoản thông thường
+    if (acc.type === 'debit') {
+      return {
+        debitDisplay: balance > 0 ? absBalance : 0,
+        creditDisplay: balance < 0 ? absBalance : 0,
+        netDisplay: balance,
+        isNegative: balance < 0,
+        displayValue: absBalance
+      };
     } else {
-      return balance > 0 ? displayValue : 0;
+      return {
+        debitDisplay: balance < 0 ? absBalance : 0,
+        creditDisplay: balance > 0 ? absBalance : 0,
+        netDisplay: balance,
+        isNegative: balance < 0,
+        displayValue: absBalance
+      };
     }
   };
 
@@ -221,22 +545,21 @@ export default function BalanceSheetB01() {
     let csv = '\uFEFF';
     csv += 'BẢNG CÂN ĐỐI KẾ TOÁN B01-DN\n';
     csv += `Năm tài chính: ${fiscalYear}\n\n`;
-    csv += 'Mã chỉ tiêu,Tên chỉ tiêu,Số cuối kỳ,Số đầu năm\n';
+    csv += 'Mã chỉ tiêu,Tên chỉ tiêu,Số cuối kỳ,Số đầu năm,Ghi chú\n';
 
     for (const group of Object.values(ACCOUNT_GROUPS)) {
       csv += `\n${group.title},,,\n`;
       group.accounts.forEach(acc => {
-        const debitBal = getDisplayBalance(acc, ledger);
-        const creditBal = getDisplayBalance(acc, ledger);
-        const displayValue = (acc.type === 'debit' || acc.type === 'hermaphroditic') ? debitBal : creditBal;
-        csv += `${acc.code},"${acc.name}",${displayValue},0\n`;
+        const { displayValue, isNegative } = getDisplayBalances(acc, ledger, customerBalances, supplierBalances);
+        const displayStr = isNegative ? `(${displayValue.toLocaleString('vi-VN')})` : displayValue.toLocaleString('vi-VN');
+        csv += `${acc.code},"${acc.name}",${displayStr},0,\n`;
       });
     }
 
     csv += '\n';
-    csv += `Tổng Tài sản,,${formatCurrency(balanceData.totalAssets).replace(/[^0-9]/g, '')},0\n`;
-    csv += `Tổng Nợ phải trả,,${formatCurrency(balanceData.totalLiabilities).replace(/[^0-9]/g, '')},0\n`;
-    csv += `Tổng VCSH,,${formatCurrency(balanceData.totalEquity).replace(/[^0-9]/g, '')},0\n`;
+    csv += `Tổng Tài sản,,${balanceData.totalAssets.toLocaleString('vi-VN')},0,\n`;
+    csv += `Tổng Nợ phải trả,,${balanceData.totalLiabilities.toLocaleString('vi-VN')},0,\n`;
+    csv += `Tổng VCSH,,${balanceData.totalEquity.toLocaleString('vi-VN')},0,\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -291,6 +614,25 @@ export default function BalanceSheetB01() {
         </div>
       </div>
 
+      {/* Audit Warnings */}
+      {auditWarnings.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="text-amber-600" size={18} />
+            <span className="text-sm font-bold text-amber-800">Cảnh báo kiểm toán ({auditWarnings.length})</span>
+          </div>
+          <div className="space-y-1">
+            {auditWarnings.map((w, i) => (
+              <div key={i} className={`text-xs px-3 py-1.5 rounded-lg ${
+                w.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                <span className="font-bold">[{w.account}]</span> {w.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bảng cân đối */}
       <div ref={reportRef} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -301,34 +643,56 @@ export default function BalanceSheetB01() {
                 <th className="p-3">Tên chỉ tiêu</th>
                 <th className="p-3 w-36 text-right">Số cuối kỳ</th>
                 <th className="p-3 w-36 text-right">Số đầu năm</th>
+                <th className="p-3 w-40 text-right">Số dư thuần (NET)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {Object.values(ACCOUNT_GROUPS).map((group, gi) => (
                 <React.Fragment key={gi}>
                   <tr className="bg-slate-100 font-bold">
-                    <td className="p-2 text-slate-700" colSpan="4">{group.title}</td>
+                    <td className="p-2 text-slate-700" colSpan="5">{group.title}</td>
                   </tr>
                   {group.accounts.map((acc, ai) => {
-                    const debitBal = getDisplayBalance(acc, ledger);
-                    const creditBal = getCreditBalance(acc, ledger);
-                    const displayValue = (acc.type === 'debit' || acc.type === 'hermaphroditic') ? debitBal : creditBal;
+                    const { displayValue, isNegative, netDisplay } = getDisplayBalances(acc, ledger, customerBalances, supplierBalances);
                     const isTotal = acc.isTotal;
 
                     if (displayValue === 0 && !isTotal) return null;
 
+                    // Xác định class hiển thị
+                    const valueClass = isNegative
+                      ? 'text-red-600'
+                      : (isTotal ? 'text-indigo-700' : 'text-emerald-700');
+
+                    // Format số âm: (1.000.000) thay vì -1.000.000
+                    const formattedValue = isNegative
+                      ? `(${displayValue.toLocaleString('vi-VN')})`
+                      : (displayValue > 0 ? displayValue.toLocaleString('vi-VN') : '—');
+
                     return (
-                      <tr key={ai} className={`hover:bg-slate-50/30 transition ${isTotal ? 'font-bold bg-slate-50/50' : ''} ${acc.parentCode ? '' : ''}`}>
+                      <tr key={ai} className={`hover:bg-slate-50/30 transition ${isTotal ? 'font-bold bg-slate-50/50' : ''}`}>
                         <td className={`p-3 font-mono ${isTotal ? 'text-indigo-700' : 'text-blue-600'}`}>
                           {acc.code}
                         </td>
                         <td className={`p-3 text-slate-600 ${isTotal ? 'font-bold' : ''}`}>
                           {acc.name}
+                          {isNegative && (
+                            <span className="ml-1 text-red-500 font-bold">(*)</span>
+                          )}
                         </td>
-                        <td className="p-3 text-right font-mono font-bold">
-                          {displayValue > 0 ? formatCurrency(displayValue) : '—'}
+                        <td className={`p-3 text-right font-mono font-bold ${valueClass}`}>
+                          {formattedValue}
                         </td>
                         <td className="p-3 text-right font-mono text-slate-400">—</td>
+                        <td className={`p-3 text-right font-mono font-bold ${valueClass}`}>
+                          {netDisplay !== 0 ? (
+                            <span>
+                              {netDisplay.toLocaleString('vi-VN')}
+                              <span className="ml-1 text-xs">
+                                {netDisplay > 0 ? 'DR' : 'CR'}
+                              </span>
+                            </span>
+                          ) : '—'}
+                        </td>
                       </tr>
                     );
                   })}

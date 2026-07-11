@@ -1,3 +1,4 @@
+
 /**
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
@@ -5,9 +6,29 @@
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Layers, Loader2 } from 'lucide-react';
+import { Layers, Loader2, Download, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
+import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+
+/**
+ * Mẫu Excel 2 chiều cho đồng bộ doanh thu bán hàng.
+ * Các cột hỗ trợ:
+ *   ID, Customer, Amount, TaxRate, Discount, Coupon, ShippingFee,
+ *   PaymentMethod, SalesChannel, PaymentStatus
+ */
+const TEMPLATE_COLUMNS = [
+  'ID',
+  'Customer',
+  'Amount',
+  'TaxRate',
+  'Discount',
+  'Coupon',
+  'ShippingFee',
+  'PaymentMethod',
+  'SalesChannel',
+  'PaymentStatus'
+];
 
 export default function AutoSalesExcel() {
   const { createNewVoucher } = useVouchers();
@@ -30,13 +51,52 @@ export default function AutoSalesExcel() {
           id: r.ID || r.id || `INV-${i+1}`,
           customer: r.Customer || r.customer || 'Khách lẻ',
           amount: parseFloat(r.Amount || r.amount) || 0,
-          taxRate: parseFloat(r.TaxRate || r.taxRate) || 8
+          taxRate: parseFloat(r.TaxRate || r.taxRate) || 8,
+          discount: parseFloat(r.Discount || r.discount) || 0,
+          coupon: r.Coupon || r.coupon || '',
+          shippingFee: parseFloat(r.ShippingFee || r.shippingFee) || 0,
+          paymentMethod: r.PaymentMethod || r.paymentMethod || 'cod',
+          salesChannel: r.SalesChannel || r.salesChannel || 'import_excel',
+          paymentStatus: r.PaymentStatus || r.paymentStatus || 'pending'
         })).filter(r => r.amount > 0);
         
         setExcelData(validData);
       } catch (err) { alert('Lỗi đọc file Excel!'); }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplate = () => {
+    const wb = XLSX.utils.book_new();
+    const wsData = [TEMPLATE_COLUMNS];
+    // Sample row
+    wsData.push(['INV-001', 'Nguyễn Văn A', 1000000, 8, 50000, 'SAVE10', 30000, 'cod', 'import_excel', 'pending']);
+    wsData.push(['INV-002', 'Trần Thị B', 2500000, 10, 0, '', 50000, 'bank_transfer', 'retail', 'pending']);
+    
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'ke-toan-doanh-thu-template.xlsx');
+  };
+
+  const handleExport = async () => {
+    const companyId = activeCompany?.id ?? activeCompany;
+    if (!companyId) return alert('Vui lòng chọn công ty!');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/export/sales-revenue?company_id=${companyId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Lỗi xuất Excel');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Doanh_Thu_Ban_Hang_${companyId}_${new Date().getFullYear()}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Lỗi xuất Excel');
+    }
   };
 
   const handleSync = async () => {
@@ -48,11 +108,14 @@ export default function AutoSalesExcel() {
       // Map từng hóa đơn thành 1 payload gửi API
       for (const inv of excelData) {
         const baseAmount = Math.round(inv.amount);
-        const taxAmount = Math.round(baseAmount * (inv.taxRate / 100));
+        const discountAmount = Math.round(inv.discount);
+        const taxRate = inv.taxRate;
+        const taxAmount = Math.round((baseAmount - discountAmount) * (taxRate / 100));
+        const netRevenue = baseAmount - discountAmount + Math.round(inv.shippingFee);
         
         const details = [
-          { accountCode: '131', entryType: 'DR', amount: baseAmount + taxAmount },
-          { accountCode: '511', entryType: 'CR', amount: baseAmount }
+          { accountCode: '131', entryType: 'DR', amount: netRevenue + taxAmount },
+          { accountCode: '511', entryType: 'CR', amount: netRevenue }
         ];
         if (taxAmount > 0) details.push({ accountCode: '3331', entryType: 'CR', amount: taxAmount });
 
@@ -63,6 +126,14 @@ export default function AutoSalesExcel() {
           description: `Doanh thu bán hàng Excel: ${inv.id} - ${inv.customer}`,
           currency: getDefaultCurrency(),
           exchangeRate: 1,
+          discount_amount: discountAmount,
+          coupon_code: inv.coupon || null,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+          shipping_fee: Math.round(inv.shippingFee),
+          payment_method: inv.paymentMethod,
+          payment_status: inv.paymentStatus,
+          sales_channel: inv.salesChannel,
           details: details
         };
         
@@ -84,7 +155,25 @@ export default function AutoSalesExcel() {
       </h1>
       
       <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-        <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+        <div className="flex items-center gap-3">
+          <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+          <button onClick={downloadTemplate} className="flex-shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
+            <Download size={14} /> Template
+          </button>
+          <button onClick={handleExport} className="flex-shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5">
+            <Upload size={14} /> Export doanh thu
+          </button>
+        </div>
+        
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+          <p className="text-xs font-bold text-blue-800 mb-1">Cấu trúc file Excel mẫu 2 chiều:</p>
+          <p className="text-[10px] text-blue-700 font-mono">
+            {TEMPLATE_COLUMNS.join(' | ')}
+          </p>
+          <p className="text-[10px] text-blue-600 mt-1">
+            2 dòng mẫu đã được tải về khi nhấn "Template". Ghi đè dữ liệu của bạn lên đó.
+          </p>
+        </div>
         
         {excelData.length > 0 && (
           <div className="space-y-4">
@@ -93,6 +182,45 @@ export default function AutoSalesExcel() {
               <button onClick={handleSync} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
                 {loading ? <Loader2 size={14} className="animate-spin" /> : 'Thực thi ghi sổ đồng loạt'}
               </button>
+            </div>
+            
+            {/* Preview table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold">
+                    <th className="px-2 py-1.5 text-left">ID</th>
+                    <th className="px-2 py-1.5 text-left">Khách hàng</th>
+                    <th className="px-2 py-1.5 text-right">Số tiền</th>
+                    <th className="px-2 py-1.5 text-right">Thuế %</th>
+                    <th className="px-2 py-1.5 text-right">Giảm giá</th>
+                    <th className="px-2 py-1.5 text-left">Coupon</th>
+                    <th className="px-2 py-1.5 text-right">Phí ship</th>
+                    <th className="px-2 py-1.5 text-left">TT. toán</th>
+                    <th className="px-2 py-1.5 text-left">Kênh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excelData.slice(0, 20).map((inv, i) => (
+                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-2 py-1.5 font-semibold">{inv.id}</td>
+                      <td className="px-2 py-1.5">{inv.customer}</td>
+                      <td className="px-2 py-1.5 text-right">{inv.amount.toLocaleString('vi-VN')}</td>
+                      <td className="px-2 py-1.5 text-right">{inv.taxRate}%</td>
+                      <td className="px-2 py-1.5 text-right">{inv.discount.toLocaleString('vi-VN')}</td>
+                      <td className="px-2 py-1.5">{inv.coupon || '-'}</td>
+                      <td className="px-2 py-1.5 text-right">{inv.shippingFee.toLocaleString('vi-VN')}</td>
+                      <td className="px-2 py-1.5">{inv.paymentMethod}</td>
+                      <td className="px-2 py-1.5">{inv.salesChannel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {excelData.length > 20 && (
+                <p className="px-2 py-1 text-[10px] text-slate-400 border-t border-slate-100">
+                  ... và {excelData.length - 20} hóa đơn khác
+                </p>
+              )}
             </div>
           </div>
         )}

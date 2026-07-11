@@ -128,6 +128,22 @@ export const createOrder = async (payload) => {
   }
 };
 
+// Lookup or create partner by phone
+export const findOrCreatePartner = async (companyId, partnerData) => {
+  try {
+    const { data } = await publicApi.post('/partners/find-or-create', {
+      company_id: companyId,
+      partner_name: partnerData.partner_name,
+      phone: partnerData.phone,
+      address: partnerData.address,
+      type: 'customer'
+    });
+    return data;
+  } catch (err) {
+    throw err;
+  }
+};
+
 // Load warehouse queue
 export const loadWarehouseQueue = async (companyId, token) => {
   if (!companyId) return [];
