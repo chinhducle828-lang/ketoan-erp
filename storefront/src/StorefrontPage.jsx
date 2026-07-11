@@ -2,7 +2,7 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   ArrowRight,
@@ -57,7 +57,7 @@ import {
   isExplicitNonAdminRole,
   getUnitPriceWithTax
 } from './utils/formatters';
-import { publicApi, authApi, API_BASE_URL, getERPUrl, loadWarehouseQueue, adminItemApi, warehouseApi, setAuthenticating, findOrCreatePartner } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
@@ -89,6 +89,39 @@ const ImageWithFallback = ({
     />
   );
 };
+
+const buildErpLoginUrl = (baseUrl, companyId, role) => {
+  const url = new URL(baseUrl);
+  if (!url.pathname || url.pathname === '/') {
+    url.pathname = '/login';
+  }
+  if (companyId) url.searchParams.set('company_id', companyId);
+  if (role) url.searchParams.set('role', role);
+  return url.toString();
+};
+
+const buildBearerConfig = (token) => {
+  if (!token) return {};
+  return { headers: { Authorization: `Bearer ${token}` } };
+};
+
+const isSessionAllowedForRole = (targetRole, sessionRole) => {
+  if (!targetRole || targetRole === 'guest') return true;
+  if (!sessionRole) return false;
+  if (targetRole === 'admin') return sessionRole === 'admin';
+  if (targetRole === 'nv_kho') return sessionRole === 'nv_kho' || sessionRole === 'admin';
+  if (targetRole === 'nv_banhang') return sessionRole === 'nv_banhang' || sessionRole === 'admin';
+  return false;
+};
+
+const getRoleDisplayName = (role) => {
+  if (role === 'admin') return 'admin';
+  if (role === 'nv_kho') return 'nhân viên kho';
+  if (role === 'nv_banhang') return 'nhân viên bán hàng';
+  return 'người dùng';
+};
+
+const STOREFRONT_ROLE_KEY = 'storefrontRole';
 
 const getStoredRole = () => {
   if (typeof window === 'undefined') return 'guest';
@@ -157,61 +190,6 @@ export default function StorefrontPage() {
   const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
   const [adminSessionChecked, setAdminSessionChecked] = useState(false);
   const [sessionRole, setSessionRole] = useState('');
-
-  const isGuestRole = storefrontRole === 'guest';
-  const isAdminRole = storefrontRole === 'admin';
-  const isSalesRole = storefrontRole === 'nv_banhang';
-  const isWarehouseRole = storefrontRole === 'nv_kho';
-  const currentRoleCapabilities = ROLE_CAPABILITY_MAP[storefrontRole] || ROLE_CAPABILITY_MAP.guest;
-  const canOrder = currentRoleCapabilities.canOrder;
-  const canUseCart = currentRoleCapabilities.canUseCart;
-  const canManageItems = currentRoleCapabilities.canManageItems;
-  const canTrackQueue = currentRoleCapabilities.canTrackQueue;
-  const hasStorefrontSession = Boolean(storefrontToken || hasAdminSession);
-  const canUseRealtimeQueue = canTrackQueue && hasStorefrontSession;
-  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
-
-  // Dynamic categories computed from items
-  const dynamicCategories = useMemo(() => {
-    const categorySet = new Set();
-    items.forEach(item => {
-      const category = String(item?.category || '').trim();
-      if (category) categorySet.add(category);
-    });
-    return ['Tất cả', ...Array.from(categorySet)];
-  }, [items]);
-
-  const rollbackToGuest = (message) => {
-    setStorefrontRole('guest');
-    setStoredRole('guest');
-    setHasAdminSession(false);
-    setSessionRole('');
-    setAdminMessage(message || 'Phiên admin không hợp lệ. Đã chuyển về chế độ Khách vãng lai.');
-  };
-
-  const isExplicitNonAdminRole = (roleCode) => {
-    const normalized = String(roleCode || '').trim().toLowerCase();
-    return normalized !== '' && normalized !== 'admin';
-  };
-
-  // If admin session is missing, keep user on storefront and show guidance instead of auto-redirect.
-  useEffect(() => {
-    if (!authBootstrapDone) return;
-    if (!adminSessionChecked) return;
-    if (authenticatingAdmin) return;
-    if (hasAdminSession) return;
-    if (isGuestRole) return;
-
-    // Build ERP login URL for guidance only (no automatic navigation)
-    const erpBase = getERPUrl();
-    if (!erpBase) {
-      setAdminMessage('Thiếu địa chỉ ERP để xác thực lại. Giữ nguyên chế độ và chờ phiên hợp lệ.');
-      return;
-    }
-    const loginUrl = buildErpLoginUrl(erpBase, companyId, storefrontRole);
-    const roleLabel = storefrontRole === 'admin' ? 'admin' : storefrontRole === 'nv_banhang' ? 'bán hàng' : 'kho';
-    setAdminMessage(`Chưa có phiên ${roleLabel} hợp lệ. Vui lòng đăng nhập lại từ ERP nếu cần: ${loginUrl}`);
-  }, [isAdminRole, isGuestRole, authBootstrapDone, adminSessionChecked, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const adminImageInputRef = useRef(null);
@@ -244,252 +222,79 @@ export default function StorefrontPage() {
   const salesOrderIdsRef = useRef(salesOrderIds);
   const streamRef = useRef(null);
 
-  const hasCartItems = cart.length > 0;
+  const isGuestRole = storefrontRole === 'guest';
+  const isAdminRole = storefrontRole === 'admin';
+  const isSalesRole = storefrontRole === 'nv_banhang';
+  const isWarehouseRole = storefrontRole === 'nv_kho';
+  const currentRoleCapabilities = ROLE_CAPABILITY_MAP[storefrontRole] || ROLE_CAPABILITY_MAP.guest;
+  const canOrder = currentRoleCapabilities.canOrder;
+  const canUseCart = currentRoleCapabilities.canUseCart;
+  const canManageItems = currentRoleCapabilities.canManageItems;
+  const canTrackQueue = currentRoleCapabilities.canTrackQueue;
+  const hasStorefrontSession = Boolean(storefrontToken || hasAdminSession);
+  const canUseRealtimeQueue = canTrackQueue && hasStorefrontSession;
+  const currentRole = ROLE_OPTIONS.find((role) => role.value === storefrontRole) || ROLE_OPTIONS[0];
 
-  const getOrderDisplayDate = (order) => formatDisplayDate(order?.voucher_date || order?.created_at);
+  // Dynamic categories computed from items
+  const dynamicCategories = useMemo(() => {
+    if (!items || items.length === 0) return ['Tất cả'];
+    const unique = new Set(items.map(item => item?.category).filter(Boolean));
+    return ['Tất cả', ...Array.from(unique)];
+  }, [items]);
 
-  const parsePriceValue = (value) => {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    if (value === null || value === undefined) return 0;
-
-    let raw = String(value).trim();
-    if (!raw) return 0;
-    raw = raw.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
-    if (!raw) return 0;
-
-    const lastDot = raw.lastIndexOf('.');
-    const lastComma = raw.lastIndexOf(',');
-
-    if (lastDot !== -1 && lastComma !== -1) {
-      // Keep the last separator as decimal marker, remove the other as thousands marker.
-      if (lastComma > lastDot) {
-        raw = raw.replace(/\./g, '').replace(/,/g, '.');
-      } else {
-        raw = raw.replace(/,/g, '');
-      }
-    } else if (lastComma !== -1) {
-      const fractionalDigits = raw.length - lastComma - 1;
-      if (fractionalDigits > 0 && fractionalDigits <= 2) {
-        raw = raw.replace(/,/g, '.');
-      } else {
-        raw = raw.replace(/,/g, '');
-      }
-    } else if (lastDot !== -1) {
-      const fractionalDigits = raw.length - lastDot - 1;
-      if (!(fractionalDigits > 0 && fractionalDigits <= 2)) {
-        raw = raw.replace(/\./g, '');
-      }
-    }
-
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : 0;
+  const rollbackToGuest = (message) => {
+    setStorefrontRole('guest');
+    setStoredRole('guest');
+    setHasAdminSession(false);
+    setSessionRole('');
+    setAdminMessage(message || 'Phiên admin không hợp lệ. Đã chuyển về chế độ Khách vãng lai.');
   };
 
-  const getUnitPrice = (item) => parsePriceValue(item?.price_sell);
-  const getUnitPriceTax = (item) => getUnitPriceWithTax(item, 0.08);
-  const getOrderAmount = (item, quantity) => Number((getUnitPriceTax(item) * Math.max(Number(quantity) || 1, 1)).toFixed(2));
+  const isExplicitNonAdminRole = (roleCode) => {
+    const normalized = String(roleCode || '').trim().toLowerCase();
+    return normalized !== '' && normalized !== 'admin';
+  };
 
+  // If admin session is missing, keep user on storefront and show guidance instead of auto-redirect.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paramCompanyId = params.get('company_id') || params.get('companyId');
-    const paramRole = params.get('role') || params.get('storefront_role');
-    const erpToken = params.get('erp_token');
-
-    if (paramRole && ROLE_OPTIONS.some((item) => item.value === paramRole)) {
-      setStorefrontRole(paramRole);
-      setStoredRole(paramRole);
-    }
-
-    if (paramCompanyId) {
-      setCompanyId(paramCompanyId);
-      localStorage.setItem('shopCompanyId', paramCompanyId);
-    }
-
-    if (erpToken) {
-      (async () => {
-        setAuthenticating(true);
-        setAuthenticatingAdmin(true);
-        setAdminSessionChecked(false);
-        try {
-          const extRes = await authApi.post('/api/auth/external-login', { erp_token: erpToken, company_id: paramCompanyId, role: paramRole });
-          // Use the dedicated storefront token (7-day expiry) returned by backend,
-          // not the original erp_token (15-min expiry) from URL
-          const storefrontTokenFromBackend = extRes?.data?.storefrontToken;
-          const finalToken = storefrontTokenFromBackend || erpToken;
-          setStorefrontToken(finalToken);
-          localStorage.setItem('storefrontAccessToken', finalToken);
-          // remove token from URL to avoid leakage
-          params.delete('erp_token');
-          const nextQuery = params.toString();
-          const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
-          window.history.replaceState({}, '', nextUrl);
-
-          // Validate session with the token that backend just stored in sessions.token.
-          try {
-            const { data } = await authApi.get('/api/auth/me', buildBearerConfig(finalToken));
-            const roleCode = data?.user?.role || '';
-            const targetRole = paramRole || storefrontRole;
-            const canUseSession = isSessionAllowedForRole(targetRole, roleCode);
-
-            setSessionRole(roleCode);
-            setHasAdminSession(canUseSession);
-            if (canUseSession) {
-              setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
-            } else {
-              if (targetRole === 'admin') {
-                if (isExplicitNonAdminRole(roleCode)) {
-                  setHasAdminSession(false);
-                  setSessionRole(roleCode);
-                  setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
-                } else {
-                  setAdminMessage('Chưa xác thực được phiên admin từ ERP. Giữ nguyên chế độ admin, vui lòng đăng nhập lại từ ERP nếu cần.');
-                }
-              } else {
-                setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(targetRole)}.`);
-              }
-            }
-          } catch (e) {
-            // Fallback: try cookie-based validation for environments that support shared cookies
-            try {
-              const { data } = await authApi.get('/api/auth/me');
-              const roleCode = data?.user?.role || '';
-              const targetRole = paramRole || storefrontRole;
-              const canUseSession = isSessionAllowedForRole(targetRole, roleCode);
-
-              setSessionRole(roleCode);
-              setHasAdminSession(canUseSession);
-              if (canUseSession) {
-                setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
-              } else {
-                setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(targetRole)}.`);
-              }
-            } catch {
-            if (paramRole === 'admin') {
-              setAdminMessage('Phiên từ ERP chưa được xác thực cho admin. Giữ nguyên chế độ admin và thử xác thực lại.');
-              setHasAdminSession(false);
-              setSessionRole('');
-            } else {
-              setAdminMessage('Phiên từ ERP chưa được xác thực. Vui lòng mở storefront lại từ ERP bằng đúng vai trò được phân quyền.');
-              setHasAdminSession(false);
-              setSessionRole('');
-            }
-            }
-          }
-        } catch (err) {
-          console.error('External login exchange failed:', err?.response?.data || err.message);
-          if (paramRole === 'admin') {
-            setAdminMessage('Không thể thiết lập phiên admin từ ERP. Giữ nguyên chế độ admin và chờ xác thực lại.');
-            setHasAdminSession(false);
-            setSessionRole('');
-          } else {
-            setAdminMessage('Không thể thiết lập phiên từ ERP. Vui lòng thử mở lại storefront từ ERP.');
-            setHasAdminSession(false);
-            setSessionRole('');
-          }
-        } finally {
-          setAuthenticating(false);
-          setAuthenticatingAdmin(false);
-          setAdminSessionChecked(true);
-          setAuthBootstrapDone(true);
-        }
-      })();
-    } else {
-      setAuthBootstrapDone(true);
-    }
-  }, []);
-
-  // Periodic session validation for all roles (admin, nv_banhang, nv_kho)
-  // Runs immediately and then every 30 seconds to detect token expiry
-  useEffect(() => {
+    if (!isAdminRole) return;
     if (!authBootstrapDone) return;
-    if (!(isAdminRole || isWarehouseRole || isSalesRole)) return;
+    if (!adminSessionChecked) return;
+    if (authenticatingAdmin) return;
+    if (hasAdminSession) return;
 
-    // Wait for storefrontToken to be available if it was set from URL params
-    // This prevents a race condition where Effect B runs before Effect A finishes
-    // setting the token state from the URL erp_token parameter.
-    const urlParams = new URLSearchParams(window.location.search);
-    const erpTokenFromUrl = urlParams.get('erp_token');
-    if (erpTokenFromUrl && !storefrontToken) {
-      // Token from URL hasn't been processed by Effect A yet - wait for next render
+    // Build ERP login URL for guidance only (no automatic navigation)
+    const erpBase = getERPUrl();
+    if (!erpBase) {
+      setAdminMessage('Thiếu địa chỉ ERP để xác thực lại admin. Giữ nguyên chế độ admin và chờ phiên hợp lệ.');
       return;
     }
+    const loginUrl = buildErpLoginUrl(erpBase, companyId, storefrontRole);
+    setAdminMessage(`Chưa có phiên admin hợp lệ. Vui lòng đăng nhập lại từ ERP nếu cần: ${loginUrl}`);
+  }, [isAdminRole, authBootstrapDone, adminSessionChecked, hasAdminSession, authenticatingAdmin, companyId, storefrontRole]);
 
-    // Không có session nào để xác thực thì dừng luôn, tránh spam /api/auth/me với 401.
-    if (!storefrontToken) {
-      setAdminSessionChecked(true);
-      setHasAdminSession(false);
-      return;
-    }
+  const getERPUrl = () => {
+    const envUrl = normalizeAbsoluteUrl(import.meta.env.VITE_ERP_URL);
+    if (envUrl) return envUrl;
 
-    const validateAdminSession = async () => {
-      try {
-        setAuthenticating(true);
-        setAuthenticatingAdmin(true);
-        setAdminSessionChecked(false);
-        const meRequest = storefrontToken
-          ? authApi.get('/api/auth/me', buildBearerConfig(storefrontToken))
-          : authApi.get('/api/auth/me');
-        const { data } = await meRequest;
-        const roleCode = data?.user?.role || '';
-        const canUseSession = isSessionAllowedForRole(storefrontRole, roleCode);
+    if (typeof window !== 'undefined') {
+      const fromQuery = normalizeAbsoluteUrl(new URLSearchParams(window.location.search).get('erp_url'));
+      if (fromQuery) return fromQuery;
 
-        setSessionRole(roleCode);
-        setHasAdminSession(canUseSession);
-        if (canUseSession) {
-          setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
-        } else {
-          if (storefrontRole === 'admin') {
-            if (isExplicitNonAdminRole(roleCode)) {
-              setHasAdminSession(false);
-              setSessionRole(roleCode);
-              setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đăng nhập lại từ ERP.`);
-            } else {
-              setAdminMessage('Chưa xác thực được phiên admin. Giữ nguyên chế độ admin và chờ đồng bộ phiên từ ERP.');
-            }
-          } else {
-            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(storefrontRole)}.`);
-          }
-        }
-      } catch {
+      const referrer = normalizeAbsoluteUrl(window.document?.referrer);
+      if (referrer) {
         try {
-          const { data } = await authApi.get('/api/auth/me');
-          const roleCode = data?.user?.role || '';
-          const canUseSession = isSessionAllowedForRole(storefrontRole, roleCode);
-
-          setSessionRole(roleCode);
-          setHasAdminSession(canUseSession);
-          if (canUseSession) {
-            setAdminMessage(`Phiên ${getRoleDisplayName(roleCode)} hợp lệ từ ERP.`);
-          } else if (storefrontRole === 'admin') {
-            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ admin. Giữ nguyên chế độ admin và chờ đồng bộ phiên từ ERP.`);
-          } else {
-            setAdminMessage(`Phiên ERP hiện tại (${getRoleDisplayName(roleCode) || 'không xác định'}) không phù hợp với chế độ ${getRoleDisplayName(storefrontRole)}.`);
-          }
+          const current = new URL(window.location.href);
+          const source = new URL(referrer);
+          if (source.origin !== current.origin) return source.origin;
         } catch {
-          if (storefrontRole === 'admin') {
-            setAdminMessage('Không nhận được phiên admin từ ERP. Giữ nguyên chế độ admin và thử xác thực lại.');
-            setHasAdminSession(false);
-            setSessionRole('');
-          } else {
-            setAdminMessage('Không nhận được phiên từ ERP. Vui lòng mở storefront từ ERP để tiếp tục thao tác theo vai trò hiện tại.');
-            setHasAdminSession(false);
-            setSessionRole('');
-          }
+          // ignore invalid referrer URL
         }
-      } finally {
-        setAuthenticating(false);
-        setAuthenticatingAdmin(false);
-        setAdminSessionChecked(true);
       }
-    };
+    }
 
-    // Run immediately on mount
-    validateAdminSession();
-
-    // Then poll every 30 seconds to detect token expiry for all roles
-    const interval = setInterval(validateAdminSession, 30000);
-    return () => clearInterval(interval);
-  }, [authBootstrapDone, isAdminRole, isWarehouseRole, isSalesRole, storefrontRole, storefrontToken]);
+    return '';
+  };
 
   const loadItems = async (id) => {
     if (!id) return;
@@ -651,7 +456,7 @@ export default function StorefrontPage() {
       const name = String(item?.name || '').toLowerCase();
       const code = String(item?.code || '').toLowerCase();
       const category = String(item?.category || 'Phổ biến').toLowerCase();
-      const price = getUnitPriceTax(item);
+      const price = getUnitPriceWithTax(item, 0.08);
 
       const matchCategory = activeCategory === 'Tất cả' || category.includes(normalizedCategory);
       const matchSearch = !term || name.includes(term) || code.includes(term);
@@ -663,9 +468,9 @@ export default function StorefrontPage() {
     }
 
     if (sortBy === 'priceAsc') {
-      nextItems.sort((a, b) => getUnitPriceTax(a) - getUnitPriceTax(b));
+      nextItems.sort((a, b) => getUnitPriceWithTax(a, 0.08) - getUnitPriceWithTax(b, 0.08));
     } else if (sortBy === 'priceDesc') {
-      nextItems.sort((a, b) => getUnitPriceTax(b) - getUnitPriceTax(a));
+      nextItems.sort((a, b) => getUnitPriceWithTax(b, 0.08) - getUnitPriceWithTax(a, 0.08));
     } else if (sortBy === 'newest') {
       nextItems.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     }
@@ -674,7 +479,7 @@ export default function StorefrontPage() {
   }, [items, searchTerm, activeCategory, sortBy, priceMax]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
-  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPriceTax(item) * item.quantity, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPriceWithTax(item, 0.08) * item.quantity, 0), [cart]);
   const discountAmount = couponCode.trim().toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
@@ -696,9 +501,9 @@ export default function StorefrontPage() {
     }
 
     const fromProducts = [...items]
-      .sort((a, b) => getUnitPriceTax(a) - getUnitPriceTax(b))
+      .sort((a, b) => getUnitPriceWithTax(a, 0.08) - getUnitPriceWithTax(b, 0.08))
       .slice(0, 2)
-      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPriceTax(item), selectedCurrency)}.`);
+      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)}.`);
 
     if (fromProducts.length > 0) {
       return fromProducts;
@@ -1454,7 +1259,7 @@ export default function StorefrontPage() {
                             <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">-</button>
                             <span className="w-5 text-center text-[10px] font-semibold text-slate-800">{entry.quantity}</span>
                             <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">+</button>
-                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceTax(entry) * entry.quantity, selectedCurrency)}</div>
+                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, 0.08) * entry.quantity, selectedCurrency)}</div>
                           </div>
                         </div>
                       ))
@@ -1559,7 +1364,7 @@ export default function StorefrontPage() {
                       {cart.map((entry) => (
                         <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1.5">
                           <span className="truncate text-[10px] font-semibold text-slate-900">{entry.name} x{entry.quantity}</span>
-                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceTax(entry) * entry.quantity, selectedCurrency)}</span>
+                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, 0.08) * entry.quantity, selectedCurrency)}</span>
                         </div>
                       ))}
                     </div>
@@ -1574,7 +1379,7 @@ export default function StorefrontPage() {
                     <h3 className="text-xs font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <p className="text-xs font-semibold text-slate-900">{selectedItem.name}</p>
-                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPriceTax(selectedItem), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
+                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPriceWithTax(selectedItem, 0.08), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) - 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700">-</button>
                         <input type="number" min="1" value={checkoutForm.quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-14 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center text-xs text-slate-900 outline-none" />
@@ -1732,7 +1537,7 @@ export default function StorefrontPage() {
                         <div key={item.id || item.code} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[10px] font-semibold text-slate-900">{item.code} - {item.name}</p>
-                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPriceTax(item), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
+                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
                           </div>
                           <div className="ml-1 flex gap-0.5">
                             <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-100">{t('editAction', selectedLang)}</button>
@@ -1886,7 +1691,7 @@ export default function StorefrontPage() {
                   <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2">
                     <div>
                       <p className="text-xs font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPriceTax(item), selectedCurrency)}</p>
+                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">-</button>
