@@ -30,4 +30,11 @@ router.get('/balances', authenticate, checkCompanyAccess, getLedgerBalances);
  */
 router.get('/audit-logs', authenticate, requireRootAdmin, getAuditLogs);
 
+/**
+ * @route   GET /api/inventory/stock-levels
+ * @desc    Lấy tồn kho thực tế theo mã hàng (đã tính nhập/xuất)
+ * @access  Private
+ */
+router.get('/stock-levels', authenticate, checkCompanyAccess, getStockLevels);
+
 export default router;

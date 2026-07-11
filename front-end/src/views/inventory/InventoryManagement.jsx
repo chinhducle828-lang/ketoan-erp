@@ -10,40 +10,41 @@ import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
 import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import { INVENTORY_TABLE_COLUMNS, INVENTORY_STATS, INVENTORY_MESSAGES } from '../../constants/inventoryTable.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function InventoryManagement() {
   const { activeCompany } = useAuth();
-  const [balances, setBalances] = useState([]);
+  const [stockLevels, setStockLevels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [costingLoading, setCostingLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
 
-  const loadBalances = useCallback(async () => {
+  const loadStockLevels = useCallback(async () => {
     if (!activeCompany) return;
     setLoading(true);
     setError('');
     try {
       const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.get(`/inventory/balances?company_id=${companyId}`);
-      setBalances(Array.isArray(res.data) ? res.data : []);
+      const res = await api.get(`/inventory/stock-levels?company_id=${companyId}`);
+      setStockLevels(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Lỗi tải tồn kho:', err);
       setError('Không thể tải dữ liệu tồn kho. Vui lòng thử lại.');
-      setBalances([]);
+      setStockLevels([]);
     } finally {
       setLoading(false);
     }
   }, [activeCompany]);
 
   useEffect(() => {
-    loadBalances();
-  }, [loadBalances]);
+    loadStockLevels();
+  }, [loadStockLevels]);
 
   const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { inventory: loadBalances },
+    { inventory: loadStockLevels },
     {
       eventMap: {
         'inventory:updated': ['inventory'],
@@ -69,7 +70,7 @@ export default function InventoryManagement() {
       const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.post('/inventory/costing', { company_id: companyId });
       alert(res.data?.message || 'Tính giá vốn hoàn tất!');
-      loadBalances();
+      loadStockLevels();
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi khi tính giá vốn!');
     } finally {
@@ -78,19 +79,39 @@ export default function InventoryManagement() {
   };
 
   // Lọc theo tên/mã vật tư
-  const filteredBalances = balances.filter(b => {
+  const filteredStock = stockLevels.filter(b => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
       b.item_name?.toLowerCase().includes(term) ||
-      b.item_code?.toLowerCase().includes(term) ||
-      b.account_code?.toLowerCase().includes(term)
+      b.item_code?.toLowerCase().includes(term)
     );
   });
 
   const formatAmount = (amount) => {
     return Math.round(amount || 0)?.toLocaleString('vi-VN');
   };
+
+  const stats = useMemo(() => [
+    {
+      label: INVENTORY_STATS.totalItems.label,
+      value: stockLevels.length,
+      icon: Package,
+      colorClass: INVENTORY_STATS.totalItems.color
+    },
+    {
+      label: INVENTORY_STATS.totalQuantity.label,
+      value: formatAmount(stockLevels.reduce((sum, b) => sum + parseFloat(b.current_stock || 0), 0)),
+      icon: TrendingUp,
+      colorClass: INVENTORY_STATS.totalQuantity.color
+    },
+    {
+      label: INVENTORY_STATS.totalValue.label,
+      value: `${formatAmount(stockLevels.reduce((sum, b) => sum + parseFloat((b.current_stock || 0) * (b.unit_price || 0)), 0))} đ`,
+      icon: FileSpreadsheet,
+      colorClass: INVENTORY_STATS.totalValue.color
+    }
+  ], [stockLevels]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -107,7 +128,7 @@ export default function InventoryManagement() {
           <ImportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodeField="accountCode" />
           <ExportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodes={ACCOUNTS_TT99.filter(a => a.group === 'inventory' || a.group === 'cogs').map(a => a.code)} />
           <button
-            onClick={loadBalances}
+            onClick={loadStockLevels}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition"
           >
@@ -126,24 +147,14 @@ export default function InventoryManagement() {
       </div>
 
       {/* Thống kê nhanh */}
-      {!loading && balances.length > 0 && (
+      {!loading && stockLevels.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <p className="text-xs text-slate-400 font-semibold">Tổng số mặt hàng</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{balances.length}</p>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <p className="text-xs text-slate-400 font-semibold">Tổng tồn kho (SL)</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">
-              {formatAmount(balances.reduce((sum, b) => sum + parseFloat(b.quantity || 0), 0))}
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <p className="text-xs text-slate-400 font-semibold">Tổng giá trị tồn kho</p>
-            <p className="text-2xl font-bold text-indigo-600 mt-1">
-              {formatAmount(balances.reduce((sum, b) => sum + parseFloat(b.balance || 0), 0))} đ
-            </p>
-          </div>
+          {stats.map((stat, idx) => (
+            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+              <p className="text-xs text-slate-400 font-semibold">{stat.label}</p>
+              <p className={`text-2xl font-bold mt-1 ${stat.colorClass}`}>{stat.value}</p>
+            </div>
+          ))}
         </div>
       )}
 
@@ -164,56 +175,66 @@ export default function InventoryManagement() {
         {loading ? (
           <div className="flex items-center justify-center p-12">
             <Loader2 size={24} className="animate-spin text-indigo-600" />
-            <span className="ml-2 text-sm text-slate-400">Đang tải dữ liệu tồn kho...</span>
+            <span className="ml-2 text-sm text-slate-400">{INVENTORY_MESSAGES.loading}</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center p-12 text-slate-400">
             <AlertTriangle size={40} className="mb-2 text-amber-400" />
             <p className="text-sm">{error}</p>
+            <button 
+              onClick={loadStockLevels}
+              className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+            >
+              {INVENTORY_MESSAGES.retry}
+            </button>
           </div>
-        ) : filteredBalances.length === 0 ? (
+        ) : filteredStock.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-slate-400">
             <Package size={40} className="mb-2 opacity-30" />
-            <p className="text-sm">Không có dữ liệu tồn kho</p>
-            <p className="text-xs mt-1">Hãy nhập chứng từ nhập kho để bắt đầu</p>
+            <p className="text-sm">{INVENTORY_MESSAGES.noData}</p>
+            <p className="text-xs mt-1">{INVENTORY_MESSAGES.noDataHint}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 font-bold">
                 <tr>
-                  <th className="p-3">Mã VT</th>
-                  <th className="p-3">Tên vật tư</th>
-                  <th className="p-3">TK Kho</th>
-                  <th className="p-3 text-right">SL Tồn</th>
-                  <th className="p-3 text-right">Đơn giá</th>
-                  <th className="p-3 text-right">Giá trị tồn</th>
-                  <th className="p-3 text-right">PS Nợ</th>
-                  <th className="p-3 text-right">PS Có</th>
+                  {Object.entries(INVENTORY_TABLE_COLUMNS).map(([key, col]) => (
+                    <th key={key} className={`p-3 ${col.className}`} style={{ width: col.width }}>
+                      {col.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredBalances.map((b, idx) => (
-                  <tr key={b.id || idx} className="border-b hover:bg-slate-50/50 transition">
-                    <td className="p-3 font-mono font-bold text-slate-700">{b.item_code || '-'}</td>
-                    <td className="p-3 text-slate-600 max-w-[200px] truncate" title={b.item_name}>
+                {filteredStock.map((b, idx) => (
+                  <tr key={b.item_code || idx} className="border-b hover:bg-slate-50/50 transition">
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.code.className}`}>
+                      {b.item_code || '-'}
+                    </td>
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.name.className}`} title={b.item_name}>
                       {b.item_name || 'N/A'}
                     </td>
-                    <td className="p-3 font-mono">{b.account_code || '156'}</td>
-                    <td className="p-3 text-right font-mono font-bold">
-                      {parseFloat(b.quantity || 0).toFixed(2)}
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.unit.className}`}>
+                      {b.unit || '-'}
                     </td>
-                    <td className="p-3 text-right font-mono text-slate-500">
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.openingQuantity.className}`}>
+                      {b.opening_quantity}
+                    </td>
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.inbound.className}`}>
+                      {INVENTORY_TABLE_COLUMNS.inbound.prefix}{b.inbound}
+                    </td>
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.outbound.className}`}>
+                      {INVENTORY_TABLE_COLUMNS.outbound.prefix}{b.outbound}
+                    </td>
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.currentStock.className}`}>
+                      {b.current_stock}
+                    </td>
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.unitPrice.className}`}>
                       {b.unit_price ? formatAmount(b.unit_price) : '-'}
                     </td>
-                    <td className="p-3 text-right font-mono font-bold text-indigo-600">
-                      {formatAmount(b.balance)}
-                    </td>
-                    <td className="p-3 text-right font-mono text-emerald-600">
-                      {formatAmount(b.debit_amount)}
-                    </td>
-                    <td className="p-3 text-right font-mono text-rose-600">
-                      {formatAmount(b.credit_amount)}
+                    <td className={`p-3 ${INVENTORY_TABLE_COLUMNS.stockValue.className}`}>
+                      {formatAmount((b.current_stock || 0) * (b.unit_price || 0))}
                     </td>
                   </tr>
                 ))}
