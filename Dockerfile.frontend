@@ -7,7 +7,7 @@ RUN npm ci
 
 COPY front-end/ .
 
-ENV VITE_API_BASE_URL=https://dazzling-grace-production-03a5.up.railway.app
+ENV VITE_API_URL=https://dazzling-grace-production-03a5.up.railway.app/api
 
 RUN npm run build
 
