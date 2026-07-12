@@ -110,9 +110,9 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
       console.error('Không thể lưu session:', err.message);
     }
 
-    // If user is a storefront-only role, also mint a long-lived storefront token immediately
+    // If user is a storefront-capable role, also mint a long-lived storefront token immediately
     let storefrontToken = null;
-    if (['nv_banhang', 'nv_kho'].includes(String(user.role || '').trim())) {
+    if (['admin', 'nv_banhang', 'nv_kho'].includes(String(user.role || '').trim())) {
       try {
         const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
         storefrontToken = jwt.sign(

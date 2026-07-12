@@ -35,7 +35,11 @@ const initAuth = async () => {
       // StorefrontPage sẽ gọi external-login qua Effect A
       localStorage.setItem('url_erp_token', erp_token);
       if (company_id) localStorage.setItem('companyId', company_id);
-      if (role) localStorage.setItem('userRole', role);
+      if (role) {
+        localStorage.setItem('userRole', role);
+        // Also set sessionStorage so StorefrontPage can read the role on init
+        sessionStorage.setItem('storefrontRole', role);
+      }
       if (erp_url) localStorage.setItem('erpUrl', erp_url);
       
       return true;

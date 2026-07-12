@@ -58,7 +58,7 @@ import {
   getUnitPriceWithTax,
   getOrderAmount
 } from './utils/formatters.js';
-import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner, authOperations } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 
 const ImageWithFallback = ({
@@ -875,6 +875,79 @@ export default function StorefrontPage() {
   // Fetch exchange rate on component mount to populate localStorage
   useEffect(() => {
     fetchExchangeRate().catch(() => {});
+  }, []);
+
+  // Effect A: Bootstrap auth from URL params (erp_token) stored in localStorage by main.jsx
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      const erpToken = localStorage.getItem('url_erp_token');
+      const companyIdFromUrl = localStorage.getItem('companyId');
+      const roleFromUrl = localStorage.getItem('userRole');
+
+      if (!erpToken) {
+        // No ERP token from URL — just mark bootstrap as done
+        setAuthBootstrapDone(true);
+        setAdminSessionChecked(true);
+        return;
+      }
+
+      // If we already have a storefront token, skip external-login call
+      const existingToken = localStorage.getItem('storefrontAccessToken');
+      if (existingToken) {
+        setStorefrontToken(existingToken);
+        setHasAdminSession(true);
+        if (roleFromUrl) {
+          setSessionRole(roleFromUrl);
+          setStorefrontRole(roleFromUrl);
+          setStoredRole(roleFromUrl);
+        }
+        setAuthBootstrapDone(true);
+        setAdminSessionChecked(true);
+        return;
+      }
+
+      setAuthenticatingAdmin(true);
+      try {
+        const response = await authOperations.externalLogin(erpToken, companyIdFromUrl, roleFromUrl);
+        const newToken = response?.storefrontToken;
+        if (newToken) {
+          localStorage.setItem('storefrontAccessToken', newToken);
+          setStorefrontToken(newToken);
+          setHasAdminSession(true);
+          if (roleFromUrl) {
+            setSessionRole(roleFromUrl);
+            setStorefrontRole(roleFromUrl);
+            setStoredRole(roleFromUrl);
+          }
+        } else {
+          // Token exchange succeeded but no storefrontToken returned
+          // This can happen for guest roles — still mark session as valid
+          setHasAdminSession(false);
+          if (roleFromUrl) {
+            setSessionRole(roleFromUrl);
+            setStorefrontRole(roleFromUrl);
+            setStoredRole(roleFromUrl);
+          }
+        }
+      } catch (err) {
+        console.warn('Auth bootstrap external-login failed:', err?.response?.data || err.message);
+        // Fallback: still set role from URL params even if external-login fails
+        if (roleFromUrl) {
+          setSessionRole(roleFromUrl);
+          setStorefrontRole(roleFromUrl);
+          setStoredRole(roleFromUrl);
+        }
+        setAdminMessage('Không thể xác thực phiên ERP. Đã chuyển sang chế độ offline.');
+      } finally {
+        setAuthenticatingAdmin(false);
+        setAuthBootstrapDone(true);
+        setAdminSessionChecked(true);
+        // Clean up URL params from localStorage after bootstrap
+        localStorage.removeItem('url_erp_token');
+      }
+    };
+
+    bootstrapAuth();
   }, []);
 
   // Listen for auth token expiry from the axios interceptor
