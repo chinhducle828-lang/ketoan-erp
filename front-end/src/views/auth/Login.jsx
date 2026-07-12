@@ -88,7 +88,8 @@ export default function Login({ onFirstRun }) {
           let companyId;
           try { companyId = storedCompany ? JSON.parse(storedCompany)?.id : undefined; } catch { companyId = undefined; }
           const role = response.user?.roleId || response.user?.role || '';
-          const erpToken = response?.accessToken || localStorage.getItem('accessToken') || '';
+          // Use storefrontAccessToken (7-day) instead of accessToken (15-min) to avoid expiry issues
+          const erpToken = localStorage.getItem('storefrontAccessToken') || '';
           const params = new URLSearchParams();
           if (companyId) params.set('company_id', String(companyId));
           if (role) params.set('role', role);
@@ -143,15 +144,19 @@ export default function Login({ onFirstRun }) {
 
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const role = user?.roleId || user?.role || '';
-    let erpToken = token || localStorage.getItem('accessToken') || '';
-    try {
-      const { data } = await api.post('/auth/refresh');
-      if (data?.accessToken) {
-        erpToken = data.accessToken;
-        localStorage.setItem('accessToken', data.accessToken);
+    // Prefer storefrontAccessToken (7-day) to avoid expiry issues
+    let erpToken = localStorage.getItem('storefrontAccessToken') || '';
+    if (!erpToken) {
+      // Fallback: try refreshing the access token
+      try {
+        const { data } = await api.post('/auth/refresh');
+        if (data?.accessToken) {
+          erpToken = data.accessToken;
+          localStorage.setItem('accessToken', data.accessToken);
+        }
+      } catch {
+        // Keep current token as fallback if refresh is unavailable.
       }
-    } catch {
-      // Keep current token as fallback if refresh is unavailable.
     }
 
     const params = new URLSearchParams();
