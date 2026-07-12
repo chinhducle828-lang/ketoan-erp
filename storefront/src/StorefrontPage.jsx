@@ -55,8 +55,9 @@ import {
   isSessionAllowedForRole,
   getRoleDisplayName,
   isExplicitNonAdminRole,
-  getUnitPriceWithTax
-} from './utils/formatters';
+  getUnitPriceWithTax,
+  getOrderAmount
+} from './utils/formatters.js';
 import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
 

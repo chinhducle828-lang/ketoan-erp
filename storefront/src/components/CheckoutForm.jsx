@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { formatPrice, getUnitPrice, getOrderAmount, getUnitPriceWithTax } from '../utils/formatters';
+import { formatPrice, getUnitPrice, getOrderAmount, getUnitPriceWithTax } from '../utils/formatters.js';
 import { createOrder } from '../utils/api';
 
 const VAT_RATE = 0.08;

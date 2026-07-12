@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { X, ChevronLeft, ChevronRight, Heart, Package } from 'lucide-react';
-import { formatPrice, resolveMediaUrl, getUnitPrice, getOrderAmount } from '../utils/formatters';
+import { formatPrice, resolveMediaUrl, getUnitPrice, getOrderAmount } from '../utils/formatters.js';
 
 const ImageWithFallback = ({ src, alt, className, iconSize = 24, iconClassName = 'text-slate-400' }) => {
   const [hasError, setHasError] = React.useState(false);
