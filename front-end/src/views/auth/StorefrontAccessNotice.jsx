@@ -23,12 +23,19 @@ const getStorefrontURL = () => {
 export default function StorefrontAccessNotice({ skipAutoRedirect }) {
   const { user, token, activeCompany } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
-  const [erpToken, setErpToken] = useState(() => token || localStorage.getItem('accessToken') || '');
+  const [erpToken, setErpToken] = useState(() => localStorage.getItem('storefrontAccessToken') || token || localStorage.getItem('accessToken') || '');
 
   useEffect(() => {
     let cancelled = false;
 
     const refreshToken = async () => {
+      // Prefer storefrontAccessToken (7-day) - no need to refresh
+      const existing = localStorage.getItem('storefrontAccessToken');
+      if (existing) {
+        if (!cancelled) setErpToken(existing);
+        return;
+      }
+
       try {
         const { data } = await api.post('/auth/refresh');
         if (!cancelled && data?.accessToken) {
@@ -40,7 +47,7 @@ export default function StorefrontAccessNotice({ skipAutoRedirect }) {
         // Keep current token when refresh fails.
       }
       if (!cancelled) {
-        setErpToken(token || localStorage.getItem('accessToken') || '');
+        setErpToken(localStorage.getItem('storefrontAccessToken') || token || localStorage.getItem('accessToken') || '');
       }
     };
 
@@ -57,7 +64,7 @@ export default function StorefrontAccessNotice({ skipAutoRedirect }) {
     const params = new URLSearchParams();
     const companyId = activeCompany?.id ? String(activeCompany.id) : '';
     const storefrontRole = normalizeStorefrontRole(user?.roleId || user?.role);
-    const latestErpToken = erpToken || token || localStorage.getItem('accessToken') || '';
+    const latestErpToken = localStorage.getItem('storefrontAccessToken') || erpToken || token || localStorage.getItem('accessToken') || '';
 
     if (companyId) params.set('company_id', companyId);
     params.set('role', storefrontRole);

@@ -35,15 +35,19 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
     if (!STOREFRONT_URL) return;
     const companyId = activeCompany?.id ? String(activeCompany.id) : undefined;
     const roleCode = user?.roleId || user?.role;
-    let erpToken = token || localStorage.getItem('accessToken') || '';
-    try {
-      const { data } = await api.post('/auth/refresh');
-      if (data?.accessToken) {
-        erpToken = data.accessToken;
-        localStorage.setItem('accessToken', data.accessToken);
+    // Prefer storefrontAccessToken (7-day) to avoid expiry issues
+    let erpToken = localStorage.getItem('storefrontAccessToken') || '';
+    if (!erpToken) {
+      // Fallback: try refreshing the access token
+      try {
+        const { data } = await api.post('/auth/refresh');
+        if (data?.accessToken) {
+          erpToken = data.accessToken;
+          localStorage.setItem('accessToken', data.accessToken);
+        }
+      } catch {
+        // Fall back to existing token when refresh fails.
       }
-    } catch {
-      // Fall back to existing token when refresh fails.
     }
 
     const params = new URLSearchParams();
