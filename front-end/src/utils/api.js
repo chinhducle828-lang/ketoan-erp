@@ -5,26 +5,14 @@
 // FILE_PATH: front-end/src/utils/api.js
 import axios from 'axios';
 import { getClientInstanceId } from './clientInstance.js';
+import { resolveApiBaseUrl } from './apiBaseUrl.js';
 
-// ✅ TỰ ĐỘNG KHỞI TẠO BASE URL THEO MÔI TRƯỜNG DỰ ÁN
 const getBaseURL = () => {
-  const base = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
-  if (base) {
-    if (base.includes('your-backend-domain')) {
-      console.error('[KETOAN-FRONTEND] VITE_API_BASE_URL vẫn dùng placeholder `your-backend-domain`. Hãy thay bằng backend Railway service thực tế.');
-    }
-    return base.endsWith('/api') ? base : `${base.replace(/\/$/, '')}/api`;
+  const base = resolveApiBaseUrl();
+  if (base.includes('your-backend-domain')) {
+    console.error('[KETOAN-FRONTEND] VITE_API_BASE_URL vẫn dùng placeholder `your-backend-domain`. Hãy thay bằng backend Railway service thực tế.');
   }
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return '/api';
-    }
-  }
-
-  console.warn('[KETOAN-FRONTEND] Không tìm thấy VITE_API_BASE_URL. Đang dùng /api làm fallback.');
-  return '/api';
+  return base;
 };
 
 const api = axios.create({

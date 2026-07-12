@@ -6,7 +6,20 @@ import axios from 'axios';
 import wsService from './websocket';
 
 // API base configuration - Use VITE_ prefix for Vite
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = (() => {
+  const configuredUrl = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+  if (configuredUrl) {
+    const normalized = String(configuredUrl).trim().replace(/\/$/, '');
+    return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+  }
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, origin } = window.location;
+    const isLocalHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+    return isLocalHost ? `${protocol}//${hostname}:5000/api` : `${origin}/api`;
+  }
+  return 'http://localhost:5000/api';
+})();
+const ERP_FALLBACK_URL = import.meta.env.VITE_ERP_URL || import.meta.env.VITE_APP_ERP_URL || '';
 
 // Track if we're in the initial authentication phase to prevent unwanted redirects
 let isAuthenticating = false;
@@ -57,11 +70,19 @@ api.interceptors.response.use(
       // For cookie-based requests (without Bearer), do NOT clear tokens
       // The component will handle the 401 gracefully via its own logic
       
-      // Only redirect to ERP if this was NOT during initial auth
-      // AND the request used a Bearer token (proves it wasn't a session timeout)
+      // Avoid hard navigation for transient auth failures. Let the UI handle the expired session locally.
       if (!isAuthenticating && hadBearerHeader) {
-        const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
-        window.location.href = erpUrl;
+        const erpUrl = localStorage.getItem('erpUrl') || ERP_FALLBACK_URL || window.location.origin;
+        try {
+          window.dispatchEvent(new CustomEvent('storefront:auth-expired', {
+            detail: { message: 'Phiên xác thực storefront đã hết hạn. Vui lòng đăng nhập lại từ ERP.' }
+          }));
+          if (erpUrl && erpUrl !== window.location.origin && erpUrl.startsWith('http')) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        } catch {
+          // Ignore event dispatch failures and fall back silently.
+        }
       }
     }
     return Promise.reject(error);

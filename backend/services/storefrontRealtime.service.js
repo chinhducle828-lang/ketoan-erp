@@ -12,10 +12,24 @@ let listenerStarted = false;
 
 const normalizeCompanyId = (companyId) => {
   if (companyId === null || companyId === undefined || companyId === '') return '*';
-  return String(companyId).trim();
+  const normalized = String(companyId).trim();
+  return normalized || '*';
 };
 
 const normalizeRole = (role) => String(role || '').trim().toLowerCase();
+
+const normalizeTargetRoles = (targetRoles) => {
+  if (!Array.isArray(targetRoles)) return [];
+  const seen = new Set();
+  return targetRoles
+    .map((role) => normalizeRole(role))
+    .filter(Boolean)
+    .filter((role) => {
+      if (seen.has(role)) return false;
+      seen.add(role);
+      return true;
+    });
+};
 
 const formatSseMessage = ({ event, payload }) => {
   const safeEvent = String(event || 'message').trim() || 'message';
@@ -33,9 +47,7 @@ const writeSse = (res, event, payload) => {
 
 const broadcastLocal = (payload) => {
   const companyKey = normalizeCompanyId(payload?.companyId);
-  const targetRoles = Array.isArray(payload?.targetRoles)
-    ? payload.targetRoles.map(normalizeRole).filter(Boolean)
-    : [];
+  const targetRoles = normalizeTargetRoles(payload?.targetRoles);
 
   const candidateBuckets = [];
   const companyBuckets = subscribersByCompany.get(companyKey);
@@ -71,7 +83,7 @@ const attachListener = async () => {
   try {
     await listenerClient.query(`LISTEN ${CHANNEL}`);
 
-    listenerClient.on('notification', (msg) => {
+    const handleNotification = (msg) => {
       if (!msg || msg.channel !== CHANNEL) return;
       try {
         const payload = JSON.parse(String(msg.payload || '{}'));
@@ -79,10 +91,12 @@ const attachListener = async () => {
       } catch {
         // Ignore malformed payloads.
       }
-    });
+    };
 
-    listenerClient.on('error', () => {
+    const handleListenerError = () => {
       try {
+        listenerClient.removeListener('notification', handleNotification);
+        listenerClient.removeListener('error', handleListenerError);
         listenerClient.release();
       } catch {
         // ignore
@@ -91,9 +105,13 @@ const attachListener = async () => {
       setTimeout(() => {
         ensureStorefrontRealtimeListener();
       }, RETRY_LISTEN_MS);
-    });
+    };
+
+    listenerClient.on('notification', handleNotification);
+    listenerClient.on('error', handleListenerError);
   } catch (error) {
     try {
+      listenerClient.removeListener('notification', () => {});
       listenerClient.release();
     } catch {
       // ignore
@@ -116,20 +134,20 @@ export const ensureStorefrontRealtimeListener = () => {
 };
 
 export const publishStorefrontOrderEvent = async (db, payload) => {
-  const targetRoles = Array.isArray(payload?.targetRoles)
-    ? payload.targetRoles.filter((role) => typeof role === 'string' && role.trim())
-    : ['admin', 'nv_banhang', 'nv_kho'];
-
+  const normalizedTargetRoles = normalizeTargetRoles(payload?.targetRoles);
   const safePayload = {
     event: String(payload?.event || 'storefront_event'),
     companyId: payload?.companyId,
-    targetRoles,
+    targetRoles: normalizedTargetRoles.length > 0 ? normalizedTargetRoles : ['admin', 'nv_banhang', 'nv_kho'],
     ...payload
   };
 
-  safePayload.targetRoles = Array.isArray(safePayload.targetRoles)
-    ? safePayload.targetRoles.filter((role) => typeof role === 'string' && role.trim())
-    : ['admin', 'nv_banhang', 'nv_kho'];
+  safePayload.targetRoles = normalizeTargetRoles(safePayload.targetRoles);
+  safePayload.companyId = normalizeCompanyId(safePayload.companyId);
+
+  if (typeof db?.query !== 'function') {
+    throw new Error('Database client is required to publish storefront events');
+  }
 
   await db.query('SELECT pg_notify($1, $2)', [CHANNEL, JSON.stringify(safePayload)]);
 };
@@ -143,14 +161,7 @@ export const registerStorefrontStreamClient = ({ companyId, res, role }) => {
   companyBuckets.set(normalizedRole, bucket);
   subscribersByCompany.set(companyKey, companyBuckets);
 
-  writeSse(res, 'connected', {
-    event: 'connected',
-    companyId: companyKey,
-    role: normalizedRole,
-    connectedAt: new Date().toISOString()
-  });
-
-  return () => {
+  const cleanup = () => {
     const currentBuckets = subscribersByCompany.get(companyKey);
     if (!currentBuckets) return;
     const currentBucket = currentBuckets.get(normalizedRole);
@@ -159,4 +170,13 @@ export const registerStorefrontStreamClient = ({ companyId, res, role }) => {
     if (currentBucket.size === 0) currentBuckets.delete(normalizedRole);
     if (currentBuckets.size === 0) subscribersByCompany.delete(companyKey);
   };
+
+  writeSse(res, 'connected', {
+    event: 'connected',
+    companyId: companyKey,
+    role: normalizedRole,
+    connectedAt: new Date().toISOString()
+  });
+
+  return cleanup;
 };

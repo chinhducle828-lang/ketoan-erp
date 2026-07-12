@@ -4,15 +4,15 @@
 
 import { pool } from '../config/db.js';
 import { publishToCompany } from './websocket.service.js';
-import { getInventoryRules, getOrderIngestionRules, getSaleRules, getBusinessRules } from '../config/businessRules.js';
+import { getOrderIngestionRules, getSaleRules, getBusinessRules, getLogisticsRules } from '../config/businessRules.js';
 import { runSaga } from './saga.service.js';
 import { buildAccountingEntries } from './logistics.service.js';
 import { resolveTaxBreakdown } from './taxRule.service.js';
 import { logAudit } from './audit.service.js';
 
 const getSalesVoucherType = () => {
-  const rules = getInventoryRules();
-  return String(rules.salesVoucherType || 'XK');
+  const rules = getLogisticsRules();
+  return String(rules.saleVoucherType || 'XK').trim() || 'XK';
 };
 
 export async function ingestOrderToVoucher(order, userId = null) {

@@ -76,9 +76,13 @@ function UnauthorizedAccess({ userRole }) {
         </p>
         <button 
           onClick={() => {
+            const fallbackErpUrl = import.meta.env.VITE_ERP_URL || import.meta.env.VITE_APP_ERP_URL || '';
+            const storedErpUrl = localStorage.getItem('erpUrl') || fallbackErpUrl;
+            const safeErpUrl = storedErpUrl && /^https?:\/\//i.test(storedErpUrl)
+              ? storedErpUrl
+              : window.location.origin;
             localStorage.clear();
-            const erpUrl = localStorage.getItem('erpUrl') || 'https://ketoanonline.up.railway.app';
-            window.location.href = erpUrl;
+            window.location.href = safeErpUrl;
           }}
           className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm"
         >

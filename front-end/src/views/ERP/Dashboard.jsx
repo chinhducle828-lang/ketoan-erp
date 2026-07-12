@@ -3,10 +3,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSocket } from '../../context/SocketContext';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync';
-import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { useSocket } from '../../context/SocketContext.jsx';
+import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import api from '../../utils/api.js';
 import { 
   BarChart3, 
   TrendingUp, 

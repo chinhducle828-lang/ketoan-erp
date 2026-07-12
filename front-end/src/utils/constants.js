@@ -9,15 +9,15 @@ export const ROLES = {
 };
 
 export const API_BASE_URL = (() => {
-  const env = import.meta.env.VITE_API_BASE_URL;
+  const env = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
   if (env) return env.replace(/\/$/, '');
   if (typeof window !== 'undefined') {
-    // If frontend is served over HTTPS, avoid defaulting to localhost (PNA block).
-    if (window.location.protocol === 'https:') {
-      return 'https://dazzling-grace-production-03a5.up.railway.app';
+    const { protocol, hostname, origin } = window.location;
+    const isLocalHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+    if (isLocalHost) {
+      return `${protocol}//${hostname}:5000`;
     }
-    // default to same host with port 5000 for local dev over HTTP
-    return `${window.location.protocol}//${window.location.hostname}:5000`;
+    return `${origin}`;
   }
   return 'http://localhost:5000';
 })();

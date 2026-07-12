@@ -8,6 +8,7 @@ import api from '../utils/api.js';
 import { Building2, LogOut, User, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
+import getStorefrontURL from '../utils/storefrontUrl.js';
 
 export default function Header({ onMenuClick, onToggleSidebar }) {
   // Lấy dữ liệu đồng bộ cấu trúc Object từ AuthContext
@@ -27,20 +28,6 @@ export default function Header({ onMenuClick, onToggleSidebar }) {
   };
 
   const navigate = useNavigate();
-
-  const getStorefrontURL = () => {
-    if (import.meta.env.VITE_STOREFRONT_URL) return import.meta.env.VITE_STOREFRONT_URL;
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        return 'http://localhost:3001';
-      }
-      if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
-        return 'https://banhang.up.railway.app';
-      }
-    }
-    return '';
-  };
 
   const openStorefront = async (e) => {
     if (e) e.preventDefault();

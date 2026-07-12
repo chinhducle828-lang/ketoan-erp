@@ -3,7 +3,7 @@
  */
 
 // FILE_PATH: front-end/src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../utils/api.js';
 
 const AuthContext = createContext(null);
@@ -16,6 +16,29 @@ export function AuthProvider({ children }) {
   const [hasOpeningBalance, setHasOpeningBalance] = useState(null); // null = chưa kiểm tra, true = có, false = chưa có
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
+
+  const fetchCompanies = useCallback(async () => {
+    try {
+      const res = await api.get('/companies');
+      setCompanies(res.data);
+      return res.data;
+    } catch (err) {
+      console.error('Lỗi tải danh sách công ty:', err);
+      return [];
+    }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/users');
+      const nextUsers = res.data.users || res.data;
+      setUsers(nextUsers);
+      return nextUsers;
+    } catch (err) {
+      console.error('Lỗi tải danh sách người dùng:', err);
+      return [];
+    }
+  }, []);
 
   // Lắng nghe sự kiện token hết hạn từ response interceptor
   useEffect(() => {
@@ -88,9 +111,9 @@ export function AuthProvider({ children }) {
     };
 
     initSession();
-  }, []);
+  }, [fetchCompanies]);
 
-  const login = async (username, password) => {
+  const login = useCallback(async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
     localStorage.setItem('accessToken', data.accessToken);
     const loggedInUser = {
@@ -128,9 +151,9 @@ export function AuthProvider({ children }) {
     // để tránh reload toàn trang (window.location.href) và giữ nguyên trạng thái SPA.
 
     return data;
-  };
+  }, [fetchCompanies]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout');
     } catch (e) {
@@ -141,9 +164,9 @@ export function AuthProvider({ children }) {
       setUser(null);
       setActiveCompany(null);
     }
-  };
+  }, []);
 
-  const changePassword = async (oldPassword, newPassword) => {
+  const changePassword = useCallback(async (oldPassword, newPassword) => {
     const { data } = await api.post('/auth/change-password', { oldPassword, newPassword });
 
     // Backend đã hủy toàn bộ session sau khi đổi mật khẩu,
@@ -154,40 +177,16 @@ export function AuthProvider({ children }) {
     setActiveCompany(null);
 
     return data;
-  };
+  }, []);
 
-  const changeCompany = (company) => {
+  const changeCompany = useCallback((company) => {
     setActiveCompany(company);
     localStorage.setItem('activeCompany', JSON.stringify(company));
-  };
-
-  // Lấy danh sách công ty
-  const fetchCompanies = async () => {
-    try {
-      const res = await api.get('/companies');
-      setCompanies(res.data);
-      return res.data;
-    } catch (err) {
-      console.error('Lỗi tải danh sách công ty:', err);
-      return [];
-    }
-  };
-
-  // Lấy danh sách người dùng
-  const loadUsers = async () => {
-    try {
-      const res = await api.get('/auth/users');
-      setUsers(res.data.users || res.data);
-      return res.data.users || res.data;
-    } catch (err) {
-      console.error('Lỗi tải danh sách người dùng:', err);
-      return [];
-    }
-  };
+  }, []);
 
   // Kiểm tra trạng thái số dư đầu kỳ
   // ĐÃ SỬA: Không truyền company_id trong URL vì api.js interceptor đã tự động thêm
-  const checkOpeningBalanceStatus = async (companyId) => {
+  const checkOpeningBalanceStatus = useCallback(async (companyId) => {
     try {
       const res = await api.get('/opening-balances', { params: { year: 2026 } });
       const hasBalance = Array.isArray(res.data) && res.data.length > 0;
@@ -203,11 +202,48 @@ export function AuthProvider({ children }) {
       setHasOpeningBalance(false);
       return false;
     }
-  };
+  }, []);
 
   // Tính toán token từ localStorage
   const token = localStorage.getItem('accessToken');
   const mustChangePassword = user?.must_change_password || user?.mustChangePassword || false;
+
+  const contextValue = useMemo(() => ({
+    user,
+    activeCompany,
+    fiscalYear,
+    login,
+    logout,
+    changePassword,
+    changeCompany,
+    token,
+    mustChangePassword,
+    loading: isSyncing,
+    hasOpeningBalance,
+    checkOpeningBalanceStatus,
+    companies,
+    users,
+    fetchCompanies,
+    loadUsers,
+    setFiscalYear
+  }), [
+    user,
+    activeCompany,
+    fiscalYear,
+    login,
+    logout,
+    changePassword,
+    changeCompany,
+    token,
+    mustChangePassword,
+    isSyncing,
+    hasOpeningBalance,
+    checkOpeningBalanceStatus,
+    companies,
+    users,
+    fetchCompanies,
+    loadUsers
+  ]);
 
   if (isSyncing) {
     return (
@@ -219,25 +255,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      activeCompany, 
-      fiscalYear, 
-      login, 
-      logout, 
-      changePassword,
-      changeCompany,
-      token,
-      mustChangePassword,
-      loading: isSyncing,
-      hasOpeningBalance,
-      checkOpeningBalanceStatus,
-      companies,
-      users,
-      fetchCompanies,
-      loadUsers,
-      setFiscalYear
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { formatPrice } from '../utils/formatters';
+import { formatPrice } from '../utils/formatters.js';
 import { adminItemApi } from '../utils/api';
 
 const AdminPanel = ({

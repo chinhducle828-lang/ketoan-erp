@@ -316,18 +316,34 @@ export function calculateBalances(vouchers, openingBalances = []) {
  */
 export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
   const isHermaphroditic = isHermaphroditicAccount(accountCode);
-  
-  // Tìm key phù hợp trong ledger
-  let ledgerKey = accountCode;
-  if (isHermaphroditic && partnerId) {
-    ledgerKey = `${accountCode}_${partnerId}`;
-  }
-  
-  if (!ledger[ledgerKey]) return 0;
-  
-  const { patsinhDr, patsinhCr } = ledger[ledgerKey];
   const accountNature = getAccountNature(accountCode);
-  
+
+  const matchingEntries = Object.entries(ledger || {}).filter(([key, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const entryAccountCode = value.accountCode || value.account_code || key.split('_')[0];
+    if (String(entryAccountCode) !== String(accountCode)) return false;
+    if (!isHermaphroditic) return true;
+    if (partnerId == null) return true;
+    const entryPartnerId = value.partnerId ?? value.partner_id ?? null;
+    return Number(entryPartnerId) === Number(partnerId);
+  });
+
+  if (matchingEntries.length === 0) {
+    return accountNature === ACCOUNT_NATURES.BOTH
+      ? { type: 'hermaphroditic', debit: 0, credit: 0, net: 0, account_nature: accountNature }
+      : { net: 0, account_nature: accountNature, balance_type: accountNature, debit: 0, credit: 0 };
+  }
+
+  const aggregate = matchingEntries.reduce(
+    (sum, [, entry]) => ({
+      patsinhDr: sum.patsinhDr + Number(entry.patsinhDr || 0),
+      patsinhCr: sum.patsinhCr + Number(entry.patsinhCr || 0)
+    }),
+    { patsinhDr: 0, patsinhCr: 0 }
+  );
+
+  const { patsinhDr, patsinhCr } = aggregate;
+
   if (accountNature === ACCOUNT_NATURES.BOTH) {
     return {
       type: 'hermaphroditic',
@@ -337,10 +353,9 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset', pa
       account_nature: accountNature
     };
   }
-  
-  // Use dynamic account nature to calculate closing balance
+
   const { netBalance, balanceType } = calculateNetBalance(patsinhDr, patsinhCr, accountNature);
-  
+
   return {
     net: balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance,
     account_nature: accountNature,
@@ -362,8 +377,14 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset', pa
  * @returns {number} Tổng phát sinh Nợ
  */
 export function getTotalDebit(ledger, accountCode) {
-  if (!ledger[accountCode]) return 0;
-  return ledger[accountCode].patsinhDr || 0;
+  const entries = Object.entries(ledger || {}).filter(([key, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const entryAccountCode = value.accountCode || value.account_code || key.split('_')[0];
+    return String(entryAccountCode) === String(accountCode);
+  });
+
+  if (entries.length === 0) return 0;
+  return entries.reduce((sum, [, value]) => sum + Number(value.patsinhDr || 0), 0);
 }
 
 /**
@@ -378,8 +399,14 @@ export function getTotalDebit(ledger, accountCode) {
  * @returns {number} Tổng phát sinh Có
  */
 export function getTotalCredit(ledger, accountCode) {
-  if (!ledger[accountCode]) return 0;
-  return ledger[accountCode].patsinhCr || 0;
+  const entries = Object.entries(ledger || {}).filter(([key, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const entryAccountCode = value.accountCode || value.account_code || key.split('_')[0];
+    return String(entryAccountCode) === String(accountCode);
+  });
+
+  if (entries.length === 0) return 0;
+  return entries.reduce((sum, [, value]) => sum + Number(value.patsinhCr || 0), 0);
 }
 
 /**

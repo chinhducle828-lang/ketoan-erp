@@ -237,7 +237,7 @@ const initializeDatabase = async () => {
         console.log('🔐 [KHỞI TẠO] Cơ sở dữ liệu trống, đang tạo tài khoản Root Admin...');
         
         const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-        const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+        const adminPassword = process.env.ADMIN_PASSWORD || process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123';
         
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
         

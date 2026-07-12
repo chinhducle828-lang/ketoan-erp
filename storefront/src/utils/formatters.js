@@ -364,7 +364,12 @@ export const resolveMediaUrl = (value) => {
   if (raw.startsWith('//')) return `https:${raw}`;
 
   const normalizedPath = raw.replace(/^\.\//, '').replace(/^\/+/, '');
-  return `${import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app'}/${normalizedPath}`;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+  const fallbackOrigin = typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`
+    : 'http://localhost:5000';
+  const resolvedBase = baseUrl || fallbackOrigin;
+  return `${resolvedBase.replace(/\/$/, '')}/${normalizedPath}`;
 };
 
 // Build ERP login URL

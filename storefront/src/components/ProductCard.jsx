@@ -4,8 +4,8 @@
 
 import React from 'react';
 import { ShoppingCart, Heart, Eye, Package } from 'lucide-react';
-import StockIndicator from './StockIndicator';
-import { getUnitPriceWithTax } from '../utils/formatters';
+import StockIndicator from './StockIndicator.jsx';
+import { getUnitPriceWithTax } from '../utils/formatters.js';
 
 /**
  * Compact Product Card Component for Storefront

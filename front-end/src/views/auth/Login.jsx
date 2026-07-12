@@ -9,24 +9,7 @@ import api from '../../utils/api.js';
 import { Lock, User, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
 import { MODULES_REGISTER } from '../../views/index.js';
 import { useNavigate } from 'react-router-dom';
-
-const getStorefrontURL = () => {
-  if (import.meta.env.VITE_STOREFRONT_URL) {
-    return import.meta.env.VITE_STOREFRONT_URL;
-  }
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3001';
-    }
-    if (host.endsWith('.railway.app') || host.endsWith('.railway.sh')) {
-      return 'https://banhang.up.railway.app';
-    }
-  }
-
-  return '';
-};
+import getStorefrontURL from '../../utils/storefrontUrl.js';
 
 export default function Login({ onFirstRun }) {
   const { login, logout, user, token, activeCompany } = useAuth();

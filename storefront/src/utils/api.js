@@ -5,7 +5,16 @@
 import axios from 'axios';
 
 // API base URL configuration
-let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dazzling-grace-production-03a5.up.railway.app';
+let API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+if (!API_BASE_URL) {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, origin } = window.location;
+    const isLocalHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+    API_BASE_URL = isLocalHost ? `${protocol}//${hostname}:5000` : origin;
+  } else {
+    API_BASE_URL = 'http://localhost:5000';
+  }
+}
 if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {
   API_BASE_URL = `https://${API_BASE_URL}`;
 }

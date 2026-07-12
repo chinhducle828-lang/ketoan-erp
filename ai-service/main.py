@@ -43,6 +43,18 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_BASE_URL = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
 
+# Fallback / default values moved to environment configuration for easier deployment
+DEFAULT_OCR_CONFIDENCE = float(os.getenv("AI_DEFAULT_OCR_CONFIDENCE", "85.0"))
+DEFAULT_OCR_INVOICE_NUMBER = os.getenv("AI_DEFAULT_OCR_INVOICE_NUMBER", "INV-2025-001")
+DEFAULT_OCR_INVOICE_DATE = os.getenv("AI_DEFAULT_OCR_INVOICE_DATE", "2025-01-15")
+DEFAULT_OCR_AMOUNT = float(os.getenv("AI_DEFAULT_OCR_AMOUNT", "1000000"))
+DEFAULT_PREDICTED_BALANCE = float(os.getenv("AI_DEFAULT_PREDICTED_BALANCE", "5000000"))
+DEFAULT_PREDICTION_CONFIDENCE = float(os.getenv("AI_DEFAULT_PREDICTION_CONFIDENCE", "75"))
+DEFAULT_MODEL_VERSION = os.getenv("AI_DEFAULT_MODEL_VERSION", "v1.1")
+DEFAULT_SELF_FIX_IMPROVEMENT = float(os.getenv("AI_DEFAULT_SELF_FIX_IMPROVEMENT", "0.05"))
+DEFAULT_SELF_FIX_CONFIDENCE_INCREMENT = float(os.getenv("AI_DEFAULT_SELF_FIX_CONFIDENCE_INCREMENT", "15"))
+DEFAULT_FALLBACK_CONFIDENCE = float(os.getenv("AI_DEFAULT_FALLBACK_CONFIDENCE", "80"))
+
 # Request/Response models
 class OCRRequest(BaseModel):
     file_url: str
@@ -105,12 +117,12 @@ async def process_ocr(request: OCRRequest):
         logger.error(f"OCR processing error: {e}")
         # Fallback to mock if model fails
         return OCRResponse(
-            confidence_score=85.0,
-            invoice_number="INV-2025-001",
-            invoice_date="2025-01-15",
+            confidence_score=DEFAULT_OCR_CONFIDENCE,
+            invoice_number=DEFAULT_OCR_INVOICE_NUMBER,
+            invoice_date=DEFAULT_OCR_INVOICE_DATE,
             entries=[
-                {"account_code": "111", "entry_type": "DR", "amount": 1000000},
-                {"account_code": "131", "entry_type": "CR", "amount": 1000000}
+                {"account_code": "111", "entry_type": "DR", "amount": DEFAULT_OCR_AMOUNT},
+                {"account_code": "131", "entry_type": "CR", "amount": DEFAULT_OCR_AMOUNT}
             ]
         )
 
@@ -133,7 +145,7 @@ async def self_fix(request: SelfFixRequest):
         logger.error(f"Self-fix error: {e}")
         # Fallback to mock
         original_confidence = request.original_proposal.get("confidence_score", 0)
-        new_confidence = min(100, original_confidence + 15)
+        new_confidence = min(100, original_confidence + DEFAULT_SELF_FIX_CONFIDENCE_INCREMENT)
         
         return SelfFixResponse(
             confidence_score=new_confidence,
@@ -159,8 +171,8 @@ async def fine_tune(request: FineTuneRequest):
         return {
             "success": True,
             "training_samples": len(request.training_data),
-            "new_version": "v1.1",
-            "improvement": 0.05
+            "new_version": DEFAULT_MODEL_VERSION,
+            "improvement": DEFAULT_SELF_FIX_IMPROVEMENT
         }
 
 @app.post("/api/text-to-sql")
@@ -186,7 +198,7 @@ async def text_to_sql(request: Dict[str, Any]):
         logger.error(f"Text-to-SQL error: {e}")
         return {
             "sql": f"SELECT * FROM vouchers WHERE company_id = '{request.get('company_id')}' LIMIT 10",
-            "confidence": 80
+            "confidence": DEFAULT_FALLBACK_CONFIDENCE
         }
 
 @app.post("/api/rag-summarize")
@@ -208,7 +220,7 @@ async def rag_summarize(request: Dict[str, Any]):
         logger.error(f"RAG summarize error: {e}")
         return {
             "answer": f"Tìm được {len(data)} bản ghi phù hợp với câu hỏi",
-            "confidence": 85
+            "confidence": DEFAULT_FALLBACK_CONFIDENCE + 5
         }
 
 @app.post("/api/predict-opening-balance")
@@ -227,16 +239,16 @@ async def predict_opening_balance(request: Dict[str, Any]):
         
         return {
             "account_code": account_code,
-            "predicted_balance": result.get("predicted", 5000000),
-            "confidence": result.get("confidence", 75),
+            "predicted_balance": result.get("predicted", DEFAULT_PREDICTED_BALANCE),
+            "confidence": result.get("confidence", DEFAULT_PREDICTION_CONFIDENCE),
             "suggestion": f"Dựa trên xu hướng, {result.get('trend', 'stable')}"
         }
     except Exception as e:
         logger.error(f"Predict opening balance error: {e}")
         return {
             "account_code": request.get("account_code"),
-            "predicted_balance": 5000000,
-            "confidence": 75,
+            "predicted_balance": DEFAULT_PREDICTED_BALANCE,
+            "confidence": DEFAULT_PREDICTION_CONFIDENCE,
             "suggestion": "Dựa trên xu hướng 3 tháng trước"
         }
 
