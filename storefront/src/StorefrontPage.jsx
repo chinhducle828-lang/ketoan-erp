@@ -907,6 +907,29 @@ export default function StorefrontPage() {
         return;
       }
 
+      // Check if the erp_token param already contains a storefront token (has storefront_role claim)
+      // This happens when ERP frontend sends storefrontAccessToken directly in URL
+      if (erpToken) {
+        try {
+          const payload = JSON.parse(atob(erpToken.split('.')[1]));
+          if (payload.storefront_role) {
+            // Token already has storefront_role — use directly, no exchange needed
+            localStorage.setItem('storefrontAccessToken', erpToken);
+            setStorefrontToken(erpToken);
+            setHasAdminSession(true);
+            setSessionRole(payload.storefront_role);
+            setStorefrontRole(payload.storefront_role);
+            setStoredRole(payload.storefront_role);
+            setAuthBootstrapDone(true);
+            setAdminSessionChecked(true);
+            localStorage.removeItem('url_erp_token');
+            return;
+          }
+        } catch (e) {
+          // Payload not JSON (e.g. invalid JWT) — fall through to external-login
+        }
+      }
+
       setAuthenticatingAdmin(true);
       try {
         const response = await authOperations.externalLogin(erpToken, companyIdFromUrl, roleFromUrl);
