@@ -134,7 +134,7 @@ export async function suggestJournalAdjustments(voucherId, companyId) {
 
   // Kiểm tra tài khoản hợp lệ
   const validAccounts = await pool.query(
-    'SELECT account_code FROM chart_of_accounts WHERE company_id = $1',
+    'SELECT code as account_code FROM accounts WHERE company_id = $1',
     [companyId]
   );
   const validCodes = new Set(validAccounts.rows.map(r => r.account_code));

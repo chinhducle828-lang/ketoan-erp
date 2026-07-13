@@ -43,7 +43,7 @@ export const AI_CONFIG = {
   // Gemini AI Configuration
   GEMINI: {
     API_KEY: process.env.GEMINI_API_KEY,
-    MODEL: 'gemini-2.0-flash-exp',
+    MODEL: 'gemini-2.5-flash', // Using Gemini 2.5 Flash (latest stable)
     MAX_TOKENS: 8192,
     TEMPERATURE: 0.7,
     RATE_LIMIT_RPM: 15, // Free tier: 15 requests per minute

@@ -436,7 +436,20 @@ export async function getProactiveInsights(companyId) {
       const { generateInsights } = await import('./geminiClient.js');
       const dataSources = Object.entries(insights.categories)
         .filter(([_, cat]) => cat.status === 'completed')
-        .map(([name, data]) => ({ name, data }));
+        .map(([name, cat]) => {
+          // Extract data array from each category
+          let dataArray = [];
+          if (name === 'financial' && cat.insight) {
+            dataArray = Array.isArray(cat.insight.data) ? cat.insight.data : [cat.insight];
+          } else if (name === 'inventory' && cat.insight) {
+            dataArray = [cat.insight];
+          } else if (name === 'cashflow' && cat.insight) {
+            dataArray = [cat.insight];
+          } else if (name === 'anomalies' && cat.anomalies) {
+            dataArray = Array.isArray(cat.anomalies) ? cat.anomalies : [cat.anomalies];
+          }
+          return { name, data: dataArray };
+        });
 
       if (dataSources.length > 0) {
         const overallInsight = await generateInsights(

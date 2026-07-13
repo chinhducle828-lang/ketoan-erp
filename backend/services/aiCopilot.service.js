@@ -38,7 +38,7 @@ export async function textToSQL(question, companyId) {
         - voucher_details (id, voucher_id, account_code, entry_type, amount, description)
         - partners (id, company_id, partner_name, partner_type, tax_code, phone, email)
         - items (id, company_id, item_name, item_code, unit, unit_price)
-        - chart_of_accounts (account_code, account_name, account_type, parent_code)
+        - accounts (code, name, account_type, parent_code)
         
         Relationships:
         - vouchers.company_id → partners.company_id
@@ -71,7 +71,7 @@ export async function textToSQL(question, companyId) {
       body: JSON.stringify({ 
         question, 
         company_id: companyId,
-        schema: 'vouchers, voucher_details, partners, items, chart_of_accounts'
+        schema: 'vouchers, voucher_details, partners, items, accounts'
       })
     });
 
@@ -126,7 +126,7 @@ export async function executeSafeQuery(sql, companyId) {
     // Sử dụng parameterized query để tránh SQL injection
     // Thay thế company_id = 'value' bằng company_id = $1
     let parameterizedSQL = sql;
-    const params = [companyId];
+    const params = [];
     let paramIndex = 1;
     
     // Đếm số lần xuất hiện của company_id trong SQL

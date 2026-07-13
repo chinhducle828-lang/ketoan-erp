@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
 import {
   MessageSquare,
   Calculator,
@@ -36,14 +37,29 @@ const API_BASE = getApiBase();
 
 export default function AIFinancialCopilot() {
   const navigate = useNavigate();
+  const { activeCompany } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState('chat'); // chat, math, workflow, insights
-  const [companyId, setCompanyId] = useState('demo-company');
   const [geminiAvailable, setGeminiAvailable] = useState(true);
+  const [cooldown, setCooldown] = useState(0);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  
+  // Use actual company ID from auth context
+  const companyId = activeCompany?.id;
+  
+  // Rate limiting: 3 seconds between requests (Gemini free tier: 5 req/min)
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -52,11 +68,15 @@ export default function AIFinancialCopilot() {
 
   // Load conversation history on mount
   useEffect(() => {
-    loadConversationHistory();
-    checkGeminiStatus();
-  }, []);
+    if (companyId) {
+      loadConversationHistory();
+      checkGeminiStatus();
+    }
+  }, [companyId]);
 
   const checkGeminiStatus = async () => {
+    if (!companyId) return;
+    
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/ai/query`, {
@@ -74,6 +94,8 @@ export default function AIFinancialCopilot() {
   };
 
   const loadConversationHistory = async () => {
+    if (!companyId) return;
+    
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE}/ai/suggested?company_id=${companyId}`, {
@@ -97,7 +119,7 @@ export default function AIFinancialCopilot() {
   };
 
   const sendMessage = async (messageText = input) => {
-    if (!messageText.trim() || loading) return;
+    if (!messageText.trim() || loading || !companyId || cooldown > 0) return;
 
     const userMessage = {
       id: Date.now(),
@@ -122,6 +144,9 @@ export default function AIFinancialCopilot() {
       } else {
         result = await askQuestion(messageText);
       }
+      
+      // Set cooldown after successful request
+      setCooldown(3);
 
       const aiMessage = {
         id: Date.now() + 1,
@@ -148,6 +173,9 @@ export default function AIFinancialCopilot() {
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
+      
+      // Set cooldown even on error to prevent spam
+      setCooldown(3);
     } finally {
       setLoading(false);
     }
@@ -164,7 +192,17 @@ export default function AIFinancialCopilot() {
       body: JSON.stringify({ question, company_id: companyId })
     });
 
-    if (!response.ok) throw new Error('Failed to get AI response');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      
+      // Check for quota exceeded error
+      if (errorData.error?.includes('quota') || errorData.error?.includes('429')) {
+        throw new Error('Đã vượt quá giới hạn API. Vui lòng đợi 1-2 phút và thử lại.');
+      }
+      
+      throw new Error(errorData.error || errorData.message || 'Failed to get AI response');
+    }
+    
     const data = await response.json();
     return data.data;
   };
@@ -196,7 +234,10 @@ export default function AIFinancialCopilot() {
       body: JSON.stringify({ workflowType, context: { period: 'current_month' }, company_id: companyId })
     });
 
-    if (!response.ok) throw new Error('Failed to execute workflow');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: Failed to execute workflow`);
+    }
     const data = await response.json();
     return data.data;
   };
@@ -275,12 +316,12 @@ export default function AIFinancialCopilot() {
             <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">AI Financial Copilot</h1>
-              <p className="text-sm text-gray-500">
-                {geminiAvailable ? '✨ Gemini 2.5 Flash đã kết nối' : '⚠️ Chế độ offline (Python service)'}
-              </p>
-            </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">AI Financial Copilot</h1>
+                <p className="text-sm text-gray-500">
+                  {geminiAvailable ? '✨ Gemini 2.5 Flash đã kết nối' : '⚠️ Chế độ offline (Python service)'}
+                </p>
+              </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -536,20 +577,34 @@ export default function AIFinancialCopilot() {
                 </div>
                 <button
                   onClick={() => sendMessage()}
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || cooldown > 0}
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : cooldown > 0 ? (
+                    <>
+                      <span>⏱️</span>
+                      {cooldown}s
+                    </>
                   ) : (
-                    <Send className="w-5 h-5" />
+                    <>
+                      <Send className="w-5 h-5" />
+                      Gửi
+                    </>
                   )}
-                  Gửi
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
                 <span>Enter để gửi, Shift+Enter để xuống dòng</span>
-                <span>{geminiAvailable ? '✨ Gemini 2.5 Flash' : '⚠️ Fallback mode'}</span>
+                <div className="flex items-center gap-3">
+                  {cooldown > 0 && (
+                    <span className="text-orange-600 font-medium">
+                      ⏱️ Vui lòng đợi {cooldown}s
+                    </span>
+                  )}
+                  <span>{geminiAvailable ? '✨ Gemini 2.5 Flash' : '⚠️ Fallback mode'}</span>
+                </div>
               </div>
             </div>
           </div>

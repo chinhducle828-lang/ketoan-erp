@@ -18,8 +18,8 @@ import logger from '../utils/logger.js';
 export async function predictClosing(companyId, period) {
   // Lấy dữ liệu tài khoản
   const { rows: accounts } = await pool.query(
-    `SELECT account_code, account_name, account_type
-     FROM chart_of_accounts 
+    `SELECT code as account_code, name as account_name, account_type
+     FROM accounts 
      WHERE company_id = $1`,
     [companyId]
   );

@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     CONSTRAINT unique_account_code UNIQUE (code)
 );
 
+-- Bổ sung cột name_en nếu bảng đã tồn tại nhưng thiếu cột
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS name_en VARCHAR(255);
+
 COMMENT ON TABLE accounts IS 'Danh mục hệ thống tài khoản kế toán';
 COMMENT ON COLUMN accounts.code IS 'Mã số tài khoản (VD: 111, 1111, 112)';
 COMMENT ON COLUMN accounts.name IS 'Tên tài khoản tiếng Việt';

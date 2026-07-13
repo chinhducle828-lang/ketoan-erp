@@ -75,7 +75,12 @@ export default function OpeningBalances() {
     queryKey: ['openingBalances', companyId, currentYear],
     queryFn: async () => {
       if (!companyId) return [];
-      const res = await api.get('/opening-balances', { params: { year: currentYear } });
+      const res = await api.get('/opening-balances', { 
+        params: { 
+          company_id: companyId,
+          year: currentYear 
+        } 
+      });
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!companyId,

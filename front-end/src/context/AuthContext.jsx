@@ -185,10 +185,18 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Kiểm tra trạng thái số dư đầu kỳ
-  // ĐÃ SỬA: Không truyền company_id trong URL vì api.js interceptor đã tự động thêm
   const checkOpeningBalanceStatus = useCallback(async (companyId) => {
     try {
-      const res = await api.get('/opening-balances', { params: { year: 2026 } });
+      if (!companyId) {
+        setHasOpeningBalance(false);
+        return false;
+      }
+      const res = await api.get('/opening-balances', { 
+        params: { 
+          company_id: companyId,
+          year: 2026 
+        } 
+      });
       const hasBalance = Array.isArray(res.data) && res.data.length > 0;
       setHasOpeningBalance(hasBalance);
       return hasBalance;

@@ -56,8 +56,8 @@ describe('AuthContext loop guard', () => {
       </AuthProvider>
     );
 
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/opening-balances', { params: { year: 2026 } }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/opening-balances', { params: { company_id: 1, year: 2026 } }));
 
-    expect(api.get).toHaveBeenCalledWith('/opening-balances', { params: { year: 2026 } });
+    expect(api.get).toHaveBeenCalledWith('/opening-balances', { params: { company_id: 1, year: 2026 } });
   });
 });
