@@ -194,7 +194,7 @@ export function AuthProvider({ children }) {
       const res = await api.get('/opening-balances', { 
         params: { 
           company_id: companyId,
-          year: 2026 
+          year: new Date().getFullYear()
         } 
       });
       const hasBalance = Array.isArray(res.data) && res.data.length > 0;

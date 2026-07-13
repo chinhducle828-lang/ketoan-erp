@@ -32,14 +32,14 @@ export const WORKFLOW_MATRIX = {
     description: 'Chứng từ bán hàng/mua hàng được hạch toán',
     source: ['sales', 'purchasing'],
     target: ['vouchers', 'inventory', 'dashboard', 'finance'],
-    accounts: ['131', '511', '521', '632', '152', '156', '155', '331', '338'],
+    accounts: ['131', '511', '521', '531', '532', '632', '152', '156', '155', '331', '338', '1331', '3331'],
     after: ['vouchers', 'inventory', 'dashboard']
   },
   [WORKFLOW_EVENTS.CLOSING_COMPLETED]: {
     description: 'Kết chuyển khóa sổ cuối kỳ',
     source: ['finance'],
     target: ['reports', 'dashboard', 'finance', 'sales', 'warehouse', 'hr', 'admin'],
-    accounts: ['911', '921', '931', '421', '411', '632', '642', '811'],
+    accounts: ['911', '921', '931', '421', '411', '511', '632', '635', '641', '642', '711', '811', '821', '3334'],
     after: ['reports', 'dashboard']
   },
   [WORKFLOW_EVENTS.ORDER_STATUS_CHANGED]: {
@@ -60,21 +60,21 @@ export const WORKFLOW_MATRIX = {
     description: 'Kho cập nhật số liệu',
     source: ['warehouse'],
     target: ['inventory', 'dashboard', 'finance'],
-    accounts: ['151', '152', '153', '155', '156', '157', '632'],
+    accounts: ['151', '152', '153', '155', '156', '157', '158', '154', '632', '621', '622', '627'],
     after: ['inventory', 'dashboard']
   },
   [WORKFLOW_EVENTS.PAYROLL_POSTED]: {
     description: 'Bảng lương đã được duyệt/chốt',
     source: ['hr'],
     target: ['hr', 'vouchers', 'dashboard'],
-    accounts: ['334', '338', '642', '6421', '6428', '711'],
+    accounts: ['334', '3341', '338', '3382', '3383', '3384', '3385', '642', '6421', '6428', '622', '6411'],
     after: ['hr', 'vouchers']
   },
   [WORKFLOW_EVENTS.TAX_CALCULATED]: {
     description: 'Tờ khai thuế tính toán xong',
     source: ['finance'],
     target: ['tax', 'vouchers', 'dashboard'],
-    accounts: ['3331', '3332', '511', '521', '811', '821'],
+    accounts: ['3331', '33311', '3332', '3334', '3335', '3339', '1331', '1332', '511', '521', '811', '821', '8211', '8212'],
     after: ['tax', 'vouchers']
   },
   [WORKFLOW_EVENTS.PARTNER_UPDATED]: {

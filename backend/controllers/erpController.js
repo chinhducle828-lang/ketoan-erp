@@ -9,9 +9,15 @@ import { pool } from '../config/db.js';
 import { getBalanceSheetData, getCustomerAccountBalances, getTaxAccountBalances } from '../services/report.service.js';
 import { runClosingEntries } from '../services/closing.service.js';
 import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
+import { invalidateCache } from '../cache/redis.js';
 
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ tốc độ cao cho ứng dụng
+// WARNING: Cache này chỉ tồn tại trong memory của process hiện tại
+// và KHÔNG tự động invalidation. Dữ liệu có thể bị stale.
+// Cache sẽ tự động xóa sau 5 phút để tránh stale data.
 const localCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 phút
+const cacheTimestamps = new Map(); // Theo dõi thời điểm cache được tạo
 
 /**
  * API Lấy bảng cân đối số dư tài khoản động
@@ -29,12 +35,19 @@ export const getLedgerBalances = async (req, res) => {
     const cacheKey = `balances:${companyId}`;
 
     // 1. Kiểm tra lớp Cache bộ nhớ (Cache Hit) -> Trả kết quả ngay lập tức
+    // Nếu cache đã hết hạn TTL thì xóa và tính lại từ DB
     if (localCache.has(cacheKey)) {
-      return res.json({ 
-        success: true, 
-        source: 'cache', 
-        data: { accountLedger: localCache.get(cacheKey) } 
-      });
+      const cachedAt = cacheTimestamps.get(cacheKey) || 0;
+      if (Date.now() - cachedAt < CACHE_TTL_MS) {
+        return res.json({ 
+          success: true, 
+          source: 'cache', 
+          data: { accountLedger: localCache.get(cacheKey) } 
+        });
+      }
+      // Cache đã hết hạn, xóa để tính lại
+      localCache.delete(cacheKey);
+      cacheTimestamps.delete(cacheKey);
     }
 
     // 2. Nếu chưa có trong Cache (Cache Miss) -> Kích hoạt Engine hạch toán dồn tích từ DB

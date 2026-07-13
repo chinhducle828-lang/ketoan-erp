@@ -177,7 +177,7 @@ export async function getHitlLogs(tenantId, options = {}) {
 
   if (days) {
     paramCount++;
-    whereClause += ` AND created_at >= NOW() - INTERVAL '$${paramCount} days'`;
+    whereClause += ` AND created_at >= NOW() - make_interval(days => $${paramCount})`;
     params.push(days);
   }
 

@@ -8,11 +8,10 @@ CREATE TABLE IF NOT EXISTS companies (
     name VARCHAR(255) NOT NULL,
     tax_code VARCHAR(50) UNIQUE NOT NULL,
     address TEXT,
+    is_active BOOLEAN DEFAULT TRUE, -- Trạng thái hoạt động của công ty
     lock_date DATE DEFAULT NULL, -- Ngày khóa sổ kế toán chặn sửa/xóa dữ liệu quá khứ
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS lock_date DATE DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,

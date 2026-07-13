@@ -9,6 +9,7 @@ const redisMock = {
 
 await jest.unstable_mockModule('../cache/redis.js', () => ({
   redis: redisMock,
+  isRedisReadyCheck: () => redisMock.status === 'ready',
 }));
 
 const { apiRateLimiter } = await import('../middleware/rateLimiter.js');

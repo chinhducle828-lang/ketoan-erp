@@ -9,9 +9,9 @@ import jwt from 'jsonwebtoken';
 // ✅ Lấy kết nối database gốc từ file config
 import { pool } from '../config/db.js';
 
-// ❌ XÓA HOẶC SỬA DÒNG IMPORT TỪ SERVER.JS THÀNH GÁN TRỰC TIẾP DƯỚI ĐÂY:
-const REFRESH_TOKEN_EXPIRE_DAYS = 30; 
-const REFRESH_COOKIE_NAME = 'jid'; // Tên cookie Refresh Token chuẩn hệ thống của bạn
+// Sử dụng hằng số đồng bộ với server.js
+const REFRESH_TOKEN_EXPIRE_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30; 
+const REFRESH_COOKIE_NAME = 'refresh_token'; // Tên cookie Refresh Token đồng bộ với server.js
 
 // ✅ Lấy các hàm băm token và cấu hình cookie từ helpers.js
 import { 
@@ -81,9 +81,17 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
       return res.status(400).json({ error: 'Mật khẩu không chính xác!' });
     }
     
-    const companyIds = user.role === 'admin'
-      ? []
-      : await syncUserCompanyLinks(user.id, user.company_ids || []);
+    // Nếu user là admin thì không cần đồng bộ company links (admin có toàn quyền)
+    // Nếu user là ktt hoặc nv/nv_banhang/nv_kho: chỉ đồng bộ nếu có company_ids
+    let companyIds;
+    if (user.role === 'admin') {
+      companyIds = [];
+    } else if (user.company_ids && Array.isArray(user.company_ids) && user.company_ids.length > 0) {
+      companyIds = await syncUserCompanyLinks(user.id, user.company_ids);
+    } else {
+      // Giữ nguyên company_ids hiện tại (không xóa) nếu user chưa được assign company
+      companyIds = user.company_ids || [];
+    }
 
     await pool.query('UPDATE users SET company_ids = $1 WHERE id = $2', [companyIds, user.id]);
     
@@ -112,7 +120,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
 
     // If user is a storefront-capable role, also mint a long-lived storefront token immediately
     let storefrontToken = null;
-    if (['admin', 'nv_banhang', 'nv_kho'].includes(String(user.role || '').trim())) {
+    if (['admin', 'nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(String(user.role || '').trim())) {
       try {
         const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
         storefrontToken = jwt.sign(
@@ -163,10 +171,10 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
         company_ids: companyIds,
         must_change_password: !!user.must_change_password,
         is_root_admin: !!user.is_root_admin,
-        web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho'].includes(user.role) ? 'storefront' : 'erp')
+        web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role) ? 'storefront' : 'erp')
       },
-      storefrontOnlyRole: ['nv_banhang', 'nv_kho'].includes(user.role),
-      message: ['nv_banhang', 'nv_kho'].includes(user.role)
+      storefrontOnlyRole: ['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role),
+      message: ['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role)
         ? 'Tài khoản này chỉ sử dụng trên web bán hàng (Storefront).'
         : undefined,
       fiscal_year: new Date().getFullYear(),

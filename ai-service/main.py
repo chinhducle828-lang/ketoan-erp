@@ -115,16 +115,8 @@ async def process_ocr(request: OCRRequest):
         )
     except Exception as e:
         logger.error(f"OCR processing error: {e}")
-        # Fallback to mock if model fails
-        return OCRResponse(
-            confidence_score=DEFAULT_OCR_CONFIDENCE,
-            invoice_number=DEFAULT_OCR_INVOICE_NUMBER,
-            invoice_date=DEFAULT_OCR_INVOICE_DATE,
-            entries=[
-                {"account_code": "111", "entry_type": "DR", "amount": DEFAULT_OCR_AMOUNT},
-                {"account_code": "131", "entry_type": "CR", "amount": DEFAULT_OCR_AMOUNT}
-            ]
-        )
+        # Báo lỗi rõ ràng cho client thay vì trả mock data
+        raise HTTPException(status_code=503, detail=f"OCR service unavailable: {str(e)}")
 
 @app.post("/api/self-fix", response_model=SelfFixResponse)
 async def self_fix(request: SelfFixRequest):
@@ -143,15 +135,7 @@ async def self_fix(request: SelfFixRequest):
         )
     except Exception as e:
         logger.error(f"Self-fix error: {e}")
-        # Fallback to mock
-        original_confidence = request.original_proposal.get("confidence_score", 0)
-        new_confidence = min(100, original_confidence + DEFAULT_SELF_FIX_CONFIDENCE_INCREMENT)
-        
-        return SelfFixResponse(
-            confidence_score=new_confidence,
-            changes=["Sửa mã tài khoản", "Cập nhật số tiền"],
-            model_version=model_registry["ocr"]["version"]
-        )
+        raise HTTPException(status_code=503, detail=f"Self-fix service unavailable: {str(e)}")
 
 @app.post("/api/fine-tune")
 async def fine_tune(request: FineTuneRequest):
@@ -168,12 +152,7 @@ async def fine_tune(request: FineTuneRequest):
         }
     except Exception as e:
         logger.error(f"Fine-tune error: {e}")
-        return {
-            "success": True,
-            "training_samples": len(request.training_data),
-            "new_version": DEFAULT_MODEL_VERSION,
-            "improvement": DEFAULT_SELF_FIX_IMPROVEMENT
-        }
+        raise HTTPException(status_code=503, detail=f"Fine-tune service unavailable: {str(e)}")
 
 @app.post("/api/text-to-sql")
 async def text_to_sql(request: Dict[str, Any]):
@@ -196,10 +175,7 @@ async def text_to_sql(request: Dict[str, Any]):
         }
     except Exception as e:
         logger.error(f"Text-to-SQL error: {e}")
-        return {
-            "sql": f"SELECT * FROM vouchers WHERE company_id = '{request.get('company_id')}' LIMIT 10",
-            "confidence": DEFAULT_FALLBACK_CONFIDENCE
-        }
+        raise HTTPException(status_code=503, detail=f"NLP service unavailable: {str(e)}")
 
 @app.post("/api/rag-summarize")
 async def rag_summarize(request: Dict[str, Any]):

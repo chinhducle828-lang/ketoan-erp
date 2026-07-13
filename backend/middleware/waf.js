@@ -57,20 +57,28 @@ export const sqlInjectionProtection = (req, res, next) => {
     return false;
   };
 
-  // Check query params
+  const recursiveCheck = (obj) => {
+    if (typeof obj === 'string') return checkValue(obj);
+    if (Array.isArray(obj)) return obj.some(item => recursiveCheck(item));
+    if (obj && typeof obj === 'object') {
+      return Object.entries(obj).some(([key, val]) => checkValue(key) || recursiveCheck(val));
+    }
+    return false;
+  };
+
+  // Check query params (including nested)
   for (const [key, value] of Object.entries(req.query)) {
-    if (checkValue(value)) {
+    if (checkValue(key) || checkValue(value)) {
+      return res.status(400).json({ error: 'Invalid query parameter' });
+    }
+    if (typeof value === 'object' && recursiveCheck(value)) {
       return res.status(400).json({ error: 'Invalid query parameter' });
     }
   }
 
-  // Check body
-  if (req.body && typeof req.body === 'object') {
-    for (const [key, value] of Object.entries(req.body)) {
-      if (checkValue(value)) {
-        return res.status(400).json({ error: 'Invalid request body' });
-      }
-    }
+  // Check body (including nested objects)
+  if (req.body && typeof req.body === 'object' && recursiveCheck(req.body)) {
+    return res.status(400).json({ error: 'Invalid request body' });
   }
 
   next();
@@ -78,23 +86,41 @@ export const sqlInjectionProtection = (req, res, next) => {
 
 // XSS protection
 export const xssProtection = (req, res, next) => {
-  const sanitizeValue = (value) => {
+  const checkValue = (value) => {
     if (typeof value === 'string') {
       for (const pattern of XSS_PATTERNS) {
         if (pattern.test(value)) {
-          return res.status(400).json({ error: 'Invalid input detected' });
+          return true;
         }
       }
     }
-    return true;
+    return false;
   };
 
-  // Check body
+  // Check query params
+  for (const [key, value] of Object.entries(req.query)) {
+    if (checkValue(value)) {
+      return res.status(400).json({ error: 'Invalid query parameter' });
+    }
+  }
+
+  // Check body (including nested objects)
+  const deepCheck = (obj) => {
+    if (typeof obj === 'string') {
+      return checkValue(obj);
+    }
+    if (Array.isArray(obj)) {
+      return obj.some(item => deepCheck(item));
+    }
+    if (obj && typeof obj === 'object') {
+      return Object.values(obj).some(val => deepCheck(val));
+    }
+    return false;
+  };
+
   if (req.body && typeof req.body === 'object') {
-    for (const [key, value] of Object.entries(req.body)) {
-      if (!sanitizeValue(value)) {
-        return;
-      }
+    if (deepCheck(req.body)) {
+      return res.status(400).json({ error: 'Invalid input detected' });
     }
   }
 
@@ -121,13 +147,13 @@ export const checkCompanyActive = async (req, res, next) => {
   }
 
   try {
-    const { rows } = await pool.query('SELECT is_active, active FROM companies WHERE id = $1', [companyId]);
+    const { rows } = await pool.query('SELECT is_active FROM companies WHERE id = $1', [companyId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    const isActive = rows[0].is_active ?? rows[0].active;
-    if (isActive === false || isActive === 'false') {
+    const isActive = rows[0].is_active;
+    if (isActive === false) {
       return res.status(403).json({ error: 'Company is not active' });
     }
 

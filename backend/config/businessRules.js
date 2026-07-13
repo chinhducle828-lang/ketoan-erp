@@ -32,7 +32,11 @@ export const chartOfAccountsConfig = {
     '338': { nature: ACCOUNT_NATURES.BOTH, name: 'Phải trả, phải nộp khác' },
     '214': { nature: ACCOUNT_NATURES.CREDIT, name: 'Hao mòn tài sản cố định' }, // Tài khoản đối tài, dư Có
     '229': { nature: ACCOUNT_NATURES.CREDIT, name: 'Dự phòng tổn thất tài sản' }, // Dư Có
-    '419': { nature: ACCOUNT_NATURES.DEBIT, name: 'Cổ phiếu quỹ' } // Tài khoản đối tài, dư Nợ
+    '419': { nature: ACCOUNT_NATURES.DEBIT, name: 'Cổ phiếu quỹ' }, // Tài khoản đối tài, dư Nợ
+    '521': { nature: ACCOUNT_NATURES.DEBIT, name: 'Chiết khấu thương mại' }, // Loại 5 nhưng dư Nợ (giảm trừ doanh thu)
+    '531': { nature: ACCOUNT_NATURES.DEBIT, name: 'Hàng bán bị trả lại' }, // Loại 5 nhưng dư Nợ (giảm trừ doanh thu)
+    '532': { nature: ACCOUNT_NATURES.DEBIT, name: 'Giảm giá hàng bán' }, // Loại 5 nhưng dư Nợ (giảm trừ doanh thu)
+    '611': { nature: ACCOUNT_NATURES.DEBIT, name: 'Chi phí mua hàng' } // Ghi rõ tên đúng theo TT99
   }
 };
 

@@ -195,7 +195,7 @@ const initializeDatabase = async () => {
 
         ALTER TABLE users
         ADD CONSTRAINT users_role_check
-        CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho'));
+        CHECK (role IN ('admin', 'ktt', 'nv', 'nv_banhang', 'nv_kho', 'gd_kinhdoanh'));
       EXCEPTION
         WHEN duplicate_object THEN NULL;
       END $$;

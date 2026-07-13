@@ -27,7 +27,7 @@ const buildLikeCondition = (fieldExpr, prefixes, params) => {
 };
 
 const getScopedConditions = (companyId, year = null) => {
-  const conditions = ['v.company_id = $1'];
+  const conditions = ['v.company_id = $1', "v.is_posted = TRUE"];
   const params = [companyId];
 
   if (year) {
@@ -47,7 +47,7 @@ export async function calculateCashFlowDirect(companyId, year = null) {
   const directRules = cashFlowRules.directMethod || {};
   const cashAccountPrefixes = cashFlowRules.cashAccountPrefixes || ['111', '112'];
 
-  const runDirectAggregate = async (counterpartPrefixes) => {
+  const runDirectInflow = async (counterpartPrefixes) => {
     const { conditions, params } = getScopedConditions(companyId, year);
     const cashCondition = buildLikeCondition('vd.account_code', cashAccountPrefixes, params);
     const counterpartCondition = buildLikeCondition('vd2.account_code', counterpartPrefixes, params);
@@ -57,6 +57,30 @@ export async function calculateCashFlowDirect(companyId, year = null) {
       FROM voucher_details vd
       JOIN vouchers v ON vd.voucher_id = v.id
       WHERE ${conditions.join(' AND ')}
+        AND vd.entry_type = 'DR'
+        AND ${cashCondition}
+        AND EXISTS (
+          SELECT 1 FROM voucher_details vd2
+          WHERE vd2.voucher_id = vd.voucher_id
+            AND ${counterpartCondition}
+        )
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return parseFloat(rows[0]?.total) || 0;
+  };
+
+  const runDirectOutflow = async (counterpartPrefixes) => {
+    const { conditions, params } = getScopedConditions(companyId, year);
+    const cashCondition = buildLikeCondition('vd.account_code', cashAccountPrefixes, params);
+    const counterpartCondition = buildLikeCondition('vd2.account_code', counterpartPrefixes, params);
+
+    const query = `
+      SELECT SUM(vd.amount) as total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE ${conditions.join(' AND ')}
+        AND vd.entry_type = 'CR'
         AND ${cashCondition}
         AND EXISTS (
           SELECT 1 FROM voucher_details vd2
@@ -70,9 +94,9 @@ export async function calculateCashFlowDirect(companyId, year = null) {
   };
 
   const [cashReceivedFromCustomers, cashPaidToSuppliers, cashPaidToEmployees] = await Promise.all([
-    runDirectAggregate(directRules.salesCounterpartPrefixes || ['511', '3331', '131']),
-    runDirectAggregate(directRules.supplierPaymentCounterpartPrefixes || ['331', '152', '156', '242']),
-    runDirectAggregate(directRules.salaryCounterpartPrefixes || ['334'])
+    runDirectInflow(directRules.salesCounterpartPrefixes || ['511', '3331', '131']),
+    runDirectOutflow(directRules.supplierPaymentCounterpartPrefixes || ['331', '152', '156', '242']),
+    runDirectOutflow(directRules.salaryCounterpartPrefixes || ['334'])
   ]);
 
   return {
