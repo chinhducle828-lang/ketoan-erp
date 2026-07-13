@@ -59,26 +59,30 @@ export default function IncomeStatementB02() {
     }
   };
 
+  /**
+   * Lấy giá trị chỉ tiêu từ object incomeStatement do API /report/b02 trả về.
+   * API đã tính sẵn các chỉ tiêu theo đúng Thông tư 99/2025/TT-BTC:
+   * - Chỉ lấy PHÁT SINH TRONG KỲ (không nhiễm số dư đầu kỳ).
+   * - revenue = Tổng Có TK 511 + 515; cogs = Tổng Nợ TK 632; ...
+   * Do đó component chỉ việc map mã chỉ tiêu → trường tương ứng.
+   */
   const getItemValue = (item) => {
-    if (item.accounts) {
-      let total = 0;
-      item.accounts.forEach(accCode => {
-        // Doanh thu = Tổng Có, Chi phí = Tổng Nợ
-        const accountData = ledger[accCode];
-        const debit = accountData?.patsinhDr || 0;
-        const credit = accountData?.patsinhCr || 0;
-        // Với TK doanh thu (5, 7), lấy credit. Với TK chi phí (6, 8), lấy debit
-        if (accCode.startsWith('5') || accCode.startsWith('7')) {
-          total += credit;
-        } else if (accCode.startsWith('6') || accCode.startsWith('8')) {
-          total += debit;
-        } else {
-          total += Math.abs(debit - credit);
-        }
-      });
-      return total;
+    const s = ledger || {};
+    switch (item.code) {
+      case '01': return s.revenue || 0;                 // Doanh thu BH & cung cấp DV (511 + 515) - chỉ kỳ
+      case '02': return 0;                              // Các khoản giảm trừ doanh thu (không có trường riêng)
+      case '11': return s.cogs || 0;                    // Giá vốn hàng bán (632)
+      case '21': return 0;                              // Doanh thu HĐTC (515) đã nằm gộp trong revenue (01)
+      case '22': return s.operatingExpenses?.['635'] || 0; // Chi phí tài chính (635)
+      case '23': return 0;                              // Chi phí lãi vay (6351) không tách riêng
+      case '24': return s.operatingExpenses?.['641'] || 0; // Chi phí bán hàng (641)
+      case '25': return s.operatingExpenses?.['642'] || 0; // Chi phí QLDN (642)
+      case '31': return s.otherIncome || 0;             // Thu nhập khác (711)
+      case '32': return s.otherExpenses || 0;           // Chi phí khác (811)
+      case '51': return s.taxExpense || 0;              // Chi phí thuế TNDN hiện hành (821)
+      case '52': return 0;                              // Chi phí thuế TNDN hoãn lại (822) không có
+      default: return 0;
     }
-    return 0;
   };
 
   const calculateItems = () => {

@@ -187,6 +187,7 @@ export default function BalanceSheetB01() {
   const [ledger, setLedger] = useState({});
   const [customerBalances, setCustomerBalances] = useState({});
   const [supplierBalances, setSupplierBalances] = useState({});
+  const [balanceLookup, setBalanceLookup] = useState({});
   const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
   const [balanceData, setBalanceData] = useState({
     totalAssets: 0,
@@ -219,6 +220,24 @@ export default function BalanceSheetB01() {
       const ledgerData = balanceRes.data?.data || balanceRes.data || {};
       setLedger(ledgerData);
 
+      // Xây dựng bảng tra cứu số dư từ response của API /balance-sheet
+      // API đã gộp số dư đầu kỳ (opening) + phát sinh trong kỳ (period) → số dư cuối kỳ
+      // mỗi phần tử: { account_code, amount (netBalance dương), balance_type, account_nature }
+      const lookup = {};
+      const pushGroup = (arr) => (Array.isArray(arr) ? arr : []).forEach((e) => {
+        const code = e.account_code || e.accountCode;
+        if (!code) return;
+        lookup[code] = {
+          amount: parseFloat(e.amount) || 0,
+          balanceType: e.balance_type || e.balanceType || 'DEBIT',
+          account_nature: e.account_nature || e.accountNature
+        };
+      });
+      pushGroup(ledgerData.assets);
+      pushGroup(ledgerData.liabilities);
+      pushGroup(ledgerData.equity);
+      setBalanceLookup(lookup);
+
       // 2. Lấy số dư chi tiết theo đối tác cho TK lưỡng tính
       const customerMap = {};
       if (customerRes.data?.success && customerRes.data.data) {
@@ -250,9 +269,9 @@ export default function BalanceSheetB01() {
       }
       setSupplierBalances(supplierMap);
 
-      // 3. Tính tổng và kiểm tra audit
-      calculateTotals(ledgerData, customerMap, supplierMap);
-      runAuditChecks(ledgerData, customerMap, supplierMap);
+      // 3. Tính tổng và kiểm tra audit (dùng balanceLookup đã gộp opening + period)
+      calculateTotals(balanceLookup, customerMap, supplierMap);
+      runAuditChecks(balanceLookup);
 
     } catch (error) {
       console.error('Lỗi tải bảng cân đối:', error);
@@ -266,16 +285,19 @@ export default function BalanceSheetB01() {
    * - Tổ hợp 3: Tài khoản DEBIT có dư Có (ví dụ: âm quỹ)
    * - Tổ hợp 6: Tài khoản CREDIT có dư Nợ (ví dụ: trả nợ quá số phải trả)
    * - Tổ hợp 11: Khấu hao > Nguyên giá
+   * Dùng balanceLookup (số dư cuối kỳ = opening + period) để kiểm tra.
    */
-  const runAuditChecks = (data, customerMap, supplierMap) => {
+  const runAuditChecks = (lookup) => {
     const warnings = [];
 
     // Kiểm tra tài khoản DEBIT có dư Có bất thường
-    Object.keys(data).forEach(accCode => {
-      if (!data[accCode]) return;
-      const { patsinhDr, patsinhCr } = data[accCode];
+    Object.keys(lookup).forEach(accCode => {
+      const entry = lookup[accCode];
+      if (!entry) return;
       const nature = getAccountNature(accCode);
-      const { netBalance, balanceType } = calculateNetBalance(patsinhDr, patsinhCr, nature);
+      // balanceType từ API: 'DEBIT' nếu dư Nợ, 'CREDIT' nếu dư Có
+      const balanceType = entry.balanceType || (nature === ACCOUNT_NATURES.BOTH ? 'DEBIT' : nature);
+      const netBalance = Math.abs(entry.amount) || 0;
 
       if (nature === ACCOUNT_NATURES.DEBIT && balanceType === ACCOUNT_NATURES.CREDIT && netBalance > 0) {
         warnings.push({
@@ -294,9 +316,9 @@ export default function BalanceSheetB01() {
     });
 
     // Kiểm tra khấu hao > nguyên giá (TK 214 vs 211)
-    if (data['211'] && data['214']) {
-      const assetValue = (parseFloat(data['211'].patsinhDr) || 0) - (parseFloat(data['211'].patsinhCr) || 0);
-      const depreValue = (parseFloat(data['214'].patsinhCr) || 0) - (parseFloat(data['214'].patsinhDr) || 0);
+    if (lookup['211'] && lookup['214']) {
+      const assetValue = lookup['211'].amount || 0;
+      const depreValue = lookup['214'].amount || 0;
       if (depreValue > assetValue && assetValue > 0) {
         warnings.push({
           type: 'error',
@@ -360,90 +382,89 @@ export default function BalanceSheetB01() {
   };
 
   /**
-   * Lấy số dư trực tiếp cho 1 tài khoản
-   * ĐÃ SỬA: Dùng calculateNetBalance() thay vì công thức cứng
-   * ĐÃ SỬA: Bóc tách tài khoản lưỡng tính theo đối tác
-   * ĐÃ SỬA: Xử lý tài khoản đối tài (contra-asset, contra-equity)
+   * Lấy số dư trực tiếp cho 1 tài khoản.
+   * `data` ở đây là balanceLookup (số dư cuối kỳ = opening + period do API trả về).
+   * - TK lưỡng tính (131, 331, 138, 338): bóc tách theo đối tác từ customer/supplierMap.
+   * - TK đối tài (214): dùng depreciation.amount (lũy kế) từ API.
+   * - TK thuế (333): dùng tax_balances từ API.
+   * - TK thường: dùng amount + balance_type từ lookup.
    */
   const getDirectBalance = (data, accountCode, accountType, customerMap, supplierMap) => {
     const nature = getAccountNature(accountCode);
 
     // ================================================================
     // TRƯỜNG HỢP 1: Tài khoản lưỡng tính (BOTH) - 131, 331, 138, 338
-    // Phải bóc tách theo đối tác, không gộp
+    // Bóc tách theo đối tác (đã gộp opening + period theo partner)
     // ================================================================
     if (nature === ACCOUNT_NATURES.BOTH) {
-      // Lấy số dư chi tiết theo đối tác từ API
       const partnerData = customerMap?.[accountCode] || supplierMap?.[accountCode];
       if (partnerData) {
-        // Nếu chỉ tiêu là Tài sản (debit) → lấy phần dư Nợ
-        // Nếu chỉ tiêu là Nguồn vốn (credit) → lấy phần dư Có
         if (accountType === 'debit' || accountType === 'hermaphroditic') {
-          return partnerData.debit - partnerData.credit; // Dư Nợ - Dư Có (có thể âm nếu tổng thể dư Có)
+          return partnerData.debit - partnerData.credit; // Dư Nợ - Dư Có
         } else {
           return partnerData.credit - partnerData.debit; // Dư Có - Dư Nợ
         }
       }
-      
-      // FALLBACK: Nếu không có partner data từ API, dùng ledger gộp
-      // Tính net balance từ tổng debit/credit trong ledger
-      if (data[accountCode]) {
-        const { patsinhDr, patsinhCr } = data[accountCode];
-        const d = parseFloat(patsinhDr) || 0;
-        const c = parseFloat(patsinhCr) || 0;
-        const { netBalance, balanceType } = calculateNetBalance(d, c, nature);
+      // FALLBACK: dùng lookup gộp
+      const entry = data[accountCode];
+      if (entry) {
+        const net = entry.amount || 0;
+        const bt = entry.balanceType || nature;
         if (accountType === 'debit' || accountType === 'hermaphroditic') {
-          return balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance;
-        } else {
-          return balanceType === ACCOUNT_NATURES.CREDIT ? netBalance : -netBalance;
+          return bt === ACCOUNT_NATURES.DEBIT ? net : -net;
         }
+        return bt === ACCOUNT_NATURES.CREDIT ? net : -net;
       }
+      return 0;
     }
 
     // ================================================================
     // TRƯỜNG HỢP 2: Tài khoản đối tài (contra-asset) - 214, 229
-    // Hiển thị số âm bên Tài sản: balance = -(credit - debit)
+    // Dùng depreciation.amount (lũy kế = opening + period) từ API
     // ================================================================
     if (accountType === 'contra-asset') {
-      if (!data[accountCode]) return 0;
-      const { patsinhDr, patsinhCr } = data[accountCode];
-      const d = parseFloat(patsinhDr) || 0;
-      const c = parseFloat(patsinhCr) || 0;
-      // Giá trị hao mòn = -(Có - Nợ) → luôn âm hoặc 0
-      return -(c - d);
+      const dep = ledgerData?.depreciation;
+      if (accountCode.startsWith('214') && dep) {
+        return -(Math.abs(dep.amount) || 0); // luôn âm bên Tài sản
+      }
+      const entry = data[accountCode];
+      return entry ? -(Math.abs(entry.amount) || 0) : 0;
     }
 
     // ================================================================
     // TRƯỜNG HỢP 3: Tài khoản đối vốn (contra-equity) - 419
-    // Hiển thị số âm bên VCSH
     // ================================================================
     if (accountType === 'contra-equity') {
-      if (!data[accountCode]) return 0;
-      const { patsinhDr, patsinhCr } = data[accountCode];
-      const d = parseFloat(patsinhDr) || 0;
-      const c = parseFloat(patsinhCr) || 0;
-      // Cổ phiếu quỹ: Nợ - Có → luôn dương, nhưng hiển thị âm
-      return -(d - c);
+      const entry = data[accountCode];
+      return entry ? -(Math.abs(entry.amount) || 0) : 0;
     }
 
     // ================================================================
-    // TRƯỜNG HỢP 4: Tài khoản thông thường (DEBIT / CREDIT)
-    // Dùng calculateNetBalance() để tính đúng
+    // TRƯỜNG HỢP 4: Tài khoản thuế (333) - dùng tax_balances (kỳ trước + phát sinh)
     // ================================================================
-    if (!data[accountCode]) return 0;
-    const { patsinhDr, patsinhCr } = data[accountCode];
-    const d = parseFloat(patsinhDr) || 0;
-    const c = parseFloat(patsinhCr) || 0;
+    if (accountCode.startsWith('333')) {
+      const tb = ledgerData?.tax_balances;
+      if (tb && typeof tb === 'object') {
+        // Tổng các khoản thuế phải nộp (debit - credit đã được tính thành amount)
+        let total = 0;
+        Object.values(tb).forEach((t) => { total += parseFloat(t?.amount) || 0; });
+        return total;
+      }
+    }
 
-    const { netBalance, balanceType } = calculateNetBalance(d, c, nature);
+    // ================================================================
+    // TRƯỜNG HỢP 5: Tài khoản thông thường (DEBIT / CREDIT)
+    // Dùng amount + balance_type từ lookup (số dư cuối kỳ)
+    // ================================================================
+    const entry = data[accountCode];
+    if (!entry) return 0;
+    const net = entry.amount || 0;
+    const bt = entry.balanceType || (nature === ACCOUNT_NATURES.BOTH ? 'DEBIT' : nature);
 
-    // Với chỉ tiêu Tài sản (debit): trả về dương nếu balanceType = DEBIT, âm nếu CREDIT
-    // Với chỉ tiêu Nguồn vốn (credit): trả về dương nếu balanceType = CREDIT, âm nếu DEBIT
     if (accountType === 'debit') {
-      return balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance;
-    } else {
-      return balanceType === ACCOUNT_NATURES.CREDIT ? netBalance : -netBalance;
+      return bt === ACCOUNT_NATURES.DEBIT ? net : -net;
     }
+    return bt === ACCOUNT_NATURES.CREDIT ? net : -net;
   };
 
   const findChildren = (parentCode) => {
@@ -550,7 +571,7 @@ export default function BalanceSheetB01() {
     for (const group of Object.values(ACCOUNT_GROUPS)) {
       csv += `\n${group.title},,,\n`;
       group.accounts.forEach(acc => {
-        const { displayValue, isNegative } = getDisplayBalances(acc, ledger, customerBalances, supplierBalances);
+        const { displayValue, isNegative } = getDisplayBalances(acc, balanceLookup, customerBalances, supplierBalances);
         const displayStr = isNegative ? `(${displayValue.toLocaleString('vi-VN')})` : displayValue.toLocaleString('vi-VN');
         csv += `${acc.code},"${acc.name}",${displayStr},0,\n`;
       });
@@ -653,7 +674,7 @@ export default function BalanceSheetB01() {
                     <td className="p-2 text-slate-700" colSpan="5">{group.title}</td>
                   </tr>
                   {group.accounts.map((acc, ai) => {
-                    const { displayValue, isNegative, netDisplay } = getDisplayBalances(acc, ledger, customerBalances, supplierBalances);
+                    const { displayValue, isNegative, netDisplay } = getDisplayBalances(acc, balanceLookup, customerBalances, supplierBalances);
                     const isTotal = acc.isTotal;
 
                     if (displayValue === 0 && !isTotal) return null;
