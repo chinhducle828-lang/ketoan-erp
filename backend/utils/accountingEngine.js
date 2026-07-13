@@ -121,19 +121,21 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
 }
 
 /**
- * @function getBalancesWithWindowFunction
- * @description [CƠ CHẾ SỐ DƯ] Tính toán bảng tiến trình số dư chạy liên tục (Running Balance Cumulative) 
- * cho mục đích lập Báo Cáo Tài Chính (Bảng Cân đối phát sinh).
+ * @function getAggregatedBalances
+ * @description [CƠ CHẾ SỐ DƯ] Tính toán bảng số dư tài khoản bằng kỹ thuật gộp nhóm (GROUP BY + FULL OUTER JOIN)
+ * từ bảng `opening_balances` và `voucher_details`. Trả về số dư đầu kỳ, phát sinh trong kỳ, và số dư cuối kỳ
+ * dưới dạng 4 trường tường minh: openingDr, openingCr, patsinhDr, patsinhCr, closingDr, closingCr.
  * 
- * @NOTE Sử dụng Window Function tối ưu hiệu năng SQL bằng cách gộp `opening_balances` làm mốc thời gian 0,
- * sau đó cộng dồn tịnh tiến với các dòng trong `voucher_details`.
+ * @NOTE Đây là kỹ thuật Aggregation (gộp nhóm) thông thường, KHÔNG phải Window Function.
+ * Sử dụng CTE + SUM() với GROUP BY + FULL OUTER JOIN để hợp nhất số dư đầu kỳ và phát sinh.
  * 
  * @param {number} companyId - ID của công ty.
  * @param {number} fiscalYear - Năm tài chính cần quét báo cáo.
  * @param {number} month - Tháng cuối kỳ cần báo cáo (null = cả năm).
- * @returns {Promise<Object>} Bảng số dư theo tài khoản: { [account_code]: { patsinhDr, patsinhCr, closingDr, closingCr } }
+ * @returns {Promise<Object>} Bảng số dư theo tài khoản: 
+ *   { [account_code]: { openingDr, openingCr, patsinhDr, patsinhCr, closingDr, closingCr } }
  */
-export async function getBalancesWithWindowFunction(companyId, year, month = null) {
+export async function getAggregatedBalances(companyId, year, month = null) {
   // Validate inputs
   if (!companyId || !year) {
     throw new Error('companyId and year are required parameters');
@@ -152,7 +154,7 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
   
   let query = `
     WITH base_balances AS (
-      -- Số dư đầu kỳ từ opening_balances
+      -- Số dư đầu kỳ từ opening_balances (chỉ lấy, không gộp với phát sinh)
       SELECT 
         account_code,
         COALESCE(partner_id, 0) as partner_id,
@@ -163,7 +165,7 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
       GROUP BY account_code, partner_id
     ),
     period_aggregation AS (
-      -- Phát sinh trong kỳ từ vouchers
+      -- Phát sinh trong kỳ từ vouchers (tách riêng DR/CR)
       SELECT 
         vd.account_code,
         COALESCE(vd.partner_id, 0) as partner_id,
@@ -178,9 +180,14 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
       GROUP BY vd.account_code, vd.partner_id
     ),
     combined AS (
-      -- Kết hợp số dư đầu kỳ + phát sinh trong kỳ
+      -- FULL OUTER JOIN: hợp nhất số dư đầu kỳ + phát sinh, giữ cả 4 giá trị riêng biệt
       SELECT 
         COALESCE(b.account_code, p.account_code) as account_code,
+        COALESCE(b.partner_id, 0) as partner_id,
+        COALESCE(b.base_debit, 0) as base_debit,
+        COALESCE(b.base_credit, 0) as base_credit,
+        COALESCE(p.period_debit, 0) as period_debit,
+        COALESCE(p.period_credit, 0) as period_credit,
         COALESCE(b.base_debit, 0) + COALESCE(p.period_debit, 0) as final_debit,
         COALESCE(b.base_credit, 0) + COALESCE(p.period_credit, 0) as final_credit
       FROM base_balances b
@@ -189,6 +196,10 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
     )
     SELECT 
       account_code,
+      base_debit,
+      base_credit,
+      period_debit,
+      period_credit,
       final_debit,
       final_credit
     FROM combined
@@ -200,24 +211,44 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
     const result = await pool.query(query, params);
     rows = result.rows;
   } catch (err) {
-    console.error('Error in getBalancesWithWindowFunction:', err.message);
+    console.error('Error in getAggregatedBalances:', err.message);
     throw err;
   }
   
-  // Chuyển đổi kết quả về format ledger
+  // Chuyển đổi kết quả về format ledger với 6 trường tường minh
   const ledger = {};
   for (const row of rows) {
     const accCode = row.account_code;
     if (!ledger[accCode]) {
-      ledger[accCode] = { patsinhDr: 0, patsinhCr: 0, closingDr: 0, closingCr: 0 };
+      ledger[accCode] = { 
+        openingDr: 0, 
+        openingCr: 0, 
+        patsinhDr: 0, 
+        patsinhCr: 0, 
+        closingDr: 0, 
+        closingCr: 0 
+      };
     }
-    ledger[accCode].patsinhDr = parseFloat(row.final_debit) || 0;
-    ledger[accCode].patsinhCr = parseFloat(row.final_credit) || 0;
-    ledger[accCode].closingDr = ledger[accCode].patsinhDr;
-    ledger[accCode].closingCr = ledger[accCode].patsinhCr;
+    ledger[accCode].openingDr = parseFloat(row.base_debit) || 0;
+    ledger[accCode].openingCr = parseFloat(row.base_credit) || 0;
+    ledger[accCode].patsinhDr = parseFloat(row.period_debit) || 0;
+    ledger[accCode].patsinhCr = parseFloat(row.period_credit) || 0;
+    ledger[accCode].closingDr = parseFloat(row.final_debit) || 0;
+    ledger[accCode].closingCr = parseFloat(row.final_credit) || 0;
   }
   
   return ledger;
+}
+
+/**
+ * @function getBalancesWithWindowFunction
+ * @description [DEPRECATED] Thay thế bằng getAggregatedBalances().
+ * Giữ lại vì lý do tương thích ngược.
+ * @deprecated Dùng getAggregatedBalances() thay thế.
+ */
+export async function getBalancesWithWindowFunction(companyId, year, month = null) {
+  console.warn('DEPRECATED: getBalancesWithWindowFunction() is deprecated. Use getAggregatedBalances() instead.');
+  return getAggregatedBalances(companyId, year, month);
 }
 
 /**
@@ -225,17 +256,17 @@ export async function getBalancesWithWindowFunction(companyId, year, month = nul
  * @description [CƠ CHẾ SỐ DƯ] Tính toán số dư tài khoản tổng hợp từ danh sách chứng từ (Dùng cho Bảng Cân Đối Tài Khoản).
  * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331, 138, 338, 3334, 3335, 3381).
  * 
- * @NOTE Hàm này yêu cầu truyền vào mảng openingBalances từ bảng `opening_balances` để đảm bảo tính đúng đắn.
- * Nếu không có opening balances, truyền mảng rỗng [].
+ * @NOTE Số dư đầu kỳ (openingDr/openingCr) được tách riêng khỏi phát sinh trong kỳ (patsinhDr/patsinhCr).
+ * getTotalDebit() và getTotalCredit() chỉ đọc patsinhDr/patsinhCr nên KHÔNG bị nhiễm số dư đầu kỳ.
  * 
  * @param {Array} vouchers - Danh sách chứng từ có details: [{ details: [{ accountCode, entryType, amount, partnerId }] }]
  * @param {Array} openingBalances - Số dư đầu kỳ: [{ account_code, opening_debit, opening_credit, partner_id }]
- * @returns {Object} Bảng số dư: { [account_code]: { patsinhDr, patsinhCr, closingDr, closingCr, accountCode, partnerId } }
+ * @returns {Object} Bảng số dư: { [account_code]: { openingDr, openingCr, patsinhDr, patsinhCr, closingDr, closingCr, accountCode, partnerId } }
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Nạp số dư đầu kỳ dồn tích, hỗ trợ partner_id cho tài khoản lưỡng tính
+  // Nạp số dư đầu kỳ (riêng biệt, KHÔNG cộng vào patsinhDr/patsinhCr)
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.account_code || ob.accountCode;
@@ -249,6 +280,8 @@ export function calculateBalances(vouchers, openingBalances = []) {
       
       if (!ledger[ledgerKey]) {
         ledger[ledgerKey] = { 
+          openingDr: 0,
+          openingCr: 0,
           patsinhDr: 0, 
           patsinhCr: 0, 
           closingDr: 0, 
@@ -257,10 +290,12 @@ export function calculateBalances(vouchers, openingBalances = []) {
           partnerId: partnerId
         };
       }
-      ledger[ledgerKey].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[ledgerKey].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
-      ledger[ledgerKey].closingDr = ledger[ledgerKey].patsinhDr;
-      ledger[ledgerKey].closingCr = ledger[ledgerKey].patsinhCr;
+      // Chỉ cộng vào openingDr/openingCr - KHÔNG cộng vào patsinhDr/patsinhCr
+      ledger[ledgerKey].openingDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[ledgerKey].openingCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      // closingDr = openingDr + patsinhDr (patsinhDr chưa có gì ở bước này)
+      ledger[ledgerKey].closingDr = ledger[ledgerKey].openingDr;
+      ledger[ledgerKey].closingCr = ledger[ledgerKey].openingCr;
     });
   }
 
@@ -282,6 +317,8 @@ export function calculateBalances(vouchers, openingBalances = []) {
 
       if (!ledger[ledgerKey]) {
         ledger[ledgerKey] = { 
+          openingDr: 0,
+          openingCr: 0,
           patsinhDr: 0, 
           patsinhCr: 0, 
           closingDr: 0, 
@@ -336,32 +373,40 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset', pa
 
   const aggregate = matchingEntries.reduce(
     (sum, [, entry]) => ({
+      closingDr: sum.closingDr + Number(entry.closingDr || 0),
+      closingCr: sum.closingCr + Number(entry.closingCr || 0),
       patsinhDr: sum.patsinhDr + Number(entry.patsinhDr || 0),
-      patsinhCr: sum.patsinhCr + Number(entry.patsinhCr || 0)
+      patsinhCr: sum.patsinhCr + Number(entry.patsinhCr || 0),
+      openingDr: sum.openingDr + Number(entry.openingDr || 0),
+      openingCr: sum.openingCr + Number(entry.openingCr || 0)
     }),
-    { patsinhDr: 0, patsinhCr: 0 }
+    { closingDr: 0, closingCr: 0, patsinhDr: 0, patsinhCr: 0, openingDr: 0, openingCr: 0 }
   );
 
-  const { patsinhDr, patsinhCr } = aggregate;
+  const { closingDr, closingCr, patsinhDr, patsinhCr, openingDr, openingCr } = aggregate;
 
   if (accountNature === ACCOUNT_NATURES.BOTH) {
     return {
       type: 'hermaphroditic',
-      debit: patsinhDr,
-      credit: patsinhCr,
-      net: patsinhDr - patsinhCr,
+      opening: { debit: openingDr, credit: openingCr },
+      period: { debit: patsinhDr, credit: patsinhCr },
+      debit: closingDr,
+      credit: closingCr,
+      net: closingDr - closingCr,
       account_nature: accountNature
     };
   }
 
-  const { netBalance, balanceType } = calculateNetBalance(patsinhDr, patsinhCr, accountNature);
+  const { netBalance, balanceType } = calculateNetBalance(closingDr, closingCr, accountNature);
 
   return {
     net: balanceType === ACCOUNT_NATURES.DEBIT ? netBalance : -netBalance,
     account_nature: accountNature,
     balance_type: balanceType,
-    debit: patsinhDr,
-    credit: patsinhCr
+    opening: { debit: openingDr, credit: openingCr },
+    period: { debit: patsinhDr, credit: patsinhCr },
+    debit: closingDr,
+    credit: closingCr
   };
 }
 

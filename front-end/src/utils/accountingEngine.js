@@ -7,27 +7,37 @@
 /**
  * Tính toán số dư tài khoản tổng hợp phục vụ hiển thị UI Bảng cân đối hạch toán
  * Hỗ trợ tài khoản lưỡng tính theo đối tác (TK 131, 331)
+ * 
+ * @NOTE Số dư đầu kỳ (openingDr/openingCr) được tách riêng khỏi phát sinh trong kỳ (patsinhDr/patsinhCr).
+ * getTotalDebit() và getTotalCredit() chỉ đọc patsinhDr/patsinhCr nên KHÔNG bị nhiễm số dư đầu kỳ.
  */
 export function calculateBalances(vouchers, openingBalances = []) {
   const ledger = {};
 
-  // Nạp số dư đầu kỳ dồn tích, hỗ trợ partner_id cho tài khoản lưỡng tính
+  const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
+  const isHermaphroditicAccountCode = (accCode) => {
+    if (!accCode) return false;
+    return hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+  };
+
+  // Nạp số dư đầu kỳ (riêng biệt, KHÔNG cộng vào patsinhDr/patsinhCr)
   if (Array.isArray(openingBalances)) {
     openingBalances.forEach(ob => {
       const accCode = ob.accountCode || ob.account_code;
       const partnerId = ob.partner_id || ob.partnerId || null;
-      
+
       if (!accCode) return;
 
       // Kiểm tra tài khoản lưỡng tính
-      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
-      
+      const isHermaphroditic = isHermaphroditicAccountCode(accCode);
+
       // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
       const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
 
       if (!ledger[ledgerKey]) {
         ledger[ledgerKey] = { 
+          openingDr: 0,
+          openingCr: 0,
           patsinhDr: 0, 
           patsinhCr: 0, 
           closingDr: 0, 
@@ -36,10 +46,12 @@ export function calculateBalances(vouchers, openingBalances = []) {
           partnerId: partnerId
         };
       }
-      ledger[ledgerKey].patsinhDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
-      ledger[ledgerKey].patsinhCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
-      ledger[ledgerKey].closingDr = ledger[ledgerKey].patsinhDr;
-      ledger[ledgerKey].closingCr = ledger[ledgerKey].patsinhCr;
+      // Chỉ cộng vào openingDr/openingCr - KHÔNG cộng vào patsinhDr/patsinhCr
+      ledger[ledgerKey].openingDr += parseFloat(ob.opening_debit || ob.debit_balance || 0);
+      ledger[ledgerKey].openingCr += parseFloat(ob.opening_credit || ob.credit_balance || 0);
+      // closingDr = openingDr + patsinhDr (patsinhDr chưa có gì ở bước này)
+      ledger[ledgerKey].closingDr = ledger[ledgerKey].openingDr;
+      ledger[ledgerKey].closingCr = ledger[ledgerKey].openingCr;
     });
   }
 
@@ -56,14 +68,15 @@ export function calculateBalances(vouchers, openingBalances = []) {
       if (!accCode) return;
 
       // Kiểm tra tài khoản lưỡng tính
-      const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
-      const isHermaphroditic = hermaphroditicAccounts.some(acc => accCode.startsWith(acc));
+      const isHermaphroditic = isHermaphroditicAccountCode(accCode);
 
       // Tạo key duy nhất cho tài khoản lưỡng tính theo đối tác
       const ledgerKey = isHermaphroditic && partnerId ? `${accCode}_${partnerId}` : accCode;
 
       if (!ledger[ledgerKey]) {
         ledger[ledgerKey] = { 
+          openingDr: 0,
+          openingCr: 0,
           patsinhDr: 0, 
           patsinhCr: 0, 
           closingDr: 0, 
@@ -91,7 +104,6 @@ export function calculateBalances(vouchers, openingBalances = []) {
  * Hỗ trợ truy vấn theo partnerId cho tài khoản lưỡng tính
  */
 export function getClosingBalance(ledger, accountCode, accountType = 'asset', partnerId = null) {
-  // Xây dựng key tìm kiếm cho tài khoản lưỡng tính theo đối tác
   const hermaphroditicAccounts = ['131', '331', '138', '338', '3334', '3335', '3381'];
   const isHermaphroditic = hermaphroditicAccounts.some(acc => accountCode.startsWith(acc));
   
@@ -103,34 +115,48 @@ export function getClosingBalance(ledger, accountCode, accountType = 'asset', pa
   
   if (!ledger[ledgerKey]) return 0;
   
-  const { patsinhDr, patsinhCr } = ledger[ledgerKey];
+  const { openingDr, openingCr, patsinhDr, patsinhCr, closingDr, closingCr } = ledger[ledgerKey];
   
   if (isHermaphroditic) {
     return {
       type: 'hermaphroditic',
-      debit: patsinhDr,
-      credit: patsinhCr,
-      net: patsinhDr - patsinhCr
+      opening: { debit: openingDr, credit: openingCr },
+      period: { debit: patsinhDr, credit: patsinhCr },
+      debit: closingDr,
+      credit: closingCr,
+      net: closingDr - closingCr
     };
   }
   
   const isProfitLoss = accountCode.startsWith('421');
   
   if (accountType === 'asset' || accountType === 'expense' || isProfitLoss) {
-    return patsinhDr - patsinhCr;
+    return closingDr - closingCr;
   } else {
-    return patsinhCr - patsinhDr;
+    return closingCr - closingDr;
   }
 }
 
 // BỔ SUNG ĐỒNG BỘ FRONTEND: Lấy tổng phát sinh Nợ
 export function getTotalDebit(ledger, accountCode) {
-  if (!ledger[accountCode]) return 0;
-  return ledger[accountCode].patsinhDr || 0;
+  const entries = Object.entries(ledger || {}).filter(([key, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const entryAccountCode = value.accountCode || value.account_code || key.split('_')[0];
+    return String(entryAccountCode) === String(accountCode);
+  });
+
+  if (entries.length === 0) return 0;
+  return entries.reduce((sum, [, value]) => sum + Number(value.patsinhDr || 0), 0);
 }
 
 // BỔ SUNG ĐỒNG BỘ FRONTEND: Lấy tổng phát sinh Có
 export function getTotalCredit(ledger, accountCode) {
-  if (!ledger[accountCode]) return 0;
-  return ledger[accountCode].patsinhCr || 0;
+  const entries = Object.entries(ledger || {}).filter(([key, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const entryAccountCode = value.accountCode || value.account_code || key.split('_')[0];
+    return String(entryAccountCode) === String(accountCode);
+  });
+
+  if (entries.length === 0) return 0;
+  return entries.reduce((sum, [, value]) => sum + Number(value.patsinhCr || 0), 0);
 }

@@ -62,47 +62,52 @@ export async function getAccountingPolicies(companyId) {
  * Cấu phần 3: Chi tiết số liệu
  */
 
-// 3.1 Bảng tiền (TK 111, 112)
+// 3.1 Bảng tiền (TK 111, 112) - Đã fix: gộp opening_balances
 export async function getCashBalances(companyId, year = null) {
-  const conditions = ['v.company_id = $1'];
-  const params = [companyId];
-  let paramIndex = 2;
+  const getCombinedBalance = async (accountPrefix) => {
+    let params = [companyId, `${accountPrefix}%`];
+    let paramIdx = 3;
+    
+    let periodFilter = '';
+    if (year) {
+      periodFilter = ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIdx}`;
+      params.push(year);
+      paramIdx++;
+    }
 
-  if (year) {
-    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`);
-    params.push(year);
-    paramIndex++;
-  }
+    const query = `
+      WITH opening AS (
+        SELECT 
+          SUM(opening_debit) as opening_debit,
+          SUM(opening_credit) as opening_credit
+        FROM opening_balances
+        WHERE company_id = $1 AND account_code LIKE $2
+      ),
+      period AS (
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code LIKE $2
+          ${periodFilter}
+      )
+      SELECT 
+        COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+      FROM opening o
+      CROSS JOIN period p
+    `;
+    
+    const { rows } = await pool.query(query, params);
+    const debit = parseFloat(rows[0]?.total_debit) || 0;
+    const credit = parseFloat(rows[0]?.total_credit) || 0;
+    return debit - credit;
+  };
 
-  // TK 111 - Tiền mặt
-  const cashQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '111%'
-  `;
-
-  // TK 112 - Tiền gửi ngân hàng
-  const bankQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '112%'
-  `;
-
-  const [cashRes, bankRes] = await Promise.all([
-    pool.query(cashQuery, params),
-    pool.query(bankQuery, params)
-  ]);
-
-  const cashBalance = (parseFloat(cashRes.rows[0]?.debit_total) || 0) - (parseFloat(cashRes.rows[0]?.credit_total) || 0);
-  const bankBalance = (parseFloat(bankRes.rows[0]?.debit_total) || 0) - (parseFloat(bankRes.rows[0]?.credit_total) || 0);
+  const cashBalance = await getCombinedBalance('111');
+  const bankBalance = await getCombinedBalance('112');
 
   return {
     cash: {
@@ -119,60 +124,89 @@ export async function getCashBalances(companyId, year = null) {
   };
 }
 
-// 3.2 Biến động TSCĐ & tài sản sinh học (TK 211, 215)
+// 3.2 Biến động TSCĐ & tài sản sinh học (TK 211, 215) - Đã fix: gộp opening_balances
 export async function getFixedAssetChanges(companyId, year = null) {
-  const conditions = ['v.company_id = $1'];
-  const params = [companyId];
-  let paramIndex = 2;
+  const getCombinedBalance = async (accountPrefix) => {
+    let params = [companyId, `${accountPrefix}%`];
+    let paramIdx = 3;
+    let periodFilter = '';
+    if (year) {
+      periodFilter = ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIdx}`;
+      params.push(year);
+      paramIdx++;
+    }
 
-  if (year) {
-    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`);
-    params.push(year);
-    paramIndex++;
-  }
+    const query = `
+      WITH opening AS (
+        SELECT 
+          SUM(opening_debit) as opening_debit,
+          SUM(opening_credit) as opening_credit
+        FROM opening_balances
+        WHERE company_id = $1 AND account_code LIKE $2
+      ),
+      period AS (
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code LIKE $2
+          ${periodFilter}
+      )
+      SELECT 
+        COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+      FROM opening o
+      CROSS JOIN period p
+    `;
+    const { rows } = await pool.query(query, params);
+    const debit = parseFloat(rows[0]?.total_debit) || 0;
+    const credit = parseFloat(rows[0]?.total_credit) || 0;
+    return debit - credit;
+  };
 
-  // TK 211 - Tài sản cố định hữu hình
-  const fixedAssetQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '211%'
-  `;
+  const getCombinedDepreciation = async () => {
+    let params = [companyId, '214%'];
+    let paramIdx = 3;
+    let periodFilter = '';
+    if (year) {
+      periodFilter = ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIdx}`;
+      params.push(year);
+      paramIdx++;
+    }
 
-  // TK 215 - Tài sản sinh học
-  const bioAssetQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '215%'
-  `;
+    const query = `
+      WITH opening AS (
+        SELECT 
+          SUM(opening_debit) as opening_debit,
+          SUM(opening_credit) as opening_credit
+        FROM opening_balances
+        WHERE company_id = $1 AND account_code LIKE $2
+      ),
+      period AS (
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) -
+          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as period_depreciation
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code LIKE $2
+          ${periodFilter}
+      )
+      SELECT 
+        (COALESCE(o.opening_credit, 0) - COALESCE(o.opening_debit, 0)) + 
+        COALESCE(p.period_depreciation, 0) as total_depreciation
+      FROM opening o
+      CROSS JOIN period p
+    `;
+    const { rows } = await pool.query(query, params);
+    return Math.abs(parseFloat(rows[0]?.total_depreciation) || 0);
+  };
 
-  // TK 214 - Khấu hao TSCĐ
-  const depreciationQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) -
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as depreciation
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '214%'
-  `;
-
-  const [fixedAssetRes, bioAssetRes, depreciationRes] = await Promise.all([
-    pool.query(fixedAssetQuery, params),
-    pool.query(bioAssetQuery, params),
-    pool.query(depreciationQuery, params)
-  ]);
-
-  const fixedAssetBalance = (parseFloat(fixedAssetRes.rows[0]?.debit_total) || 0) - (parseFloat(fixedAssetRes.rows[0]?.credit_total) || 0);
-  const bioAssetBalance = (parseFloat(bioAssetRes.rows[0]?.debit_total) || 0) - (parseFloat(bioAssetRes.rows[0]?.credit_total) || 0);
-  const depreciation = Math.abs(parseFloat(depreciationRes.rows[0]?.depreciation) || 0);
+  const fixedAssetBalance = await getCombinedBalance('211');
+  const bioAssetBalance = await getCombinedBalance('215');
+  const depreciation = await getCombinedDepreciation();
 
   return {
     fixedAssets: {
@@ -193,60 +227,51 @@ export async function getFixedAssetChanges(companyId, year = null) {
   };
 }
 
-// 3.3 Chi tiết thuế (TK 333 - bao gồm 3334 cho thuế tối thiểu toàn cầu 15%)
+// 3.3 Chi tiết thuế (TK 333 - bao gồm 3334 cho thuế tối thiểu toàn cầu 15%) - Đã fix: gộp opening_balances
 export async function getTaxDetails(companyId, year = null) {
-  const conditions = ['v.company_id = $1'];
-  const params = [companyId];
-  let paramIndex = 2;
+  const getCombinedTaxBalance = async (accountPrefix) => {
+    let params = [companyId, `${accountPrefix}%`];
+    let paramIdx = 3;
+    let periodFilter = '';
+    if (year) {
+      periodFilter = ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIdx}`;
+      params.push(year);
+      paramIdx++;
+    }
 
-  if (year) {
-    conditions.push(`EXTRACT(YEAR FROM v.voucher_date) = $${paramIndex}`);
-    params.push(year);
-    paramIndex++;
-  }
+    const query = `
+      WITH opening AS (
+        SELECT 
+          SUM(opening_debit) as opening_debit,
+          SUM(opening_credit) as opening_credit
+        FROM opening_balances
+        WHERE company_id = $1 AND account_code LIKE $2
+      ),
+      period AS (
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code LIKE $2
+          ${periodFilter}
+      )
+      SELECT 
+        COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+      FROM opening o
+      CROSS JOIN period p
+    `;
+    const { rows } = await pool.query(query, params);
+    const debit = parseFloat(rows[0]?.total_debit) || 0;
+    const credit = parseFloat(rows[0]?.total_credit) || 0;
+    return debit - credit;
+  };
 
-  // TK 3331 - Thuế GTGT
-  const vatQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '3331%'
-  `;
-
-  // TK 3334 - Thuế TNDN
-  const corporateTaxQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '3334%'
-  `;
-
-  // TK 3335 - Thuế TNCN
-  const incomeTaxQuery = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE ${conditions.join(' AND ')}
-      AND vd.account_code LIKE '3335%'
-  `;
-
-  const [vatRes, corporateTaxRes, incomeTaxRes] = await Promise.all([
-    pool.query(vatQuery, params),
-    pool.query(corporateTaxQuery, params),
-    pool.query(incomeTaxQuery, params)
-  ]);
-
-  const vatPayable = (parseFloat(vatRes.rows[0]?.debit_total) || 0) - (parseFloat(vatRes.rows[0]?.credit_total) || 0);
-  const corporateTaxPayable = (parseFloat(corporateTaxRes.rows[0]?.debit_total) || 0) - (parseFloat(corporateTaxRes.rows[0]?.credit_total) || 0);
-  const incomeTaxPayable = (parseFloat(incomeTaxRes.rows[0]?.debit_total) || 0) - (parseFloat(incomeTaxRes.rows[0]?.credit_total) || 0);
+  const vatPayable = await getCombinedTaxBalance('3331');
+  const corporateTaxPayable = await getCombinedTaxBalance('3334');
+  const incomeTaxPayable = await getCombinedTaxBalance('3335');
 
   return {
     vat: {
@@ -264,7 +289,7 @@ export async function getTaxDetails(companyId, year = null) {
       amount: incomeTaxPayable,
       description: 'Thuế thu nhập cá nhân (TNCN)'
     },
-    totalTaxPayable: vatPayable + corporateTaxPay
+    totalTaxPayable: vatPayable + corporateTaxPayable
   };
 }
 

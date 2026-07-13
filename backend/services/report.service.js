@@ -9,6 +9,9 @@ import { calculateNetBalance } from '../utils/accountNature.js';
 /**
  * BÁO CÁO TÀI CHÍNH - ERP KẾ TOÁN
  * Xử lý 3 lỗi: 131/312, 223, 333
+ * 
+ * @NOTE Tất cả các query đều UNION với opening_balances để đảm bảo
+ * số dư đầu kỳ được tính vào báo cáo (fix theo Thông tư 99/2025/TT-BTC)
  */
 
 /**
@@ -23,21 +26,46 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
   const customerAdvanceAccount = String(dualAccounts.customerAdvance || '312');
   const payableAccount = String(dualAccounts.payable || '331');
 
-  // Lấy số dư theo từng khách hàng
+  // Lấy số dư theo từng khách hàng (gộp opening_balances + voucher_details)
   const query = `
+    WITH opening AS (
+      SELECT 
+        COALESCE(partner_id, 0) as partner_id,
+        SUM(opening_debit) as opening_debit,
+        SUM(opening_credit) as opening_credit
+      FROM opening_balances
+      WHERE company_id = $1 AND account_code LIKE $2
+      GROUP BY partner_id
+    ),
+    period AS (
+      SELECT 
+        COALESCE(vd.partner_id, 0) as partner_id,
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
+        AND vd.partner_id IS NOT NULL
+      GROUP BY vd.partner_id
+    ),
+    combined AS (
+      SELECT 
+        COALESCE(o.partner_id, p.partner_id) as partner_id,
+        COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+      FROM opening o
+      FULL OUTER JOIN period p ON o.partner_id = p.partner_id
+    )
     SELECT 
-      vd.partner_id as customer_id,
+      c.partner_id as customer_id,
       p.partner_name,
       p.partner_code,
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    LEFT JOIN partners p ON vd.partner_id = p.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE $2
-      AND vd.partner_id IS NOT NULL
-    GROUP BY vd.partner_id, p.partner_name, p.partner_code
+      c.total_debit,
+      c.total_credit
+    FROM combined c
+    LEFT JOIN partners p ON c.partner_id = p.id
+    WHERE c.partner_id > 0
     ORDER BY p.partner_name
   `;
   
@@ -45,7 +73,9 @@ export async function getCustomerAccountBalances(companyId, accountCode) {
   
   const results = [];
   for (const row of rows) {
-    const balance = row.debit_total - row.credit_total;
+    const debit = parseFloat(row.total_debit) || 0;
+    const credit = parseFloat(row.total_credit) || 0;
+    const balance = debit - credit;
     
     // Tài khoản 131 (Phải thu khách hàng) - Tài sản lưỡng tính
     // Số dư Nợ → Tài sản (131), Số dư Có → TK 312 (Người mua trả tiền trước)
@@ -135,22 +165,36 @@ export async function getDepreciationBalance(companyId) {
   const sourcePrefix = String(depreciationRules.sourcePrefix || '214');
   const displayAccountCode = String(depreciationRules.displayAccountCode || '223');
 
-  // Lấy số dư tài khoản 214 (TSCĐ)
+  // Lấy số dư tài khoản 214 (TSCĐ) gộp cả opening_balances
   const query = `
+    WITH opening AS (
+      SELECT 
+        SUM(opening_debit) as opening_debit,
+        SUM(opening_credit) as opening_credit
+      FROM opening_balances
+      WHERE company_id = $1 AND account_code LIKE $2
+    ),
+    period AS (
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
+    )
     SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE $2
+      COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+      COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+    FROM opening o
+    CROSS JOIN period p
   `;
   
   const { rows } = await pool.query(query, [companyId, `${sourcePrefix}%`]);
   
   if (rows.length > 0) {
-    const debit = parseFloat(rows[0].debit_total) || 0;
-    const credit = parseFloat(rows[0].credit_total) || 0;
+    const debit = parseFloat(rows[0].total_debit) || 0;
+    const credit = parseFloat(rows[0].total_credit) || 0;
     
     // Hao mòn TSCĐ (223) - Tài sản
     // Giá trị = (Tổng Có - Tổng Nợ) * -1 để hiển thị âm
@@ -190,23 +234,37 @@ export async function getTaxAccountBalances(companyId) {
     taxCodes.map((code) => [code, { name: String(taxNames[code] || `Thuế ${code}`), amount: 0 }])
   );
   
-  // Lấy số dư từng tài khoản con thuế
+  // Lấy số dư từng tài khoản con thuế (gộp cả opening_balances)
   for (const accountCode of Object.keys(taxAccounts)) {
     const query = `
+      WITH opening AS (
+        SELECT 
+          SUM(opening_debit) as opening_debit,
+          SUM(opening_credit) as opening_credit
+        FROM opening_balances
+        WHERE company_id = $1 AND account_code LIKE $2
+      ),
+      period AS (
+        SELECT 
+          SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+          SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+        FROM voucher_details vd
+        JOIN vouchers v ON vd.voucher_id = v.id
+        WHERE v.company_id = $1 
+          AND vd.account_code LIKE $2
+      )
       SELECT 
-        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-      FROM voucher_details vd
-      JOIN vouchers v ON vd.voucher_id = v.id
-      WHERE v.company_id = $1 
-        AND vd.account_code LIKE $2
+        COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+      FROM opening o
+      CROSS JOIN period p
     `;
     
     const { rows } = await pool.query(query, [companyId, `${accountCode}%`]);
     
     if (rows.length > 0) {
-      const debit = parseFloat(rows[0].debit_total) || 0;
-      const credit = parseFloat(rows[0].credit_total) || 0;
+      const debit = parseFloat(rows[0].total_debit) || 0;
+      const credit = parseFloat(rows[0].total_credit) || 0;
       
       // Tài khoản thuế - Số dư Nợ là tiền phải nộp, Số dư Có là tiền thừa
       taxAccounts[accountCode].amount = debit - credit;
@@ -217,7 +275,8 @@ export async function getTaxAccountBalances(companyId) {
 }
 
 /**
- * Báo cáo Bảng cân đối kế toán tổng hợp
+ * Báo cáo Bảng cân đối kế toán tổng hợp (B01-DN)
+ * Đã fix: gộp opening_balances + voucher_details để có số dư cuối kỳ chính xác
  */
 export async function getBalanceSheetData(companyId, month = null, year = null) {
   const rules = getBalanceSheetRules();
@@ -229,25 +288,60 @@ export async function getBalanceSheetData(companyId, month = null, year = null) 
 
   const startsWithAny = (value, prefixes) => prefixes.some((prefix) => String(value || '').startsWith(String(prefix || '')));
 
-  // Tính toán số dư tài khoản tổng hợp
-  const query = `
-    SELECT 
-      vd.account_code,
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as total_debit,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as total_credit
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1
-    ${month ? `AND EXTRACT(MONTH FROM v.voucher_date) = $2` : ''}
-    ${year ? `AND EXTRACT(YEAR FROM v.voucher_date) = $${month ? 3 : 2}` : ''}
-    GROUP BY vd.account_code
-    ORDER BY vd.account_code
+  // Tính toán số dư tài khoản tổng hợp (gộp opening_balances + voucher_details)
+  let query = `
+    WITH opening AS (
+      SELECT 
+        account_code,
+        SUM(opening_debit) as opening_debit,
+        SUM(opening_credit) as opening_credit
+      FROM opening_balances
+      WHERE company_id = $1
+      GROUP BY account_code
+    ),
+    period AS (
+      SELECT 
+        vd.account_code,
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as period_debit,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as period_credit
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1
   `;
   
   const params = [companyId];
-  if (month) params.push(month);
-  if (year) params.push(year);
+  let paramIdx = 2;
   
+  if (month) {
+    query += ` AND EXTRACT(MONTH FROM v.voucher_date) <= $${paramIdx}`;
+    params.push(month);
+    paramIdx++;
+  }
+  if (year) {
+    query += ` AND EXTRACT(YEAR FROM v.voucher_date) = $${paramIdx}`;
+    params.push(year);
+    paramIdx++;
+  }
+  
+  query += `
+      GROUP BY vd.account_code
+    ),
+    combined AS (
+      SELECT 
+        COALESCE(o.account_code, p.account_code) as account_code,
+        COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0) as total_debit,
+        COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0) as total_credit
+      FROM opening o
+      FULL OUTER JOIN period p ON o.account_code = p.account_code
+    )
+    SELECT 
+      account_code,
+      total_debit,
+      total_credit
+    FROM combined
+    ORDER BY account_code
+  `;
+
   const { rows } = await pool.query(query, params);
   
   // Phân loại tài khoản
@@ -345,16 +439,25 @@ export async function getOpeningBalancesByPartner(companyId, fiscalYear, account
 
 /**
  * Lấy số dư tài khoản theo mã tài khoản (Hỗ trợ TK 215, 2295 cho nông nghiệp)
+ * Đã fix: gộp opening_balances + voucher_details
  */
 export async function getAccountBalance(companyId, accountCode, year = null) {
   let query = `
-    SELECT 
-      SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
-      SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
-    FROM voucher_details vd
-    JOIN vouchers v ON vd.voucher_id = v.id
-    WHERE v.company_id = $1 
-      AND vd.account_code LIKE $2
+    WITH opening AS (
+      SELECT 
+        SUM(opening_debit) as opening_debit,
+        SUM(opening_credit) as opening_credit
+      FROM opening_balances
+      WHERE company_id = $1 AND account_code LIKE $2
+    ),
+    period AS (
+      SELECT 
+        SUM(CASE WHEN vd.entry_type = 'DR' THEN vd.amount ELSE 0 END) as debit_total,
+        SUM(CASE WHEN vd.entry_type = 'CR' THEN vd.amount ELSE 0 END) as credit_total
+      FROM voucher_details vd
+      JOIN vouchers v ON vd.voucher_id = v.id
+      WHERE v.company_id = $1 
+        AND vd.account_code LIKE $2
   `;
   
   const params = [companyId, `${accountCode}%`];
@@ -364,11 +467,20 @@ export async function getAccountBalance(companyId, accountCode, year = null) {
     params.push(year);
   }
   
+  query += `
+    )
+    SELECT 
+      COALESCE(o.opening_debit, 0) + COALESCE(p.debit_total, 0) as total_debit,
+      COALESCE(o.opening_credit, 0) + COALESCE(p.credit_total, 0) as total_credit
+    FROM opening o
+    CROSS JOIN period p
+  `;
+  
   const { rows } = await pool.query(query, params);
   
   if (rows.length > 0) {
-    const debit = parseFloat(rows[0].debit_total) || 0;
-    const credit = parseFloat(rows[0].credit_total) || 0;
+    const debit = parseFloat(rows[0].total_debit) || 0;
+    const credit = parseFloat(rows[0].total_credit) || 0;
     return {
       account_code: accountCode,
       debit_balance: debit,
