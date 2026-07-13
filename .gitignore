@@ -10,7 +10,6 @@ node_modules/
 .env.production.local
 .env.production
 .env.staging
-.env.development
 backend/.env
 front-end/.env
 front-end/.env.production

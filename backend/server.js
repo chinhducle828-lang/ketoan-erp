@@ -63,7 +63,14 @@ app.set('trust proxy', true);
 // ====================================================================
 const rawFrontend = process.env.FRONTEND_URL || '';
 // Tách chuỗi và loại bỏ khoảng trắng dư thừa
-const allowedOrigins = [...new Set(rawFrontend.split(',').map(s => s.trim()).filter(Boolean))];
+const allowedOriginsSet = new Set(rawFrontend.split(',').map(s => s.trim()).filter(Boolean));
+
+// Luôn cho phép localhost dev origins để hỗ trợ dual environment (production Railway + local dev)
+['http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:3001', 'http://127.0.0.1:5173'].forEach(origin => {
+  allowedOriginsSet.add(origin);
+});
+
+const allowedOrigins = [...allowedOriginsSet];
 
 const normalizeOrigin = (origin) => origin.replace(/\/$/, '');
 const normalizedOrigins = allowedOrigins.map(normalizeOrigin);

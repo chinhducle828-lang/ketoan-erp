@@ -34,7 +34,7 @@ export const PERMISSIONS = {
 };
 
 // Storefront-specific roles
-export const STOREFRONT_ROLES = ['nv_banhang', 'nv_kho'];
+export const STOREFRONT_ROLES = ['nv_banhang', 'nv_kho', 'gd_kinhdoanh'];
 
 // Check if user has permission for a specific module/action
 export function hasPermission(userRole, module, action) {
@@ -67,7 +67,7 @@ export function getUserPermissions(userRole) {
 // Check if role can access storefront
 export function canAccessStorefront(userRole) {
   if (!userRole) return false;
-  return STOREFRONT_ROLES.includes(userRole) || userRole === 'admin' || userRole === 'ktt';
+  return STOREFRONT_ROLES.includes(userRole) || userRole === 'admin';
 }
 
 // Hook to manage user permissions
