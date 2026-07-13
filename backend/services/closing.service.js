@@ -259,8 +259,6 @@ export async function runClosingEntries(companyId, month, year, dbClient = null,
     
     // 4. Tính thuế TNDN tự động - CẬP NHẬT: Thêm tài khoản 711, 811, 821
     // Công thức: Lãi = Doanh thu (511) + Thu nhập khác (711) - Chi phí (632, 641, 642) - Chi phí khác (811) - Thuế (821)
-    const account711Credit = summaryMap[otherIncomeAccount]?.credit || 0;
-    const account811Debit = summaryMap[otherExpenseAccount]?.debit || 0;
     const account821Debit = summaryMap[taxExpenseAccount]?.debit || 0;
     
     // Tính lợi nhuận trước thuế: Doanh thu + Thu nhập khác - Chi phí - Chi phí khác - Thuế
