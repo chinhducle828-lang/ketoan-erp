@@ -46,6 +46,9 @@ export class WebSocketBaseService {
       this.disconnect();
     }
 
+    // Get access token for WebSocket authentication
+    const accessToken = localStorage.getItem('accessToken');
+
     this.socket = io(WS_URL_FINAL, {
       transports: ['websocket'],
       reconnection: true,
@@ -56,7 +59,8 @@ export class WebSocketBaseService {
       auth: {
         companyId,
         userId,
-        clientInstanceId: this.clientInstanceId
+        clientInstanceId: this.clientInstanceId,
+        token: accessToken || undefined
       }
     });
 

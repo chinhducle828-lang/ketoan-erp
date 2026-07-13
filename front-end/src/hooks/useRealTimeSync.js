@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useSocket } from '../context/SocketContext.jsx';
+import { useSocket } from './useSocket.js';
 
 /**
  * Hook tập trung đồng bộ realtime cho các màn hình ERP.

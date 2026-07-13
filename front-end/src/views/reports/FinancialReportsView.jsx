@@ -2,69 +2,63 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { FileSpreadsheet, BarChart3, FileText, RefreshCw, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 export default function FinancialReportsView() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
-  const [cashFlowData, setCashFlowData] = useState(null);
-  const [financialNotes, setFinancialNotes] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('cash-flow');
   const [method, setMethod] = useState('indirect');
   const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
 
   const companyId = activeCompany?.id || activeCompany;
 
-  const fetchReports = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
-    try {
-      const [cashFlowRes, notesRes] = await Promise.all([
-        api.get('/report/cash-flow', {
-          params: { company_id: companyId, year: fiscalYear, method }
-        }),
-        api.get('/report/financial-notes', {
-          params: { company_id: companyId, year: fiscalYear }
-        })
-      ]);
-      setCashFlowData(cashFlowRes.data?.data);
-      setFinancialNotes(notesRes.data?.data);
-    } catch (error) {
-      console.error('Lỗi tải báo cáo:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId, fiscalYear, method]);
+  // React Query for cash flow data
+  const { data: cashFlowData, isLoading: loadingCashFlow, refetch: refetchCashFlow } = useQuery({
+    queryKey: ['cashFlowReport', companyId, fiscalYear, method],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const res = await api.get('/report/cash-flow', {
+        params: { company_id: companyId, year: fiscalYear, method }
+      });
+      return res.data?.data || null;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (companyId) {
-      fetchReports();
-    }
-  }, [companyId, fetchReports]);
+  // React Query for financial notes
+  const { data: financialNotes, isLoading: loadingNotes, refetch: refetchNotes } = useQuery({
+    queryKey: ['financialNotes', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const res = await api.get('/report/financial-notes', {
+        params: { company_id: companyId, year: fiscalYear }
+      });
+      return res.data?.data || null;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { reports: fetchReports },
-    {
-      eventMap: {
-        'voucher:created': ['reports'],
-        'voucher:updated': ['reports'],
-        'voucher:deleted': ['reports'],
-        voucherCreated: ['reports'],
-        voucherUpdated: ['reports'],
-        voucherDeleted: ['reports'],
-        'closing:completed': ['reports'],
-        closingCompleted: ['reports']
-      }
-    }
-  );
+  const loading = loadingCashFlow || loadingNotes;
 
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['cashFlowReport', companyId, fiscalYear, method] },
+      { key: ['financialNotes', companyId, fiscalYear] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   const handleExportExcel = async () => {
     try {
@@ -472,7 +466,10 @@ export default function FinancialReportsView() {
             ))}
           </select>
           <button
-            onClick={fetchReports}
+            onClick={() => {
+              refetchCashFlow();
+              refetchNotes();
+            }}
             disabled={loading}
             className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition"
           >

@@ -10,6 +10,7 @@
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { redis } from '../cache/redis.js';
+import jwt from 'jsonwebtoken';
 
 let io = null;
 
@@ -27,6 +28,50 @@ export function initWebSocket(server) {
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
+    }
+  });
+
+  // WebSocket Authentication Middleware
+  io.use(async (socket, next) => {
+    try {
+      const { companyId, userId, clientInstanceId } = socket.handshake.auth || {};
+      
+      // Validate required fields
+      if (!companyId || !userId) {
+        console.warn(`WebSocket connection rejected: missing companyId or userId from ${socket.handshake.address}`);
+        return next(new Error('Missing authentication data'));
+      }
+
+      // Optional: Validate JWT token if provided
+      const token = socket.handshake.auth.token;
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          // Token is valid, attach user info to socket
+          socket.data.user = decoded;
+          socket.data.companyId = Number(companyId);
+          socket.data.userId = Number(userId);
+          socket.data.clientInstanceId = clientInstanceId;
+          console.log(`WebSocket authenticated: userId=${userId}, companyId=${companyId}, socketId=${socket.id}`);
+        } catch (jwtError) {
+          console.warn(`WebSocket JWT validation failed for userId=${userId}:`, jwtError.message);
+          // Continue without JWT validation - allow connection for backward compatibility
+          socket.data.companyId = Number(companyId);
+          socket.data.userId = Number(userId);
+          socket.data.clientInstanceId = clientInstanceId;
+        }
+      } else {
+        // No token provided - allow connection but log warning
+        socket.data.companyId = Number(companyId);
+        socket.data.userId = Number(userId);
+        socket.data.clientInstanceId = clientInstanceId;
+        console.log(`WebSocket connected without token: userId=${userId}, companyId=${companyId}, socketId=${socket.id}`);
+      }
+
+      next();
+    } catch (error) {
+      console.error('WebSocket authentication error:', error);
+      next(new Error('Authentication failed'));
     }
   });
 

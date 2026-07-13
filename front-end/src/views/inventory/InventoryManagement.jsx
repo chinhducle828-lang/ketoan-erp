@@ -2,75 +2,53 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Package, Loader2, RefreshCw, TrendingUp, AlertTriangle, Search, FileSpreadsheet } from 'lucide-react';
 import api from '../../utils/api.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
-import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import { INVENTORY_TABLE_COLUMNS, INVENTORY_STATS, INVENTORY_MESSAGES } from '../../constants/inventoryTable.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function InventoryManagement() {
   const { activeCompany } = useAuth();
-  const [stockLevels, setStockLevels] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const companyId = activeCompany?.id ?? activeCompany;
+  
   const [costingLoading, setCostingLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState('');
 
-  const loadStockLevels = useCallback(async () => {
-    if (!activeCompany) return;
-    setLoading(true);
-    setError('');
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
+  // React Query for stock levels
+  const { data: stockLevels = [], isLoading: loading, error, refetch: refetchStockLevels } = useQuery({
+    queryKey: ['stockLevels', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
       const res = await api.get(`/inventory/stock-levels?company_id=${companyId}`);
-      setStockLevels(Array.isArray(res.data?.data) ? res.data.data : []);
-    } catch (err) {
-      console.error('Lỗi tải tồn kho:', err);
-      setError('Không thể tải dữ liệu tồn kho. Vui lòng thử lại.');
-      setStockLevels([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeCompany]);
+      return Array.isArray(res.data?.data) ? res.data.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    loadStockLevels();
-  }, [loadStockLevels]);
-
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { inventory: loadStockLevels },
-    {
-      eventMap: {
-        'inventory:updated': ['inventory'],
-        inventoryUpdated: ['inventory'],
-        'voucher:created': ['inventory'],
-        'voucher:updated': ['inventory'],
-        'voucher:deleted': ['inventory'],
-        voucherCreated: ['inventory'],
-        voucherUpdated: ['inventory'],
-        voucherDeleted: ['inventory'],
-        'closing:completed': ['inventory'],
-        closingCompleted: ['inventory']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['stockLevels', companyId] }
+    ],
+    events: ['inventoryUpdated', 'voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   const handleRunCosting = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn chạy tính giá vốn cuối kỳ? Quá trình này sẽ tính toán lại giá xuất kho theo phương pháp BQGQ/FIFO.')) return;
     setCostingLoading(true);
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
       const res = await api.post('/inventory/costing', { company_id: companyId });
       alert(res.data?.message || 'Tính giá vốn hoàn tất!');
-      loadStockLevels();
+      refetchStockLevels();
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi khi tính giá vốn!');
     } finally {
@@ -128,7 +106,7 @@ export default function InventoryManagement() {
           <ImportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodeField="accountCode" />
           <ExportExcelButton endpoint="inventory" filename="Ton_Kho" accountCodes={ACCOUNTS_TT99.filter(a => a.group === 'inventory' || a.group === 'cogs').map(a => a.code)} />
           <button
-            onClick={loadStockLevels}
+            onClick={() => refetchStockLevels()}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition"
           >
@@ -182,7 +160,7 @@ export default function InventoryManagement() {
             <AlertTriangle size={40} className="mb-2 text-amber-400" />
             <p className="text-sm">{error}</p>
             <button 
-              onClick={loadStockLevels}
+              onClick={() => refetchStockLevels()}
               className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
             >
               {INVENTORY_MESSAGES.retry}

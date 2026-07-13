@@ -21,12 +21,12 @@ CREATE INDEX IF NOT EXISTS idx_ai_copilot_kb_created ON ai_copilot_kb(created_at
 ALTER TABLE vouchers 
   ADD COLUMN IF NOT EXISTS due_date DATE;
 
--- Thêm cột account_type cho chart_of_accounts nếu chưa có
-ALTER TABLE chart_of_accounts 
+-- Thêm cột account_type cho bảng accounts nếu chưa có
+ALTER TABLE accounts 
   ADD COLUMN IF NOT EXISTS account_type VARCHAR(20);
 
 -- Cập nhật account_type dựa trên mã tài khoản
-UPDATE chart_of_accounts 
+UPDATE accounts 
 SET account_type = CASE 
   WHEN account_code LIKE '111%' OR account_code LIKE '112%' THEN 'cash'
   WHEN account_code LIKE '131%' OR account_code LIKE '132%' THEN 'receivable'

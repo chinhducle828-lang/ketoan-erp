@@ -2,23 +2,21 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { TrendingUp, TrendingDown, FileText, Layers, RefreshCw } from 'lucide-react';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 export default function IncomeStatement() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [ledger, setLedger] = useState({});
   const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
   const [prevYearRevenue, setPrevYearRevenue] = useState(0);
   const [activeTab, setActiveTab] = useState('income-statement');
-  const [cycleData, setCycleData] = useState(null);
-  const [cycleLoading, setCycleLoading] = useState(false);
+  
+  const companyId = activeCompany?.id || activeCompany;
   
   // Thuế suất lũy tiến theo doanh thu (đồng bộ với backend calculateProgressiveTax)
   const getProgressiveTaxRate = (revenue) => {
@@ -26,59 +24,25 @@ export default function IncomeStatement() {
     if (revenue <= 50000000000) return 0.17;
     return 0.20;
   };
-  
+   
   const getTaxModeLabel = (revenue) => {
     if (revenue <= 3000000000) return '15% (≤ 3 tỷ)';
     if (revenue <= 50000000000) return '17% (3-50 tỷ)';
     return '20% (> 50 tỷ)';
   };
 
-  useEffect(() => {
-    if (activeCompany) {
-      fetchVouchers();
-    }
-  }, [activeCompany, contextFiscalYear]);
-
-  useEffect(() => {
-    if (activeCompany && activeTab === 'cycles') {
-      fetchCycleData();
-    }
-  }, [activeCompany, fiscalYear, activeTab]);
-
-  const fetchCycleData = useCallback(async () => {
-    if (!activeCompany) return;
-    
-    setCycleLoading(true);
-    try {
-      const companyId = activeCompany.id || activeCompany;
-      const response = await api.get(`/report/cycle-data?company_id=${companyId}&year=${fiscalYear}`);
+  // React Query: Fetch income statement data
+  const { data: ledger = {}, isLoading } = useQuery({
+    queryKey: ['incomeStatement', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return {};
       
-      if (response.data?.success) {
-        setCycleData(response.data.data);
-      }
-    } catch (error) {
-      console.error('Lỗi tải dữ liệu 9 chu trình:', error);
-    } finally {
-      setCycleLoading(false);
-    }
-  }, [activeCompany, fiscalYear]);
-
-  const fetchVouchers = useCallback(async () => {
-    if (!activeCompany) return;
-    
-    setLoading(true);
-    try {
-      const companyId = activeCompany.id || activeCompany;
-      // Sử dụng API báo cáo kết quả kinh doanh B02-DN
       const response = await api.get(`/report/b02?company_id=${companyId}&year=${fiscalYear}`);
       
       if (response.data?.success && response.data.data) {
-        // Backend trả về dữ liệu income statement dạng { revenue, cogs, ... }
-        // Chuyển đổi thành ledger format để tương thích với code hiện tại
         const data = response.data.data;
         const ledgerData = {};
         
-        // Map các giá trị từ API response vào ledger format
         if (data.revenue !== undefined) {
           ledgerData['511'] = { patsinhDr: 0, patsinhCr: data.revenue, closingDr: 0, closingCr: data.revenue };
         }
@@ -103,48 +67,53 @@ export default function IncomeStatement() {
           ledgerData['711'] = { patsinhDr: 0, patsinhCr: data.otherIncome, closingDr: 0, closingCr: data.otherIncome };
         }
         if (data.otherExpenses !== undefined) {
-          ledgerData['811'] = { patsinhDr: data.otherExpenses, patsinhCr: 0, closingDr: data.otherExpenses, closingCr: 0 };
+          ledgerData['811'] = { patsinhDr: 0, patsinhCr: data.otherExpenses, closingDr: 0, closingCr: data.otherExpenses };
         }
         if (data.taxExpense !== undefined) {
           ledgerData['821'] = { patsinhDr: data.taxExpense, patsinhCr: 0, closingDr: data.taxExpense, closingCr: 0 };
         }
         
-        setLedger(ledgerData);
+        return ledgerData;
       }
-    } catch (error) {
-      console.error('Lỗi tải số liệu:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeCompany, fiscalYear]);
-
-  const refreshCyclesIfOpened = useCallback(() => {
-    if (activeTab === 'cycles') {
-      return fetchCycleData();
-    }
-    return Promise.resolve();
-  }, [activeTab, fetchCycleData]);
-
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    {
-      reports: fetchVouchers,
-      cycles: refreshCyclesIfOpened
+      return {};
     },
-    {
-      eventMap: {
-        'voucher:created': ['reports', 'cycles'],
-        'voucher:updated': ['reports', 'cycles'],
-        'voucher:deleted': ['reports', 'cycles'],
-        voucherCreated: ['reports', 'cycles'],
-        voucherUpdated: ['reports', 'cycles'],
-        voucherDeleted: ['reports', 'cycles'],
-        'closing:completed': ['reports', 'cycles'],
-        closingCompleted: ['reports', 'cycles']
-      }
-    }
-  );
+    enabled: Boolean(companyId),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
+  // React Query: Fetch cycle data
+  const { data: cycleData, isLoading: cycleLoading } = useQuery({
+    queryKey: ['cycleData', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return null;
+      
+      const response = await api.get(`/report/cycle-data?company_id=${companyId}&year=${fiscalYear}`);
+      
+      if (response.data?.success) {
+        return response.data.data;
+      }
+      return null;
+    },
+    enabled: Boolean(companyId) && activeTab === 'cycles',
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Real-time cache sync
+  useRealtimeCacheSync({
+    queries: [
+      ['incomeStatement'],
+      ['cycleData']
+    ],
+    events: [
+      'voucher:created',
+      'voucher:updated',
+      'voucher:deleted',
+      'voucher:posted',
+      'closing:completed',
+      'closing:reopened'
+    ],
+    enabled: Boolean(companyId)
+  });
 
   const getLedgerValue = (accountCode, entryType) => {
     const key = accountCode;
@@ -288,7 +257,7 @@ export default function IncomeStatement() {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

@@ -2,7 +2,8 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { FileText, Trash2, Loader2, Plus, Search, Filter, X, FileSpreadsheet, Scan } from 'lucide-react';
@@ -10,9 +11,8 @@ import api from '../../utils/api.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { notify } from '../../utils/notify.jsx';
-import { useSocket } from '../../context/SocketContext.jsx';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useSocket } from '../../hooks/useSocket.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 import { ACCOUNTS_TT99, getAccountsByDepartment, getAccountByCode } from '../../constants/accountsTT99.js';
 import { createWorkflowHandlers, WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
@@ -51,22 +51,43 @@ export default function VoucherManagement() {
   const [showOCRScanner, setShowOCRScanner] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [partners, setPartners] = useState([]);
-  const [items, setItems] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const searchInputRef = useRef(null);
 
-  useEffect(() => {
-    if (activeCompany) {
-      const companyId = activeCompany?.id ?? activeCompany;
-      api.get(`/api/partners/list?company_id=${companyId}`)
-         .then(res => setPartners(res.data))
-         .catch(() => {});
-      api.get(`/api/items?company_id=${companyId}`)
-         .then(res => setItems(res.data))
-         .catch(() => {});
-    }
-  }, [activeCompany]);
+  const companyId = activeCompany?.id ?? activeCompany;
+
+  // React Query for partners and items
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get(`/api/partners/list?company_id=${companyId}`);
+      return res.data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ['items', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get(`/api/items?company_id=${companyId}`);
+      return res.data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['vouchers', companyId] },
+      { key: ['partners', companyId] },
+      { key: ['items', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   const handleDetailChange = (index, field, value) => {
     const newDetails = [...form.details];
@@ -91,7 +112,6 @@ export default function VoucherManagement() {
     e.preventDefault();
     setLoading(true);
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
       const rate = parseFloat(form.exchangeRate) || 1;
 
       const processedDetails = form.details.map(d => ({
@@ -278,27 +298,6 @@ export default function VoucherManagement() {
     enabled: true
   });
 
-  const companyId = activeCompany?.id ?? activeCompany;
-
-  // Realtime: subscribe voucher workflow events
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { vouchers: reloadVouchers },
-    {
-      eventMap: {
-        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['vouchers'],
-        [WORKFLOW_EVENTS.VOUCHER_POSTED]: ['vouchers'],
-        [WORKFLOW_EVENTS.VOUCHER_DELETED]: ['vouchers'],
-        [WORKFLOW_EVENTS.CLOSING_COMPLETED]: ['vouchers'],
-        voucherCreated: ['vouchers'],
-        voucherUpdated: ['vouchers'],
-        voucherDeleted: ['vouchers'],
-        voucherPosted: ['vouchers'],
-        closingCompleted: ['vouchers']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-4">

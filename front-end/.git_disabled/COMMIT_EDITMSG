@@ -1,0 +1,20 @@
+commit 
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch master
+# Your branch is up to date with 'origin/master'.
+#
+# Changes to be committed:
+#	modified:   index.html
+#	new file:   src/components/VoucherFormTemplate.jsx
+#	modified:   src/views/assets/FixedAssets.jsx
+#	modified:   src/views/cash/CashManagement.jsx
+#	modified:   src/views/closing/ClosingProcess.jsx
+#	modified:   src/views/costs/WorkInProcess.jsx
+#	modified:   src/views/hr/Payroll.jsx
+#	modified:   src/views/purchasing/PurchaseInventory.jsx
+#	modified:   src/views/sales/PartnerManagement.jsx
+#	modified:   src/views/tax/TaxReporting.jsx
+#	modified:   src/views/vouchers/VoucherManagement.jsx
+#

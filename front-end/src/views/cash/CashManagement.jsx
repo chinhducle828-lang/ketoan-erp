@@ -2,22 +2,21 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Wallet, Trash2, Loader2 } from 'lucide-react';
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function CashManagement() {
   const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
   const { activeCompany } = useAuth();
+  const companyId = activeCompany?.id ?? activeCompany;
   
-  const [partners, setPartners] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -31,46 +30,27 @@ export default function CashManagement() {
     ]
   });
 
-  const loadVouchers = useCallback(async () => {
-    if (!activeCompany) return;
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      const res = await api.get(`/vouchers?company_id=${companyId}`);
-      // Note: This will update the vouchers from context if we add a reload function
-      console.log('Cash vouchers loaded:', res.data?.length || 0);
-    } catch (err) {
-      console.error('Lỗi tải chứng từ:', err);
-    }
-  }, [activeCompany]);
+  // React Query for partners
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get(`/partners?company_id=${companyId}`);
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (activeCompany) {
-      const companyId = activeCompany?.id ?? activeCompany;
-      api.get(`/partners?company_id=${companyId}`)
-         .then(res => setPartners(res.data))
-         .catch(() => {});
-      loadVouchers();
-    }
-  }, [activeCompany, loadVouchers]);
-
-  // Realtime: subscribe voucher workflow events
-  const companyId = activeCompany?.id ?? activeCompany;
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { vouchers: loadVouchers },
-    {
-      eventMap: {
-        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['vouchers'],
-        [WORKFLOW_EVENTS.VOUCHER_POSTED]: ['vouchers'],
-        [WORKFLOW_EVENTS.VOUCHER_DELETED]: ['vouchers'],
-        voucherCreated: ['vouchers'],
-        voucherUpdated: ['vouchers'],
-        voucherDeleted: ['vouchers'],
-        voucherPosted: ['vouchers']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['partners', companyId] },
+      { key: ['vouchers', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted'],
+    enabled: !!companyId
+  });
 
   const handleDetailChange = (index, field, value) => {
     const newDetails = [...form.details];
@@ -84,12 +64,12 @@ export default function CashManagement() {
     try {
       const companyId = activeCompany?.id ?? activeCompany;
       if (!companyId) {
-        alert('Vui lòng chọn doanh nghiệp trước khi tạo phiếu thu/chi!');
+        notify.error('Vui lòng chọn doanh nghiệp trước khi tạo phiếu thu/chi!');
         setLoading(false);
         return;
       }
       if (!form.partnerId) {
-        alert('Vui lòng chọn đối tác công nợ cho phiếu thu/chi!');
+        notify.error('Vui lòng chọn đối tác công nợ cho phiếu thu/chi!');
         setLoading(false);
         return;
       }
@@ -120,9 +100,9 @@ export default function CashManagement() {
         details: processedDetails
       });
       
-      alert('Tạo phiếu thu/chi dòng tiền thành công!');
+      notify.success('Tạo phiếu thu/chi dòng tiền thành công!');
     } catch (err) {
-      alert(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ dòng tiền!');
+      notify.error(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ dòng tiền!');
     } finally {
       setLoading(false);
     }

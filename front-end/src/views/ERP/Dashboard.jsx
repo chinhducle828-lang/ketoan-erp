@@ -2,11 +2,11 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { useSocket } from '../../context/SocketContext.jsx';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
+import { useSocket } from '../../hooks/useSocket.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 import api from '../../utils/api.js';
 import { 
   BarChart3, 
@@ -23,64 +23,33 @@ import {
 export default function Dashboard() {
   const { user, activeCompany } = useAuth();
   const { isConnected } = useSocket();
-  const [vouchers, setVouchers] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState({
-    totalRevenue: 0,
-    totalExpenses: 0,
-    pendingOrders: 0,
-    totalVouchers: 0
-  });
-
   const companyId = activeCompany?.id;
 
-  const loadDashboard = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
-    try {
+  // React Query for dashboard vouchers
+  const { data: vouchers = [], isLoading: loading, refetch: refetchDashboard } = useQuery({
+    queryKey: ['dashboardVouchers', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
       const res = await api.get('/vouchers', { params: { company_id: companyId } });
       const data = res.data?.data || res.data || [];
-      setVouchers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load dashboard vouchers:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId]);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  // Load initial data
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-
-  // Realtime: invalidate dashboard on voucher/order events
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { dashboard: loadDashboard },
-    {
-      eventMap: {
-        'voucher:created': ['dashboard'],
-        'voucher:updated': ['dashboard'],
-        'voucher:deleted': ['dashboard'],
-        'voucher:posted': ['dashboard'],
-        voucherCreated: ['dashboard'],
-        voucherUpdated: ['dashboard'],
-        voucherDeleted: ['dashboard'],
-        voucherPosted: ['dashboard'],
-        'orderStatusChanged': ['dashboard'],
-        orderStatusChanged: ['dashboard'],
-        'balanceUpdated': ['dashboard'],
-        balanceUpdated: ['dashboard'],
-        'closing:completed': ['dashboard'],
-        closingCompleted: ['dashboard']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['dashboardVouchers', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted', 'orderStatusChanged', 'balanceUpdated', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   // Calculate metrics from real-time data
-  useEffect(() => {
+  const metrics = useMemo(() => {
     const totalRevenue = vouchers
       .filter(v => v.type === 'receipt')
       .reduce((sum, v) => sum + (Number(v.amount) || 0), 0);
@@ -89,15 +58,15 @@ export default function Dashboard() {
       .filter(v => v.type === 'payment')
       .reduce((sum, v) => sum + (Number(v.amount) || 0), 0);
     
-    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const pendingOrders = 0; // TODO: Add orders query if needed
 
-    setMetrics({
+    return {
       totalRevenue,
       totalExpenses,
       pendingOrders,
       totalVouchers: vouchers.length
-    });
-  }, [vouchers, orders]);
+    };
+  }, [vouchers]);
 
   // Metric card component
   const MetricCard = ({ icon: Icon, title, value, trend, color }) => (
@@ -140,7 +109,7 @@ export default function Dashboard() {
             {isConnected ? 'Realtime' : 'Offline'}
           </span>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => refetchDashboard()}
             className="p-2 rounded-lg border hover:bg-slate-50"
           >
             <RefreshCw size={16} />

@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { buildPayrollInsuranceDetails } from '../../utils/accountingRules.js';
 import { Users, Plus } from 'lucide-react';
-import { useSocket } from '../../context/SocketContext.jsx';
+import { useSocket } from '../../hooks/useSocket.js';
 import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
 import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
 import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';

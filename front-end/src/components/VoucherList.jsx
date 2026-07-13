@@ -2,60 +2,51 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import VirtualTable from './VirtualTable';
 import { FileText, RefreshCw, Filter } from 'lucide-react';
 import api from '../utils/api.js';
-import { useSocket } from '../context/SocketContext.jsx';
-import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
+import { useSocket } from '../hooks/useSocket.js';
+import { useRealtimeCacheSync } from '../hooks/useRealtimeCacheSync.js';
 
 // Voucher list with real-time updates
 export default function VoucherList({ companyId, userId }) {
   const { isConnected } = useSocket();
-  const [vouchers, setVouchers] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  const loadVouchers = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
-    try {
+  // React Query: Fetch vouchers
+  const { data: vouchers = [], isLoading } = useQuery({
+    queryKey: ['vouchers', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      
       const response = await api.get('/vouchers', { params: { companyId } });
       const data = response.data?.data || response.data || [];
-      setVouchers(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to load vouchers:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId]);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: Boolean(companyId),
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
 
-  // Load vouchers on mount
-  useEffect(() => {
-    loadVouchers();
-  }, [loadVouchers]);
+  // Real-time cache sync
+  useRealtimeCacheSync({
+    queries: [['vouchers']],
+    events: [
+      'voucher:created',
+      'voucher:updated',
+      'voucher:deleted',
+      'voucher:posted',
+      'closing:completed',
+      'closing:reopened'
+    ],
+    enabled: Boolean(companyId)
+  });
 
-  // Realtime: invalidate vouchers on voucher events
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { vouchers: loadVouchers },
-    {
-      eventMap: {
-        'voucher:created': ['vouchers'],
-        'voucher:updated': ['vouchers'],
-        'voucher:deleted': ['vouchers'],
-        'voucher:posted': ['vouchers'],
-        voucherCreated: ['vouchers'],
-        voucherUpdated: ['vouchers'],
-        voucherDeleted: ['vouchers'],
-        voucherPosted: ['vouchers'],
-        'closing:completed': ['vouchers'],
-        closingCompleted: ['vouchers']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+  const refresh = () => {
+    // Invalidate and refetch vouchers
+    window.location.reload();
+  };
 
   // Filter vouchers
   const filteredVouchers = vouchers.filter(voucher => {
@@ -106,11 +97,11 @@ export default function VoucherList({ companyId, userId }) {
           </select>
           
           <button
-            onClick={loadVouchers}
-            disabled={loading}
+            onClick={refresh}
+            disabled={isLoading}
             className="p-2 rounded-lg border hover:bg-slate-50 disabled:opacity-50"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>

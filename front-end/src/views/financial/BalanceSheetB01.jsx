@@ -2,11 +2,13 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { FileText, CheckCircle2, AlertCircle, Download, Info } from 'lucide-react';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 // ====================================================================
 // CẤU HÌNH BẢNG CÂN ĐỐI KẾ TOÁN B01-DN
@@ -183,11 +185,6 @@ function calculateNetBalance(debit, credit, nature) {
 
 export default function BalanceSheetB01() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [ledger, setLedger] = useState({});
-  const [customerBalances, setCustomerBalances] = useState({});
-  const [supplierBalances, setSupplierBalances] = useState({});
-  const [balanceLookup, setBalanceLookup] = useState({});
   const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
   const [balanceData, setBalanceData] = useState({
     totalAssets: 0,
@@ -198,50 +195,31 @@ export default function BalanceSheetB01() {
   const [auditWarnings, setAuditWarnings] = useState([]);
   const reportRef = useRef(null);
 
-  useEffect(() => {
-    if (activeCompany) {
-      fetchAllData();
-    }
-  }, [activeCompany, fiscalYear]);
+  const companyId = activeCompany?.id || activeCompany;
 
-  const fetchAllData = async () => {
-    if (!activeCompany) return;
-    setLoading(true);
-    try {
-      const companyId = activeCompany.id || activeCompany;
+  // React Query: Fetch balance sheet data
+  const { data: balanceSheetData, isLoading: loadingBalance } = useQuery({
+    queryKey: ['balanceSheet', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return null;
+      
+      const response = await api.get(`/api/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`);
+      return response.data?.data || response.data || null;
+    },
+    enabled: Boolean(companyId),
+    staleTime: 1000 * 60 * 5,
+  });
 
-      // 1. Lấy số dư tổng hợp từ backend
-      const [balanceRes, customerRes, supplierRes] = await Promise.all([
-        api.get(`/api/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`),
-        api.get(`/api/report/customer-balances?company_id=${companyId}&year=${fiscalYear}`),
-        api.get(`/api/report/supplier-balances?company_id=${companyId}&year=${fiscalYear}`)
-      ]);
-
-      const ledgerData = balanceRes.data?.data || balanceRes.data || {};
-      setLedger(ledgerData);
-
-      // Xây dựng bảng tra cứu số dư từ response của API /balance-sheet
-      // API đã gộp số dư đầu kỳ (opening) + phát sinh trong kỳ (period) → số dư cuối kỳ
-      // mỗi phần tử: { account_code, amount (netBalance dương), balance_type, account_nature }
-      const lookup = {};
-      const pushGroup = (arr) => (Array.isArray(arr) ? arr : []).forEach((e) => {
-        const code = e.account_code || e.accountCode;
-        if (!code) return;
-        lookup[code] = {
-          amount: parseFloat(e.amount) || 0,
-          balanceType: e.balance_type || e.balanceType || 'DEBIT',
-          account_nature: e.account_nature || e.accountNature
-        };
-      });
-      pushGroup(ledgerData.assets);
-      pushGroup(ledgerData.liabilities);
-      pushGroup(ledgerData.equity);
-      setBalanceLookup(lookup);
-
-      // 2. Lấy số dư chi tiết theo đối tác cho TK lưỡng tính
-      const customerMap = {};
-      if (customerRes.data?.success && customerRes.data.data) {
-        customerRes.data.data.forEach(item => {
+  // React Query: Fetch customer balances
+  const { data: customerData } = useQuery({
+    queryKey: ['customerBalances', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return null;
+      
+      const response = await api.get(`/api/report/customer-balances?company_id=${companyId}&year=${fiscalYear}`);
+      if (response.data?.success && response.data.data) {
+        const customerMap = {};
+        response.data.data.forEach(item => {
           const accCode = item.account_code || '131';
           if (!customerMap[accCode]) customerMap[accCode] = { debit: 0, credit: 0, details: [] };
           if (item.balance_type === 'asset') {
@@ -251,12 +229,24 @@ export default function BalanceSheetB01() {
           }
           customerMap[accCode].details.push(item);
         });
+        return customerMap;
       }
-      setCustomerBalances(customerMap);
+      return {};
+    },
+    enabled: Boolean(companyId),
+    staleTime: 1000 * 60 * 5,
+  });
 
-      const supplierMap = {};
-      if (supplierRes.data?.success && supplierRes.data.data) {
-        supplierRes.data.data.forEach(item => {
+  // React Query: Fetch supplier balances
+  const { data: supplierData } = useQuery({
+    queryKey: ['supplierBalances', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return null;
+      
+      const response = await api.get(`/api/report/supplier-balances?company_id=${companyId}&year=${fiscalYear}`);
+      if (response.data?.success && response.data.data) {
+        const supplierMap = {};
+        response.data.data.forEach(item => {
           const accCode = item.account_code || '331';
           if (!supplierMap[accCode]) supplierMap[accCode] = { debit: 0, credit: 0, details: [] };
           if (item.balance_type === 'asset') {
@@ -266,19 +256,67 @@ export default function BalanceSheetB01() {
           }
           supplierMap[accCode].details.push(item);
         });
+        return supplierMap;
       }
-      setSupplierBalances(supplierMap);
+      return {};
+    },
+    enabled: Boolean(companyId),
+    staleTime: 1000 * 60 * 5,
+  });
 
-      // 3. Tính tổng và kiểm tra audit (dùng balanceLookup đã gộp opening + period)
-      calculateTotals(balanceLookup, customerMap, supplierMap);
+  const loading = loadingBalance;
+
+  // Derived state from queries
+  const ledger = balanceSheetData || {};
+  const customerBalances = customerData || {};
+  const supplierBalances = supplierData || {};
+
+  // Build balance lookup when ledger changes
+  const balanceLookup = React.useMemo(() => {
+    if (!ledger) return {};
+    
+    const lookup = {};
+    const pushGroup = (arr) => (Array.isArray(arr) ? arr : []).forEach((e) => {
+      const code = e.account_code || e.accountCode;
+      if (!code) return;
+      lookup[code] = {
+        amount: parseFloat(e.amount) || 0,
+        balanceType: e.balance_type || e.balanceType || 'DEBIT',
+        account_nature: e.account_nature || e.accountNature
+      };
+    });
+    pushGroup(ledger.assets);
+    pushGroup(ledger.liabilities);
+    pushGroup(ledger.equity);
+    return lookup;
+  }, [ledger]);
+
+  // Calculate totals and audit checks when data changes
+  React.useEffect(() => {
+    if (balanceLookup && Object.keys(balanceLookup).length > 0) {
+      calculateTotals(balanceLookup, customerBalances, supplierBalances);
       runAuditChecks(balanceLookup);
-
-    } catch (error) {
-      console.error('Lỗi tải bảng cân đối:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [balanceLookup, customerBalances, supplierBalances]);
+
+  // Real-time cache sync
+  useRealtimeCacheSync({
+    queries: [
+      ['balanceSheet'],
+      ['customerBalances'],
+      ['supplierBalances']
+    ],
+    events: [
+      'voucher:created',
+      'voucher:updated',
+      'voucher:deleted',
+      'voucher:posted',
+      'closing:completed',
+      'closing:reopened',
+      'account:updated'
+    ],
+    enabled: Boolean(companyId)
+  });
 
   /**
    * Kiểm tra các bất thường kế toán (Audit Warnings)
@@ -423,7 +461,7 @@ export default function BalanceSheetB01() {
     // Dùng depreciation.amount (lũy kế = opening + period) từ API
     // ================================================================
     if (accountType === 'contra-asset') {
-      const dep = ledgerData?.depreciation;
+      const dep = ledger?.depreciation;
       if (accountCode.startsWith('214') && dep) {
         return -(Math.abs(dep.amount) || 0); // luôn âm bên Tài sản
       }
@@ -443,7 +481,7 @@ export default function BalanceSheetB01() {
     // TRƯỜNG HỢP 4: Tài khoản thuế (333) - dùng tax_balances (kỳ trước + phát sinh)
     // ================================================================
     if (accountCode.startsWith('333')) {
-      const tb = ledgerData?.tax_balances;
+      const tb = ledger?.tax_balances;
       if (tb && typeof tb === 'object') {
         // Tổng các khoản thuế phải nộp (debit - credit đã được tính thành amount)
         let total = 0;

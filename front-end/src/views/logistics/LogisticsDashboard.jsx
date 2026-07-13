@@ -2,7 +2,8 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { 
@@ -14,8 +15,7 @@ import {
   RefreshCw,
   ClipboardList
 } from 'lucide-react';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 import { notify } from '../../utils/notify.jsx';
 
 const STATUS_LABELS = {
@@ -41,60 +41,32 @@ const STATUS_ICONS = {
 
 export default function LogisticsDashboard() {
   const { activeCompany } = useAuth();
-  const [allOrders, setAllOrders] = useState([]);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const companyId = activeCompany?.id;
 
-  const loadAllOrders = async () => {
-    if (!companyId) {
-      setAllOrders([]);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
+  // React Query for logistics orders
+  const { data: allOrders = [], isLoading: loading, error, refetch: refetchOrders } = useQuery({
+    queryKey: ['logisticsOrders', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
       const res = await api.get('/logistics/queue-details', { 
         params: { company_id: companyId, status: 'all' } 
       });
-      setAllOrders(res.data || []);
-    } catch (err) {
-      console.error('Lỗi tải đơn xuất kho:', err);
-      setError('Không thể tải danh sách đơn xuất kho');
-      setAllOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    loadAllOrders().catch(() => setAllOrders([]));
-  }, [companyId]);
-
-  // Realtime sync cho logistics
-  const loadCallback = useCallback(() => loadAllOrders(), [companyId]);
-
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { logistics: loadCallback },
-    {
-      eventMap: {
-        'orderStatusChanged': ['logistics'],
-        'voucher:created': ['logistics'],
-        'voucher:updated': ['logistics'],
-        'voucher:deleted': ['logistics'],
-        voucherCreated: ['logistics'],
-        voucherUpdated: ['logistics'],
-        voucherDeleted: ['logistics'],
-        'inventory:updated': ['logistics'],
-        inventoryUpdated: ['logistics'],
-        'closing:completed': ['logistics'],
-        closingCompleted: ['logistics']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['logisticsOrders', companyId] }
+    ],
+    events: ['orderStatusChanged', 'voucherCreated', 'voucherUpdated', 'voucherDeleted', 'inventoryUpdated', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   // Thống kê số lượng theo trạng thái
   const summary = useMemo(() => {
@@ -120,7 +92,7 @@ export default function LogisticsDashboard() {
     if (!companyId) return;
     try {
       await api.post('/logistics/assign-truck', { companyId, voucherId, truckId: 1 });
-      await loadAllOrders();
+      refetchOrders();
       notify.success('Đã phân xe thành công!');
     } catch (err) {
       notify.error(err.response?.data?.error || 'Lỗi khi phân xe!');
@@ -131,7 +103,7 @@ export default function LogisticsDashboard() {
     if (!companyId) return;
     try {
       await api.post('/logistics/confirm-loaded', { companyId, voucherId });
-      await loadAllOrders();
+      refetchOrders();
       notify.success('Đã xác nhận bốc hàng!');
     } catch (err) {
       notify.error(err.response?.data?.error || 'Lỗi khi xác nhận!');
@@ -142,7 +114,7 @@ export default function LogisticsDashboard() {
     if (!companyId) return;
     try {
       await api.post('/logistics/mark-completed', { companyId, voucherId });
-      await loadAllOrders();
+      refetchOrders();
       notify.success('Đã hoàn thành xuất kho!');
     } catch (err) {
       notify.error(err.response?.data?.error || 'Lỗi khi hoàn thành!');
@@ -195,7 +167,7 @@ export default function LogisticsDashboard() {
           <p className="text-xs text-slate-400 mt-1">Quản lý toàn bộ quy trình xuất kho từ phân xe đến hoàn thành</p>
         </div>
         <button
-          onClick={loadAllOrders}
+          onClick={() => refetchOrders()}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition"
         >

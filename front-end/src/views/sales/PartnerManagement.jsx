@@ -3,16 +3,19 @@
  */
 
 // FILE_PATH: front-end/src/views/partner/PartnerManagement.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
+import { notify } from '../../utils/notify.jsx';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function PartnerManagement({ onRefresh }) {
   const { activeCompany } = useAuth();
+  const companyId = activeCompany?.id;
+  
   const [partner, setPartner] = useState({
     partner_code: '',
     partner_name: '',
@@ -23,36 +26,42 @@ export default function PartnerManagement({ onRefresh }) {
   });
   const [loading, setLoading] = useState(false);
 
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { partners: () => onRefresh?.() },
-    {
-      eventMap: {
-        'partner:updated': ['partners'],
-        partnerUpdated: ['partners'],
-        'voucher:created': ['partners'],
-        'voucher:updated': ['partners'],
-        'voucher:deleted': ['partners'],
-        voucherCreated: ['partners'],
-        voucherUpdated: ['partners'],
-        voucherDeleted: ['partners']
-      }
-    }
-  );
+  // React Query for partners list (if needed for display)
+  const { data: partnersList = [] } = useQuery({
+    queryKey: ['partners', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get(`/partners/list?company_id=${companyId}`);
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany && onRefresh) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['partners', companyId] }
+    ],
+    events: ['partnerUpdated', 'voucherCreated', 'voucherUpdated', 'voucherDeleted'],
+    enabled: !!companyId
+  });
 
   const handleCreatePartner = async (e) => {
     e.preventDefault();
-    if (!activeCompany) return alert('Hãy chọn phân vùng công ty trước.');
+    if (!activeCompany) {
+      notify.error('Hãy chọn phân vùng công ty trước.');
+      return;
+    }
 
     setLoading(true);
     try {
       await api.post('/partners', { ...partner, company_id: activeCompany.id });
-      alert('Đăng ký danh mục đối tác thành công!');
+      notify.success('Đăng ký danh mục đối tác thành công!');
       setPartner({ partner_code: '', partner_name: '', type: 'customer', phone: '', email: '', address: '' });
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert(err.response?.data?.error || 'Mã đối tác bị trùng lặp hoặc không hợp lệ.');
+      notify.error(err.response?.data?.error || 'Mã đối tác bị trùng lặp hoặc không hợp lệ.');
     } finally {
       setLoading(false);
     }

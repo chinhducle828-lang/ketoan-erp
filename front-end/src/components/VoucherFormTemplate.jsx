@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useVouchers } from '../context/VoucherContext.jsx';
 import { getDefaultCurrency } from '../utils/accountingRules.js';
 import { notify } from '../utils/notify.jsx';
-import { useSocket } from '../context/SocketContext.jsx';
+import { useSocket } from '../hooks/useSocket.js';
 import { WORKFLOW_EVENTS } from '../workflow/accountingWorkflow.js';
 import { ACCOUNTS_TT99 } from '../constants/accountsTT99.js';
 import { requestOtpForSigning, verifyOtpAndSign } from '../utils/api.js';

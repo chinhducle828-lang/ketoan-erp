@@ -2,15 +2,18 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Package, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { usePersistentState } from '../../utils/persistence.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 export default function ItemManagement() {
   const { activeCompany } = useAuth(); 
-  const [items, setItems] = useState([]);
+  const companyId = activeCompany?.id ?? activeCompany;
+  
   const [form, setForm] = usePersistentState('item-management-form-v2', {
     code: '',
     name: '',
@@ -23,26 +26,27 @@ export default function ItemManagement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    if (activeCompany) {
-      fetchItems();
-    }
-  }, [activeCompany]);
-
-  const fetchItems = async () => {
-    if (!activeCompany) return;
-    setLoading(true);
-    setError('');
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
+  // React Query for items
+  const { data: items = [], refetch: refetchItems } = useQuery({
+    queryKey: ['items', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
       const res = await api.get(`/items?company_id=${companyId}`);
-      setItems(res.data);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Không thể kết nối lấy danh mục vật tư!');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['items', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted'],
+    enabled: !!companyId
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,7 +58,6 @@ export default function ItemManagement() {
     }
 
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
       const payload = new FormData();
       payload.append('code', form.code.trim());
       payload.append('name', form.name.trim());
@@ -69,7 +72,8 @@ export default function ItemManagement() {
       setSuccess('Đã lưu sản phẩm thành công lên gian hàng!');
       setForm({ code: '', name: '', description: '', unit: 'Cái', price_sell: '' });
       setSelectedFiles([]);
-      fetchItems();
+      // Invalidate items query to refetch
+      refetchItems();
     } catch (err) {
       setError(err.response?.data?.error || 'Lỗi trùng mã hoặc dữ liệu không hợp lệ!');
     }
@@ -78,10 +82,10 @@ export default function ItemManagement() {
   const handleDelete = async (code) => {
     if (!window.confirm(`Xác nhận xóa vật tư mã ${code}?`)) return;
     try {
-      const companyId = activeCompany?.id ?? activeCompany;
       await api.delete(`/items/${code}?company_id=${companyId}`);
       setSuccess('Đã xóa vật tư!');
-      fetchItems();
+      // Invalidate items query to refetch
+      refetchItems();
     } catch (err) {
       setError(err.response?.data?.error || 'Không thể xóa mã vật tư đang sử dụng!');
     }
@@ -102,7 +106,7 @@ export default function ItemManagement() {
           <p className="text-slate-500 text-sm">Giám đốc / Kế toán trưởng khai báo sản phẩm vật liệu lên gian hàng trực tuyến.</p>
           <p className="text-slate-400 text-xs font-medium">Sản phẩm lưu vào danh mục chung của doanh nghiệp, đồng bộ lên store công khai.</p>
         </div>
-        <button onClick={fetchItems} className="p-2 border rounded-xl hover:bg-slate-50 transition"><RefreshCw size={16}/></button>
+          <button onClick={() => refetchItems()} className="p-2 border rounded-xl hover:bg-slate-50 transition"><RefreshCw size={16}/></button>
       </div>
 
       {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl font-bold">{error}</div>}

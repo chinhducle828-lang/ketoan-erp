@@ -3,19 +3,48 @@
  */
 
 // FILE_PATH: front-end/src/views/tax/TaxReporting.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Percent, ArrowUpRight, ArrowDownRight, Users, Landmark, Building2, Calendar } from 'lucide-react';
+import { Percent, ArrowUpRight, ArrowDownRight, Users, Landmark, Building2, Calendar, AlertTriangle } from 'lucide-react';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
+import { notify } from '../../utils/notify.jsx';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function TaxReporting() {
-  const { vouchers } = useVouchers();
-  const { activeCompany, fiscalYear } = useAuth(); // Bổ sung Context để đồng bộ hiển thị
+  const { activeCompany, fiscalYear } = useAuth();
+  const companyId = activeCompany?.id ?? activeCompany;
+  const [error, setError] = useState(null);
+  
+  // Note: This component uses vouchers from VoucherContext
+  // The vouchers are already managed by VoucherList component with React Query
+  // We just add realtime cache sync here for completeness
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['vouchers', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
+    enabled: !!companyId
+  });
+
+  // Get vouchers from context with error handling
+  const { vouchers, isLoading: loadingVouchers, error: vouchersError } = useVouchers();
+
+  // Handle errors
+  React.useEffect(() => {
+    if (vouchersError) {
+      setError(vouchersError);
+      notify.error('Không thể tải dữ liệu chứng từ: ' + (vouchersError.message || 'Lỗi không xác định'));
+    }
+  }, [vouchersError]);
 
   // Đọc hiểu sâu mảng chứng từ đa dòng để bóc tách toàn diện các sắc thuế
   const taxData = useMemo(() => {
+    if (!vouchers || !Array.isArray(vouchers)) {
+      return { vatInput: 0, vatOutput: 0, tndnPhaiNop: 0, tndnDaNop: 0, tncnKhauTru: 0 };
+    }
     let vatInput = 0;
     let vatOutput = 0;
     let tndnPhaiNop = 0;
@@ -51,6 +80,39 @@ export default function TaxReporting() {
 
     return { vatInput, vatOutput, tndnPhaiNop, tndnDaNop, tncnKhauTru };
   }, [vouchers]);
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center">
+          <AlertTriangle size={48} className="text-rose-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-rose-800 mb-2">Không thể tải dữ liệu</h2>
+          <p className="text-sm text-rose-600 mb-4">{error?.message || 'Đã xảy ra lỗi khi tải báo cáo thuế'}</p>
+          <button
+            onClick={() => setError(null)}
+            className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-700 transition"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (loadingVouchers) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-xs text-slate-500 font-medium">Đang tải dữ liệu báo cáo thuế...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">

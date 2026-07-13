@@ -6,7 +6,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from './AuthContext.jsx';
 import wsService from '../services/websocket.js';
 
-const SocketContext = createContext(null);
+export const SocketContext = createContext(null);
 
 const normalizeCompanyId = (activeCompany) => {
   if (!activeCompany) return null;
@@ -65,10 +65,3 @@ export function SocketProvider({ children }) {
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 }
 
-export function useSocket() {
-  const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocket phải được dùng bên trong SocketProvider');
-  }
-  return context;
-}

@@ -2,15 +2,15 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 // FIX 3: Account dictionary maintained locally for frontend
 // Backend updates via API if needed
@@ -51,69 +51,37 @@ export default function ClosingProcess() {
   const { activeCompany, fiscalYear } = useAuth();
   const [log, setLog] = useState('');
   const [loading, setLoading] = useState(false);
-  const [accountLedger, setAccountLedger] = useState({});
-  const [loadingBalances, setLoadingBalances] = useState(false);
-  const [accountDictionary, setAccountDictionary] = useState(DEFAULT_ACCOUNT_DICTIONARY);
+  const [accountDictionary] = useState(DEFAULT_ACCOUNT_DICTIONARY);
   
-  useEffect(() => {
-    // FIX 3: Account dictionary loaded from local default (can be extended via API later)
-    setAccountDictionary(DEFAULT_ACCOUNT_DICTIONARY);
-  }, []);
-
   const currentCompanyId = activeCompany?.id || activeCompany || vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
-  
-  const loadBalances = useCallback(async () => {
-    if (!currentCompanyId) return;
 
-    setLoadingBalances(true);
-    try {
+  // React Query for account balances
+  const { data: accountLedger = {}, isLoading: loadingBalances } = useQuery({
+    queryKey: ['accountBalances', currentCompanyId, fiscalYear],
+    queryFn: async () => {
+      if (!currentCompanyId) return {};
       const response = await api.get('/inventory/balances', {
         params: { company_id: currentCompanyId, year: fiscalYear }
       });
       if (response.data?.success && response.data.data?.accountLedger) {
-        setAccountLedger(response.data.data.accountLedger);
+        return response.data.data.accountLedger;
       }
-    } catch (error) {
-      console.error('Lỗi tải số dư tài khoản:', error);
-    } finally {
-      setLoadingBalances(false);
-    }
-  }, [currentCompanyId, fiscalYear]);
-
-  // Fetch account balances from backend API
-  useEffect(() => {
-    loadBalances();
-  }, [loadBalances]);
-
-  const closingRealtimeRefresh = useCallback(async () => {
-    setLog('✓ Đã nhận tín hiệu realtime: kết chuyển hoàn tất, hệ thống đang đồng bộ lại số liệu...');
-    await loadBalances();
-    if (fetchVouchers) {
-      await fetchVouchers();
-    }
-  }, [fetchVouchers, loadBalances]);
-
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    {
-      balances: loadBalances,
-      vouchers: () => (fetchVouchers ? fetchVouchers() : Promise.resolve()),
-      closing: closingRealtimeRefresh
+      return {};
     },
-    {
-      eventMap: {
-        'closing:completed': ['closing'],
-        closingCompleted: ['closing'],
-        'voucher:created': ['balances', 'vouchers'],
-        'voucher:updated': ['balances', 'vouchers'],
-        'voucher:deleted': ['balances', 'vouchers'],
-        voucherCreated: ['balances', 'vouchers'],
-        voucherUpdated: ['balances', 'vouchers'],
-        voucherDeleted: ['balances', 'vouchers']
-      }
-    }
-  );
+    enabled: !!currentCompanyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(currentCompanyId) });
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['accountBalances', currentCompanyId, fiscalYear] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
+    enabled: !!currentCompanyId
+  });
+
 
   const executeClosing = async () => {
     if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');

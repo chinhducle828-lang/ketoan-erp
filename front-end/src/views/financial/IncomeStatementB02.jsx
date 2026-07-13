@@ -2,10 +2,12 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 // Accounting functions removed - now using API
 import { TrendingUp, TrendingDown, FileText, Download, RefreshCw } from 'lucide-react';
 
@@ -33,31 +35,34 @@ const REPORT_ITEMS = [
 
 export default function IncomeStatementB02() {
   const { activeCompany, fiscalYear: contextFiscalYear } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [ledger, setLedger] = useState({});
-  const [fiscalYear, setFiscalYear] = useState(contextFiscalYear || new Date().getFullYear());
+  const [fiscalYear, setFiscalYear] = React.useState(contextFiscalYear || new Date().getFullYear());
+  
+  const companyId = activeCompany?.id || activeCompany;
 
-  useEffect(() => {
-    if (activeCompany) {
-      fetchData();
-    }
-  }, [activeCompany, fiscalYear]);
-
-  const fetchData = async () => {
-    if (!activeCompany) return;
-    setLoading(true);
-    try {
-      const companyId = activeCompany.id || activeCompany;
+  // React Query for data fetching
+  const { data: ledger = {}, isLoading } = useQuery({
+    queryKey: ['incomeStatementB02', companyId, fiscalYear],
+    queryFn: async () => {
+      if (!companyId) return {};
       const response = await api.get(`/api/report/b02?company_id=${companyId}&year=${fiscalYear}`);
       if (response.data?.success && response.data.data) {
-        setLedger(response.data.data);
+        return response.data.data;
       }
-    } catch (error) {
-      console.error('Lỗi tải báo cáo KQKD:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {};
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['incomeStatementB02', companyId, fiscalYear] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted', 'closingCompleted'],
+    enabled: !!companyId
+  });
 
   /**
    * Lấy giá trị chỉ tiêu từ object incomeStatement do API /report/b02 trả về.
@@ -164,7 +169,7 @@ export default function IncomeStatementB02() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -206,7 +211,7 @@ export default function IncomeStatementB02() {
             Xuất Excel
           </button>
           <button
-            onClick={fetchData}
+            onClick={() => window.location.reload()}
             className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50 transition"
           >
             <RefreshCw size={14} />

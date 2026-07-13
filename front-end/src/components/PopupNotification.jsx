@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useSocket } from '../context/SocketContext.jsx';
+import { useSocket } from '../hooks/useSocket.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { X, Bell } from 'lucide-react';
 

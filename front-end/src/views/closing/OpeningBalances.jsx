@@ -2,11 +2,13 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Users } from 'lucide-react';
 import api from '../../utils/api.js';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 // Danh mục tài khoản chuẩn hóa theo đúng tên hiển thị và tính chất trong ảnh
 const ACCOUNT_DICTIONARY = {
@@ -52,10 +54,11 @@ const PAGE_STRUCTURE = [
 export default function OpeningBalances() {
   const { vouchers } = useVouchers();
   const { activeCompany, fiscalYear } = useAuth();
+  const companyId = activeCompany?.id;
+  const currentYear = fiscalYear || 2026;
   
   const [balances, setBalances] = useState([]);
   const [customAccounts, setCustomAccounts] = useState([]);
-  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info');
@@ -67,33 +70,42 @@ export default function OpeningBalances() {
   const [selectedPartner, setSelectedPartner] = useState({}); // Lưu partner_id theo account_code
   const inlineCodeRef = useRef(null);
 
-  // Tự động tải lại số dư khi người dùng đổi công ty hoặc đổi năm trên Header
-  useEffect(() => {
-    if (activeCompany?.id) {
-      fetchAndInitializeBalances();
-      fetchPartners();
-    } else {
-      initEmptyBalances();
-      setPartners([]);
-    }
-  }, [activeCompany?.id, fiscalYear]);
+  // React Query for opening balances
+  const { data: openingBalancesData = [] } = useQuery({
+    queryKey: ['openingBalances', companyId, currentYear],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get('/opening-balances', { params: { year: currentYear } });
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  // Lấy danh sách đối tác
-  const fetchPartners = async () => {
-    try {
-      const res = await api.get(`/partners/list?company_id=${activeCompany.id}`);
-      const partnerList = Array.isArray(res.data)
-        ? res.data
-        : Array.isArray(res.data?.data)
-          ? res.data.data
-          : [];
-      setPartners(partnerList);
-    } catch (error) {
-      console.error('Lỗi tải danh sách đối tác:', error);
-      setPartners([]);
-    }
-  };
+  // React Query for partners
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get(`/partners/list?company_id=${companyId}`);
+      return Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
 
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['openingBalances', companyId, currentYear] },
+      { key: ['partners', companyId] }
+    ],
+    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
+    enabled: !!companyId
+  });
+
+  // Computed values - MUST be defined before any functions that use them
   const allBalances = useMemo(() => {
     const sorted = Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => {
       const found = balances.find(b => b.account_code === code);
@@ -102,14 +114,23 @@ export default function OpeningBalances() {
     return [...sorted, ...customAccounts];
   }, [balances, customAccounts]);
 
-  const fetchAndInitializeBalances = async () => {
+  const totals = useMemo(() => {
+    const totalDr = allBalances.reduce((s, b) => s + Number(b.debit_balance || 0), 0);
+    const totalCr = allBalances.reduce((s, b) => s + Number(b.credit_balance || 0), 0);
+    return {
+      totalDr,
+      totalCr,
+      isBalanced: totalDr === totalCr && totalDr >= 0,
+    };
+  }, [allBalances]);
+
+  // Handler functions - defined after computed values
+  const fetchAndInitializeBalances = useCallback((data) => {
     try {
       setLoading(true);
-      const currentYear = fiscalYear || 2026;
-      const res = await api.get('/opening-balances', { params: { year: currentYear } });
-
-      if (res.data && res.data.length > 0) {
-        const dbMap = new Map(res.data.map(item => [item.account_code || item.accountCode, item]));
+      
+      if (data && data.length > 0) {
+        const dbMap = new Map(data.map(item => [item.account_code || item.accountCode, item]));
         const merged = Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => {
           const dbItem = dbMap.get(code);
           return {
@@ -124,7 +145,7 @@ export default function OpeningBalances() {
         // Khôi phục partner_id từ server cho tài khoản lưỡng tính
         const restoredPartners = {};
         
-        res.data.forEach(item => {
+        data.forEach(item => {
           const code = item.account_code || item.accountCode;
           const partnerId = item.partner_id || item.partnerId || null;
           
@@ -164,9 +185,9 @@ export default function OpeningBalances() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const initEmptyBalances = () => {
+  const initEmptyBalances = useCallback(() => {
     setBalances(Object.entries(ACCOUNT_DICTIONARY).map(([code, config]) => ({
       account_code: code,
       account_name: config.name,
@@ -174,25 +195,25 @@ export default function OpeningBalances() {
       credit_balance: 0,
     })));
     setCustomAccounts([]);
-  };
+  }, []);
 
-  const updateBalanceValue = (code, field, value) => {
+  const updateBalanceValue = useCallback((code, field, value) => {
     const numVal = Number(value) || 0;
     if (ACCOUNT_DICTIONARY[code]) {
       setBalances(prev => prev.map(b => (b.account_code === code ? { ...b, [field]: numVal } : b)));
     } else {
       setCustomAccounts(prev => prev.map(b => (b.account_code === code ? { ...b, [field]: numVal } : b)));
     }
-  };
+  }, []);
 
-  const handleActivateInlineInput = (sub) => {
+  const handleActivateInlineInput = useCallback((sub) => {
     setActiveGroupId(sub.id);
     setInlineCode(sub.prefix); 
     setInlineName('');
     setTimeout(() => inlineCodeRef.current?.focus(), 50);
-  };
+  }, []);
 
-  const handleSaveInlineAccount = (sub) => {
+  const handleSaveInlineAccount = useCallback((sub) => {
     const codeTrimmed = inlineCode.trim();
     const nameTrimmed = inlineName.trim();
 
@@ -213,23 +234,13 @@ export default function OpeningBalances() {
     setActiveGroupId(null);
     setInlineCode('');
     setInlineName('');
-  };
+  }, [inlineCode, inlineName, allBalances]);
 
-  const removeCustomAccount = (code) => {
+  const removeCustomAccount = useCallback((code) => {
     setCustomAccounts(prev => prev.filter(b => b.account_code !== code));
-  };
+  }, []);
 
-  const totals = useMemo(() => {
-    const totalDr = allBalances.reduce((s, b) => s + Number(b.debit_balance || 0), 0);
-    const totalCr = allBalances.reduce((s, b) => s + Number(b.credit_balance || 0), 0);
-    return {
-      totalDr,
-      totalCr,
-      isBalanced: totalDr === totalCr && totalDr >= 0,
-    };
-  }, [allBalances]);
-
-  const saveOpeningBalances = async () => {
+  const saveOpeningBalances = useCallback(async () => {
     if (!activeCompany?.id) {
       setMessage('Vui lòng chọn doanh nghiệp trước khi lưu.');
       setMessageType('error');
@@ -261,7 +272,16 @@ export default function OpeningBalances() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompany, fiscalYear, allBalances, selectedPartner]);
+
+  // Initialize balances when data changes
+  useEffect(() => {
+    if (openingBalancesData.length > 0) {
+      fetchAndInitializeBalances(openingBalancesData);
+    } else if (companyId) {
+      initEmptyBalances();
+    }
+  }, [openingBalancesData, companyId, fetchAndInitializeBalances, initEmptyBalances]);
 
   return (
     <div className="w-full bg-slate-50 p-1 font-sans text-sm antialiased text-slate-800 space-y-4">

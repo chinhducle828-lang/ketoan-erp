@@ -2,31 +2,37 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 export default function LoadingDock() {
   const { activeCompany } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const companyId = activeCompany?.id;
 
-  const loadQueue = async () => {
-    if (!companyId) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-    const res = await api.get('/logistics/queue', { params: { company_id: companyId } });
-    setOrders(res.data || []);
-    setLoading(false);
-  };
+  // React Query for loading dock queue
+  const { data: orders = [], isLoading: loading } = useQuery({
+    queryKey: ['loadingDockQueue', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const res = await api.get('/logistics/queue', { params: { company_id: companyId } });
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    loadQueue().catch(() => setLoading(false));
-  }, [companyId]);
+  // Realtime cache sync
+  useRealtimeCacheSync({
+    queries: [
+      { key: ['loadingDockQueue', companyId] }
+    ],
+    events: ['orderStatusChanged', 'voucherCreated', 'voucherUpdated', 'voucherDeleted'],
+    enabled: !!companyId
+  });
 
   const handleConfirm = async (voucherId) => {
     if (!companyId) return;
@@ -39,7 +45,7 @@ export default function LoadingDock() {
       costAmount: order?.cost_amount || 0, 
       taxAmount: order?.tax_amount || 0 
     });
-    setOrders((prev) => prev.filter((order) => order.id !== voucherId));
+    // React Query will automatically refetch and update the list
   };
 
   return (
