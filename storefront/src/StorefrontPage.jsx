@@ -819,9 +819,14 @@ export default function StorefrontPage() {
 
     const streamUrl = new URL(`${API_BASE_URL}/api/logistics/stream`);
     streamUrl.searchParams.set('company_id', String(tokenCompanyId));
-    // SECURITY: access_token is NOT passed via URL params to prevent token leakage
-    // through server logs, browser history, and referrer headers.
-    // Authentication uses HttpOnly cookies (withCredentials: true) or Authorization header.
+    // Pass storefront token as query param because:
+    // 1. Railway uses PSL domains (.up.railway.app) -> cookies can't be shared cross-subdomain
+    // 2. EventSource doesn't support custom headers for Authorization
+    // 3. Backend validates token + DB session (accepts expired tokens with valid session)
+    if (storefrontToken) {
+      streamUrl.searchParams.set('access_token', storefrontToken);
+    }
+    // Fallback: also try cookie-based auth (withCredentials: true)
     // If EventSource fails due to auth, the polling fallback (60s interval) handles it.
 
     const eventSource = new EventSource(
