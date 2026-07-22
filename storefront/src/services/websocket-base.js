@@ -10,19 +10,44 @@
 
 import { io } from 'socket.io-client';
 
-// WebSocket client configuration - Use VITE_ prefix for Vite
-const WS_URL = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || 'http://localhost:5000';
-
-// Ensure wss:// protocol for production (https -> wss)
-const getWsUrl = () => {
-  const url = WS_URL;
-  if (url.startsWith('https://')) {
-    return url.replace('https://', 'wss://');
+// Hybrid WebSocket URL resolution:
+// 1. Ưu tiên VITE_WS_URL nếu được cấu hình
+// 2. Tự động suy từ API base URL (hoạt động cả trên Railway lẫn localhost)
+// 3. Fallback cuối cùng: localhost an toàn cho dev
+const resolveWsUrl = () => {
+  const configuredWsUrl = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || '';
+  if (configuredWsUrl) {
+    // Chuyển https:// -> wss://, giữ nguyên ws:// hoặc http:// -> ws://
+    return configuredWsUrl.replace('https://', 'wss://').replace('http://', 'ws://');
   }
-  return url;
+
+  // Suy từ API base URL (storefront tự tính API_URL giống như trong api.js)
+  const apiUrl = (() => {
+    const configuredUrl = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+    if (configuredUrl) {
+      const normalized = String(configuredUrl).trim().replace(/\/$/, '');
+      return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+    }
+    if (typeof window !== 'undefined') {
+      const { protocol, hostname, origin } = window.location;
+      const isLocalHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+      return isLocalHost ? `${protocol}//${hostname}:5000/api` : `${origin}/api`;
+    }
+    return 'http://localhost:5000/api';
+  })();
+
+  const baseWithoutApi = apiUrl.replace(/\/api$/, '');
+
+  if (!baseWithoutApi || baseWithoutApi === '') {
+    return 'ws://localhost:5000';
+  }
+
+  return baseWithoutApi.replace('https://', 'wss://').replace('http://', 'ws://');
 };
 
-const WS_URL_FINAL = getWsUrl();
+const WS_URL_FINAL = resolveWsUrl();
+
+console.log('[WebSocketBase] Resolved WS URL:', WS_URL_FINAL);
 
 export class WebSocketBaseService {
   constructor() {
@@ -40,6 +65,12 @@ export class WebSocketBaseService {
       this.disconnect();
     }
 
+    // Lấy access token từ localStorage (storefront dùng localStorage)
+    const accessToken = localStorage.getItem('erp_token') || 
+                        localStorage.getItem('storefrontAccessToken') || 
+                        localStorage.getItem('accessToken') ||
+                        localStorage.getItem('token');
+
     this.socket = io(WS_URL_FINAL, {
       transports: ['websocket'],
       reconnection: true,
@@ -49,7 +80,8 @@ export class WebSocketBaseService {
       timeout: 10000,
       auth: {
         companyId,
-        userId
+        userId,
+        token: accessToken || undefined
       }
     });
 

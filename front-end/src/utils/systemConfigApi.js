@@ -5,7 +5,7 @@
  * ====================================================================
  */
 
-import axios from 'axios';
+import api from './api.js';
 
 export const systemConfigApi = {
   /**
@@ -19,7 +19,7 @@ export const systemConfigApi = {
    * @returns {Promise<Object>} Paginated configs
    */
   getConfigs: async (params = {}) => {
-    const response = await axios.get('/api/settings/configs', { params });
+    const response = await api.get('/settings/configs', { params });
     return response.data;
   },
 
@@ -34,7 +34,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.get(`/api/settings/config/${encodeURIComponent(key)}`, { params });
+    const response = await api.get(`/settings/config/${encodeURIComponent(key)}`, { params });
     return response.data;
   },
 
@@ -44,7 +44,7 @@ export const systemConfigApi = {
    * @returns {Promise<Object>} Created config
    */
   createConfig: async (config) => {
-    const response = await axios.post('/api/settings/configs', config);
+    const response = await api.post('/settings/configs', config);
     return response.data;
   },
 
@@ -60,7 +60,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.put(`/api/settings/config/${encodeURIComponent(key)}`, updates, { params });
+    const response = await api.put(`/settings/config/${encodeURIComponent(key)}`, updates, { params });
     return response.data;
   },
 
@@ -75,7 +75,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.delete(`/api/settings/config/${encodeURIComponent(key)}`, { params });
+    const response = await api.delete(`/settings/config/${encodeURIComponent(key)}`, { params });
     return response.data;
   },
 
@@ -90,7 +90,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.post('/api/settings/configs/batch-update', { configs }, { params });
+    const response = await api.post('/settings/configs/batch-update', { configs }, { params });
     return response.data;
   },
 
@@ -104,7 +104,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.get('/api/settings/configs/export', { params });
+    const response = await api.get('/settings/configs/export', { params });
     return response.data;
   },
 
@@ -119,7 +119,7 @@ export const systemConfigApi = {
     if (companyId) {
       params.company_id = companyId;
     }
-    const response = await axios.post('/api/settings/configs/import', { configs }, { params });
+    const response = await api.post('/settings/configs/import', { configs }, { params });
     return response.data;
   },
 
@@ -133,7 +133,7 @@ export const systemConfigApi = {
     const params = {};
     if (partnerId) params.partner_id = partnerId;
     if (companyId) params.company_id = companyId;
-    const response = await axios.get('/api/settings/tax-rate', { params });
+    const response = await api.get('/settings/tax-rate', { params });
     return response.data;
   },
 
@@ -144,7 +144,7 @@ export const systemConfigApi = {
    * @returns {Promise<Object>} Configs object
    */
   getBatchConfigs: async (keys, companyId = null) => {
-    const response = await axios.post('/api/settings/configs/batch', { keys, company_id: companyId });
+    const response = await api.post('/settings/configs/batch', { keys, company_id: companyId });
     return response.data;
   }
 };

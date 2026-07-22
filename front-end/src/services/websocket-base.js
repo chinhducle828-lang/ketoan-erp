@@ -10,20 +10,35 @@
 
 import { io } from 'socket.io-client';
 import { getClientInstanceId } from '../utils/clientInstance.js';
+import { resolveApiBaseUrl } from '../utils/apiBaseUrl.js';
+import { getAccessToken } from '../utils/api.js';
 
-// WebSocket client configuration - Use VITE_ prefix for Vite
-const WS_URL = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || 'http://localhost:5000';
-
-// Ensure wss:// protocol for production (https -> wss)
-const getWsUrl = () => {
-  const url = WS_URL;
-  if (url.startsWith('https://')) {
-    return url.replace('https://', 'wss://');
+// Hybrid WebSocket URL resolution:
+// 1. Ưu tiên VITE_WS_URL nếu được cấu hình
+// 2. Tự động suy từ API base URL (hoạt động cả trên Railway lẫn localhost)
+// 3. Fallback cuối cùng: localhost an toàn cho dev
+const resolveWsUrl = () => {
+  const configuredWsUrl = import.meta.env.VITE_WS_URL || import.meta.env.REACT_APP_WS_URL || '';
+  if (configuredWsUrl) {
+    // Chuyển https:// -> wss://, giữ nguyên ws:// hoặc http:// -> ws://
+    return configuredWsUrl.replace('https://', 'wss://').replace('http://', 'ws://');
   }
-  return url;
+
+  // Suy từ API base URL (resolveApiBaseUrl tự xử lý localhost vs production)
+  const apiBase = resolveApiBaseUrl();
+  const baseWithoutApi = apiBase.replace(/\/api$/, '');
+
+  if (!baseWithoutApi || baseWithoutApi === '') {
+    // Fallback cho localhost khi API dùng relative path (/api)
+    return 'ws://localhost:5000';
+  }
+
+  return baseWithoutApi.replace('https://', 'wss://').replace('http://', 'ws://');
 };
 
-const WS_URL_FINAL = getWsUrl();
+const WS_URL_FINAL = resolveWsUrl();
+
+console.log('[WebSocketBase] Resolved WS URL:', WS_URL_FINAL);
 
 export class WebSocketBaseService {
   constructor() {
@@ -46,9 +61,9 @@ export class WebSocketBaseService {
       this.disconnect();
     }
 
-    // Get access token for WebSocket authentication
-    // Try multiple storage locations (cookie-based auth stores in different keys)
-    const accessToken = localStorage.getItem('storefrontAccessToken') || 
+    // Lấy access token từ in-memory (ERP) trước, fallback sang localStorage (storefront)
+    const accessToken = getAccessToken() || 
+                        localStorage.getItem('storefrontAccessToken') || 
                         localStorage.getItem('accessToken') ||
                         localStorage.getItem('token');
 
