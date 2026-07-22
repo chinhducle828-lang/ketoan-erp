@@ -166,12 +166,11 @@ export const findOrCreatePartner = async (companyId, partnerData) => {
 };
 
 // Load warehouse queue
-export const loadWarehouseQueue = async (companyId, token) => {
+export const loadWarehouseQueue = async (companyId) => {
   if (!companyId) return [];
   try {
-    const { data } = await axios.get(`${API_BASE_URL}/api/logistics/queue-details`, {
-      params: { company_id: companyId },
-      ...getAdminAuthConfig(token)
+    const { data } = await authApi.get('/api/logistics/queue-details', {
+      params: { company_id: companyId }
     });
     return Array.isArray(data) ? data : [];
   } catch (err) {
@@ -181,15 +180,14 @@ export const loadWarehouseQueue = async (companyId, token) => {
 
 // Admin item operations
 export const adminItemApi = {
-  create: async (payload, token) => {
-    return axios.post(`${API_BASE_URL}/api/items`, payload, getAdminAuthConfig(token));
+  create: async (payload) => {
+    return authApi.post('/api/items', payload);
   },
-  update: async (code, payload, token) => {
-    return axios.put(`${API_BASE_URL}/api/items/${encodeURIComponent(code)}`, payload, getAdminAuthConfig(token));
+  update: async (code, payload) => {
+    return authApi.put(`/api/items/${encodeURIComponent(code)}`, payload);
   },
-  delete: async (code, companyId, token) => {
-    return axios.delete(`${API_BASE_URL}/api/items/${encodeURIComponent(code)}`, {
-      ...getAdminAuthConfig(token),
+  delete: async (code, companyId) => {
+    return authApi.delete(`/api/items/${encodeURIComponent(code)}`, {
       params: { company_id: Number(companyId) }
     });
   }
@@ -197,24 +195,24 @@ export const adminItemApi = {
 
 // Warehouse operations
 export const warehouseApi = {
-  assignTruck: async (companyId, voucherId, truckId, token) => {
-    return axios.post(`${API_BASE_URL}/api/logistics/assign-truck`, {
+  assignTruck: async (companyId, voucherId, truckId) => {
+    return authApi.post('/api/logistics/assign-truck', {
       companyId: Number(companyId),
       voucherId: Number(voucherId),
       truckId: truckId || null
-    }, getAdminAuthConfig(token));
+    });
   },
-  confirmLoaded: async (companyId, voucherId, token) => {
-    return axios.post(`${API_BASE_URL}/api/logistics/confirm-loaded`, {
+  confirmLoaded: async (companyId, voucherId) => {
+    return authApi.post('/api/logistics/confirm-loaded', {
       companyId: Number(companyId),
       voucherId: Number(voucherId)
-    }, getAdminAuthConfig(token));
+    });
   },
-  markCompleted: async (companyId, voucherId, token) => {
-    return axios.post(`${API_BASE_URL}/api/logistics/mark-completed`, {
+  markCompleted: async (companyId, voucherId) => {
+    return authApi.post('/api/logistics/mark-completed', {
       companyId: Number(companyId),
       voucherId: Number(voucherId)
-    }, getAdminAuthConfig(token));
+    });
   }
 };
 
