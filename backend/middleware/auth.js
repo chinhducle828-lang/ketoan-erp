@@ -22,10 +22,10 @@ const hashToken = (token) => {
 
 // 1. Middleware Xác thực người dùng & Kiểm tra Phiên làm việc
 export const authenticate = async (req, res, next) => {
-  // Ưu tiên đọc token từ HttpOnly cookie (bảo mật XSS), fallback sang Authorization header
-  let token = req.cookies?.access_token || req.cookies?.storefront_token || null;
+  // Ưu tiên Authorization header (Bearer token từ memory - mới hơn), fallback sang cookie
+  let token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    token = req.headers.authorization?.split(' ')[1];
+    token = req.cookies?.access_token || req.cookies?.storefront_token || null;
   }
   if (!token) {
     // NOTE: Query string token is intentionally disabled for security.

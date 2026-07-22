@@ -212,6 +212,27 @@ router.get('/me', authenticate, async (req, res) => {
     if (q.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
     
     const user = q.rows[0];
+    
+    // Auto-fix missing department/clearance_level
+    if (!user.department || user.clearance_level === null || user.clearance_level === undefined) {
+      const updates = {};
+      if (!user.department) {
+        const deptMap = { admin: 'admin', ktt: 'finance', nv: 'finance', nv_banhang: 'sales', nv_kho: 'warehouse', gd_kinhdoanh: 'sales' };
+        updates.department = deptMap[user.role] || 'finance';
+      }
+      if (user.clearance_level === null || user.clearance_level === undefined) {
+        const clearanceMap = { admin: 3, ktt: 2, nv: 1, nv_banhang: 1, nv_kho: 1, gd_kinhdoanh: 2 };
+        updates.clearance_level = clearanceMap[user.role] || 1;
+      }
+      if (Object.keys(updates).length > 0) {
+        await pool.query('UPDATE users SET department = $1, clearance_level = $2 WHERE id = $3', 
+          [updates.department || user.department, updates.clearance_level ?? user.clearance_level, user.id]);
+        user.department = updates.department || user.department;
+        user.clearance_level = updates.clearance_level ?? user.clearance_level;
+        console.log(`[auth] Auto-fixed department/clearance for user ${user.id} (${user.role})`);
+      }
+    }
+
     res.json({ 
       user: {
         id: user.id,
@@ -291,8 +312,34 @@ router.post('/refresh', async (req, res) => {
       domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
     });
     res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
+    
+    // Also mint a storefront token for storefront-capable roles
+    let storefrontToken = null;
+    if (['admin', 'nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(String(current.role || '').trim())) {
+      try {
+        const STOREFRONT_TOKEN_EXPIRE_DAYS = 7;
+        storefrontToken = jwt.sign(
+          { id: current.user_id, username: current.username, role: current.role, storefront_role: current.role, company_ids: current.company_ids },
+          process.env.JWT_SECRET,
+          { expiresIn: `${STOREFRONT_TOKEN_EXPIRE_DAYS}d` }
+        );
+        const storefrontRefresh = createRefreshToken();
+        const storefrontHashed = hashToken(storefrontRefresh);
+        const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+        const hashedStorefrontToken = hashToken(storefrontToken);
+        await pool.query(
+          'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)',
+          [current.user_id, hashedStorefrontToken, storefrontHashed, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
+        );
+      } catch (err) {
+        console.error('Không thể tạo storefront token khi refresh:', err.message);
+        storefrontToken = null;
+      }
+    }
+
     res.json({
       accessToken,
+      storefrontToken,
       user: {
         id: current.user_id,
         username: current.username,
