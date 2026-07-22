@@ -5,21 +5,19 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { FileText, Trash2, Loader2, Plus, Search, Filter, X, FileSpreadsheet, Scan } from 'lucide-react';
-import api from '../../utils/api.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import { notify } from '../../utils/notify.jsx';
-import { useSocket } from '../../hooks/useSocket.js';
-import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
-import { ACCOUNTS_TT99, getAccountsByDepartment, getAccountByCode } from '../../constants/accountsTT99.js';
-import { createWorkflowHandlers, WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import { ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 import OtpSignModal from '../../components/OtpSignModal.jsx';
 import OCRScanner from '../../components/OCRScanner.jsx';
+import TransactionClassifier from '../../components/TransactionClassifier.jsx';
+import api from '../../utils/api.js';
 
 const VOUCHER_TYPES = [
   { value: 'PT', label: 'Phiếu Thu', color: 'bg-emerald-50 text-emerald-700' },
@@ -33,7 +31,14 @@ const CURRENCIES = [getDefaultCurrency(), 'USD', 'EUR'];
 
 export default function VoucherManagement() {
   const { activeCompany } = useAuth();
-  const { vouchers, createNewVoucher, removeVoucher, reloadVouchers } = useVouchers();
+  const { 
+    vouchers, 
+    createVoucher, 
+    deleteVoucher, 
+    refetch,
+    isCreating,
+    isDeleting 
+  } = useVoucherQueries();
   
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -53,6 +58,9 @@ export default function VoucherManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef(null);
 
+  // State for AI classification
+  const [aiClassification, setAiClassification] = useState(null);
+
   const companyId = activeCompany?.id ?? activeCompany;
 
   // React Query for partners and items
@@ -60,7 +68,7 @@ export default function VoucherManagement() {
     queryKey: ['partners', companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const res = await api.get(`/api/partners/list?company_id=${companyId}`);
+      const res = await api.get(`/partners/list?company_id=${companyId}`);
       return res.data || [];
     },
     enabled: !!companyId,
@@ -71,22 +79,11 @@ export default function VoucherManagement() {
     queryKey: ['items', companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const res = await api.get(`/api/items?company_id=${companyId}`);
+      const res = await api.get(`/items?company_id=${companyId}`);
       return res.data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
-  });
-
-  // Realtime cache sync
-  useRealtimeCacheSync({
-    queries: [
-      { key: ['vouchers', companyId] },
-      { key: ['partners', companyId] },
-      { key: ['items', companyId] }
-    ],
-    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted', 'closingCompleted'],
-    enabled: !!companyId
   });
 
   const handleDetailChange = (index, field, value) => {
@@ -132,23 +129,22 @@ export default function VoucherManagement() {
         return;
       }
 
-      const result = await createNewVoucher({
-        company_id: companyId,
-        voucher_number: `${form.voucherType}-${Date.now().toString().slice(-6)}`,
-        voucher_date: form.date,
-        voucher_type: form.voucherType,
-        description: form.desc,
-        currency: form.currency,
-        exchange_rate: rate,
-        details: processedDetails
-      });
-
-      if (result.success) {
+      try {
+        await createVoucher({
+          company_id: companyId,
+          voucher_number: `${form.voucherType}-${Date.now().toString().slice(-6)}`,
+          voucher_date: form.date,
+          voucher_type: form.voucherType,
+          description: form.desc,
+          currency: form.currency,
+          exchange_rate: rate,
+          details: processedDetails
+        });
         notify.success('Tạo chứng từ thành công!');
         setShowForm(false);
         resetForm();
-      } else {
-        notify.error(result.error || 'Lỗi tạo chứng từ!');
+      } catch (error) {
+        notify.error(error.response?.data?.error || 'Lỗi tạo chứng từ!');
       }
     } catch (err) {
       notify.error(err.response?.data?.error || 'Lỗi hệ thống khi tạo chứng từ!');
@@ -173,12 +169,8 @@ export default function VoucherManagement() {
     const confirmed = await notify.confirm('Bạn có chắc chắn muốn xóa chứng từ này?');
     if (!confirmed) return;
     try {
-      const result = await removeVoucher(id);
-      if (result.success) {
-        notify.success('Xóa chứng từ thành công!');
-      } else {
-        notify.error(result.error || 'Lỗi xóa chứng từ!');
-      }
+      await deleteVoucher(id);
+      notify.success('Xóa chứng từ thành công!');
     } catch (err) {
       notify.error(err.response?.data?.error || 'Lỗi xóa chứng từ!');
     }
@@ -238,7 +230,7 @@ export default function VoucherManagement() {
         const res = await api.post(`/vouchers/${voucherId}/post`, { company_id: companyId });
         if (res.data?.success) {
           notify.success('Ghi sổ chứng từ thành công!');
-          reloadVouchers();
+          refetch();
         }
       } catch (err) {
         notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
@@ -254,7 +246,7 @@ export default function VoucherManagement() {
         const res = await api.post(`/vouchers/${pendingVoucher.id}/post`, { company_id: companyId });
         if (res.data?.success) {
           notify.success('Ghi sổ chứng từ thành công!');
-          reloadVouchers();
+          refetch();
         }
       } catch (err) {
         notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
@@ -262,6 +254,24 @@ export default function VoucherManagement() {
     }
     setPendingVoucher(null);
     setShowSignModal(false);
+  };
+
+  // Handle AI classification suggestion
+  const handleClassificationChange = (classification) => {
+    if (classification && classification.account_code && classification.confidence >= 80) {
+      // Auto-fill first detail row with high confidence suggestion
+      const newDetails = [...form.details];
+      if (newDetails[0].accountCode === '' || newDetails[0].accountCode === classification.account_code) {
+        newDetails[0] = {
+          ...newDetails[0],
+          accountCode: classification.account_code,
+          entryType: classification.entry_type || 'DR'
+        };
+        setForm({ ...form, details: newDetails });
+        notify.success(`AI đề xuất tài khoản: ${classification.account_code} (${classification.confidence}%)`);
+      }
+    }
+    setAiClassification(classification);
   };
 
   // Keyboard shortcuts for ERP power users
@@ -407,6 +417,15 @@ export default function VoucherManagement() {
                 required
               />
             </div>
+
+            {/* AI Transaction Classifier - Auto-suggest account codes */}
+            <TransactionClassifier
+              description={form.desc}
+              amount={form.details[0]?.amount}
+              partnerId={form.partnerId}
+              onClassificationChange={handleClassificationChange}
+              disabled={!showForm}
+            />
 
             {/* Chi tiết định khoản */}
             <div>

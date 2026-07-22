@@ -2,6 +2,8 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
+import { classifyTransaction } from '../services/transactionClassification.js';
+
 export const DEFAULT_PAYROLL_RATES = Object.freeze({
   employer: { bhxh: 0.175, bhyt: 0.03, bhtn: 0.01 },
   employee: { bhxh: 0.08, bhyt: 0.015, bhtn: 0.01 }
@@ -39,30 +41,90 @@ export const normalizeVoucherPayload = (data, activeCompany) => {
 
 export const getCorporateIncomeTaxRate = () => 0.2;
 
-export const buildPurchaseInventoryDetails = ({ baseAmount, quantity = 1, partnerId = null, itemName = '', itemId = null, taxRate = DEFAULT_TAX_RATE }) => {
+/**
+ * Build purchase inventory details with AI classification fallback
+ * Hybrid: uses AI suggestion when confidence >= 80%, falls back to hardcoded defaults
+ */
+export const buildPurchaseInventoryDetails = async ({ baseAmount, quantity = 1, partnerId = null, itemName = '', itemId = null, taxRate = DEFAULT_TAX_RATE, description = '' }) => {
   const amount = Math.round(Number(baseAmount) || 0);
   const qty = Math.max(1, Number(quantity) || 1);
   const effectiveTaxRate = Number(taxRate) || 0;
   const taxAmount = Math.round(amount * (effectiveTaxRate / 100));
   const totalPay = amount + taxAmount;
 
+  // Default hardcoded accounts
+  let inventoryAccount = '156';
+  let taxAccount = '1331';
+  let apAccount = '331';
+
+  // Try AI classification if description is provided
+  if (description) {
+    try {
+      const classification = await classifyTransaction({
+        description,
+        amount,
+        partner_id: partnerId
+      });
+      
+      if (classification?.success && classification?.classification?.account_code) {
+        const suggestedAccount = classification.classification.account_code;
+        if (classification.classification.confidence >= 80) {
+          inventoryAccount = suggestedAccount;
+        }
+      }
+    } catch (e) {
+      // Use default accounts on error
+      console.log('Using default accounts for purchase inventory');
+    }
+  }
+
   const details = [
-    { accountCode: '156', entryType: 'DR', amount, quantity: qty, partnerId, itemId, itemName },
+    { accountCode: inventoryAccount, entryType: 'DR', amount, quantity: qty, partnerId, itemId, itemName },
   ];
 
   if (taxAmount > 0) {
-    details.push({ accountCode: '1331', entryType: 'DR', amount: taxAmount });
+    details.push({ accountCode: taxAccount, entryType: 'DR', amount: taxAmount });
   }
 
-  details.push({ accountCode: '331', entryType: 'CR', amount: totalPay });
+  details.push({ accountCode: apAccount, entryType: 'CR', amount: totalPay });
   return details;
 };
 
-export const buildCashVoucherDetails = ({ amount, partnerId = null, entryType = 'DR' }) => {
+/**
+ * Build cash voucher details with AI classification fallback
+ * Hybrid: uses AI suggestion when confidence >= 80%, falls back to hardcoded defaults
+ */
+export const buildCashVoucherDetails = async ({ amount, partnerId = null, entryType = 'DR', description = '' }) => {
   const value = Math.round(Number(amount) || 0);
+
+  // Default hardcoded accounts
+  let cashAccount = '1111';
+  let contraAccount = '131';
+
+  // Try AI classification if description is provided
+  if (description) {
+    try {
+      const classification = await classifyTransaction({
+        description,
+        amount: value,
+        partner_id: partnerId
+      });
+      
+      if (classification?.success && classification?.classification?.account_code) {
+        const suggestedAccount = classification.classification.account_code;
+        if (classification.classification.confidence >= 80) {
+          cashAccount = suggestedAccount;
+        }
+      }
+    } catch (e) {
+      // Use default accounts on error
+      console.log('Using default accounts for cash voucher');
+    }
+  }
+
   return [
-    { accountCode: '1111', entryType, amount: value, partnerId },
-    { accountCode: '131', entryType: entryType === 'DR' ? 'CR' : 'DR', amount: value, partnerId }
+    { accountCode: cashAccount, entryType, amount: value, partnerId },
+    { accountCode: contraAccount, entryType: entryType === 'DR' ? 'CR' : 'DR', amount: value, partnerId }
   ];
 };
 
@@ -86,4 +148,30 @@ export const buildPayrollInsuranceDetails = (baseSalary, totalTaxTNCN, rates = D
   ];
 
   return { details, companyInsurance: employerInsurance, employeeInsurance, bhxhCr, bhytCr, bhtnCr };
+};
+
+/**
+ * Get tax rate by partner ID (hybrid: API lookup + default fallback)
+ * @param {number|null} partnerId - Partner ID for tax rate lookup
+ * @param {number|null} companyId - Company ID for scoping
+ * @returns {Promise<number>} Tax rate (e.g. 0.08 for 8%)
+ */
+export const getTaxRateByPartner = async (partnerId = null, companyId = null) => {
+  // Default tax rate fallback
+  let taxRate = DEFAULT_TAX_RATE;
+  
+  if (partnerId && companyId) {
+    try {
+      const api = (await import('./api.js')).default;
+      const res = await api.get(`/settings/tax-rate?partner_id=${partnerId}&company_id=${companyId}`);
+      if (res.data?.tax_rate) {
+        taxRate = parseFloat(res.data.tax_rate) / 100;
+      }
+    } catch (e) {
+      // Use default tax rate on error
+      console.log('Using default tax rate');
+    }
+  }
+  
+  return taxRate;
 };

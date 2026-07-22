@@ -4,11 +4,9 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useVouchers } from '../../context/VoucherContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Users } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../../utils/api.js';
-import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 // Danh mục tài khoản chuẩn hóa theo đúng tên hiển thị và tính chất trong ảnh
 const ACCOUNT_DICTIONARY = {
@@ -52,7 +50,6 @@ const PAGE_STRUCTURE = [
 ];
 
 export default function OpeningBalances() {
-  const { vouchers } = useVouchers();
   const { activeCompany, fiscalYear } = useAuth();
   const companyId = activeCompany?.id;
   const currentYear = fiscalYear || 2026;
@@ -100,15 +97,6 @@ export default function OpeningBalances() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Realtime cache sync
-  useRealtimeCacheSync({
-    queries: [
-      { key: ['openingBalances', companyId, currentYear] },
-      { key: ['partners', companyId] }
-    ],
-    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
-    enabled: !!companyId
-  });
 
   // Computed values - MUST be defined before any functions that use them
   const allBalances = useMemo(() => {
@@ -256,11 +244,14 @@ export default function OpeningBalances() {
     setMessage('');
     try {
       const items = allBalances.filter(b => b.account_code && b.account_code.trim() !== '');
-      await Promise.all(items.map(item => {
+      
+      // SỬA: Lưu tuần tự thay vì song song để tránh race condition
+      const results = [];
+      for (const item of items) {
         const partnerId = HERMAPHRODITIC_ACCOUNTS.includes(item.account_code) 
           ? selectedPartner[item.account_code] || null 
           : null;
-        return api.post('/opening-balances', {
+        const result = await api.post('/opening-balances', {
           companyId: activeCompany.id,
           accountCode: item.account_code,
           debitBalance: item.debit_balance || 0,
@@ -268,11 +259,14 @@ export default function OpeningBalances() {
           fiscalYear: fiscalYear || 2026,
           partnerId: partnerId,
         });
-      }));
+        results.push(result);
+      }
+      
       setMessage('Lưu dữ liệu số dư đầu kỳ thành công!');
       setMessageType('success');
     } catch (error) {
-      setMessage('Gặp lỗi khi lưu thông tin.');
+      console.error('Lỗi lưu số dư đầu kỳ:', error);
+      setMessage(`Gặp lỗi khi lưu thông tin: ${error.response?.data?.error || error.message}`);
       setMessageType('error');
     } finally {
       setLoading(false);
@@ -286,7 +280,7 @@ export default function OpeningBalances() {
     } else if (companyId) {
       initEmptyBalances();
     }
-  }, [openingBalancesData, companyId, fetchAndInitializeBalances, initEmptyBalances]);
+  }, [openingBalancesData, companyId]);
 
   return (
     <div className="w-full bg-slate-50 p-1 font-sans text-sm antialiased text-slate-800 space-y-4">

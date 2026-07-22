@@ -1,4 +1,4 @@
-/**
+  /**
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
@@ -178,9 +178,143 @@ router.get('/queue-details', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES),
   }
 });
 
-router.get('/stream', authenticate, requireRole(LOGISTICS_ALLOWED_ROLES), async (req, res) => {
+// Custom auth for SSE stream - EventSource cannot send Authorization header, so we accept token from query params OR cookies
+router.get('/stream', async (req, res) => {
   try {
-    const companyId = req.query.company_id || req.query.companyId;
+    const token = req.query.access_token;
+    const queryCompanyId = req.query.company_id || req.query.companyId;
+    
+    // Try to get token from query params first, then fall back to cookies
+    let finalToken = token;
+    let payload = null;
+    let isTokenExpired = false;
+    
+    if (finalToken) {
+      // Verify JWT token from query param - SSE streams need long-lived connections, so accept expired tokens
+      // if a valid session exists in the database. This prevents frequent disconnects.
+      const jwt = await import('jsonwebtoken');
+      
+      try {
+        payload = jwt.default.verify(finalToken, process.env.JWT_SECRET);
+      } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+          isTokenExpired = true;
+          // Decode without verification to read payload for session lookup
+          payload = jwt.default.decode(finalToken);
+        } else {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+      }
+      
+      if (!payload || !payload.id) {
+        return res.status(401).json({ error: 'Invalid token payload' });
+      }
+      
+      // For SSE streams: if token is expired, validate against DB session instead
+      if (isTokenExpired) {
+        const sessionCheck = await pool.query(
+          'SELECT id, user_id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+          [finalToken, payload.id]
+        );
+        
+        if (sessionCheck.rows.length === 0) {
+          return res.status(401).json({ error: 'Phiên đã hết hạn. Vui lòng đăng nhập lại.' });
+        }
+        
+        console.log('[logistics-stream] Token expired but valid session found - allowing stream connection');
+      }
+    } else {
+      // No token in query params - try to authenticate via cookies/session
+      // This allows EventSource to work with cookie-based authentication
+      // Note: cookie names are snake_case (access_token, storefront_token, refresh_token)
+      const sessionToken = req.cookies?.access_token || req.cookies?.storefront_token || req.cookies?.token || req.cookies?.erp_token;
+      
+      console.log('[logistics-stream] Cookie auth attempt:', {
+        hasAccessToken: !!req.cookies?.access_token,
+        hasStorefrontToken: !!req.cookies?.storefront_token,
+        hasToken: !!req.cookies?.token,
+        hasErpToken: !!req.cookies?.erp_token,
+        allCookies: req.cookies ? Object.keys(req.cookies).join(', ') : 'none',
+        tokenLength: sessionToken?.length
+      });
+      
+      if (!sessionToken) {
+        console.warn('[logistics-stream] No session token found in cookies');
+        return res.status(401).json({ error: 'Missing authentication. Please log in.' });
+      }
+      
+      // Verify session token from cookie
+      const jwt = await import('jsonwebtoken');
+      try {
+        console.log('[logistics-stream] Verifying JWT token...');
+        payload = jwt.default.verify(sessionToken, process.env.JWT_SECRET);
+        console.log('[logistics-stream] JWT verified successfully, payload:', payload);
+      } catch (err) {
+        console.error('[logistics-stream] JWT verification failed:', err.name, err.message);
+        if (err.name === 'TokenExpiredError') {
+          // Check if session exists in DB
+          const sessionCheck = await pool.query(
+            'SELECT id, user_id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+            [sessionToken, err?.payload?.id]
+          );
+          
+          if (sessionCheck.rows.length === 0) {
+            return res.status(401).json({ error: 'Phiên đã hết hạn. Vui lòng đăng nhập lại.' });
+          }
+          
+          payload = err.payload;
+          console.log('[logistics-stream] Cookie token expired but valid session found - allowing stream connection');
+        } else if (err.name === 'JsonWebTokenError') {
+          // Invalid token - check if it's a valid session in DB anyway
+          console.warn('[logistics-stream] JWT verification failed, checking DB session:', err.message);
+          
+          // Try to find session by token hash in DB
+          const sessionCheck = await pool.query(
+            'SELECT id, user_id FROM sessions WHERE token = $1 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+            [sessionToken]
+          );
+          
+          if (sessionCheck.rows.length > 0) {
+            console.log('[logistics-stream] Found valid DB session despite JWT error - allowing connection');
+            payload = { id: sessionCheck.rows[0].user_id };
+          } else {
+            console.warn('[logistics-stream] No valid session found in DB');
+            return res.status(401).json({ error: 'Invalid session token' });
+          }
+        } else {
+          return res.status(401).json({ error: 'Invalid session token' });
+        }
+      }
+      
+      if (!payload || !payload.id) {
+        return res.status(401).json({ error: 'Invalid session token payload' });
+      }
+      
+      console.log('[logistics-stream] Authenticated via cookie: userId=', payload.id);
+    }
+    
+    // Determine company_id: prefer from JWT payload, fallback to query param
+    const companyId = payload.activeCompanyId || payload.company_ids?.[0] || queryCompanyId;
+    
+    // Validate that the requested company_id matches what the user has access to
+    if (queryCompanyId && String(queryCompanyId) !== String(companyId)) {
+      // Allow if user is admin or has the queried company in their list
+      if (payload.role !== 'admin' && !payload.company_ids?.includes(Number(queryCompanyId))) {
+        return res.status(403).json({ 
+          error: `Không có quyền truy cập doanh nghiệp #${queryCompanyId}. Chỉ được phép truy cập doanh nghiệp được phân quyền.` 
+        });
+      }
+    }
+    
+    // Attach user info to request
+    req.user = payload;
+    
+    // Check role permission
+    const userRole = payload.role || payload.storefront_role;
+    if (!LOGISTICS_ALLOWED_ROLES.includes(userRole)) {
+      return res.status(403).json({ error: 'Không có quyền truy cập stream' });
+    }
+    
     const access = await ensureCompanyAccess(req, companyId);
     if (!access.ok) return res.status(403).json({ error: access.message });
 

@@ -22,7 +22,7 @@ router.get('/', authenticate, async (req, res) => {
     if (req.user.role === 'admin') {
       // Sử dụng cardinality và ép kiểu mảng tường minh để Postgres không bao giờ lỗi
       result = await pool.query(`
-        SELECT id, username, role, manager_id, is_root_admin,
+        SELECT id, username, role, manager_id, is_root_admin, department,
                COALESCE(company_ids, '{}'::integer[]) as company_ids,
                COALESCE(staff_ids, '{}'::integer[]) as staff_ids,
                CASE 
@@ -34,7 +34,7 @@ router.get('/', authenticate, async (req, res) => {
       `);
     } else {
       result = await pool.query(`
-        SELECT id, username, role, manager_id, is_root_admin,
+        SELECT id, username, role, manager_id, is_root_admin, department,
                COALESCE(company_ids, '{}'::integer[]) as company_ids,
                CASE 
                  WHEN cardinality(COALESCE(company_ids, '{}'::integer[])) = 0 THEN NULL 
@@ -104,9 +104,15 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // 3. Thực hiện chèn dữ liệu với mảng Postgres tường minh
+    const departmentValue = role === 'admin' ? 'admin' : 
+                           role === 'ktt' ? 'finance' :
+                           role === 'nv_banhang' ? 'sales' :
+                           role === 'nv_kho' ? 'warehouse' :
+                           role === 'nv' ? 'hr' : 'finance';
+    
     const result = await pool.query(
-      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids, manager_id) VALUES ($1, $2, $3, $4, $5::integer[], '{}'::integer[], $6) RETURNING id, username, role, manager_id, company_ids",
-      [username, hashed, role, true, normalizedCompanyIds, finalManagerId]
+      "INSERT INTO users (username, password, role, must_change_password, company_ids, staff_ids, manager_id, department) VALUES ($1, $2, $3, $4, $5::integer[], '{}'::integer[], $6, $7) RETURNING id, username, role, manager_id, company_ids, department",
+      [username, hashed, role, true, normalizedCompanyIds, finalManagerId, departmentValue]
     );
 
     // 4. Đồng bộ liên kết công ty bảng phụ nếu có
@@ -249,7 +255,7 @@ router.post('/:id/set-root-admin', authenticate, async (req, res) => {
 router.get('/me/export-data', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await pool.query('SELECT id, username, role, company_ids, staff_ids, manager_id, preferences, created_at FROM users WHERE id = $1', [userId]);
+    const user = await pool.query('SELECT id, username, role, company_ids, staff_ids, manager_id, preferences, created_at, department FROM users WHERE id = $1', [userId]);
     if (user.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
 
     const sessions = await pool.query('SELECT id, created_at, expires_at, ip_address, device_info FROM sessions WHERE user_id = $1', [userId]);

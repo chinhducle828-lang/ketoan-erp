@@ -12,6 +12,9 @@ import { processDocument } from './aiOcr.service.js';
 import { classifyDepartment } from './aiDepartmentClassifier.service.js';
 import { getSuggestions } from './aiSmartSuggestions.service.js';
 
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+
 /**
  * Process batch of documents
  * @param {string} configCode - Batch config code from database

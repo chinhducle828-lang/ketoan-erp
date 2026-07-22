@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import api from '../../utils/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import TransactionClassifier from '../../components/TransactionClassifier.jsx';
+import { classifyTransaction } from '../../services/transactionClassification.js';
 
 export default function InventoryVoucherForm({ onSaved }) {
   const { activeCompany } = useAuth();
@@ -20,6 +22,15 @@ export default function InventoryVoucherForm({ onSaved }) {
     ]
   });
   const [loading, setLoading] = useState(false);
+  const [aiClassification, setAiClassification] = useState(null);
+
+  // Get default account codes for inventory (fallback)
+  const getDefaultInventoryAccounts = () => {
+    return {
+      inventoryAccount: '1561',  // Hàng hóa kho
+      apAccount: '331'           // Phải trả người bán
+    };
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -27,7 +38,35 @@ export default function InventoryVoucherForm({ onSaved }) {
     
     setLoading(true);
     try {
-      const payload = { ...voucher, company_id: activeCompany.id };
+      // Try to get AI classification for this transaction
+      let accountCodes = getDefaultInventoryAccounts();
+      try {
+        const classification = await classifyTransaction({
+          description: voucher.description,
+          amount: voucher.details[0]?.amount || 0,
+          partner_id: null
+        });
+        
+        if (classification?.success && classification?.classification?.account_code) {
+          // Use AI suggested account if available
+          accountCodes = {
+            ...accountCodes,
+            inventoryAccount: classification.classification.account_code
+          };
+        }
+      } catch (e) {
+        // Use default accounts on error
+        console.log('Using default accounts for inventory transaction');
+      }
+      
+      const payload = { 
+        ...voucher, 
+        company_id: activeCompany.id,
+        details: voucher.details.map((d, idx) => ({
+          ...d,
+          account_code: idx === 0 ? accountCodes.inventoryAccount : accountCodes.apAccount
+        }))
+      };
       await api.post('/vouchers', payload);
       alert('Hạch toán chứng từ kho thành công!');
       if (onSaved) onSaved();
@@ -63,6 +102,33 @@ export default function InventoryVoucherForm({ onSaved }) {
           </select>
         </div>
       </div>
+      
+      {/* Description field for AI classification */}
+      <div>
+        <label className="block text-xs font-medium text-slate-700">Diễn giải</label>
+        <input type="text" required value={voucher.description}
+          onChange={e => setVoucher({...voucher, description: e.target.value})}
+          className="w-full text-xs p-2 border rounded-md" />
+      </div>
+
+      {/* AI Transaction Classifier - Auto-suggest account codes */}
+      <TransactionClassifier
+        description={voucher.description}
+        amount={voucher.details[0]?.amount}
+        onClassificationChange={(classification) => {
+          if (classification && classification.account_code && classification.confidence >= 80) {
+            setVoucher({
+              ...voucher,
+              details: voucher.details.map((d, idx) => 
+                idx === 0 
+                  ? { ...d, account_code: classification.account_code, entry_type: classification.entry_type || 'DR' }
+                  : d
+              )
+            });
+          }
+          setAiClassification(classification);
+        }}
+      />
       
       <button type="submit" disabled={loading}
         className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-lg disabled:opacity-50">

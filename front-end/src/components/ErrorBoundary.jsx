@@ -1,67 +1,76 @@
-import React from 'react';
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ * Error Boundary - Ngăn chặn crash toàn bộ ứng dụng khi có lỗi render
+ */
 
-export class ErrorBoundary extends React.Component {
+import React from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    this.setState({ error, errorInfo });
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    this.setState({ errorInfo });
+    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
   }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
+  handleReload = () => {
+    window.location.reload();
+  };
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback(this.state.error, this.state.errorInfo);
+        return this.props.fallback;
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
-            <div className="text-center">
-              <div className="text-6xl mb-4">⚠️</div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">
-                Đã xảy ra lỗi
-              </h1>
-              <p className="text-slate-600 mb-6">
-                Hệ thống gặp sự cố không mong muốn. Vui lòng thử lại hoặc liên hệ quản trị viên.
-              </p>
-              
-              <details className="text-left bg-slate-50 rounded-lg p-4 mb-6">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-700 mb-2">
-                  Chi tiết lỗi (Dev Mode)
+        <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+          <div className="text-center p-8 bg-white rounded-2xl shadow-soft max-w-lg w-full">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-800 mb-2">
+              {this.props.title || 'Đã xảy ra lỗi'}
+            </h2>
+            <p className="text-sm text-slate-600 mb-4">
+              {this.props.message || 'Ứng dụng gặp sự cố. Vui lòng thử lại hoặc liên hệ quản trị viên.'}
+            </p>
+            {process.env.NODE_ENV !== 'production' && this.state.error && (
+              <details className="text-left mb-4 bg-slate-100 rounded-lg p-3">
+                <summary className="text-xs font-mono text-slate-500 cursor-pointer">
+                  Chi tiết lỗi (development only)
                 </summary>
-                <pre className="text-xs text-red-600 overflow-auto max-h-64 whitespace-pre-wrap">
-                  {this.state.error?.toString()}
-                  {this.state.errorInfo?.componentStack}
+                <pre className="text-xs font-mono text-red-600 mt-2 whitespace-pre-wrap overflow-auto max-h-32">
+                  {this.state.error.toString()}
                 </pre>
               </details>
-
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => {
-                    this.setState({ hasError: false, error: null, errorInfo: null });
-                    window.location.reload();
-                  }}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition"
-                >
-                  Tải lại trang
-                </button>
-                <button
-                  onClick={() => {
-                    this.setState({ hasError: false, error: null, errorInfo: null });
-                  }}
-                  className="px-6 py-2 border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 transition"
-                >
-                  Thử lại
-                </button>
-              </div>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={this.handleReset}
+                className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 transition-colors flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Thử lại
+              </button>
+              <button
+                onClick={this.handleReload}
+                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm hover:bg-slate-300 transition-colors"
+              >
+                Tải lại trang
+              </button>
             </div>
           </div>
         </div>
@@ -71,5 +80,3 @@ export class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;

@@ -3,14 +3,14 @@
  */
 
 import React, { useState } from 'react';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Calculator, Trash2, Loader2, Plus } from 'lucide-react';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function FixedAssets() {
-  const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
+  const { vouchers, createVoucher, deleteVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth();
   
   const [form, setForm] = useState({ id: '', name: '', originalPrice: '', date: new Date().toISOString().split('T')[0] });
@@ -41,7 +41,7 @@ export default function FixedAssets() {
     };
 
     try {
-      await createNewVoucher(payload);
+      await createVoucher(payload);
       alert('Đã ghi sổ Tài sản cố định thành công!');
       setForm({ id: '', name: '', originalPrice: '', date: new Date().toISOString().split('T')[0] });
     } catch (err) {
@@ -97,7 +97,7 @@ export default function FixedAssets() {
                   ))}
                 </td>
                 <td className="p-3 text-center">
-                  <button onClick={() => removeVoucher(v.id).catch(e => alert(e.response?.data?.error || 'Lỗi khóa sổ!'))} className="text-slate-400 hover:text-rose-600 transition"><Trash2 size={16} /></button>
+                  <button onClick={() => deleteVoucher(v.id).catch(e => alert(e.response?.data?.error || 'Lỗi khóa sổ!'))} className="text-slate-400 hover:text-rose-600 transition"><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}

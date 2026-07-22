@@ -4,16 +4,18 @@
 
 import React, { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Wallet, Trash2, Loader2 } from 'lucide-react';
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
-import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
+import { notify } from '../../utils/notify.jsx';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
+import TransactionClassifier from '../../components/TransactionClassifier.jsx';
+import { classifyTransaction } from '../../services/transactionClassification.js';
 
 export default function CashManagement() {
-  const { vouchers, createNewVoucher, removeVoucher } = useVouchers();
+  const { vouchers, createVoucher, deleteVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth();
   const companyId = activeCompany?.id ?? activeCompany;
   
@@ -30,26 +32,19 @@ export default function CashManagement() {
     ]
   });
 
+  // State for AI classification
+  const [aiClassification, setAiClassification] = useState(null);
+
   // React Query for partners
   const { data: partners = [] } = useQuery({
     queryKey: ['partners', companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const res = await api.get(`/partners?company_id=${companyId}`);
+      const res = await api.get(`/partners/list?company_id=${companyId}`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
-  });
-
-  // Realtime cache sync
-  useRealtimeCacheSync({
-    queries: [
-      { key: ['partners', companyId] },
-      { key: ['vouchers', companyId] }
-    ],
-    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'voucherPosted'],
-    enabled: !!companyId
   });
 
   const handleDetailChange = (index, field, value) => {
@@ -89,7 +84,7 @@ export default function CashManagement() {
         return;
       }
 
-      await createNewVoucher({
+      await createVoucher({
         company_id: companyId,
         voucher_number: `${type}-${Date.now().toString().slice(-6)}`,
         voucher_date: form.date,
@@ -130,6 +125,27 @@ export default function CashManagement() {
           </div>
           <input type="text" placeholder="Lý do nộp / nội dung chi..." value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} className="w-full border p-2 rounded-lg text-sm" />
           
+          {/* AI Transaction Classifier - Auto-suggest account codes */}
+          <TransactionClassifier
+            description={form.desc}
+            amount={form.details[0]?.amount}
+            partnerId={form.partnerId}
+            onClassificationChange={(classification) => {
+              if (classification && classification.account_code && classification.confidence >= 80) {
+                const newDetails = [...form.details];
+                if (newDetails[0].accountCode === '' || newDetails[0].accountCode === classification.account_code) {
+                  newDetails[0] = {
+                    ...newDetails[0],
+                    accountCode: classification.account_code,
+                    entryType: classification.entry_type || 'DR'
+                  };
+                  setForm({ ...form, details: newDetails });
+                }
+              }
+              setAiClassification(classification);
+            }}
+          />
+
           <div className="space-y-2">
             {form.details.map((dt, idx) => (
               <div key={idx} className="flex gap-2">
@@ -176,7 +192,7 @@ export default function CashManagement() {
                   ))}
                 </td>
                 <td className="p-3 text-center">
-                  <button onClick={() => removeVoucher(v.id).catch(e => alert(e.response?.data?.error || 'Lỗi khóa sổ!'))} className="text-rose-600 font-bold hover:underline">Xóa</button>
+                  <button onClick={() => deleteVoucher(v.id).catch(e => alert(e.response?.data?.error || 'Lỗi khóa sổ!'))} className="text-rose-600 font-bold hover:underline">Xóa</button>
                 </td>
               </tr>
             ))}

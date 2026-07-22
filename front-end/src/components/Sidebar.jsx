@@ -6,6 +6,9 @@ import React, { useState, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { MODULES_REGISTER, DEPARTMENTS } from '../views/index.js';
+import { hasPermission, getAccessibleModules } from '../utils/rbac.js';
+import useModuleAccess from '../hooks/useModuleAccess.js';
+import { getDefaultFeatureFlags } from '../utils/featureFlags.js';
 import { Terminal, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onToggle }) {
@@ -31,21 +34,28 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
 
   const userRole = user?.roleId || user?.role;
 
+  // Memoize empty arrays/objects to prevent infinite loop in useModuleAccess
+  const enabledModules = useMemo(() => MODULES_REGISTER, []);
+  const featureFlags = useMemo(() => getDefaultFeatureFlags(), []);
+  
+  // Enhanced RBAC: Get accessible modules with dependencies and feature flags
+  const { accessibleModules } = useModuleAccess(user, enabledModules, featureFlags);
+
   // Group accessible modules by department
   const groupedModules = useMemo(() => {
-    const accessible = MODULES_REGISTER.filter(module => {
-      // 1. Chặn bảo mật cứng cho cả phân hệ 'config' cũ và phân hệ 'users' mới
-      if ((module.id === 'config' || module.id === 'users') && userRole !== 'admin') {
-        return false;
-      }
-      // 2. Chỉ root admin mới xem audit logs
-      if (module.id === 'audit-logs') {
-        const isRoot = user?.role === 'admin' || user?.is_root_admin === true;
-        if (!isRoot) return false;
-      }
-      // 3. Kiểm tra danh sách vai trò allowedRoles
-      return module.allowedRoles && module.allowedRoles.includes(userRole);
-    });
+    // Use enhanced RBAC accessible modules
+    let accessible = accessibleModules;
+
+    // Keep hardcoded security checks for backward compatibility
+    // 1. Chặn bảo mật cứng cho cả phân hệ 'config' cũ và phân hệ 'users' mới
+    if ((user?.roleId || user?.role) !== 'admin') {
+      accessible = accessible.filter(m => m.id !== 'config' && m.id !== 'users');
+    }
+    
+    // 2. Chỉ root admin mới xem audit logs
+    if (!(user?.role === 'admin' || user?.is_root_admin === true)) {
+      accessible = accessible.filter(m => m.id !== 'audit-logs');
+    }
 
     // Group by department, sorted by department order
     const groups = {};
@@ -62,13 +72,13 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
     });
 
     return groups;
-  }, [userRole, user]);
+  }, [user, accessibleModules]);
 
   const getNavLinkClass = ({ isActive }) => {
-    return `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+    return `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group ${
       isActive 
-        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/20' 
-        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+        ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-300 shadow-lg shadow-indigo-500/10 border border-indigo-500/10' 
+        : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
     }`;
   };
 
@@ -84,7 +94,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
       >
         {({ isActive }) => (
           <>
-            <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
+            <Icon size={16} className={isActive ? 'text-indigo-300' : 'text-slate-600 group-hover:text-slate-300'} />
             {isOpen && <span>{mod.name}</span>}
           </>
         )}
@@ -94,23 +104,23 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
 
   const renderSidebarContent = () => (
     <>
-      <div className="h-16 flex items-center gap-2 px-4 border-b border-slate-800 bg-slate-950">
-        <div className="p-1.5 bg-emerald-600 text-white rounded-lg shrink-0">
+      <div className="h-16 flex items-center gap-2 px-4 border-b border-white/5 bg-gradient-to-r from-[#0B0F19] to-[#0F172A]">
+        <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-lg shrink-0 shadow-lg shadow-indigo-500/20">
           <Terminal size={18} />
         </div>
         {isOpen && (
           <div className="overflow-hidden">
             <span className="text-sm font-black text-white tracking-wider whitespace-nowrap">KETOAN ERP</span>
-            <span className="text-[9px] block text-emerald-500 font-bold tracking-widest uppercase -mt-0.5 whitespace-nowrap">TT200 Standard</span>
+            <span className="text-[9px] block text-indigo-400 font-bold tracking-widest uppercase -mt-0.5 whitespace-nowrap">TT200 Standard</span>
           </div>
         )}
         {onToggle && (
           <button 
             onClick={onToggle} 
-            className="ml-auto p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+            className="ml-auto p-1.5 hover:bg-white/5 rounded-lg transition-colors"
             aria-label="Toggle sidebar"
           >
-            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 7l-7 7 7 7" />
             </svg>
           </button>
@@ -127,9 +137,9 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
               {/* Department header */}
               <button
                 onClick={() => toggleDept(dept.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-200 ${
                   isOpen 
-                    ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50' 
+                    ? 'text-slate-600 hover:text-slate-300 hover:bg-white/5' 
                     : 'justify-center text-slate-600 hover:text-slate-400'
                 }`}
                 title={dept.name}
@@ -159,7 +169,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
         })}
       </div>
 
-      <div className={`p-4 border-t border-slate-800 bg-slate-950 ${isOpen ? 'text-center' : 'text-center'}`}>
+      <div className={`p-4 border-t border-white/5 bg-gradient-to-r from-[#0B0F19] to-[#0F172A] ${isOpen ? 'text-center' : 'text-center'}`}>
         {isOpen ? (
           <span className="text-[10px] text-slate-600 font-medium">Hệ thống lõi kế toán doanh nghiệp v1.0</span>
         ) : (
@@ -172,7 +182,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex sticky top-0 h-screen bg-slate-900 text-slate-400 border-r border-slate-800 flex-col shrink-0 transition-all duration-300 ${
+      <aside className={`hidden md:flex sticky top-0 h-screen bg-gradient-to-b from-[#0B0F19] via-[#0F172A] to-[#0B0F19] text-slate-400 border-r border-white/5 flex-col shrink-0 transition-all duration-300 ${
         isOpen ? 'w-64' : 'w-20'
       }`}>
         {renderSidebarContent()}
@@ -182,14 +192,14 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black/40" onClick={onRequestClose} />
-          <div className="relative w-64 bg-slate-900 text-slate-400 border-r border-slate-800 flex flex-col h-full">
-            <div className="h-16 flex items-center gap-2 px-4 border-b border-slate-800 bg-slate-950">
-              <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
+          <div className="relative w-64 bg-gradient-to-b from-[#0B0F19] via-[#0F172A] to-[#0B0F19] text-slate-400 border-r border-white/5 flex flex-col h-full">
+            <div className="h-16 flex items-center gap-2 px-4 border-b border-white/5 bg-gradient-to-r from-[#0B0F19] to-[#0F172A]">
+              <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-lg shadow-lg shadow-indigo-500/20">
                 <Terminal size={18} />
               </div>
               <div>
                 <span className="text-sm font-black text-white tracking-wider">KETOAN ERP</span>
-                <span className="text-[9px] block text-emerald-500 font-bold tracking-widest uppercase -mt-0.5">TT200</span>
+                <span className="text-[9px] block text-indigo-400 font-bold tracking-widest uppercase -mt-0.5">TT200</span>
               </div>
               <button className="ml-auto mr-1 p-2" onClick={onRequestClose} aria-label="Close menu">
                 <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +217,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
                   <div key={dept.id} className="space-y-0.5">
                     <button
                       onClick={() => toggleDept(dept.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-all duration-200"
                     >
                       <DeptIcon size={14} />
                       <span className="truncate flex-1 text-left">{dept.name}</span>
@@ -226,7 +236,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
                             >
                               {({ isActive }) => (
                                 <>
-                                  <Icon size={16} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
+                                  <Icon size={16} className={isActive ? 'text-indigo-300' : 'text-slate-600 group-hover:text-slate-300'} />
                                   <span>{mod.name}</span>
                                 </>
                               )}
@@ -240,7 +250,7 @@ export default function Sidebar({ mobileOpen, onRequestClose, isOpen = true, onT
               })}
             </div>
 
-            <div className="p-4 border-t border-slate-800 bg-slate-950 text-center text-[10px] text-slate-600 font-medium">
+            <div className="p-4 border-t border-white/5 bg-gradient-to-r from-[#0B0F19] to-[#0F172A] text-center text-[10px] text-slate-600 font-medium">
               Hệ thống lõi kế toán doanh nghiệp v1.0
             </div>
           </div>

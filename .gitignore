@@ -1,63 +1,19 @@
 ﻿# Dependencies
 node_modules/
-.pnp
-.pnp.js
+**/node_modules
 
-# Environment variables
+# Environment variables (CRITICAL: contains sensitive data)
 .env
 .env.local
 .env.*.local
-.env.production.local
 .env.production
-.env.staging
-backend/.env
-front-end/.env
-front-end/.env.production
-storefront/.env
+.env.development
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
 
-# Build outputs
-dist/
-build/
-.next/
-out/
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Testing
-coverage/
-.nyc_output/
-
-# Python
-.venv/
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-
-# Caches
-.eslintcache
-.cache/
-.parcel-cache/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.settings/
-
-# OS
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -66,46 +22,153 @@ __pycache__/
 ehthumbs.db
 Thumbs.db
 
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+out/
+
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
+# Cache
+.cache/
+.parcel-cache/
+.temp/
+.tmp/
 
-# Package manager lock files
-# NOTE: Không ignore lock files ở sub-projects (backend/, front-end/, storefront/)
-# để Railway có thể build reproducible. Chỉ ignore yarn/pnpm lock ở root.
-yarn.lock
-pnpm-lock.yaml
+# Misc
+*.pid
+*.seed
+*.pid.lock
+*.tsbuildinfo
 
-# Uploads (shared across frontend/backend)
-uploads/
-backend/uploads/
-backend/logs/
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+.env
+.venv/
+venv*/
+**/venv*/
+**/__pycache__/
+**/*.pyc
 
-# Temporary/utility files
-all_project_code.txt
-backend_test_output.txt
-backend/.stryker-tmp/
+# Docker
+.dockerignore
 
-# Platform deployment state
-.railway/
-.vercel/
-.netlify/
-.render/
-.fly/
-.heroku/
+# Documentation build
+docs/_build/
 
-# SSL / Private keys
+# Secrets and keys
 *.pem
 *.key
+*.p12
 *.pfx
+*.cer
 *.crt
-private_key*
-id_rsa
-id_rsa.pub
+secrets/
+secret/
+
+# Backup files
+*.bak
+*.backup
+*.backup.*
+*.old
+**/*.backup.*
+**/*.bak
+
+# OS generated files
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# IDE specific
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.metadata/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Stryker (mutation testing temp files)
+.stryker-tmp/
+**/.stryker-tmp/
+
+# Agent/CLI config files (not needed in repo)
+.claude/
+.github/agents/
+**/.claude/
+**/.github/agents/
+
+# Nginx config (deployment specific - should not be versioned)
+**/nginx.conf
+
+# AI training virtual environments
+ai-training/venv*/
+ai-training/venv311/
+
+# Misc generated/test files
+backend/test-all-apis.js
+backend/test-db.js
+backend/test-deepseek-connection.js
+backend/test-gemini-connection.js
+backend/check_vouchers.js
+backend/count_accounts.mjs
+backend/debug_sessions.mjs
+backend/find_company_with_data.js
+backend/generate-vapid-keys.mjs
+**/test-erp-core.js
+**/*.mjs
+
+# Package lock files (optional, uncomment if needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml

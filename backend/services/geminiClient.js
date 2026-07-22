@@ -1,22 +1,39 @@
 /**
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  * 
- * geminiClient.js - Google Gemini AI Client
- * Centralized service for all Gemini API interactions
+ * geminiClient.js - Google Gemini AI Client (with multi-key pool support)
+ * Centralized service for all Gemini API interactions with Cloudflare proxy
+ * 
+ * NEW: Uses aiApiPool for multi-threaded calls with load balancing
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AI_CONFIG } from '../config/aiConfig.js';
 import logger from '../utils/logger.js';
+import aiApiPool from './aiApiPool.service.js';
 
-// Initialize Gemini AI client
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+// DeepSeek API client (no SDK needed, use direct HTTP)
+
+
+// Initialize Gemini AI client (fallback for single-key mode)
 let genAI = null;
 
 /**
- * Initialize Gemini client with API key
+ * Initialize Gemini client with API key (fallback mode)
  */
 export function initializeGemini() {
   try {
+    // Check if using multi-key pool mode
+    const usePool = AI_CONFIG.API_POOL.GEMINI_KEYS.length > 0;
+    if (usePool) {
+      logger.info({ keysCount: AI_CONFIG.API_POOL.GEMINI_KEYS.length }, 
+        '✓ Gemini AI Pool mode enabled with multiple API keys');
+      return true;
+    }
+
+    // Fallback to single-key mode
     const apiKey = AI_CONFIG.GEMINI.API_KEY;
     
     if (!apiKey || apiKey === 'your_gemini_api_key_here') {
@@ -25,7 +42,7 @@ export function initializeGemini() {
     }
 
     genAI = new GoogleGenerativeAI(apiKey);
-    logger.info('Gemini AI client initialized successfully');
+    logger.info('✓ Gemini AI client initialized in single-key mode');
     return true;
   } catch (error) {
     logger.error({ error: error.message }, 'Failed to initialize Gemini AI');
@@ -37,11 +54,16 @@ export function initializeGemini() {
  * Check if Gemini is available
  */
 export function isGeminiAvailable() {
+  // Multi-key pool mode is available if we have keys
+  const usePool = AI_CONFIG.API_POOL.GEMINI_KEYS.length > 0;
+  if (usePool) return true;
+  
+  // Otherwise check single-key mode
   return genAI !== null;
 }
 
 /**
- * Get Gemini model instance with configuration
+ * Get Gemini model instance with configuration (single-key mode)
  */
 function getModel() {
   if (!genAI) {
@@ -88,30 +110,97 @@ async function withRetry(operation, maxAttempts = AI_CONFIG.GEMINI.RETRY_ATTEMPT
 }
 
 /**
- * Call Gemini API with timeout
+ * Call Gemini API with multi-key pool support
+ * If multiple keys configured, uses aiApiPool for load balancing
+ * Otherwise falls back to single-key mode
  */
 export async function callGemini(prompt, options = {}) {
   if (!isGeminiAvailable()) {
     throw new Error('Gemini AI not available');
   }
 
+  // Use multi-key pool if configured
+  const usePool = AI_CONFIG.API_POOL.GEMINI_KEYS.length > 0;
+  if (usePool) {
+    try {
+      const response = await aiApiPool.callGemini(
+        prompt, 
+        options.model || AI_CONFIG.GEMINI.MODEL,
+        {
+          temperature: options.temperature || AI_CONFIG.GEMINI.TEMPERATURE,
+          maxTokens: options.maxTokens || AI_CONFIG.GEMINI.MAX_TOKENS,
+          topP: options.topP,
+          topK: options.topK,
+        }
+      );
+      return response.content;
+    } catch (error) {
+      logger.error({ error: error.message }, 'Multi-key pool call failed, attempting fallback');
+      // Fall through to single-key mode if pool fails and key available
+      if (!genAI) throw error;
+    }
+  }
+
+  // Single-key fallback mode
   const timeout = options.timeout || AI_CONFIG.GEMINI.TIMEOUT;
   
   return withRetry(async () => {
     const model = getModel();
-    
+
+    const contentRequest = options.imageBase64
+      ? [
+          prompt,
+          {
+            inlineData: {
+              mimeType: options.mimeType || 'image/jpeg',
+              data: options.imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+            },
+          },
+        ]
+      : prompt;
+
     const result = await Promise.race([
-      model.generateContent(prompt),
+      model.generateContent(contentRequest),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Gemini API timeout')), timeout)
       )
     ]);
-    
+
     const response = await result.response;
     const text = response.text();
-    
+
     return text;
   });
+}
+
+/**
+ * Call DeepSeek API with multi-key pool support
+ * Uses aiApiPool for load balancing and Cloudflare proxy
+ */
+export async function callDeepSeek(prompt, options = {}) {
+  if (!isDeepSeekAvailable()) {
+    throw new Error('DeepSeek AI not available');
+  }
+
+  const response = await aiApiPool.callDeepSeek(
+    prompt,
+    options.model || AI_CONFIG.DEEPSEEK.MODEL,
+    {
+      temperature: options.temperature || AI_CONFIG.DEEPSEEK.TEMPERATURE,
+      maxTokens: options.maxTokens || AI_CONFIG.DEEPSEEK.MAX_TOKENS,
+      topP: options.topP,
+    }
+  );
+
+  return response.content;
+}
+
+/**
+ * Check if DeepSeek is available
+ */
+export function isDeepSeekAvailable() {
+  const usePool = AI_CONFIG.API_POOL.DEEPSEEK_KEYS.length > 0;
+  return usePool;
 }
 
 /**
@@ -475,6 +564,37 @@ Return the data in JSON format:
 
     const prompt = prompts[documentType] || prompts.invoice;
 
+    if (AI_CONFIG.API_POOL.GEMINI_KEYS.length > 0) {
+      const response = await callGemini(prompt, {
+        imageBase64,
+        mimeType: 'image/jpeg',
+        timeout: 60000,
+      });
+      const text = response.content;
+
+      // Try to parse JSON from response
+      try {
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : text;
+        const extractedData = JSON.parse(jsonStr);
+        
+        return {
+          success: true,
+          data: extractedData,
+          confidence: extractedData.confidence || 85,
+          model: AI_CONFIG.GEMINI.MODEL
+        };
+      } catch (parseError) {
+        logger.error({ error: parseError.message, text }, 'Failed to parse OCR JSON');
+        return {
+          success: true,
+          data: { raw_text: text },
+          confidence: 70,
+          model: AI_CONFIG.GEMINI.MODEL
+        };
+      }
+    }
+
     // Convert base64 to format Gemini expects
     const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
@@ -591,6 +711,8 @@ export default {
   initializeGemini,
   isGeminiAvailable,
   callGemini,
+  isDeepSeekAvailable,
+  callDeepSeek,
   generateSQL,
   analyzeData,
   solveMathProblem,

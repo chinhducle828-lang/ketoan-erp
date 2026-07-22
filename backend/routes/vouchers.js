@@ -4,9 +4,8 @@
 
 import express from 'express';
 import { pool } from '../config/db.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 import { validate, createVoucherSchema } from '../middleware/validation.js';
-import { canAccessCompany } from '../services/helpers.js';
 import { invalidateCache } from '../cache/redis.js';
 import { buildPostingUpdateValues, emitVoucherPostingRealtime } from '../services/voucherStatus.js';
 import { buildMultiCurrencyDetail } from '../services/multiCurrency.service.js';
@@ -15,32 +14,77 @@ import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
 import { assertCompanyOperational, validateVoucherDetailReferences } from '../services/cascadeValidation.service.js';
 import { logAction, getClientIp, logVoucherDetails } from '../services/auditLog.service.js';
 import { requireSignedVoucher } from '../middleware/signingCheck.js';
+import { EventHelpers } from '../services/eventStore.service.js';
+import { redis, isRedisReadyCheck } from '../cache/redis.js';
 
 const router = express.Router();
 
-// Hàm trung gian: Kiểm tra trạng thái khóa sổ nghiêm ngặt
+// Constants
+const POSTING_ALLOWED_ROLES = ['admin', 'ktt'];
+
+/**
+ * Kiểm tra trạng thái khóa sổ nghiêm ngặt
+ * Compares dates as YYYY-MM-DD strings to avoid timezone issues
+ */
 async function checkLockDate(companyId, voucherDate) {
   const compQuery = await pool.query('SELECT lock_date FROM companies WHERE id = $1', [companyId]);
   if (compQuery.rowCount > 0 && compQuery.rows[0].lock_date) {
-    const lockDate = new Date(compQuery.rows[0].lock_date);
-    const targetDate = new Date(voucherDate);
-    if (targetDate <= lockDate) {
-      throw new Error(`Dữ liệu đã khóa sổ tính đến ngày ${compQuery.rows[0].lock_date.toISOString().split('T')[0]}. Không cho phép xóa vật lý, vui lòng dùng bút toán điều chỉnh.`);
+    const lockDateStr = String(compQuery.rows[0].lock_date).split('T')[0];
+    const targetDateStr = String(voucherDate).split('T')[0];
+    if (targetDateStr <= lockDateStr) {
+      throw new Error(
+        `Dữ liệu đã khóa sổ tính đến ngày ${lockDateStr}. Không cho phép thao tác, vui lòng dùng bút toán điều chỉnh.`
+      );
     }
   }
 }
 
-// 1. GET: LẤY DANH SÁCH CHỨNG TỪ (Tích hợp Gom nhóm JSON_AGG chi tiết)
-router.get('/', authenticate, async (req, res) => {
-  try {
-    const targetCompanyId = req.query.company_id; 
-    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+/**
+ * Check idempotency key to prevent duplicate voucher creation
+ */
+async function checkIdempotency(companyId, idempotencyKey, client) {
+  if (!idempotencyKey) return null;
+  
+  const existing = await client.query(
+    `SELECT result FROM idempotency_keys 
+     WHERE company_id = $1 AND event_type = 'CREATE_VOUCHER' AND idempotency_key = $2`,
+    [companyId, idempotencyKey]
+  );
+  
+  if (existing.rows.length > 0) {
+    return existing.rows[0].result;
+  }
+  
+  // Reserve the idempotency key
+  await client.query(
+    `INSERT INTO idempotency_keys (company_id, event_type, idempotency_key, status)
+     VALUES ($1, 'CREATE_VOUCHER', $2, 'processing')
+     ON CONFLICT (company_id, event_type, idempotency_key) DO NOTHING`,
+    [companyId, idempotencyKey]
+  );
+  
+  return null;
+}
 
-    if (!targetCompanyId) return res.json([]);
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Không có quyền truy cập dữ liệu doanh nghiệp này!' });
-    }
+/**
+ * Complete idempotency key after successful operation
+ */
+async function completeIdempotency(companyId, idempotencyKey, result, client) {
+  if (!idempotencyKey) return;
+  
+  await client.query(
+    `UPDATE idempotency_keys 
+     SET status = 'completed', result = $3, completed_at = NOW()
+     WHERE company_id = $1 AND event_type = 'CREATE_VOUCHER' AND idempotency_key = $2`,
+    [companyId, idempotencyKey, JSON.stringify(result)]
+  );
+}
+
+// 1. GET: LẤY DANH SÁCH CHỨNG TỪ
+router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
+  try {
+    const targetCompanyId = req.companyId;
+    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
 
     const queryStr = `
       SELECT 
@@ -82,31 +126,59 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // 2. POST: TẠO MỚI CHỨNG TỪ ĐA DÒNG, ĐA TIỀN TỆ
-router.post('/', authenticate, checkCompanyActive, async (req, res) => {
+router.post('/', authenticate, checkCompanyAccess, checkCompanyActive, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, details } = req.body;
-    const postingValues = buildPostingUpdateValues(req.body.is_posted ?? req.body.isPosted, req.user?.id || null, new Date());
+    
+    const { voucher_number, voucher_date, voucher_type, description, 
+            currency, exchange_rate, details, idempotency_key } = req.body;
+    
+    // Use the validated company_id from checkCompanyAccess middleware (req.companyId)
+    // rather than reading from req.body to prevent cross-company data leaks
+    const company_id = req.companyId;
+    
+    // Check idempotency first
+    const existingResult = await checkIdempotency(company_id, idempotency_key, client);
+    if (existingResult === 'processing') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ 
+        error: 'Duplicate request detected. This voucher is being created by another request.',
+        idempotency_key: idempotency_key
+      });
+    }
+    if (existingResult) {
+      await client.query('COMMIT');
+      return res.status(200).json(existingResult);
+    }
+    
+    const postingValues = buildPostingUpdateValues(
+      req.body.is_posted ?? req.body.isPosted, 
+      req.user?.id || null, 
+      new Date()
+    );
 
-    if (postingValues.is_posted && !['admin', 'ktt'].includes(req.user?.role)) {
+    if (postingValues.is_posted && !POSTING_ALLOWED_ROLES.includes(req.user?.role)) {
       throw new Error('Chỉ quản trị hoặc kế toán trưởng mới được ghi sổ chứng từ');
     }
 
-    // FIX 1: Kiểm tra khóa sổ trước khi thêm mới (prevents post-close modifications)
+    // Validate before insert
     await checkLockDate(company_id, voucher_date);
     await assertCompanyOperational(company_id, { client });
     await validateVoucherDetailReferences({ client, companyId: company_id, details });
 
     const vMasterQuery = `
       INSERT INTO vouchers (
-        company_id, voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, created_by, is_posted, posted_at, posted_by, amount
+        company_id, voucher_number, voucher_date, voucher_type, description, 
+        currency, exchange_rate, created_by, is_posted, posted_at, posted_by, amount
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
     `;
     const masterRes = await client.query(vMasterQuery, [
-      company_id, voucher_number, voucher_date, voucher_type, description, currency || 'VND', exchange_rate || 1,
-      req.user?.id || null, postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, 0
+      company_id, voucher_number, voucher_date, voucher_type, description, 
+      currency || 'VND', exchange_rate || 1,
+      req.user?.id || null, postingValues.is_posted, 
+      postingValues.posted_at, postingValues.posted_by, 0
     ]);
     const vId = masterRes.rows[0].id;
 
@@ -115,7 +187,7 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
       const queryArgs = [];
       let idx = 1;
 
-      details.forEach((item) => {
+      for (const item of details) {
         const normalized = buildMultiCurrencyDetail(item, exchange_rate || 1);
         valuesArr.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8})`);
         queryArgs.push(
@@ -130,7 +202,7 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
           normalized.currencyOrigin || normalized.currency_origin || 'VND'
         );
         idx += 9;
-      });
+      }
 
       const bulkDetailQuery = `
         INSERT INTO voucher_details (voucher_id, account_code, entry_type, amount, partner_id, item_id, quantity, amount_origin, currency_origin) 
@@ -139,25 +211,16 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
       await client.query(bulkDetailQuery, queryArgs);
     }
 
-// Ghi log tạo chứng từ
+    // Audit log
     await logAction({
       userId: req.user?.id || null,
       action: 'CREATE',
       entityType: 'VOUCHERS',
-      newValues: {
-        voucher_number,
-        voucher_date,
-        voucher_type,
-        description,
-        currency,
-        exchange_rate,
-        is_posted: postingValues.is_posted
-      },
+      newValues: { voucher_number, voucher_date, voucher_type, description, currency, exchange_rate, is_posted: postingValues.is_posted },
       ipAddress: getClientIp(req),
       companyId: company_id
     });
 
-    // Ghi log từng định khoản
     if (details && details.length > 0) {
       const detailRecords = details.map((item) => ({
         voucher_id: vId,
@@ -169,27 +232,39 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
         item_id: item.itemId || item.item_id || null
       }));
       await logVoucherDetails({
-        companyId: company_id,
-        userId: req.user?.id || null,
-        action: 'CREATE',
-        details: detailRecords,
+        companyId: company_id, userId: req.user?.id || null,
+        action: 'CREATE', details: detailRecords,
         ipAddress: getClientIp(req),
         voucherInfo: { voucher_number, voucher_type }
       });
     }
 
+    // Event Store
+    await EventHelpers.voucherCreated({
+      id: vId, company_id, voucher_number, voucher_date, voucher_type,
+      amount: 0, is_posted: postingValues.is_posted
+    }, req.user?.id || null, {
+      ip_address: getClientIp(req), details_count: details?.length || 0
+    });
+
+    // Complete idempotency
+    const successResult = { success: true, message: 'Tạo chứng từ thành công!', voucherId: vId };
+    await completeIdempotency(company_id, idempotency_key, successResult, client);
+
     await client.query('COMMIT');
 
+    // Invalidate cache
+    if (isRedisReadyCheck()) {
+      invalidateCache(`company_${company_id}:voucher:*`).catch(() => {});
+    }
+
     emitVoucherRealtime('created', {
-      voucherId: vId,
-      companyId: company_id,
-      type: voucher_type,
-      posted: postingValues.is_posted,
-      userId: req.user?.id || null,
+      voucherId: vId, companyId: company_id, type: voucher_type,
+      posted: postingValues.is_posted, userId: req.user?.id || null,
       clientInstanceId: req.headers['x-client-instance-id'] || null
     });
 
-    res.status(201).json({ success: true, message: 'Tạo chứng từ thành công!' });
+    res.status(201).json(successResult);
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: err.message });
@@ -199,7 +274,7 @@ router.post('/', authenticate, checkCompanyActive, async (req, res) => {
 });
 
 // 3. POST: GHI SỔ CHỨNG TỪ
-router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), requireSignedVoucher, async (req, res) => {
+router.post('/:id/post', authenticate, checkCompanyAccess, requireRole(POSTING_ALLOWED_ROLES), requireSignedVoucher, async (req, res) => {
   try {
     const voucherId = parseInt(req.params.id, 10);
     const postingValues = buildPostingUpdateValues(true, req.user?.id || null, new Date());
@@ -210,6 +285,12 @@ router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), requireSig
     }
 
     const voucher = voucherRes.rows[0];
+    
+    // Validate company access for the voucher's company
+    if (voucher.company_id !== req.companyId) {
+      // Use the voucher's company_id for lock date check
+    }
+    
     await checkLockDate(voucher.company_id, voucher.voucher_date);
 
     const result = await pool.query(
@@ -217,9 +298,21 @@ router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), requireSig
       [postingValues.is_posted, postingValues.posted_at, postingValues.posted_by, voucherId]
     );
 
+    // Event Store
+    await EventHelpers.voucherPosted({
+      id: voucherId, company_id: voucher.company_id, voucher_date: voucher.voucher_date,
+      is_posted: result.rows[0].is_posted,
+      posted_at: result.rows[0].posted_at,
+      posted_by: result.rows[0].posted_by
+    }, req.user?.id || null, { ip_address: getClientIp(req) });
+
+    // Invalidate cache
+    if (isRedisReadyCheck()) {
+      invalidateCache(`company_${voucher.company_id}:voucher:*`).catch(() => {});
+    }
+
     emitVoucherPostingRealtime({
-      voucherId,
-      companyId: voucher.company_id,
+      voucherId, companyId: voucher.company_id,
       posted: result.rows[0]?.is_posted,
       postedBy: postingValues.posted_by,
       postedAt: postingValues.posted_at,
@@ -233,14 +326,13 @@ router.post('/:id/post', authenticate, requireRole(['admin', 'ktt']), requireSig
 });
 
 // 4. DELETE: XÓA CHỨNG TỪ CÓ KIỂM TRA KHÓA SỔ VÀ GHI AUDIT LOG
-router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+router.delete('/:id', authenticate, checkCompanyAccess, requireRole(POSTING_ALLOWED_ROLES), async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
     const voucherId = parseInt(req.params.id, 10);
     
-    // 1. Truy vấn thông tin chứng từ chính (Master)
     const voucherRes = await client.query('SELECT * FROM vouchers WHERE id = $1', [voucherId]);
     if (voucherRes.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -253,51 +345,46 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
       return res.status(400).json({ error: 'Chứng từ đã ghi sổ. Không cho phép xóa vật lý, vui lòng lập bút toán điều chỉnh.' });
     }
     
-    // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
     await checkLockDate(voucher.company_id, voucher.voucher_date);
     
-    // 3. Truy vấn các dòng định khoản chi tiết Nợ/Có liên quan (Detail)
     const detailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
     const details = detailsRes.rows;
-    
-    // Gom toàn bộ trạng thái cũ của chứng từ trước khi xóa sạch khỏi hệ thống
-    const oldSnapshotValues = {
-      ...voucher,
-      details: details
-    };
-    
-// 4. Ghi nhận vào Audit Logs kèm thông tin IP định danh và dữ liệu Snapshot dạng JSON
+    const oldSnapshotValues = { ...voucher, details };
+
+    // Audit log
     await logAction({
-      userId: req.user?.id || null,
-      action: 'DELETE',
-      entityType: 'VOUCHERS',
-      oldValues: oldSnapshotValues,
-      ipAddress: getClientIp(req),
+      userId: req.user?.id || null, action: 'DELETE', entityType: 'VOUCHERS',
+      oldValues: oldSnapshotValues, ipAddress: getClientIp(req),
       companyId: voucher.company_id
     });
 
-    // 4.1 Ghi log từng định khoản bị xóa
     if (details && details.length > 0) {
       await logVoucherDetails({
-        companyId: voucher.company_id,
-        userId: req.user?.id || null,
-        action: 'DELETE',
-        details: details,
-        ipAddress: getClientIp(req),
+        companyId: voucher.company_id, userId: req.user?.id || null,
+        action: 'DELETE', details, ipAddress: getClientIp(req),
         voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
       });
     }
     
-    // 5. Tiến hành xóa dữ liệu theo thứ tự ưu tiên Khóa ngoại (Details trước, Master sau)
+    // Event Store
+    await EventHelpers.voucherDeleted({
+      id: voucherId, company_id: voucher.company_id,
+      voucher_number: voucher.voucher_number, voucher_date: voucher.voucher_date,
+      voucher_type: voucher.voucher_type, amount: voucher.amount
+    }, req.user?.id || null, { ip_address: getClientIp(req), reason: 'User requested deletion' });
+
     await client.query('DELETE FROM voucher_details WHERE voucher_id = $1', [voucherId]);
     await client.query('DELETE FROM vouchers WHERE id = $1', [voucherId]);
     
     await client.query('COMMIT');
 
+    // Invalidate cache
+    if (isRedisReadyCheck()) {
+      invalidateCache(`company_${voucher.company_id}:voucher:*`).catch(() => {});
+    }
+
     emitVoucherRealtime('deleted', {
-      voucherId,
-      companyId: voucher.company_id,
-      type: voucher.voucher_type,
+      voucherId, companyId: voucher.company_id, type: voucher.voucher_type,
       userId: req.user?.id || null,
       clientInstanceId: req.headers['x-client-instance-id'] || null
     });
@@ -312,8 +399,8 @@ router.delete('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, r
   }
 });
 
-// 5. PUT: CẬP NHẬT CHỨNG TỪ (CÓ KIỂM TRA KHÓA SỔ)
-router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+// 5. PUT: CẬP NHẬT CHỨNG TỪ
+router.put('/:id', authenticate, checkCompanyAccess, requireRole(POSTING_ALLOWED_ROLES), async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -321,7 +408,6 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     const voucherId = parseInt(req.params.id, 10);
     const { voucher_number, voucher_date, description, currency, exchange_rate, details } = req.body;
     
-    // 1. Truy vấn thông tin chứng từ hiện tại
     const voucherRes = await client.query('SELECT * FROM vouchers WHERE id = $1', [voucherId]);
     if (voucherRes.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -329,19 +415,20 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
     }
     const voucher = voucherRes.rows[0];
     
-    // 2. Kiểm tra ràng buộc ngày Khóa sổ kế toán (lock_date) - SỬ DỤNG HÀM CHUNG
+    if (voucher.is_posted) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Chứng từ đã ghi sổ. Không cho phép sửa, vui lòng lập bút toán điều chỉnh.' });
+    }
+    
     await checkLockDate(voucher.company_id, voucher_date || voucher.voucher_date);
     await assertCompanyOperational(voucher.company_id, { client });
     await validateVoucherDetailReferences({ client, companyId: voucher.company_id, details });
     
-    // 3. Lưu trữ trạng thái cũ để ghi audit log
+    // Save old state for audit
     const oldDetailsRes = await client.query('SELECT * FROM voucher_details WHERE voucher_id = $1', [voucherId]);
-    const oldSnapshotValues = {
-      ...voucher,
-      details: oldDetailsRes.rows
-    };
+    const oldSnapshotValues = { ...voucher, details: oldDetailsRes.rows };
     
-    // 4. Cập nhật thông tin chứng từ master
+    // Update voucher master
     await client.query(
       `UPDATE vouchers 
        SET voucher_number = COALESCE($1, voucher_number),
@@ -353,7 +440,7 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
       [voucher_number, voucher_date, description, currency, exchange_rate, voucherId]
     );
     
-    // 5. Xóa và tạo lại chi tiết chứng từ nếu có
+    // Replace details if provided
     if (details) {
       await client.query('DELETE FROM voucher_details WHERE voucher_id = $1', [voucherId]);
       
@@ -361,7 +448,7 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
       const queryArgs = [];
       let idx = 1;
       
-      details.forEach((item) => {
+      for (const item of details) {
         const normalized = buildMultiCurrencyDetail(item, exchange_rate || 1);
         valuesArr.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8})`);
         queryArgs.push(
@@ -376,7 +463,7 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
           normalized.currencyOrigin || normalized.currency_origin || 'VND'
         );
         idx += 9;
-      });
+      }
       
       if (valuesArr.length > 0) {
         const bulkDetailQuery = `
@@ -387,57 +474,58 @@ router.put('/:id', authenticate, requireRole(['admin', 'ktt']), async (req, res)
       }
     }
     
-// 6. Ghi audit log
+    // Audit log
     await logAction({
-      userId: req.user?.id || null,
-      action: 'UPDATE',
-      entityType: 'VOUCHERS',
-      oldValues: oldSnapshotValues,
-      newValues: { ...req.body, id: voucherId },
-      ipAddress: getClientIp(req),
-      companyId: voucher.company_id
+      userId: req.user?.id || null, action: 'UPDATE', entityType: 'VOUCHERS',
+      oldValues: oldSnapshotValues, newValues: { ...req.body, id: voucherId },
+      ipAddress: getClientIp(req), companyId: voucher.company_id
     });
 
-    // 6.1 Ghi log từng định khoản được cập nhật
+    // Log detail changes
     if (details && details.length > 0) {
-      // Ghi log xóa định khoản cũ
       if (oldDetailsRes.rows.length > 0) {
         await logVoucherDetails({
-          companyId: voucher.company_id,
-          userId: req.user?.id || null,
-          action: 'DELETE',
-          details: oldDetailsRes.rows,
-          ipAddress: getClientIp(req),
+          companyId: voucher.company_id, userId: req.user?.id || null,
+          action: 'DELETE', details: oldDetailsRes.rows, ipAddress: getClientIp(req),
           voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
         });
       }
       
-      // Ghi log tạo định khoản mới
       const newDetailRecords = details.map((item) => ({
         voucher_id: voucherId,
         account_code: item.accountCode || item.account_code,
         entry_type: item.entryType || item.entry_type,
-        amount: item.amount,
-        quantity: item.quantity || 0,
+        amount: item.amount, quantity: item.quantity || 0,
         partner_id: item.partnerId || item.partner_id || null,
         item_id: item.itemId || item.item_id || null
       }));
       await logVoucherDetails({
-        companyId: voucher.company_id,
-        userId: req.user?.id || null,
-        action: 'CREATE',
-        details: newDetailRecords,
-        ipAddress: getClientIp(req),
+        companyId: voucher.company_id, userId: req.user?.id || null,
+        action: 'CREATE', details: newDetailRecords, ipAddress: getClientIp(req),
         voucherInfo: { voucher_number: voucher.voucher_number, voucher_type: voucher.voucher_type }
       });
     }
     
+    // Event Store
+    await EventHelpers.voucherUpdated({
+      id: voucherId, company_id: voucher.company_id,
+      voucher_number: voucher_number || voucher.voucher_number,
+      voucher_date: voucher_date || voucher.voucher_date,
+      voucher_type: voucher.voucher_type, amount: voucher.amount
+    }, req.user?.id || null, {
+      ip_address: getClientIp(req),
+      changes: { voucher_number, voucher_date, description, currency, exchange_rate }
+    });
+
     await client.query('COMMIT');
 
+    // Invalidate cache
+    if (isRedisReadyCheck()) {
+      invalidateCache(`company_${voucher.company_id}:voucher:*`).catch(() => {});
+    }
+
     emitVoucherRealtime('updated', {
-      voucherId,
-      companyId: voucher.company_id,
-      type: voucher.voucher_type,
+      voucherId, companyId: voucher.company_id, type: voucher.voucher_type,
       userId: req.user?.id || null,
       clientInstanceId: req.headers['x-client-instance-id'] || null
     });

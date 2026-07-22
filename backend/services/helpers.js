@@ -24,15 +24,39 @@ export const normalizeCompanyIds = (value) => {
 
 export const syncUserCompanyLinks = async (userId, companyIds) => {
   const normalized = normalizeCompanyIds(companyIds);
-  await pool.query('DELETE FROM user_companies WHERE user_id = $1', [userId]);
+  
+  // Use a transaction for atomicity - prevents partial updates
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    await client.query('DELETE FROM user_companies WHERE user_id = $1', [userId]);
 
-  if (normalized.length > 0) {
-    for (const companyId of normalized) {
-      await pool.query(
-        'INSERT INTO user_companies (user_id, company_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [userId, companyId]
+    if (normalized.length > 0) {
+      // Batch insert for efficiency
+      const values = [];
+      const params = [];
+      let idx = 1;
+      
+      for (const companyId of normalized) {
+        values.push(`($${idx}, $${idx + 1})`);
+        params.push(userId, companyId);
+        idx += 2;
+      }
+      
+      await client.query(
+        `INSERT INTO user_companies (user_id, company_id) VALUES ${values.join(', ')} ON CONFLICT DO NOTHING`,
+        params
       );
     }
+    
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Lỗi đồng bộ user_companies:', error.message);
+    throw error; // Re-throw so caller knows the operation failed
+  } finally {
+    client.release();
   }
 
   return normalized;
@@ -83,9 +107,14 @@ export const cookieOptions = {
   httpOnly: true,
   // Khi chạy local (development) thì false, khi lên Railway (production) bắt buộc phải true vì chạy HTTPS
   secure: process.env.NODE_ENV === 'production', 
-  // 🔴 SỬA TẠI ĐÂY: Lên production bắt buộc là 'none' để trình duyệt cho phép truyền nhận cookie giữa Frontend và Backend khác Domain
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
-  maxAge: (Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30) * 24 * 60 * 60 * 1000 // Hạn dùng đồng bộ theo file .env
+  // 🔴 SỬA TẠI ĐÂY: 
+  // - Production: 'none' để cross-domain (Railway subdomains) hoạt động
+  // - Development: 'lax' vì localhost không cần cross-site cookies (tất cả đều là same-site)
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  maxAge: (Number(process.env.REFRESH_TOKEN_EXPIRE_DAYS) || 30) * 24 * 60 * 60 * 1000, // Hạn dùng đồng bộ theo file .env
+  // Set domain to allow cookies across Railway subdomains (production only)
+  // Development: undefined (browser default) - works fine for localhost
+  domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
 };
 
 // 2. Hàm bóc tách cookie từ chuỗi raw string của Header request

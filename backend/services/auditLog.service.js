@@ -13,13 +13,30 @@ import { pool } from '../config/db.js';
  * @param {Object|null} params.oldValues - Dữ liệu trước khi thay đổi
  * @param {Object|null} params.newValues - Dữ liệu sau khi thay đổi
  * @param {string} params.ipAddress - Địa chỉ IP thực hiện
- * @param {number|null} params.companyId - ID doanh nghiệp (tùy chọn)
+ * @param {number} params.companyId - ID doanh nghiệp (BẮT BUỘC - không được null)
  */
-export async function logAction({ userId, action, entityType, oldValues = null, newValues = null, ipAddress, companyId = null }) {
+export async function logAction({ userId, action, entityType, oldValues = null, newValues = null, ipAddress, companyId }) {
   try {
     // Lấy IP từ request nếu không truyền vào
     const clientIp = ipAddress || 'unknown';
     
+    // Phân cấp actions: Tenant-scoped (bắt buộc có company_id) vs Global-scoped (cho phép null)
+    const tenantScopedActions = [
+      'CREATE', 'UPDATE', 'DELETE', 
+      'EXPORT', 'IMPORT', 'PRINT', 
+      'VOUCHER_POST', 'VOUCHER_REVERSE',
+      'APPROVE', 'REJECT', 'SUBMIT'
+    ];
+
+    const actionUpper = action ? action.toUpperCase() : '';
+    
+    // Chỉ bắt buộc company_id với các hành động nghiệp vụ của tenant
+    if (tenantScopedActions.includes(actionUpper) && !companyId) {
+      throw new Error(
+        `[Security Block] Hành động nhạy cảm '${action}' trên thực thể '${entityType || 'N/A'}' bắt buộc phải có 'company_id' để phân lập dữ liệu!`
+      );
+    }
+
     await pool.query(
       `INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address, company_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -30,7 +47,7 @@ export async function logAction({ userId, action, entityType, oldValues = null, 
         oldValues ? JSON.stringify(oldValues) : null,
         newValues ? JSON.stringify(newValues) : null,
         clientIp,
-        companyId || null
+        companyId
       ]
     );
   } catch (error) {
@@ -90,38 +107,55 @@ export function getClientIp(req) {
 export async function logVoucherDetails({ companyId, userId, action, details, ipAddress, voucherInfo }) {
   if (!details || !Array.isArray(details) || details.length === 0) return;
   
+  // Batch INSERT to avoid N+1 queries
   try {
+    const values = [];
+    const params = [];
+    let idx = 1;
+
     for (const detail of details) {
-      await logAction({
-        userId,
+      const now = new Date().toISOString();
+      const isDelete = action === 'DELETE';
+      const serializedOldValues = isDelete ? JSON.stringify({
+        voucher_id: detail.voucher_id,
+        voucher_number: voucherInfo?.voucher_number,
+        voucher_type: voucherInfo?.voucher_type,
+        account_code: detail.account_code,
+        entry_type: detail.entry_type,
+        amount: detail.amount,
+        quantity: detail.quantity,
+        partner_id: detail.partner_id,
+        item_id: detail.item_id
+      }) : null;
+      const serializedNewValues = !isDelete ? JSON.stringify({
+        voucher_id: detail.voucher_id,
+        voucher_number: voucherInfo?.voucher_number,
+        voucher_type: voucherInfo?.voucher_type,
+        account_code: detail.account_code,
+        entry_type: detail.entry_type,
+        amount: detail.amount,
+        quantity: detail.quantity,
+        partner_id: detail.partner_id,
+        item_id: detail.item_id
+      }) : null;
+
+      values.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6})`);
+      params.push(
+        userId || null,
         action,
-        entityType: 'VOUCHER_DETAILS',
-        newValues: action === 'DELETE' ? null : {
-          voucher_id: detail.voucher_id,
-          voucher_number: voucherInfo?.voucher_number,
-          voucher_type: voucherInfo?.voucher_type,
-          account_code: detail.account_code,
-          entry_type: detail.entry_type,
-          amount: detail.amount,
-          quantity: detail.quantity,
-          partner_id: detail.partner_id,
-          item_id: detail.item_id
-        },
-        oldValues: action === 'DELETE' ? {
-          voucher_id: detail.voucher_id,
-          voucher_number: voucherInfo?.voucher_number,
-          voucher_type: voucherInfo?.voucher_type,
-          account_code: detail.account_code,
-          entry_type: detail.entry_type,
-          amount: detail.amount,
-          quantity: detail.quantity,
-          partner_id: detail.partner_id,
-          item_id: detail.item_id
-        } : null,
+        'VOUCHER_DETAILS',
+        serializedOldValues,
+        serializedNewValues,
         ipAddress,
         companyId
-      });
+      );
+      idx += 7;
     }
+
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, entity_type, old_values, new_values, ip_address, company_id)
+      VALUES ${values.join(', ')}
+    `, params);
   } catch (error) {
     console.error('Lỗi ghi voucher details log:', error.message);
   }

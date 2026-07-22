@@ -11,6 +11,9 @@ import { Queue, Worker } from 'bullmq';
 import { redis } from '../cache/redis.js';
 import { getOrderIngestionRules } from '../config/businessRules.js';
 
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+
 // Tạo queue cho các tác vụ nặng
 const fifoQueue = new Queue('fifo-calculation', {
   connection: redis,

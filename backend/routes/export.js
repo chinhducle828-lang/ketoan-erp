@@ -5,8 +5,7 @@
 import express from 'express';
 import ExcelJS from 'exceljs';
 import { pool } from '../config/db.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -27,11 +26,10 @@ const addRows = (ws, rows) => {
 };
 
 // 1. Xuất Sổ Nhật ký chung (Bản Master-Detail đa dòng)
-router.get('/vouchers', authenticate, async (req, res) => {
+router.get('/vouchers', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id, year } = req.query;
-    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
-    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+    const company_id = req.companyId;
+    const year = req.query.year;
 
     const result = await pool.query(
       `SELECT 
@@ -77,11 +75,10 @@ router.get('/vouchers', authenticate, async (req, res) => {
 });
 
 // 2. Xuất Sổ Quỹ tiền mặt
-router.get('/cashbook', authenticate, async (req, res) => {
+router.get('/cashbook', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id, year } = req.query;
-    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
-    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+    const company_id = req.companyId;
+    const year = req.query.year;
 
     const result = await pool.query(
       `SELECT 
@@ -120,11 +117,9 @@ router.get('/cashbook', authenticate, async (req, res) => {
 });
 
 // 3. Xuất Danh mục vật tư (Giữ nguyên)
-router.get('/items', authenticate, async (req, res) => {
+router.get('/items', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id } = req.query;
-    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
-    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+    const company_id = req.companyId;
 
     const result = await pool.query('SELECT code, name, unit FROM items WHERE company_id = $1 ORDER BY code', [company_id]);
 
@@ -146,11 +141,10 @@ router.get('/items', authenticate, async (req, res) => {
 });
 
 // 4. Xuất Số dư đầu kỳ (Giữ nguyên)
-router.get('/opening-balances', authenticate, async (req, res) => {
+router.get('/opening-balances', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id, year } = req.query;
-    if (!company_id) return res.status(400).json({ error: 'Thiếu company_id' });
-    if (req.user.role !== 'admin' && !(await canAccessCompany(req.user, company_id))) return res.status(403).json({ error: 'Không có quyền!' });
+    const company_id = req.companyId;
+    const year = req.query.year;
 
     const result = await pool.query(
       'SELECT account_code, debit_balance, credit_balance FROM opening_balances WHERE company_id = $1 AND fiscal_year = $2 ORDER BY account_code',

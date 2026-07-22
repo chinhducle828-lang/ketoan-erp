@@ -8,8 +8,11 @@
 import { pool } from '../config/db.js';
 import { AppError, ErrorCodes } from '../utils/AppError.js';
 import logger from '../utils/logger.js';
-import { callGemini } from './geminiClient.js';
+import { callAI } from './aiAdapter.service.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
+
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
 
 /**
  * Classify department based on content
@@ -64,12 +67,19 @@ Return JSON format:
 }`;
 
     // 3. Call Gemini AI
-    const response = await callGemini(prompt, { timeout: 15000 });
+    const response = await callAI({
+      prompt,
+      provider: 'gemini',
+      temperature: AI_CONFIG.GEMINI.TEMPERATURE,
+      maxTokens: AI_CONFIG.GEMINI.MAX_TOKENS,
+      context: { timeout: 15000 },
+    });
 
-    // 4. Parse JSON from response
+    // 4. Parse JSON from response content
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      const classification = JSON.parse(jsonMatch ? jsonMatch[0] : response);
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const classification = JSON.parse(jsonMatch ? jsonMatch[0] : text);
 
       // 5. Validate classification exists in database
       const validDepartment = departments.find(d => d.department_code === classification.department);

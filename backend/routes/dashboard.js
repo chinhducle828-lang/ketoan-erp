@@ -4,22 +4,15 @@
 
 import express from 'express';
 import { pool } from '../config/db.js';
-import { authenticate } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { authenticate, checkCompanyAccess } from '../middleware/auth.js';
 import { cacheMiddleware } from '../cache/redis.js';
 
 const router = express.Router();
 
-router.get('/cashflow', authenticate, cacheMiddleware('dashboard:cashflow', 300), async (req, res) => {
+router.get('/cashflow', authenticate, checkCompanyAccess, cacheMiddleware('dashboard:cashflow', 300), async (req, res) => {
   try {
-    const targetCompanyId = req.query.company_id;
+    const targetCompanyId = req.companyId;
     const year = req.query.year ? Number(req.query.year) : 2026;
-
-    if (!targetCompanyId) return res.json([]);
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Không có quyền truy cập!' });
-    }
 
     // 1. Thống kê thu/chi theo tháng chuẩn xác (Thu: phát sinh Nợ 111/112 | Chi: phát sinh Có 111/112)
     const monthlyQuery = `

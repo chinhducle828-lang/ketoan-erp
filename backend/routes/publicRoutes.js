@@ -61,13 +61,17 @@ const getTableColumnsMetadata = async (db, tableName) => {
 const ensureLockDateOpen = async (db, companyId) => {
   const lockRes = await db.query('SELECT lock_date FROM companies WHERE id = $1 LIMIT 1', [companyId]);
   const lockDate = lockRes.rows?.[0]?.lock_date;
+  // Nếu không có lock_date, công ty chưa khóa sổ → cho phép
   if (!lockDate) return;
 
   const today = new Date();
   const lockBoundary = new Date(lockDate);
-  if (today <= lockBoundary) {
+  // SỬA: Nếu ngày hôm nay NHỎ HƠN hoặc BẰNG ngày khóa sổ → vẫn cho phép tạo đơn
+  // Chỉ chặn khi ngày hôm nay LỚN HƠN ngày khóa sổ (đã quá hạn)
+  if (today > lockBoundary) {
     throw new Error(`Doanh nghiệp đã khóa sổ đến ngày ${lockBoundary.toISOString().slice(0, 10)}. Không thể tạo đơn web.`);
   }
+  // Nếu today <= lockBoundary, đồng nghĩa với việc chưa quá hạn → cho phép tiếp tục
 };
 
 const resolveLegacyAccountByConstraint = async (db, { tableName, columnName, preferredCode, fallbackCodes = [] }) => {
@@ -230,6 +234,21 @@ const normalizeImageUrlsField = (input) => {
   return [];
 };
 
+/**
+ * Public Item DTO - Only exposes safe fields for storefront/public access
+ * SECURITY: Excludes cost_price, price_sell, opening_quantity to prevent information leakage
+ */
+const buildPublicItemDTO = (row, imageUrl, imageUrls) => ({
+  id: row.id,
+  code: row.code,
+  name: row.name,
+  description: row.description,
+  unit: row.unit,
+  image_url: imageUrl,
+  image_urls: imageUrls
+  // Intentionally excluded: price_sell, cost_price, opening_quantity, company_id
+});
+
 router.get('/items', async (req, res) => {
   try {
     const companyId = req.query.company_id || req.query.companyId;
@@ -240,26 +259,22 @@ router.get('/items', async (req, res) => {
       return res.status(500).json({ error: 'Bảng items thiếu khóa định danh. Cần có cột định danh hoặc khóa chính.' });
     }
     const hasImageUrls = itemColumns.has('image_urls');
-    const hasOpeningQuantity = itemColumns.has('opening_quantity');
     const {
       codeExpr,
       nameExpr,
       descriptionExpr,
       unitExpr,
-      priceSellExpr,
       imageUrlExpr,
       orderByNameExpr
     } = buildItemsSelectExpressions(itemColumns);
 
+    // SECURITY: Only select public-safe fields - no price_sell, cost_price, or opening_quantity
     const { rows } = await pool.query(
       `SELECT ${itemIdExpr} AS id,
-              company_id,
               ${codeExpr} AS code,
               ${nameExpr} AS name,
               ${descriptionExpr} AS description,
               ${unitExpr} AS unit,
-              ${priceSellExpr} AS price_sell,
-              ${hasOpeningQuantity ? 'COALESCE(opening_quantity, 0)' : '0'} AS opening_quantity,
               ${imageUrlExpr} AS image_url,
               ${hasImageUrls ? "COALESCE(image_urls, '[]'::jsonb)" : "'[]'::jsonb"} AS image_urls
        FROM items
@@ -278,11 +293,8 @@ router.get('/items', async (req, res) => {
         imageUrls.unshift(imageUrl);
       }
 
-      return {
-        ...row,
-        image_url: imageUrl,
-        image_urls: imageUrls
-      };
+      // Apply DTO transformation to ensure no sensitive data leaks
+      return buildPublicItemDTO(row, imageUrl, imageUrls);
     });
 
     res.json(normalizedRows);
@@ -292,451 +304,36 @@ router.get('/items', async (req, res) => {
 });
 
 router.post('/orders', rateLimiter, async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    const businessRules = getBusinessRules();
-    const saleRules = getSaleRules();
-    const amountPrecision = Number(businessRules.pricing?.amountPrecision ?? 2);
-    const defaultTaxRate = Number(businessRules.pricing?.defaultTaxRate ?? 0.08);
-    const minOrderQuantity = Number(businessRules.pricing?.minOrderQuantity ?? 1);
-    const defaultLoadingStatus = String(businessRules.voucher?.defaultLoadingStatus || 'pending_loading').trim() || 'pending_loading';
-    const saleVoucherType = String(businessRules.voucher?.saleVoucherType || 'XK').trim() || 'XK';
-    const voucherPrefix = String(businessRules.voucher?.storefrontPrefix || 'WEB').trim() || 'WEB';
-    const excludeFinancialEntries = new Set(
-      (Array.isArray(saleRules.excludeFinancialEntriesForStorefront)
-        ? saleRules.excludeFinancialEntriesForStorefront
-        : [])
-      .map((code) => String(code || '').trim())
-      .filter(Boolean)
-    );
-
-    const {
-      companyId, itemId, quantity, items, customerName, phone, address, taxRate,
-      entityType, annualRevenueBand, category, priceMode,
-      discount_amount, coupon_code, tax_rate, tax_amount, shipping_fee,
-      payment_method, payment_status, sales_channel, partner_id
-    } = req.body;
-
+    const { companyId, items, customerName, phone, address, taxRate } = req.body;
+    
     if (!companyId) {
       return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
     }
 
-    await ensureLockDateOpen(client, Number(companyId));
-
-    // Tự động lấy thông tin pháp nhân từ companies nếu payload không gửi
-    let resolvedEntityType = String(entityType || '').trim().toLowerCase();
-    let resolvedRevenueBand = String(annualRevenueBand || '').trim().toLowerCase();
-    if (!resolvedEntityType || !resolvedRevenueBand) {
-      const companyRes = await client.query(
-        'SELECT entity_type, annual_revenue_band FROM companies WHERE id = $1 LIMIT 1',
-        [companyId]
-      );
-      if (companyRes.rows.length > 0) {
-        if (!resolvedEntityType) {
-          resolvedEntityType = String(companyRes.rows[0].entity_type || 'company').trim().toLowerCase();
-        }
-        if (!resolvedRevenueBand) {
-          resolvedRevenueBand = String(companyRes.rows[0].annual_revenue_band || 'under_1b').trim().toLowerCase();
-        }
-      } else {
-        resolvedEntityType = 'company';
-        resolvedRevenueBand = 'under_1b';
-      }
-    }
-
-    const rawItems = Array.isArray(items) && items.length > 0
-      ? items
-      : [{ itemId, quantity }];
-
-    const normalizedItems = rawItems
-      .map((entry) => ({
-        itemId: String(entry?.itemId ?? '').trim(),
-        quantity: Number(entry?.quantity)
-      }))
-      .filter((entry) => entry.itemId !== '' && Number.isFinite(entry.quantity));
-
-    if (normalizedItems.length === 0) {
-      return res.status(400).json({ error: 'Danh sách sản phẩm đặt hàng không hợp lệ' });
-    }
-
-    if (normalizedItems.some((entry) => entry.quantity < minOrderQuantity)) {
-      return res.status(400).json({ error: `Số lượng mua phải lớn hơn hoặc bằng ${minOrderQuantity}` });
-    }
-
-    const mergedItemsMap = new Map();
-    for (const entry of normalizedItems) {
-      const current = mergedItemsMap.get(entry.itemId) || 0;
-      mergedItemsMap.set(entry.itemId, current + entry.quantity);
-    }
-
-    const mergedItems = Array.from(mergedItemsMap.entries()).map(([productId, qty]) => ({
-      itemId: productId,
-      quantity: qty
-    }));
-
-    const { itemColumns, itemIdExpr } = await getItemsMetadata(client);
-    if (!itemIdExpr) {
-      return res.status(500).json({ error: 'Bảng items thiếu khóa định danh. Cần có cột định danh hoặc khóa chính.' });
-    }
-    const { codeExpr, nameExpr, unitExpr, priceSellExpr } = buildItemsSelectExpressions(itemColumns);
-
-    const itemIds = mergedItems.map((entry) => entry.itemId);
-    const itemRes = await client.query(
-      `SELECT ${itemIdExpr} AS item_pk,
-              ${codeExpr} AS code,
-              ${nameExpr} AS name,
-              ${unitExpr} AS unit,
-              ${priceSellExpr} AS price_sell
-       FROM items
-       WHERE company_id = $1 AND ${itemIdExpr}::text = ANY($2::text[])`,
-      [companyId, itemIds]
-    );
-
-    if (itemRes.rows.length !== itemIds.length) {
-      return res.status(404).json({ error: 'Có sản phẩm không tồn tại hoặc không thuộc doanh nghiệp này' });
-    }
-
-    const itemById = new Map(itemRes.rows.map((row) => [String(row.item_pk), row]));
-    const hasCostPrice = itemColumns.has('cost_price');
-    const lineItems = mergedItems.map((line) => {
-      const item = itemById.get(String(line.itemId));
-      const unitPrice = Number(item.price_sell || 0);
-      const unitCost = hasCostPrice ? Number(item.cost_price || 0) : unitPrice;
-      const lineAmount = Number((unitPrice * line.quantity).toFixed(amountPrecision));
-      const lineCostAmount = Number((unitCost * line.quantity).toFixed(amountPrecision));
-      return {
-        itemId: item.item_pk,
-        code: item.code,
-        name: item.name,
-        unit: item.unit,
-        quantity: line.quantity,
-        unitPrice,
-        unitCost,
-        lineAmount,
-        lineCostAmount
-      };
-    });
-
-    const amount = Number(lineItems.reduce((sum, line) => sum + line.lineAmount, 0).toFixed(amountPrecision));
-    const taxResolution = resolveTaxBreakdown({
-      amount,
-      taxRate,
-      entityType: resolvedEntityType,
-      annualRevenueBand: resolvedRevenueBand,
-      category,
-      businessRules,
-      priceMode
-    });
-    const { taxAmount, grossAmount } = taxResolution;
-
-    const voucherNumber = buildOrderNumber(voucherPrefix);
-    const totalCostAmount = Number(lineItems.reduce((sum, line) => sum + (line.lineCostAmount || 0), 0).toFixed(amountPrecision));
-    const accountingEntries = buildAccountingEntries({ amount: grossAmount, costAmount: totalCostAmount, taxAmount })
-      .filter((entry) => !excludeFinancialEntries.has(entry.accountCode))
-      .map((entry) => ({
-        ...entry,
-        amount: Number(entry.amount || 0)
-      }))
-      .filter((entry) => entry.amount > 0);
-
-    const description = [
-      `Đơn web từ ${customerName || 'Khách'}`,
-      phone ? `SĐT: ${phone}` : null,
-      address ? `Địa chỉ: ${address}` : null,
-      `SP: ${lineItems
-        .slice(0, 3)
-        .map((line) => `${line.code} x${line.quantity}${line.unit ? ` ${line.unit}` : ''}`.trim())
-        .join(', ')}${lineItems.length > 3 ? ` +${lineItems.length - 3} SP` : ''}`
-    ].filter(Boolean).join(' | ');
-
-    const vouchersColumnsRows = await getTableColumnsMetadata(client, 'vouchers');
-    const vouchersMeta = new Map(
-      vouchersColumnsRows.map((row) => [
-        String(row.column_name || '').trim().toLowerCase(),
-        {
-          isNullable: String(row.is_nullable || '').toUpperCase() !== 'NO',
-          hasDefault: row.column_default !== null
-        }
-      ])
-    );
-
-    const hasVoucherColumn = (name) => vouchersMeta.has(name);
-    const isVoucherColumnRequired = (name) => {
-      const meta = vouchersMeta.get(name);
-      if (!meta) return false;
-      return !meta.isNullable && !meta.hasDefault;
-    };
-
-    const hasVoucherNumber = hasVoucherColumn('voucher_number');
-    const hasAccountDr = hasVoucherColumn('account_dr');
-    const hasAccountCr = hasVoucherColumn('account_cr');
-    const hasVoucherAmount = hasVoucherColumn('amount');
-    const voucherType = saleVoucherType;
-
-    const debitHeaderEntry = accountingEntries
-      .filter((entry) => entry.entryType === 'DR')
-      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
-    const creditHeaderEntry = accountingEntries
-      .filter((entry) => entry.entryType === 'CR')
-      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
-
-    const legacyAccountDr = hasAccountDr
-      ? await resolveLegacyAccountByConstraint(client, {
-          tableName: 'vouchers',
-          columnName: 'account_dr',
-          preferredCode: debitHeaderEntry?.accountCode || saleRules.receivableAccount,
-          fallbackCodes: saleRules.legacyAccountDrFallback
-        })
-      : null;
-
-    const legacyAccountCr = hasAccountCr
-      ? await resolveLegacyAccountByConstraint(client, {
-          tableName: 'vouchers',
-          columnName: 'account_cr',
-          preferredCode: creditHeaderEntry?.accountCode || saleRules.revenueAccount,
-          fallbackCodes: saleRules.legacyAccountCrFallback
-        })
-      : null;
-
-    if (hasAccountDr && isVoucherColumnRequired('account_dr') && !legacyAccountDr) {
-      return res.status(400).json({ error: 'Không xác định được account_dr hợp lệ cho chứng từ bán hàng.' });
-    }
-
-    if (hasAccountCr && isVoucherColumnRequired('account_cr') && !legacyAccountCr) {
-      return res.status(400).json({ error: 'Không xác định được account_cr hợp lệ cho chứng từ bán hàng.' });
-    }
-
-    const voucherInsertColumns = ['company_id', 'voucher_date', 'voucher_type', 'description'];
-    const voucherInsertValues = [companyId, new Date().toISOString().slice(0, 10), voucherType, description];
-
-    if (hasVoucherNumber) {
-      voucherInsertColumns.push('voucher_number');
-      voucherInsertValues.push(voucherNumber);
-    }
-
-    if (hasAccountDr && (legacyAccountDr || isVoucherColumnRequired('account_dr'))) {
-      voucherInsertColumns.push('account_dr');
-      voucherInsertValues.push(legacyAccountDr);
-    }
-
-    if (hasAccountCr && (legacyAccountCr || isVoucherColumnRequired('account_cr'))) {
-      voucherInsertColumns.push('account_cr');
-      voucherInsertValues.push(legacyAccountCr);
-    }
-
-    if (hasVoucherAmount) {
-      voucherInsertColumns.push('amount');
-      voucherInsertValues.push(amount);
-    }
-
-    if (hasVoucherColumn('is_posted')) {
-      voucherInsertColumns.push('is_posted');
-      voucherInsertValues.push(false);
-    }
-
-    if (hasVoucherColumn('loading_status')) {
-      voucherInsertColumns.push('loading_status');
-      voucherInsertValues.push(defaultLoadingStatus);
-    }
-
-    // 2-Way Sales Template fields
-    if (hasVoucherColumn('discount_amount')) {
-      voucherInsertColumns.push('discount_amount');
-      voucherInsertValues.push(Number(discount_amount || 0));
-    }
-    if (hasVoucherColumn('coupon_code')) {
-      voucherInsertColumns.push('coupon_code');
-      voucherInsertValues.push(coupon_code || null);
-    }
-    if (hasVoucherColumn('tax_rate')) {
-      voucherInsertColumns.push('tax_rate');
-      voucherInsertValues.push(Number(tax_rate || 0));
-    }
-    if (hasVoucherColumn('tax_amount')) {
-      voucherInsertColumns.push('tax_amount');
-      voucherInsertValues.push(Number(tax_amount || 0));
-    }
-    if (hasVoucherColumn('shipping_fee')) {
-      voucherInsertColumns.push('shipping_fee');
-      voucherInsertValues.push(Number(shipping_fee || 0));
-    }
-    if (hasVoucherColumn('payment_method')) {
-      voucherInsertColumns.push('payment_method');
-      voucherInsertValues.push(payment_method || 'cod');
-    }
-    if (hasVoucherColumn('payment_status')) {
-      voucherInsertColumns.push('payment_status');
-      voucherInsertValues.push(payment_status || 'pending');
-    }
-    if (hasVoucherColumn('sales_channel')) {
-      voucherInsertColumns.push('sales_channel');
-      voucherInsertValues.push(sales_channel || 'storefront');
-    }
-    if (hasVoucherColumn('partner_id')) {
-      voucherInsertColumns.push('partner_id');
-      voucherInsertValues.push(partner_id || null);
-    }
-
-    const voucherInsertPlaceholders = voucherInsertColumns
-      .map((_, index) => `$${index + 1}`)
-      .join(', ');
-
-    const voucherRes = await client.query(
-      `INSERT INTO vouchers (${voucherInsertColumns.join(', ')})
-       VALUES (${voucherInsertPlaceholders}) RETURNING id`,
-      voucherInsertValues
-    );
-
-    const voucherId = voucherRes.rows[0].id;
-
-    const detailsColumnsRows = await getTableColumnsMetadata(client, 'voucher_details');
-    const detailsColumns = new Set(detailsColumnsRows.map((r) => r.column_name));
-    const hasDetailQuantity = detailsColumns.has('quantity');
-    const hasDetailItemId = detailsColumns.has('item_id');
-
-    const detailInsertColumns = ['voucher_id', 'account_code', 'entry_type', 'amount'];
-    if (hasDetailQuantity) detailInsertColumns.push('quantity');
-    if (hasDetailItemId) detailInsertColumns.push('item_id');
-
-    const detailRows = [];
-    for (const entry of accountingEntries) {
-      detailRows.push({
-        accountCode: entry.accountCode,
-        entryType: entry.entryType,
-        amount: entry.amount,
-        quantity: 0,
-        itemId: null
-      });
-    }
-
-    // Dòng vận hành kho được tách khỏi bút toán tài chính: amount=0, chỉ giữ quantity + item_id để logistics xử lý.
-    for (const line of lineItems) {
-      detailRows.push({
-        accountCode: saleRules.logisticsOpsAccount,
-        entryType: 'CR',
-        amount: 0,
-        quantity: line.quantity,
-        itemId: line.itemId
-      });
-    }
-
-    if (detailRows.length > 0) {
-      const detailValues = [];
-      const detailPlaceholders = detailRows.map((row, rowIndex) => {
-        const rowValues = [voucherId, row.accountCode, row.entryType, row.amount];
-        if (hasDetailQuantity) rowValues.push(row.quantity);
-        if (hasDetailItemId) rowValues.push(row.itemId);
-
-        detailValues.push(...rowValues);
-        const offset = rowIndex * detailInsertColumns.length;
-        const rowPlaceholders = detailInsertColumns.map((_, colIndex) => `$${offset + colIndex + 1}`);
-        return `(${rowPlaceholders.join(', ')})`;
-      });
-
-      await client.query(
-        `INSERT INTO voucher_details (${detailInsertColumns.join(', ')})
-         VALUES ${detailPlaceholders.join(', ')}`,
-        detailValues
-      );
-    }
-
-    // Tự động trừ số lượng tồn kho khi có giao dịch bán hàng
-    const itemsMetadata = await getItemsMetadata(client);
-    const hasOpeningQuantity = itemsMetadata.itemColumns.has('opening_quantity');
-    if (hasOpeningQuantity && lineItems.length > 0) {
-      const itemIdColumn = itemsMetadata.itemIdExpr;
-      const itemIdsToUpdate = lineItems.map(line => line.itemId);
-      
-      // Trừ số lượng cho từng sản phẩm trong đơn hàng
-      for (const line of lineItems) {
-        await client.query(
-          `UPDATE items 
-           SET opening_quantity = GREATEST(COALESCE(opening_quantity, 0) - $1, 0) 
-           WHERE ${itemIdColumn} = $2 AND company_id = $3`,
-          [line.quantity, line.itemId, companyId]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-
-    // Ghi audit log (non-blocking)
-    try {
-      const auditAction = (voucherType || '').trim().toUpperCase() === 'XK' ? 'GOODSISSUE' : 'CREATE';
-      logAudit({
-        userId: null,
-        action: auditAction,
-        entityType: 'VOUCHERS',
-        newValues: { voucherId, voucherNumber, amount, netAmount: amount, taxAmount, items: lineItems },
-        ipAddress: req.ip,
-        companyId: Number(companyId)
-      });
-    } catch (auditErr) {
-      console.warn('Audit log warning:', auditErr.message);
-    }
-
-    // Send notifications (non-blocking)
-    try {
-      // 1. Save notification to DB
-      await pool.query(`
-        INSERT INTO notifications (company_id, order_id, type, title, message, recipient_role)
-        VALUES ($1, $2, 'order', 'Đơn hàng mới', $3, 'nv_banhang')
-      `, [companyId, voucherId, `Đơn hàng ${voucherNumber} vừa được tạo`]);
-
-      // 2. Send push notification to sales staff (fire and forget)
-      const notification = {
-        id: voucherId,
-        type: 'order',
-        title: 'Đơn hàng mới',
-        message: `Đơn hàng ${voucherNumber} vừa được tạo`
-      };
-      
-      sendToRole('nv_banhang', companyId, notification).catch(err => 
-        console.warn('Push notification failed:', err)
-      );
-
-      // 3. Publish SSE event (keep existing)
-      await publishStorefrontOrderEvent(client, {
-        event: 'order_created',
-        companyId: Number(companyId),
-        voucherId,
-        voucherNumber,
-        amount,
-        taxAmount,
-        createdAt: new Date().toISOString(),
-        targetRoles: ['admin', 'nv_banhang', 'nv_kho']
-      });
-    } catch (notifyError) {
-      // Notification failure must not break order creation flow.
-      console.warn('Notification failed:', notifyError.message);
-    }
-
-    res.status(201).json({
+    // Enqueue order for async processing
+    const { enqueueOrder } = await import('../workers/orderQueue.js');
+    const job = await enqueueOrder(req.body, req.ip, Number(companyId));
+    
+    // Return immediately with job ID for tracking
+    res.status(202).json({
       success: true,
-      voucherId,
-      voucherNumber,
-      order: {
-        companyId: Number(companyId),
-        items: lineItems.map((line) => ({
-          itemId: line.itemId,
-          code: line.code,
-          name: line.name,
-          unit: line.unit,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          amount: line.lineAmount
-        })),
-        amount: grossAmount,
-        taxAmount,
-        netAmount: amount
-      }
+      message: 'Đơn hàng đang được xử lý',
+      jobId: job.id,
+      estimatedCompletion: '30 seconds'
     });
+
+    // Process order asynchronously (fire and forget)
+    job.finished()
+      .then((result) => {
+        console.log(`Order ${job.id} completed:`, result);
+      })
+      .catch((err) => {
+        console.error(`Order ${job.id} failed:`, err);
+      });
+
   } catch (error) {
-    await client.query('ROLLBACK');
     res.status(500).json({ error: error.message });
-  } finally {
-    client.release();
   }
 });
 

@@ -7,6 +7,9 @@ import { sendToUser, sendToRole, subscribe, unsubscribe } from '../services/webP
 import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 import { getIO } from '../services/websocket.service.js';
 
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+
 // POST /api/notifications/subscribe
 export const subscribeToPush = async (req, res) => {
   try {

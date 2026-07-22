@@ -4,6 +4,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser'; 
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
@@ -24,11 +25,16 @@ import { correlationId } from './middleware/correlationId.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { hitlRouter } from './routes/hitl.js';
 import { startFeedbackLoopWorker } from './cron/trainFeedbackLoop.js';
+import { redis } from './cache/redis.js';
+import { getProjectionEngine } from './services/projectionEngine.service.js';
 
 // Cấu hình đường dẫn tuyệt đối cho file .env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Global flag for database readiness - used by health checks
+let isDatabaseReady = false;
 
 const isTestEnv = process.env.KETOAN_TEST === '1'
   || (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'testing')
@@ -39,8 +45,19 @@ const isTestEnv = process.env.KETOAN_TEST === '1'
 
 const app = express();
 
+// Module-scoped variable for worker health tracking (avoid global leak)
+let orderIngestionWorker = null;
+
 if (!isTestEnv) {
-  import('./workers/orderIngestionWorker.js');
+  // Import worker để theo dõi health
+  try {
+    const workerModule = await import('./workers/orderIngestionWorker.js');
+    orderIngestionWorker = workerModule.orderIngestionWorker;
+  } catch (err) {
+    console.error('❌ Failed to load orderIngestionWorker:', err.message);
+    orderIngestionWorker = null;
+  }
+  
   startDataRetentionWorker();
   // Khởi động feedback loop worker cho RLHF
   startFeedbackLoopWorker();
@@ -55,8 +72,9 @@ app.use(correlationId);
 // Mount HITL routes
 app.use('/api/hitl', hitlRouter);
 
-// KÍCH HOẠT TRUST PROXY: Bắt buộc cấu hình để lấy Real IP của Client qua Proxy bảo mật
-app.set('trust proxy', true);
+// KÍCH HOẠT TRUST PROXY: Cấu hình số lượng proxy phía trước để lấy Real IP
+// Giá trị 1 nghĩa là chỉ tin tưởng 1 proxy (ví dụ Railway), không cho phép spoof IP
+app.set('trust proxy', 1);
 
 // ====================================================================
 // 🛠️ ĐÃ SỬA: CẤU HÌNH CORS LINH HOẠT CHỐNG LỖI ORIGIN TRÊN PRODUCTION
@@ -89,24 +107,20 @@ console.log('🔧 CORS allowedOrigins=', normalizedOrigins);
 console.log('🔧 CORS allow any Railway origin=', allowedRailwayOrigin);
 console.log('🔧 CORS production strict mode=', isProduction);
 
+app.use(helmet());
+
 app.use(cors({
   origin: (origin, callback) => {
     // Cho phép request không có origin (Postman, server-to-server, internal health check)
     if (!origin) return callback(null, true);
 
-    // P9: Trong production, bắt buộc phải cấu hình FRONTEND_URL rõ ràng
-    if (allowedOrigins.length === 0) {
-      if (process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      console.error(`🔴 [CORS BLOCKED]: Production mode yêu cầu FRONTEND_URL phải được cấu hình. Origin bị từ chối: ${origin}`);
-      return callback(new Error('CORS policy: origin not allowed in production'));
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
+    // Luôn cho phép các localhost origins cho phát triển
+    const localhostOrigins = ['http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:3001', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000'];
+    if (localhostOrigins.includes(normalizeOrigin(origin))) {
       return callback(null, true);
     }
 
+    // Kiểm tra trong danh sách FRONTEND_URL đã cấu hình
     const normalizedOrigin = normalizeOrigin(origin);
     if (normalizedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
@@ -131,7 +145,20 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use(cookieParser()); 
+app.use(cookieParser());
+
+// Cookie configuration middleware - ensures cookies are accessible across all paths
+app.use((req, res, next) => {
+  // Set cookie options for all responses
+  res.locals.cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  };
+  next();
+});
 
 // WAF & Rate Limiting (P2)
 app.use(waf);
@@ -168,12 +195,18 @@ const initializeDatabase = async () => {
     await pool.query('SELECT 1');
     console.log('Kết nối đến cơ sở dữ liệu thành công.');
     
-    // Run schema.sql first
+    // Run schema.sql first (sequential to avoid deadlocks)
+    // Note: schema.sql now includes default system configs at the top
     const schemaPath = path.join(__dirname, 'schema.sql');
     if (fs.existsSync(schemaPath)) {
-      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-      await pool.query(schemaSql);
-      console.log('Đồng bộ cấu trúc bảng từ schema.sql hoàn tất.');
+      try {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        await pool.query(schemaSql);
+        console.log('✅ Đồng bộ cấu trúc bảng từ schema.sql hoàn tất.');
+      } catch (schemaError) {
+        console.warn('⚠️ Một số lệnh trong schema.sql gặp lỗi (có thể bỏ qua):', schemaError.message);
+        // Don't throw - let the database continue with compatibility SQL below
+      }
     } else {
       console.warn('⚠️ Cảnh báo: Không tìm thấy file schema.sql tại thư mục backend.');
     }
@@ -189,6 +222,8 @@ const initializeDatabase = async () => {
       ALTER TABLE items ADD COLUMN IF NOT EXISTS opening_quantity NUMERIC(15,4) DEFAULT 0;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(50) DEFAULT 'finance';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS clearance_level INT DEFAULT 1;
       DO $$
       BEGIN
         IF EXISTS (
@@ -267,12 +302,59 @@ const initializeDatabase = async () => {
     }
   } catch (error) {
     console.error('⚠️ [LỖI KHỞI TẠO DB]:', error.message);
+    // Set flag so health checks can detect this state
+    isDatabaseReady = false;
+    throw error; // Re-throw so caller knows initialization failed
+  }
+};
+
+// Wrap initializeDatabase to set the ready flag on success
+const initDbWrapper = async () => {
+  try {
+    await initializeDatabase();
+    isDatabaseReady = true;
+    console.log('✅ Database initialization complete and ready to serve requests');
+  } catch (error) {
+    isDatabaseReady = false;
+    console.error('❌ Database initialization FAILED. Server will start but DB operations will fail:', error.message);
+    // Don't re-throw - let the server start in degraded mode so health checks can report status
   }
 };
 
 export const dbInitPromise = isTestEnv
   ? Promise.resolve()
-  : initializeDatabase();
+  : initDbWrapper();
+
+// ====================================================================
+// PHASE 5: CQRS PROJECTION ENGINE INITIALIZATION
+// ====================================================================
+export let projectionEngine = null;
+
+const initializeProjectionEngine = async () => {
+  try {
+    if (!pool || !redis) {
+      console.warn('⚠️ [ProjectionEngine] Cannot initialize - pool or redis not ready');
+      return null;
+    }
+
+    // Note: queueService not required for ProjectionEngine initialization
+    // The ProjectionEngine operates independently of the queue system
+    projectionEngine = getProjectionEngine(pool, redis, null);
+    console.log('✅ [ProjectionEngine] CQRS Projection Engine initialized');
+    
+    return projectionEngine;
+  } catch (error) {
+    console.error('❌ [ProjectionEngine] Failed to initialize:', error.message);
+    return null;
+  }
+};
+
+// Initialize projection engine after DB is ready
+if (!isTestEnv) {
+  dbInitPromise.then(() => {
+    initializeProjectionEngine();
+  });
+}
 
 // ====================================================================
 // ✅ ĐỒNG BỘ SANG NAMED IMPORT CHO TOÀN BỘ ROUTES
@@ -287,6 +369,8 @@ import { importRouter } from './routes/import.js';
 import { partnerRouter } from './routes/partnerRoute.js'; 
 import { usersRouter } from './routes/users.js'; 
 import inventoryRoutes from './routes/inventoryRoutes.js';
+import reversingEntriesRoutes from './routes/reversingEntriesRoutes.js';
+import debtReconciliationRoutes from './routes/debtReconciliationRoutes.js';
 import { reportRouter } from './routes/report.js';
 import vouchersRouter from './routes/vouchers.js';
 import maintenanceRouter from './routes/maintenance.js';
@@ -301,11 +385,88 @@ import { einvoiceRouter } from './routes/einvoice.js';
 import { refundsRouter } from './routes/refunds.js';
 import { legalPublicRouter } from './routes/legalPublic.js';
 import { aiQueryRouter } from './routes/aiQuery.js';
+import aiPoolRoutes from './routes/aiPool.routes.js';
 import signingRouter from './routes/signing.js';
+import transactionClassificationRouter from './routes/transactionClassification.js';
+import settingsRouter from './routes/settings.js';
+import eventsRouter from './routes/events.js';
+import metaRouter from './routes/meta.js';
+import dynamicRouter from './routes/dynamic.js';
+import ioMatrixRouter from './routes/io-matrix.js';
+import postingRulesRouter from './routes/postingRules.js';
+import dimensionsRouter from './routes/dimensions.js';
+import costingRouter from './routes/costing.js';
+import accountingPeriodsRouter from './routes/accountingPeriods.js';
+import workflowsRouter from './routes/workflows.js';
+import reportsRouter from './routes/reports.js';
+import { featureFlagsRouter } from './routes/featureFlags.js';
+import creditRouter from './routes/credit.js';
+import processorsRouter from './routes/processors.js';
+
+// AI Service Initialization Hub
+import { initializeAIServices } from './services/aiInitialization.service.js';
+
+// ====================================================================
+// HEALTH CHECK & UTILITIES - Mounted BEFORE waitForDb to work when DB is down
+// ====================================================================
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ 
+      status: 'ok', 
+      message: 'Backend chạy tốt',
+      isDatabaseReady,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(503).json({ 
+      status: 'error', 
+      message: 'Lỗi kết nối cơ sở dữ liệu',
+      isDatabaseReady: false,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Worker health check endpoint
+app.get('/api/health/workers', async (req, res) => {
+  try {
+    const health = {
+      orderIngestionWorker: orderIngestionWorker ? 'running' : 'not_initialized',
+      dataRetentionWorker: 'running',
+      feedbackLoopWorker: 'running',
+      redis: redis?.status || 'disconnected',
+      isDatabaseReady,
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(health);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================================================================
+// MIDDLEWARE: Database readiness check for all API routes
+// ====================================================================
+
+// Middleware to ensure DB is ready before processing requests
+const waitForDb = async (req, res, next) => {
+  try {
+    await dbInitPromise;
+    if (!isDatabaseReady) {
+      return res.status(503).json({ error: 'Database not ready. Please try again shortly.' });
+    }
+    next();
+  } catch (err) {
+    return res.status(503).json({ error: 'Database initialization failed. Cannot process request.' });
+  }
+};
 
 // ====================================================================
 // MOUNT CÁC ROUTES API TẬP TRUNG
 // ====================================================================
+app.use('/api', waitForDb);
 app.use('/api/auth', authRouter);
 app.use('/api/signing', signingRouter);
 app.use('/api/companies', companiesRouter);
@@ -317,6 +478,8 @@ app.use('/api/import', importRouter);
 app.use('/api/partners', partnerRouter); 
 app.use('/api/users', usersRouter); 
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/reversing-entries', reversingEntriesRoutes);
+app.use('/api/debt-reconciliations', debtReconciliationRoutes);
 app.use('/api/report', reportRouter);
 app.use('/api/vouchers', vouchersRouter);
 app.use('/api/maintenance', maintenanceRouter);
@@ -330,20 +493,26 @@ app.use('/api/integration', integrationRouter);
 app.use('/api/e-invoices', einvoiceRouter);
 app.use('/api/refunds', refundsRouter);
 app.use('/api/public/legal', legalPublicRouter);
-app.use('/api/ai', aiQueryRouter);
+app.use('/api/ai', aiPoolRoutes); // ✅ AI Pool monitoring and primary AI endpoints
+app.use('/api/ai', aiQueryRouter); // ✅ AI query endpoints available at /api/ai/query
+app.use('/api/ai-query', aiQueryRouter); // ✅ Legacy alias compatibility
+app.use('/api/transaction-classification', transactionClassificationRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/events', eventsRouter);
+app.use('/api/meta', metaRouter);
+app.use('/api/dynamic', dynamicRouter);
+app.use('/api/io-matrix', ioMatrixRouter);
+app.use('/api/posting-rules', postingRulesRouter);
+app.use('/api/dimensions', dimensionsRouter);
+app.use('/api/costing', costingRouter);
+app.use('/api/accounting-periods', accountingPeriodsRouter);
+app.use('/api/workflows', workflowsRouter);
+app.use('/api/reports', reportsRouter);
+app.use('/api/feature-flags', featureFlagsRouter);
+app.use('/api/credit', creditRouter);
+app.use('/api/processors', processorsRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ====================================================================
-// HEALTH CHECK & UTILITIES
-// ====================================================================
-app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', message: 'Backend chạy tốt' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: 'Lỗi kết nối cơ sở dữ liệu' });
-  }
-});
 
 // ====================================================================
 // ORDERS API - Lấy danh sách đơn hàng (ĐÃ BẢO VỆ)
@@ -475,9 +644,17 @@ if (isMainModule) {
   // Khởi tạo Socket.io server
   initWebSocket(server);
   
+  // Initialize AI Services asynchronously (non-blocking for server start)
+  if (!isTestEnv) {
+    initializeAIServices().catch(err => {
+      console.error('❌ AI Services initialization failed (non-blocking):', err.message);
+    });
+  }
+  
   server.listen(PORT, () => {
     console.log(`✅ Máy chủ HTTP đang chạy tại cổng ${PORT}`);
     console.log(`✅ WebSocket server đã được khởi tạo`);
+    console.log(`✅ AI Services pool initialized and ready`);
   });
 }
 

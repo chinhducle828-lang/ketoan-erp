@@ -1,0 +1,418 @@
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ * REA Event Management Dashboard Styles
+ */
+
+.rea-dashboard {
+  @apply min-h-screen bg-slate-50;
+}
+
+.rea-dashboard-header {
+  @apply bg-white border-b border-slate-200 shadow-sm;
+}
+
+.rea-dashboard-content {
+  @apply p-6 space-y-6;
+}
+
+/* Stats Cards */
+.stats-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4;
+}
+
+.stat-card {
+  @apply rounded-xl p-4 shadow-sm border transition-all hover:shadow-md;
+}
+
+.stat-card-content {
+  @apply flex items-center justify-between;
+}
+
+.stat-card-label {
+  @apply text-xs text-slate-500 font-medium mb-1;
+}
+
+.stat-card-value {
+  @apply text-2xl font-bold;
+}
+
+.stat-card-icon {
+  @apply opacity-80;
+}
+
+/* Event List */
+.event-list-container {
+  @apply bg-white rounded-2xl border border-slate-200 shadow-sm;
+}
+
+.event-list-header {
+  @apply p-5 border-b border-slate-200;
+}
+
+.event-list-title {
+  @apply text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5;
+}
+
+.event-list-count {
+  @apply text-xs text-slate-500;
+}
+
+.event-filters {
+  @apply flex flex-col sm:flex-row gap-3 p-5 border-b border-slate-200 bg-slate-50/50;
+}
+
+.filter-input-wrapper {
+  @apply flex-1 relative;
+}
+
+.filter-input {
+  @apply w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg 
+         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+         bg-white;
+}
+
+.filter-select {
+  @apply px-3 py-2 text-sm border border-slate-200 rounded-lg 
+         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+         appearance-none bg-white;
+}
+
+.event-table {
+  @apply w-full text-left border-collapse text-xs;
+}
+
+.event-table-header {
+  @apply bg-slate-50 border-b border-slate-200 font-bold text-slate-600;
+}
+
+.event-table-header-cell {
+  @apply p-3;
+}
+
+.event-table-body {
+  @apply divide-y divide-slate-100;
+}
+
+.event-table-row {
+  @apply hover:bg-slate-50/50 transition;
+}
+
+.event-table-cell {
+  @apply p-3;
+}
+
+.event-id {
+  @apply font-mono text-slate-700;
+}
+
+.event-type {
+  @apply font-medium text-slate-700;
+}
+
+.event-description {
+  @apply text-xs text-slate-500 mt-0.5 truncate max-w-xs;
+}
+
+/* Status Badges */
+.status-badge {
+  @apply px-2 py-1 text-xs font-medium rounded-lg border inline-block;
+}
+
+.status-pending {
+  @apply bg-amber-100 text-amber-700 border-amber-200;
+}
+
+.status-processing {
+  @apply bg-blue-100 text-blue-700 border-blue-200;
+}
+
+.status-completed {
+  @apply bg-emerald-100 text-emerald-700 border-emerald-200;
+}
+
+.status-failed {
+  @apply bg-rose-100 text-rose-700 border-rose-200;
+}
+
+.status-retrying {
+  @apply bg-purple-100 text-purple-700 border-purple-200;
+}
+
+/* Action Buttons */
+.action-buttons {
+  @apply flex items-center justify-center gap-1;
+}
+
+.action-button {
+  @apply p-1.5 text-slate-400 rounded-xl transition;
+}
+
+.action-button-view {
+  @apply hover:text-blue-600 hover:bg-blue-50;
+}
+
+.action-button-retry {
+  @apply hover:text-amber-600 hover:bg-amber-50;
+}
+
+.action-button-delete {
+  @apply hover:text-rose-600 hover:bg-rose-50;
+}
+
+.action-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Event Detail Modal */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4;
+}
+
+.modal-content {
+  @apply bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] 
+         overflow-hidden flex flex-col;
+}
+
+.modal-header {
+  @apply p-6 border-b border-slate-200 flex items-center justify-between;
+}
+
+.modal-title {
+  @apply text-lg font-bold text-slate-800;
+}
+
+.modal-subtitle {
+  @apply text-xs text-slate-500 mt-0.5;
+}
+
+.modal-close-button {
+  @apply p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition;
+}
+
+.modal-body {
+  @apply flex-1 overflow-y-auto p-6;
+}
+
+.modal-footer {
+  @apply p-6 border-t border-slate-200 flex justify-end gap-3;
+}
+
+/* Detail Sections */
+.detail-section {
+  @apply space-y-4;
+}
+
+.detail-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.detail-card {
+  @apply p-4 bg-slate-50 rounded-lg border border-slate-200;
+}
+
+.detail-card-label {
+  @apply flex items-center gap-2 mb-2;
+}
+
+.detail-card-label-text {
+  @apply text-xs text-slate-500 font-medium;
+}
+
+.detail-card-value {
+  @apply text-sm font-bold text-slate-800;
+}
+
+.detail-description {
+  @apply p-4 bg-slate-50 rounded-lg border border-slate-200;
+}
+
+.detail-description-label {
+  @apply text-xs text-slate-500 font-medium mb-2;
+}
+
+.detail-description-text {
+  @apply text-sm text-slate-800;
+}
+
+/* Accounting Entries Table */
+.accounting-entries {
+  @apply mt-4;
+}
+
+.accounting-entries-title {
+  @apply text-xs font-bold text-slate-600 uppercase tracking-wider mb-3;
+}
+
+.accounting-entries-table {
+  @apply w-full text-left border-collapse text-xs border border-slate-200 rounded-lg overflow-hidden;
+}
+
+.accounting-entries-table-header {
+  @apply bg-slate-50 border-b border-slate-200 font-bold text-slate-600;
+}
+
+.accounting-entries-table-header-cell {
+  @apply p-2.5 border-r border-slate-200;
+}
+
+.accounting-entries-table-body {
+  @apply divide-y divide-slate-100;
+}
+
+.accounting-entries-table-row {
+  @apply hover:bg-slate-50/50;
+}
+
+.accounting-entries-table-cell {
+  @apply p-2.5 border-r border-slate-100;
+}
+
+.accounting-entries-table-cell:last-child {
+  @apply border-r-0;
+}
+
+.account-code {
+  @apply font-mono;
+}
+
+.amount {
+  @apply text-right font-medium text-slate-700;
+}
+
+/* Metadata Section */
+.metadata-section {
+  @apply mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200;
+}
+
+.metadata-title {
+  @apply text-xs font-bold text-slate-600 uppercase tracking-wider mb-3;
+}
+
+.metadata-content {
+  @apply text-xs text-slate-700 whitespace-pre-wrap break-words font-mono;
+}
+
+/* Error Section */
+.error-section {
+  @apply mt-4 p-4 bg-rose-50 rounded-lg border border-rose-200;
+}
+
+.error-title {
+  @apply text-xs font-bold text-rose-700 uppercase tracking-wider mb-2 flex items-center gap-2;
+}
+
+.error-message {
+  @apply text-sm text-rose-800 whitespace-pre-wrap break-words;
+}
+
+/* Loading State */
+.loading-container {
+  @apply flex items-center justify-center py-12;
+}
+
+.loading-spinner {
+  @apply animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600;
+}
+
+.loading-text {
+  @apply ml-3 text-sm text-slate-600;
+}
+
+/* Empty State */
+.empty-state {
+  @apply text-sm text-slate-500 text-center py-6;
+}
+
+/* Error Alert */
+.error-alert {
+  @apply bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3;
+}
+
+.error-alert-icon {
+  @apply text-rose-600 mt-0.5;
+}
+
+.error-alert-content {
+  @apply flex-1;
+}
+
+.error-alert-title {
+  @apply text-sm font-medium text-rose-800;
+}
+
+.error-alert-message {
+  @apply text-sm text-rose-600 mt-1;
+}
+
+.error-alert-retry {
+  @apply text-sm text-rose-600 hover:text-rose-700 font-medium;
+}
+
+/* Buttons */
+.btn {
+  @apply px-4 py-2 text-sm font-medium rounded-lg transition;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.btn-secondary {
+  @apply text-slate-700 bg-slate-100 hover:bg-slate-200;
+}
+
+.btn-danger {
+  @apply text-rose-600 hover:text-rose-700;
+}
+
+.btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .event-filters {
+    @apply flex-col;
+  }
+  
+  .detail-grid {
+    @apply grid-cols-1;
+  }
+  
+  .stats-grid {
+    @apply grid-cols-1;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-content {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Scrollbar Styling */
+.modal-body::-webkit-scrollbar {
+  @apply w-2;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}

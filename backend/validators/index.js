@@ -51,7 +51,6 @@ export const createUserSchema = z.object({
   fiscal_year: z.number().int().min(2000).max(2100).optional()
 });
 
-// Note: updateUserSchema cannot use .partial() on schemas with .min()/.max() in Zod v4
 export const updateUserSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải từ 3 ký tự').optional(),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự').optional(),
@@ -81,7 +80,6 @@ export const companiesSchema = z.object({
 });
 
 export const createCompanySchema = companiesSchema;
-// Note: updateCompanySchema cannot use .partial() on schemas with .min()/.max() in Zod v4
 export const updateCompanySchema = z.object({
   name: z.string().min(1, 'Tên doanh nghiệp không được để trống').optional(),
   tax_code: z.string().min(10, 'Mã số thuế phải từ 10-14 ký tự').max(14).optional(),
@@ -101,7 +99,6 @@ export const partnersSchema = z.object({
 });
 
 export const createPartnerSchema = partnersSchema;
-// Note: updatePartnerSchema cannot use .partial() on schemas with .email() in Zod v4
 export const updatePartnerSchema = z.object({
   company_id: z.number().positive('Thiếu thông tin ID công ty').optional(),
   partner_code: z.string().min(1, 'Mã đối tác không được để trống').optional(),
@@ -135,7 +132,6 @@ export const createItemSchema = z.preprocess(normalizeItemInput, z.object({
 }));
 
 export const itemsSchema = createItemSchema;
-// Note: updateItemSchema cannot use .partial() on schemas with .default() in Zod v4
 export const updateItemSchema = z.object({
   company_id: z.number().positive('Thiếu thông tin ID công ty').optional(),
   item_code: z.string().min(1, 'Mã vật tư, hàng hóa không được để trống').optional(),
@@ -187,6 +183,18 @@ const normalizeVoucherInput = (val) => {
   return input;
 };
 
+// Refine function to validate DR = CR balance
+const balanceRefinement = (data) => {
+  const drSum = data.details.filter(i => i.entry_type === 'DR').reduce((sum, i) => sum + i.amount, 0);
+  const crSum = data.details.filter(i => i.entry_type === 'CR').reduce((sum, i) => sum + i.amount, 0);
+  return Math.abs(drSum - crSum) < 0.01;
+};
+
+const balanceRefinementMessage = { 
+  message: 'Lỗi hạch toán bất cân đối: Tổng số tiền ghi Nợ phải bằng tổng số tiền ghi Có!',
+  path: ['details']
+};
+
 export const createVoucherSchema = z.preprocess(normalizeVoucherInput, z.object({
   company_id: z.number().positive('Công ty không hợp lệ'),
   voucher_number: z.string().min(1, 'Số chứng từ không được để trống'),
@@ -204,36 +212,45 @@ export const createVoucherSchema = z.preprocess(normalizeVoucherInput, z.object(
       price: numericPreprocess
     })
   ).min(2, 'Chứng từ phải có tối thiểu 2 dòng định khoản')
-}).refine((data) => {
-  const drSum = data.details.filter(i => i.entry_type === 'DR').reduce((sum, i) => sum + i.amount, 0);
-  const crSum = data.details.filter(i => i.entry_type === 'CR').reduce((sum, i) => sum + i.amount, 0);
-  return Math.abs(drSum - crSum) < 0.01;
-}, { 
-  message: 'Lỗi hạch toán bất cân đối: Tổng số tiền ghi Nợ phải bằng tổng số tiền ghi Có!',
-  path: ['details']
-}));
+}).refine(balanceRefinement, balanceRefinementMessage));
 
 export const vouchersSchema = createVoucherSchema;
-// Note: updateVoucherSchema cannot use .partial() on schemas with .refine() in Zod v4
-// Create a separate schema for updates without the refinement
-export const updateVoucherSchema = z.object({
+
+// Update voucher schema with balance check (FIXED: was missing balance refinement)
+export const updateVoucherSchema = z.preprocess(normalizeVoucherInput, z.object({
   company_id: z.number().positive('Công ty không hợp lệ').optional(),
   voucher_number: z.string().min(1, 'Số chứng từ không được để trống').optional(),
   voucher_date: z.string().min(1, 'Ngày hạch toán không được để trống').optional(),
   voucher_type: z.enum(['NK', 'PT', 'PC', 'PN', 'PX']).optional(),
   description: z.string().optional().nullable(),
+  currency: z.string().optional(),
+  exchange_rate: z.number().optional(),
   details: z.array(
     z.object({
       account_code: z.string().min(1, 'Tài khoản không được để trống'),
       entry_type: z.enum(['DR', 'CR']),
-      amount: z.number().optional(),
+      amount: strictPositiveNumeric,
       partner_id: z.number().positive().optional().nullable(),
       item_id: z.number().positive().optional().nullable(),
-      quantity: z.number().optional(),
-      price: z.number().optional()
+      quantity: numericPreprocess,
+      price: numericPreprocess
     })
   ).min(2, 'Chứng từ phải có tối thiểu 2 dòng định khoản').optional()
-});
+})
+// Only apply balance refinement if details are provided in the update
+.superRefine((data, ctx) => {
+  if (data.details && data.details.length >= 2) {
+    const drSum = data.details.filter(i => i.entry_type === 'DR').reduce((sum, i) => sum + i.amount, 0);
+    const crSum = data.details.filter(i => i.entry_type === 'CR').reduce((sum, i) => sum + i.amount, 0);
+    if (Math.abs(drSum - crSum) >= 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Lỗi hạch toán bất cân đối: Tổng số tiền ghi Nợ phải bằng tổng số tiền ghi Có!',
+        path: ['details']
+      });
+    }
+  }
+}));
 
 // --- 7. ACCOUNT VALIDATORS ---
 export const createAccountSchema = z.object({
@@ -245,7 +262,6 @@ export const createAccountSchema = z.object({
 });
 
 export const accountsSchema = createAccountSchema;
-// Note: updateAccountSchema cannot use .partial() on schemas with .min() in Zod v4
 export const updateAccountSchema = z.object({
   company_id: z.number().positive('Công ty không hợp lệ').optional(),
   account_code: z.string().min(3, 'Mã tài khoản phải từ 3 ký tự trở lên').optional(),

@@ -4,21 +4,17 @@
 
 // FILE_PATH: front-end/src/views/hr/Payroll.jsx
 import React, { useState } from 'react';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePersistentState } from '../../utils/persistence.js';
 import { buildPayrollInsuranceDetails } from '../../utils/accountingRules.js';
 import { Users, Plus } from 'lucide-react';
-import { useSocket } from '../../hooks/useSocket.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { getAccountsByDepartment, ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
-import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
+import { ACCOUNTS_TT99 } from '../../constants/accountsTT99.js';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
 
 export default function Payroll() {
-  const { createNewVoucher } = useVouchers();
+  const { createVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth(); // Theo dõi công ty động đang làm việc
   const [salary, setSalary] = usePersistentState('payroll-form-v2', '');
   // BỔ SUNG STATE: Quản lý Thuế TNCN ước tính từ bảng lương
@@ -54,7 +50,7 @@ export default function Payroll() {
     };
 
     try {
-      await createNewVoucher(payload);
+      await createVoucher(payload);
       setSalary('');
       setTaxTNCN('');
       setMsg('Đã tự động hạch toán lương, trích bảo hiểm và khấu trừ thuế TNCN thành công!');

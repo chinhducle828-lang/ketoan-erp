@@ -1,0 +1,486 @@
+[
+  {
+    "file": "config/businessRules.js",
+    "replacements": [
+      {
+        "value": "3650",
+        "configKey": "legal.data_retention_days",
+        "count": 1
+      },
+      {
+        "value": "5000000",
+        "configKey": "financial.ai_auto_post_max",
+        "count": 2
+      },
+      {
+        "value": "3000000000",
+        "configKey": "financial.threshold_revenue_3b",
+        "count": 1
+      },
+      {
+        "value": "'1121'",
+        "configKey": "accounts.bank",
+        "count": 2
+      },
+      {
+        "value": "'131'",
+        "configKey": "accounts.ar",
+        "count": 15
+      },
+      {
+        "value": "'141'",
+        "configKey": "accounts.advance",
+        "count": 1
+      },
+      {
+        "value": "'152'",
+        "configKey": "accounts.raw_material",
+        "count": 3
+      },
+      {
+        "value": "'1331'",
+        "configKey": "accounts.tax_in",
+        "count": 1
+      },
+      {
+        "value": "'33311'",
+        "configKey": "accounts.tax_out",
+        "count": 2
+      },
+      {
+        "value": "'331'",
+        "configKey": "accounts.ap",
+        "count": 9
+      },
+      {
+        "value": "'334'",
+        "configKey": "accounts.payroll",
+        "count": 2
+      },
+      {
+        "value": "'338'",
+        "configKey": "accounts.insurance",
+        "count": 3
+      },
+      {
+        "value": "'1388'",
+        "configKey": "accounts.holdback",
+        "count": 1
+      },
+      {
+        "value": "'341'",
+        "configKey": "accounts.short_term_borrow",
+        "count": 3
+      },
+      {
+        "value": "'4131'",
+        "configKey": "accounts.forex_diff",
+        "count": 1
+      },
+      {
+        "value": "'515'",
+        "configKey": "accounts.fin_revenue",
+        "count": 2
+      },
+      {
+        "value": "'632'",
+        "configKey": "accounts.cogs",
+        "count": 7
+      },
+      {
+        "value": "'635'",
+        "configKey": "accounts.fin_expense",
+        "count": 5
+      },
+      {
+        "value": "'641'",
+        "configKey": "accounts.sales_expense",
+        "count": 5
+      },
+      {
+        "value": "'711'",
+        "configKey": "accounts.other_income",
+        "count": 2
+      },
+      {
+        "value": "'521'",
+        "configKey": "accounts.rebate",
+        "count": 1
+      },
+      {
+        "value": "'2293'",
+        "configKey": "accounts.bad_debt_provision",
+        "count": 1
+      },
+      {
+        "value": "'511'",
+        "configKey": "accounts.revenue_short",
+        "count": 5
+      },
+      {
+        "value": "'3331'",
+        "configKey": "accounts.vat_payable",
+        "count": 6
+      },
+      {
+        "value": "'3334'",
+        "configKey": "accounts.corporate_tax_payable",
+        "count": 4
+      },
+      {
+        "value": "'4212'",
+        "configKey": "accounts.retained_earnings",
+        "count": 1
+      },
+      {
+        "value": "'821'",
+        "configKey": "accounts.tax_expense",
+        "count": 2
+      },
+      {
+        "value": "'911'",
+        "configKey": "accounts.closing",
+        "count": 1
+      },
+      {
+        "value": "'811'",
+        "configKey": "accounts.other_expense",
+        "count": 2
+      },
+      {
+        "value": "'242'",
+        "configKey": "accounts.prepaid_expense",
+        "count": 2
+      },
+      {
+        "value": "'211'",
+        "configKey": "accounts.fixed_asset",
+        "count": 2
+      },
+      {
+        "value": "'214'",
+        "configKey": "accounts.accumulated_depreciation",
+        "count": 6
+      },
+      {
+        "value": "'611'",
+        "configKey": "accounts.depreciation_expense_short",
+        "count": 2
+      },
+      {
+        "value": "'335'",
+        "configKey": "accounts.doubtful_debt_provision",
+        "count": 1
+      },
+      {
+        "value": "'215'",
+        "configKey": "accounts.biological_asset",
+        "count": 2
+      },
+      {
+        "value": "'2295'",
+        "configKey": "accounts.biological_provision",
+        "count": 2
+      },
+      {
+        "value": "'1562'",
+        "configKey": "accounts.logistics",
+        "count": 1
+      },
+      {
+        "value": "'156'",
+        "configKey": "accounts.inventory",
+        "count": 4
+      },
+      {
+        "value": "'312'",
+        "configKey": "accounts.customer_advance",
+        "count": 1
+      },
+      {
+        "value": "'223'",
+        "configKey": "accounts.depreciation_display",
+        "count": 2
+      },
+      {
+        "value": "'3339'",
+        "configKey": "accounts.tax_mon_bai",
+        "count": 2
+      },
+      {
+        "value": "'419'",
+        "configKey": "accounts.treasury_stock",
+        "count": 1
+      },
+      {
+        "value": "'531'",
+        "configKey": "accounts.sales_return",
+        "count": 1
+      },
+      {
+        "value": "'532'",
+        "configKey": "accounts.sales_discount",
+        "count": 1
+      },
+      {
+        "value": "'WEB'",
+        "configKey": "voucher.storefront_prefix",
+        "count": 1
+      },
+      {
+        "value": "'XK'",
+        "configKey": "voucher.sale_voucher_type",
+        "count": 3
+      },
+      {
+        "value": "'NK'",
+        "configKey": "voucher.inbound_voucher_type",
+        "count": 1
+      },
+      {
+        "value": "'DauKy'",
+        "configKey": "voucher.closing_voucher_type",
+        "count": 2
+      },
+      {
+        "value": "'pending_loading'",
+        "configKey": "voucher.default_loading_status",
+        "count": 1
+      },
+      {
+        "value": "'order-ingestion'",
+        "configKey": "integration.order_ingestion_queue",
+        "count": 4
+      },
+      {
+        "value": "'VND'",
+        "configKey": "integration.default_currency",
+        "count": 4
+      },
+      {
+        "value": "'Frozen'",
+        "configKey": "credit.frozen_status",
+        "count": 1
+      },
+      {
+        "value": "'Approved'",
+        "configKey": "credit.approved_status",
+        "count": 1
+      }
+    ],
+    "totalReplacements": 139
+  },
+  {
+    "file": "core/rea/reaEventMapper.js",
+    "replacements": [
+      {
+        "value": "'1121'",
+        "configKey": "accounts.bank",
+        "count": 2
+      },
+      {
+        "value": "'131'",
+        "configKey": "accounts.ar",
+        "count": 2
+      },
+      {
+        "value": "'515'",
+        "configKey": "accounts.fin_revenue",
+        "count": 1
+      },
+      {
+        "value": "'635'",
+        "configKey": "accounts.fin_expense",
+        "count": 1
+      },
+      {
+        "value": "'3311'",
+        "configKey": "accounts.ap_short",
+        "count": 4
+      },
+      {
+        "value": "'PENDING'",
+        "configKey": "workflow.default_status",
+        "count": 1
+      },
+      {
+        "value": "'PENDING_APPROVAL'",
+        "configKey": "workflow.pending_approval_status",
+        "count": 1
+      }
+    ],
+    "totalReplacements": 12
+  },
+  {
+    "file": "services/logistics.service.js",
+    "replacements": [
+      {
+        "value": "'WEB'",
+        "configKey": "voucher.storefront_prefix",
+        "count": 2
+      }
+    ],
+    "totalReplacements": 2
+  },
+  {
+    "file": "services/closing.service.js",
+    "replacements": [
+      {
+        "value": "'131'",
+        "configKey": "accounts.ar",
+        "count": 1
+      },
+      {
+        "value": "'33311'",
+        "configKey": "accounts.tax_out",
+        "count": 1
+      },
+      {
+        "value": "'331'",
+        "configKey": "accounts.ap",
+        "count": 1
+      },
+      {
+        "value": "'635'",
+        "configKey": "accounts.fin_expense",
+        "count": 1
+      },
+      {
+        "value": "'511'",
+        "configKey": "accounts.revenue_short",
+        "count": 2
+      },
+      {
+        "value": "'3331'",
+        "configKey": "accounts.vat_payable",
+        "count": 1
+      },
+      {
+        "value": "'242'",
+        "configKey": "accounts.prepaid_expense",
+        "count": 1
+      },
+      {
+        "value": "'211'",
+        "configKey": "accounts.fixed_asset",
+        "count": 1
+      },
+      {
+        "value": "'214'",
+        "configKey": "accounts.accumulated_depreciation",
+        "count": 1
+      },
+      {
+        "value": "'611'",
+        "configKey": "accounts.depreciation_expense_short",
+        "count": 1
+      },
+      {
+        "value": "'335'",
+        "configKey": "accounts.doubtful_debt_provision",
+        "count": 1
+      },
+      {
+        "value": "'215'",
+        "configKey": "accounts.biological_asset",
+        "count": 1
+      },
+      {
+        "value": "'2295'",
+        "configKey": "accounts.biological_provision",
+        "count": 1
+      },
+      {
+        "value": "'DauKy'",
+        "configKey": "voucher.closing_voucher_type",
+        "count": 5
+      }
+    ],
+    "totalReplacements": 19
+  },
+  {
+    "file": "services/casso.service.js",
+    "replacements": [
+      {
+        "value": "'131'",
+        "configKey": "accounts.ar",
+        "count": 1
+      },
+      {
+        "value": "'XK'",
+        "configKey": "voucher.sale_voucher_type",
+        "count": 1
+      },
+      {
+        "value": "'VND'",
+        "configKey": "integration.default_currency",
+        "count": 1
+      }
+    ],
+    "totalReplacements": 3
+  },
+  {
+    "file": "workers/orderQueue.js",
+    "replacements": [
+      {
+        "value": "'WEB'",
+        "configKey": "voucher.storefront_prefix",
+        "count": 2
+      },
+      {
+        "value": "'XK'",
+        "configKey": "voucher.sale_voucher_type",
+        "count": 2
+      },
+      {
+        "value": "'pending_loading'",
+        "configKey": "voucher.default_loading_status",
+        "count": 2
+      }
+    ],
+    "totalReplacements": 6
+  },
+  {
+    "file": "utils/accountingEngine.js",
+    "replacements": [
+      {
+        "value": "5000000",
+        "configKey": "financial.ai_auto_post_max",
+        "count": 2
+      },
+      {
+        "value": "3000000000",
+        "configKey": "financial.threshold_revenue_3b",
+        "count": 2
+      }
+    ],
+    "totalReplacements": 4
+  },
+  {
+    "file": "routes/accounting.js",
+    "replacements": [
+      {
+        "value": "'131'",
+        "configKey": "accounts.ar",
+        "count": 1
+      },
+      {
+        "value": "'511'",
+        "configKey": "accounts.revenue_short",
+        "count": 2
+      }
+    ],
+    "totalReplacements": 3
+  },
+  {
+    "file": "services/aiWorkflowEngine.service.js",
+    "replacements": [
+      {
+        "value": "'XK'",
+        "configKey": "voucher.sale_voucher_type",
+        "count": 1
+      }
+    ],
+    "totalReplacements": 1
+  }
+]

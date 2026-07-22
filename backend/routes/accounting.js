@@ -9,6 +9,7 @@
  */
 
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth.js';
 import { getClosingRules } from '../config/businessRules.js';
 import { 
   calculateBalances, 
@@ -25,7 +26,7 @@ const router = Router();
  * Calculate account balances from vouchers
  * Body: { vouchers: [...], openingBalances: [...] }
  */
-router.post('/balances', (req, res) => {
+router.post('/balances', authenticate, (req, res) => {
   try {
     const { vouchers, openingBalances } = req.body;
     
@@ -54,7 +55,7 @@ router.post('/balances', (req, res) => {
  * Get closing balance for a specific account
  * Body: { ledger: {...}, accountCode: '131', accountType: 'asset', partnerId: null }
  */
-router.post('/closing-balance', (req, res) => {
+router.post('/closing-balance', authenticate, (req, res) => {
   try {
     const { ledger, accountCode, accountType = 'asset', partnerId = null } = req.body;
     
@@ -83,7 +84,7 @@ router.post('/closing-balance', (req, res) => {
  * Get total debit for an account
  * Body: { ledger: {...}, accountCode: '511' }
  */
-router.post('/total-debit', (req, res) => {
+router.post('/total-debit', authenticate, (req, res) => {
   try {
     const { ledger, accountCode } = req.body;
     
@@ -112,7 +113,7 @@ router.post('/total-debit', (req, res) => {
  * Get total credit for an account
  * Body: { ledger: {...}, accountCode: '511' }
  */
-router.post('/total-credit', (req, res) => {
+router.post('/total-credit', authenticate, (req, res) => {
   try {
     const { ledger, accountCode } = req.body;
     
@@ -141,7 +142,7 @@ router.post('/total-credit', (req, res) => {
  * Get the current corporate income tax rate.
  * Revenue is accepted for compatibility but a flat rate is used per business rules.
  */
-router.get('/tax-rate/:revenue', (req, res) => {
+router.get('/tax-rate/:revenue', authenticate, (req, res) => {
   try {
     const revenue = parseFloat(req.params.revenue);
     
@@ -175,7 +176,7 @@ router.get('/tax-rate/:revenue', (req, res) => {
  * Calculate profit before tax
  * Body: { revenue, otherIncome, costOfGoodsSold, operatingExpenses, otherExpenses, taxExpense }
  */
-router.post('/profit-before-tax', (req, res) => {
+router.post('/profit-before-tax', authenticate, (req, res) => {
   try {
     const { 
       revenue, 

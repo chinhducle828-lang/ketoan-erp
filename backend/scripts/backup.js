@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-import redisClient from '../config/redis';
+import { redis as redisClient } from '../cache/redis.js';
 
 const execAsync = promisify(exec);
 

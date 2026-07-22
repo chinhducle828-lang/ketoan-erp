@@ -203,7 +203,7 @@ export default function BalanceSheetB01() {
     queryFn: async () => {
       if (!companyId) return null;
       
-      const response = await api.get(`/api/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`);
+      const response = await api.get(`/report/balance-sheet?company_id=${companyId}&year=${fiscalYear}`);
       return response.data?.data || response.data || null;
     },
     enabled: Boolean(companyId),
@@ -216,7 +216,7 @@ export default function BalanceSheetB01() {
     queryFn: async () => {
       if (!companyId) return null;
       
-      const response = await api.get(`/api/report/customer-balances?company_id=${companyId}&year=${fiscalYear}`);
+      const response = await api.get(`/report/customer-balances?company_id=${companyId}&year=${fiscalYear}`);
       if (response.data?.success && response.data.data) {
         const customerMap = {};
         response.data.data.forEach(item => {
@@ -243,7 +243,7 @@ export default function BalanceSheetB01() {
     queryFn: async () => {
       if (!companyId) return null;
       
-      const response = await api.get(`/api/report/supplier-balances?company_id=${companyId}&year=${fiscalYear}`);
+      const response = await api.get(`/report/supplier-balances?company_id=${companyId}&year=${fiscalYear}`);
       if (response.data?.success && response.data.data) {
         const supplierMap = {};
         response.data.data.forEach(item => {

@@ -37,7 +37,7 @@ export default function HITLReviewModal({
   const handleApprove = async () => {
     setLoading(true);
     try {
-      const result = await api.put(`/api/hitl/logs/${voucher.hitl_log_id}/approve`, {
+      const result = await api.put(`/hitl/logs/${voucher.hitl_log_id}/approve`, {
         status: 'approved'
       });
       onApprove && onApprove(voucher.id);
@@ -52,7 +52,7 @@ export default function HITLReviewModal({
   const handleReject = async () => {
     setLoading(true);
     try {
-      const result = await api.put(`/api/hitl/logs/${voucher.hitl_log_id}/approve`, {
+      const result = await api.put(`/hitl/logs/${voucher.hitl_log_id}/approve`, {
         status: 'rejected'
       });
       onReject && onReject(voucher.id);

@@ -3,18 +3,15 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
 import { ShoppingBag, Loader2, Plus, Package } from 'lucide-react';
 import { buildPurchaseInventoryDetails, getDefaultCurrency, getDefaultTaxRate } from '../../utils/accountingRules.js';
-import { useRealtimeInvalidation } from '../../hooks/useRealtimeInvalidation.js';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync.js';
-import { WORKFLOW_EVENTS } from '../../workflow/accountingWorkflow.js';
 import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 
 export default function PurchaseInventory() {
-  const { createNewVoucher } = useVouchers();
+  const { createVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth();
   const companyId = activeCompany?.id ?? activeCompany;
 
@@ -52,23 +49,6 @@ export default function PurchaseInventory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
-  // Realtime: subscribe voucher and inventory events
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { 
-      items: fetchItems,
-      vouchers: () => {} // Will be handled by VoucherContext
-    },
-    {
-      eventMap: {
-        [WORKFLOW_EVENTS.VOUCHER_CREATED]: ['items'],
-        [WORKFLOW_EVENTS.INVENTORY_UPDATED]: ['items'],
-        voucherCreated: ['items'],
-        inventoryUpdated: ['items']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(companyId) });
 
   const selectedItem = useMemo(
     () => items.find((it) => String(it.id) === String(selectedItemId)) || null,
@@ -176,16 +156,12 @@ export default function PurchaseInventory() {
     };
 
     try {
-      const result = await createNewVoucher(payload);
-      if (result?.success) {
-        setSuccess('Đã ghi sổ phiếu nhập kho thành công!');
-        setSelectedItemId('');
-        setQuantity('1');
-        setUnitCost('');
-        setPartnerId('');
-      } else {
-        setError(result?.error || 'Lỗi hệ thống khi ghi sổ!');
-      }
+      await createVoucher(payload);
+      setSuccess('Đã ghi sổ phiếu nhập kho thành công!');
+      setSelectedItemId('');
+      setQuantity('1');
+      setUnitCost('');
+      setPartnerId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Lỗi hệ thống!');
     } finally {

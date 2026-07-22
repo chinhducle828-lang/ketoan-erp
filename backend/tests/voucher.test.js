@@ -14,8 +14,10 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
   const testAdminPassword = 'Password123!';
 
   beforeAll(async () => {
+    console.log('🔧 [voucher.test] beforeAll: Starting setup...');
     // Chờ server hoàn tất khởi tạo schema/migration để tránh race condition khi test ghi DB
     await dbInitPromise;
+    console.log('🔧 [voucher.test] beforeAll: dbInitPromise resolved');
 
     // 1. Tạo công ty hạch toán thử nghiệm
     const compRes = await pool.query(
@@ -24,9 +26,12 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
        RETURNING id`
     );
     testCompanyId = compRes.rows[0].id;
+    console.log('🔧 [voucher.test] beforeAll: Created test company', testCompanyId);
 
     // 2. Tạo tài khoản admin test độc lập để tránh phụ thuộc dữ liệu local
+    console.log('🔧 [voucher.test] beforeAll: hashing password...');
     const hashed = await bcrypt.hash(testAdminPassword, 10);
+    console.log('🔧 [voucher.test] beforeAll: password hashed, inserting user...');
     const userRes = await pool.query(
       `INSERT INTO users (username, password, role, company_ids, staff_ids, must_change_password)
        VALUES ($1, $2, 'admin', '{}', '{}', false)
@@ -34,6 +39,7 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
       [testAdminUsername, hashed]
     );
     testAdminId = userRes.rows[0].id;
+    console.log('🔧 [voucher.test] beforeAll: Created test admin', testAdminId);
 
     // 3. Đăng nhập tài khoản test và lấy access token hợp lệ theo session hiện tại
     const loginRes = await request(app)
@@ -41,17 +47,23 @@ describe('BỘ KIỂM THỬ TÍCH HỢP CHỨNG TỪ KẾ TOÁN (VOUCHERS INTEGR
       .send({ username: testAdminUsername, password: testAdminPassword });
 
     authToken = loginRes.body.accessToken;
+    console.log('🔧 [voucher.test] beforeAll: Login status', loginRes.status);
     expect(loginRes.status).toBe(200);
     expect(authToken).toBeTruthy();
+    console.log('🔧 [voucher.test] beforeAll: Setup complete');
   });
 
   afterAll(async () => {
     // Dọn dẹp sạch sẽ rác kiểm thử sau khi hoàn tất
-    if (testCompanyId) {
-      await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
-    }
-    if (testAdminId) {
-      await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+    try {
+      if (testAdminId) {
+        await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+      }
+      if (testCompanyId) {
+        await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
+      }
+    } catch (error) {
+      console.warn('⚠️ Cleanup warning:', error.message);
     }
   });
 
@@ -122,7 +134,9 @@ describe('Notification API Tests', () => {
   const testAdminPassword = 'Password123!';
 
   beforeAll(async () => {
+    console.log('🔧 [voucher.test] Notification beforeAll: Starting setup...');
     await dbInitPromise;
+    console.log('🔧 [voucher.test] Notification beforeAll: dbInitPromise resolved');
 
     // Tạo công ty test
     const compRes = await pool.query(
@@ -131,6 +145,7 @@ describe('Notification API Tests', () => {
        RETURNING id`
     );
     testCompanyId = compRes.rows[0].id;
+    console.log('🔧 [voucher.test] Notification beforeAll: Created test company', testCompanyId);
 
     // Tạo admin test
     const hashed = await bcrypt.hash(testAdminPassword, 10);
@@ -141,6 +156,7 @@ describe('Notification API Tests', () => {
       [testAdminUsername, hashed]
     );
     testAdminId = userRes.rows[0].id;
+    console.log('🔧 [voucher.test] Notification beforeAll: Created test admin', testAdminId);
 
     // Login
     const loginRes = await request(app)
@@ -148,14 +164,19 @@ describe('Notification API Tests', () => {
       .send({ username: testAdminUsername, password: testAdminPassword });
 
     authToken = loginRes.body.accessToken;
+    console.log('🔧 [voucher.test] Notification beforeAll: Login status', loginRes.status);
   });
 
   afterAll(async () => {
-    if (testCompanyId) {
-      await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
-    }
-    if (testAdminId) {
-      await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+    try {
+      if (testAdminId) {
+        await pool.query('DELETE FROM users WHERE id = $1', [testAdminId]);
+      }
+      if (testCompanyId) {
+        await pool.query('DELETE FROM companies WHERE id = $1', [testCompanyId]);
+      }
+    } catch (error) {
+      console.warn('⚠️ Cleanup warning:', error.message);
     }
   });
 

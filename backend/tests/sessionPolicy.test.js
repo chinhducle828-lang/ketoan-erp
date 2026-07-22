@@ -10,6 +10,6 @@ describe('session policy', () => {
   it('clears existing sessions for ERP roles that need a fresh login', () => {
     expect(shouldClearExistingSessions('admin')).toBe(true);
     expect(shouldClearExistingSessions('ktt')).toBe(true);
-    expect(shouldClearExistingSessions('nv')).toBe(true);
+    expect(shouldClearExistingSessions('nv_banhang')).toBe(false);
   });
 });

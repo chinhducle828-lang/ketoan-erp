@@ -11,6 +11,9 @@
 
 import { redis, isRedisReadyCheck } from '../cache/redis.js';
 
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+
 const WINDOW_MS = 15 * 60 * 1000; // 15 phút
 const MAX_REQUESTS = 100; // Tối đa 100 request trong 15 phút
 
@@ -45,13 +48,16 @@ export async function rateLimiter(req, res, next) {
   const windowSec = Math.ceil(config.windowMs / 1000);
   
   try {
-    // Sử dụng Redis atomic increment
-    const current = await redis.incr(key);
-    
-    if (current === 1) {
-      // Set TTL lần đầu
-      await redis.expire(key, windowSec);
-    }
+    // Use Lua script for atomic increment + expire in one operation
+    // This eliminates the race condition between INCR and EXPIRE
+    const luaScript = `
+      local current = redis.call('INCR', KEYS[1])
+      if current == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+      end
+      return current
+    `;
+    const current = await redis.eval(luaScript, 1, key, windowSec);
     
     if (current > config.maxRequests) {
       const ttl = await redis.ttl(key);

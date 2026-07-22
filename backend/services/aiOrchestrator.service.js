@@ -197,8 +197,22 @@ export async function executeWorkflow(workflowType, companyId, context = {}) {
       }
     }
 
-    // Generate final summary
-    results.summary = await generateWorkflowSummary(workflow, results, companyId);
+    // Generate final summary (with error handling)
+    try {
+      results.summary = await generateWorkflowSummary(workflow, results, companyId);
+    } catch (summaryError) {
+      logger.warn({ error: summaryError.message }, 'Failed to generate workflow summary, using fallback');
+      const completedSteps = results.steps.filter(s => s.status === 'completed').length;
+      const totalSteps = results.steps.length;
+      results.summary = {
+        text: `Hoàn thành ${completedSteps}/${totalSteps} bước trong workflow ${workflow.name}. Một số bước có thể cần cấu hình AI để có kết quả chi tiết.`,
+        confidence: 0,
+        completedSteps,
+        totalSteps,
+        successRate: totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
+      };
+    }
+    
     results.endTime = new Date().toISOString();
     results.duration = new Date(results.endTime) - new Date(results.startTime);
 
@@ -208,7 +222,24 @@ export async function executeWorkflow(workflowType, companyId, context = {}) {
 
   } catch (error) {
     logger.error({ error: error.message, workflowType, companyId }, 'Workflow execution failed');
-    throw error;
+    // Return a partial result instead of throwing to avoid 500 errors
+    return {
+      workflowType,
+      workflowName: workflowType,
+      companyId,
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      duration: 0,
+      steps: [],
+      summary: {
+        text: `Workflow ${workflowType} không thể thực thi do lỗi: ${error.message}. Vui lòng kiểm tra cấu hình AI.`,
+        confidence: 0,
+        completedSteps: 0,
+        totalSteps: 0,
+        successRate: 0
+      },
+      recommendations: ['Kiểm tra cấu hình AI (GEMINI_API_KEY, GROQ_API_KEY)', 'Đảm bảo AI service đã được kích hoạt']
+    };
   }
 }
 

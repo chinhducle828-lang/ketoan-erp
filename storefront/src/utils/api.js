@@ -40,6 +40,18 @@ export const authApi = axios.create({
   withCredentials: true
 });
 
+// Add request interceptor to automatically add Authorization header from localStorage
+authApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('storefrontAccessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Add response interceptor to authApi to handle 401 errors gracefully
 authApi.interceptors.response.use(
   (response) => response,
@@ -216,6 +228,71 @@ export const authOperations = {
       return authApi.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
     }
     return authApi.get('/api/auth/me');
+  }
+};
+
+// System config operations
+export const systemConfigApi = {
+  /**
+   * Get a single system config value
+   * @param {string} key - Config key (e.g., 'tax.standard_rate')
+   * @param {number|null} companyId - Optional company ID for company-specific config
+   * @returns {Promise<{success: boolean, value: any, source: string}>}
+   */
+  getConfig: async (key, companyId = null) => {
+    try {
+      const params = {};
+      if (companyId) {
+        params.company_id = companyId;
+      }
+      const { data } = await authApi.get(`/api/settings/config/${encodeURIComponent(key)}`, { params });
+      return data;
+    } catch (err) {
+      console.error(`Error fetching config ${key}:`, err);
+      return { success: false, value: null, source: 'error' };
+    }
+  },
+
+  /**
+   * Get multiple system configs at once
+   * @param {string[]} keys - Array of config keys
+   * @param {number|null} companyId - Optional company ID
+   * @returns {Promise<Object>} Object with config keys as properties
+   */
+  getBatchConfigs: async (keys, companyId = null) => {
+    try {
+      const { data } = await authApi.post('/api/settings/configs/batch', { keys, company_id: companyId });
+      if (data.success) {
+        // Flatten the response to { key: value } instead of { key: { value, source } }
+        const result = {};
+        for (const [key, config] of Object.entries(data.configs)) {
+          result[key] = config?.value ?? null;
+        }
+        return result;
+      }
+      return {};
+    } catch (err) {
+      console.error('Error fetching batch configs:', err);
+      return {};
+    }
+  },
+
+  /**
+   * Get tax rate (convenience method)
+   * @param {number|null} companyId - Optional company ID
+   * @returns {Promise<number>} Tax rate as decimal (e.g., 0.08)
+   */
+  getTaxRate: async (companyId = null) => {
+    try {
+      const result = await systemConfigApi.getConfig('tax.standard_rate', companyId);
+      if (result.success && result.value !== null) {
+        return parseFloat(result.value);
+      }
+    } catch (err) {
+      // Config not found or error - use fallback
+    }
+    // Fallback to default 8%
+    return 0.08;
   }
 };
 

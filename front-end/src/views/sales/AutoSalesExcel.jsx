@@ -4,12 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Layers, Loader2, Download, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import api from '../../utils/api.js';
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
+import TransactionClassifier from '../../components/TransactionClassifier.jsx';
+import { classifyTransaction } from '../../services/transactionClassification.js';
+import { resolveApiBaseUrl } from '../../utils/apiBaseUrl.js';
 
 /**
  * Mẫu Excel 2 chiều cho đồng bộ doanh thu bán hàng.
@@ -31,7 +34,7 @@ const TEMPLATE_COLUMNS = [
 ];
 
 export default function AutoSalesExcel() {
-  const { createNewVoucher } = useVouchers();
+  const { createVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth();
   const [excelData, setExcelData] = useState([]); 
   const [loading, setLoading] = useState(false);
@@ -82,8 +85,8 @@ export default function AutoSalesExcel() {
     const companyId = activeCompany?.id ?? activeCompany;
     if (!companyId) return alert('Vui lòng chọn công ty!');
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/export/sales-revenue?company_id=${companyId}`, {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${resolveApiBaseUrl()}/export/sales-revenue?company_id=${companyId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Lỗi xuất Excel');
@@ -97,6 +100,15 @@ export default function AutoSalesExcel() {
     } catch (err) {
       alert(err.message || 'Lỗi xuất Excel');
     }
+  };
+
+  // Get default account codes for sales revenue (fallback)
+  const getDefaultSalesAccounts = () => {
+    return {
+      revenueAccount: '511',  // Doanh thu bán hàng
+      arAccount: '131',       // Phải thu của khách hàng
+      taxAccount: '3331'      // Thuế GTGT
+    };
   };
 
   const handleSync = async () => {
@@ -113,11 +125,34 @@ export default function AutoSalesExcel() {
         const taxAmount = Math.round((baseAmount - discountAmount) * (taxRate / 100));
         const netRevenue = baseAmount - discountAmount + Math.round(inv.shippingFee);
         
+        // Try to get AI classification for this transaction
+        let accountCodes = getDefaultSalesAccounts();
+        try {
+          const classification = await classifyTransaction({
+            description: `Doanh thu bán hàng: ${inv.customer}`,
+            amount: baseAmount,
+            partner_id: null
+          });
+          
+          if (classification?.success && classification?.classification?.account_code) {
+            // Use AI suggested account if available
+            accountCodes = {
+              ...accountCodes,
+              revenueAccount: classification.classification.account_code,
+              arAccount: classification.classification.account_code
+            };
+          }
+        } catch (e) {
+          // Use default accounts on error
+          console.log('Using default accounts for sales transaction');
+        }
+        
+        // Hạch toán đúng: Nợ 131 (Phải thu KH) / Có 511 (Doanh thu) + Có 3331 (Thuế GTGT)
         const details = [
-          { accountCode: '131', entryType: 'DR', amount: netRevenue + taxAmount },
-          { accountCode: '511', entryType: 'CR', amount: netRevenue }
+          { accountCode: accountCodes.arAccount, entryType: 'DR', amount: netRevenue + taxAmount },
+          { accountCode: accountCodes.revenueAccount, entryType: 'CR', amount: netRevenue }
         ];
-        if (taxAmount > 0) details.push({ accountCode: '3331', entryType: 'CR', amount: taxAmount });
+        if (taxAmount > 0) details.push({ accountCode: accountCodes.taxAccount, entryType: 'CR', amount: taxAmount });
 
         const payload = {
           companyId: parseInt(companyId, 10),
@@ -137,7 +172,7 @@ export default function AutoSalesExcel() {
           details: details
         };
         
-        await createNewVoucher(payload);
+        await createVoucher(payload);
       }
       alert('Đồng bộ dữ liệu bán hàng từ Excel thành công!');
       setExcelData([]);

@@ -19,6 +19,8 @@ import {
   AlertCircle,
   BarChart3
 } from 'lucide-react';
+import ConfigModal from '../../components/ConfigModal.jsx';
+import { systemConfigApi } from '../../utils/systemConfigApi.js';
 
 // API base URL - tự động normalize để đảm bảo có /api
 const getApiBase = () => {
@@ -37,6 +39,14 @@ export default function AIConfigManagement() {
   const [editingItem, setEditingItem] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
+  const [systemConfigs, setSystemConfigs] = useState([]);
+  const [systemConfigLoading, setSystemConfigLoading] = useState(false);
+  const [systemConfigError, setSystemConfigError] = useState(null);
+  const [systemConfigPagination, setSystemConfigPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [systemConfigSearch, setSystemConfigSearch] = useState('');
+  const [editingSystemConfig, setEditingSystemConfig] = useState(null);
+  const [systemConfigModalOpen, setSystemConfigModalOpen] = useState(false);
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -48,7 +58,8 @@ export default function AIConfigManagement() {
         loadDepartments(),
         loadWorkflows(),
         loadSuggestionRules(),
-        loadBatchConfigs()
+        loadBatchConfigs(),
+        loadSystemConfigs()
       ]);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -93,11 +104,74 @@ export default function AIConfigManagement() {
     if (data.success) setBatchConfigs(data.data);
   };
 
+  const loadSystemConfigs = async (page = 1, search = '') => {
+    setSystemConfigLoading(true);
+    setSystemConfigError(null);
+
+    try {
+      const params = {
+        category: 'AI_CONFIG',
+        page,
+        limit: systemConfigPagination.limit,
+        search: search || undefined
+      };
+      const result = await systemConfigApi.getConfigs(params);
+
+      if (result.success) {
+        setSystemConfigs(result.data);
+        setSystemConfigPagination(result.pagination);
+      }
+    } catch (err) {
+      console.error('Failed to load system configs:', err);
+      setSystemConfigError('Không thể tải cấu hình AI.');
+    } finally {
+      setSystemConfigLoading(false);
+    }
+  };
+
+  const handleSystemConfigSave = async (formData) => {
+    if (editingSystemConfig) {
+      await systemConfigApi.updateConfig(editingSystemConfig.config_key, formData);
+    } else {
+      formData.category = 'AI_CONFIG';
+      await systemConfigApi.createConfig(formData);
+    }
+    setSystemConfigModalOpen(false);
+    setEditingSystemConfig(null);
+    await loadSystemConfigs(systemConfigPagination.page, systemConfigSearch);
+  };
+
+  const handleEditSystemConfig = (config) => {
+    setEditingSystemConfig(config);
+    setSystemConfigModalOpen(true);
+  };
+
+  const handleAddSystemConfig = () => {
+    setEditingSystemConfig(null);
+    setSystemConfigModalOpen(true);
+  };
+
+  const handleDeleteSystemConfig = async (key) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa config "${key}"?`)) return;
+    await systemConfigApi.deleteConfig(key);
+    await loadSystemConfigs(systemConfigPagination.page, systemConfigSearch);
+  };
+
+  const handleSystemConfigSearch = (value) => {
+    setSystemConfigSearch(value);
+    loadSystemConfigs(1, value);
+  };
+
+  const handleSystemConfigPageChange = (page) => {
+    loadSystemConfigs(page, systemConfigSearch);
+  };
+
   const tabs = [
     { id: 'departments', name: 'Phòng ban', icon: Users, count: departments.length },
     { id: 'workflows', name: 'Workflows', icon: Workflow, count: workflows.length },
     { id: 'suggestions', name: 'Suggestion Rules', icon: Lightbulb, count: suggestionRules.length },
-    { id: 'batch', name: 'Batch Configs', icon: Upload, count: batchConfigs.length }
+    { id: 'batch', name: 'Batch Configs', icon: Upload, count: batchConfigs.length },
+    { id: 'systemConfigs', name: 'System AI Configs', icon: Settings, count: systemConfigs.length }
   ];
 
   return (
@@ -111,7 +185,7 @@ export default function AIConfigManagement() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">AI Configuration Management</h1>
             <p className="text-sm text-gray-500">
-              Quản lý cấu hình AI: departments, workflows, suggestions, batch processing
+              Quản lý cấu hình AI: departments, workflows, suggestions, batch processing và hệ thống AI_CONFIG
             </p>
           </div>
         </div>
@@ -166,7 +240,128 @@ export default function AIConfigManagement() {
             onRefresh={loadBatchConfigs}
           />
         )}
+        {activeTab === 'systemConfigs' && (
+          <SystemConfigsManager
+            configs={systemConfigs}
+            loading={systemConfigLoading}
+            error={systemConfigError}
+            pagination={systemConfigPagination}
+            searchQuery={systemConfigSearch}
+            onSearch={handleSystemConfigSearch}
+            onAdd={handleAddSystemConfig}
+            onEdit={handleEditSystemConfig}
+            onDelete={handleDeleteSystemConfig}
+            onPageChange={handleSystemConfigPageChange}
+          />
+        )}
       </div>
+
+      {systemConfigModalOpen && (
+        <ConfigModal
+          config={editingSystemConfig}
+          fixedCategory="AI_CONFIG"
+          onClose={() => setSystemConfigModalOpen(false)}
+          onSave={handleSystemConfigSave}
+        />
+      )}
+    </div>
+  );
+}
+
+// ==================== SYSTEM CONFIGS MANAGER ====================
+function SystemConfigsManager({ configs, loading, error, pagination, searchQuery, onSearch, onAdd, onEdit, onDelete, onPageChange }) {
+  return (
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-lg font-semibold">System AI Configs</h2>
+          <p className="text-sm text-gray-500">Quản lý các cấu hình AI chung lưu trong danh mục AI_CONFIG</p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Tìm config..."
+            value={searchQuery}
+            onChange={e => onSearch(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm w-full md:w-72"
+          />
+          <button
+            type="button"
+            onClick={onAdd}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add Config
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-4 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Config Key</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                  Đang tải cấu hình...
+                </td>
+              </tr>
+            ) : configs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                  Chưa có cấu hình AI nào.
+                </td>
+              </tr>
+            ) : (
+              configs.map(config => (
+                <tr key={config.config_key} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{config.config_key}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">{config.config_value}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{config.value_type}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{config.description || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button onClick={() => onEdit(config)} className="text-blue-600 hover:text-blue-900">Edit</button>
+                    <button onClick={() => onDelete(config.config_key)} className="text-red-600 hover:text-red-900">Delete</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {pagination.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+          <span>Page {pagination.page} / {pagination.totalPages}</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onPageChange(Math.max(1, pagination.page - 1))}
+              disabled={pagination.page === 1}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 disabled:opacity-50"
+            >Previous</button>
+            <button
+              type="button"
+              onClick={() => onPageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              disabled={pagination.page === pagination.totalPages}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 disabled:opacity-50"
+            >Next</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

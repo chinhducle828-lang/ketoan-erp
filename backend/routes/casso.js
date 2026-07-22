@@ -3,8 +3,7 @@
  */
 
 import express from 'express';
-import { authenticate, requireRole } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 import {
   getCassoUserInfo,
   getCassoTransactions,
@@ -153,14 +152,12 @@ router.get('/user', authenticate, requireRole(['admin']), async (req, res) => {
  * ====================================================================
  */
 
-router.post('/company-accounts', authenticate, requireRole(['admin']), async (req, res) => {
+router.post('/company-accounts', authenticate, requireRole(['admin']), checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id, bank_sub_acc_id, bank_name, account_number, owner_name } = req.body;
+    const company_id = req.companyId;
+    const { bank_sub_acc_id, bank_name, account_number, owner_name } = req.body;
     if (!company_id || !bank_sub_acc_id) {
       return res.status(400).json({ success: false, error: 'Thiếu company_id hoặc bank_sub_acc_id' });
-    }
-    if (!(await canAccessCompany(req.user, company_id))) {
-      return res.status(403).json({ success: false, error: 'Không có quyền truy cập công ty này' });
     }
 
     const record = await assignCompanyAccount({ companyId: company_id, bankSubAccId: bank_sub_acc_id, bankName: bank_name, accountNumber: account_number, ownerName: owner_name });
@@ -171,15 +168,9 @@ router.post('/company-accounts', authenticate, requireRole(['admin']), async (re
   }
 });
 
-router.get('/company-accounts', authenticate, async (req, res) => {
+router.get('/company-accounts', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id } = req.query;
-    if (!company_id) {
-      return res.status(400).json({ success: false, error: 'Thiếu company_id' });
-    }
-    if (!(await canAccessCompany(req.user, company_id))) {
-      return res.status(403).json({ success: false, error: 'Không có quyền truy cập' });
-    }
+    const company_id = req.companyId;
 
     const rows = await listCompanyAccounts(Number(company_id));
     res.json({ success: true, data: rows });
@@ -207,15 +198,10 @@ router.get('/company-accounts/public', async (req, res) => {
  * ====================================================================
  */
 
-router.get('/transactions', authenticate, async (req, res) => {
+router.get('/transactions', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const { company_id, status, limit = 50, offset = 0 } = req.query;
-    if (!company_id) {
-      return res.status(400).json({ success: false, error: 'Thiếu company_id' });
-    }
-    if (!(await canAccessCompany(req.user, company_id))) {
-      return res.status(403).json({ success: false, error: 'Không có quyền truy cập' });
-    }
+    const company_id = req.companyId;
+    const { status, limit = 50, offset = 0 } = req.query;
 
     const { pool } = await import('../config/db.js');
     let query = 'SELECT * FROM casso_transactions WHERE company_id = $1';

@@ -27,7 +27,7 @@ export default function ImportExcelButton({ endpoint, filename, label = 'Nhập 
     formData.append('year', fiscalYear || 2026);
 
     try {
-      const res = await api.post(`/api/import/${endpoint}`, formData, {
+      const res = await api.post(`/import/${endpoint}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

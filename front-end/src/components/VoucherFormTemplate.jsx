@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { Plus, X, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useVouchers } from '../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../hooks/useVoucherQueries.js';
 import { getDefaultCurrency } from '../utils/accountingRules.js';
 import { notify } from '../utils/notify.jsx';
 import { useSocket } from '../hooks/useSocket.js';
@@ -24,7 +24,7 @@ export default function VoucherFormTemplate({
   accountGroupFilter
 }) {
   const { activeCompany } = useAuth();
-  const { createNewVoucher, postVoucher } = useVouchers();
+  const { createVoucher, postVoucher } = useVoucherQueries();
   const { socket } = useSocket();
   const [loading, setLoading] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
@@ -76,20 +76,19 @@ export default function VoucherFormTemplate({
         details: processedDetails
       };
 
-      const result = await createNewVoucher(payload);
-      if (!result.error) {
+      try {
+        await createVoucher(payload);
         if (socket) {
           socket.emit(WORKFLOW_EVENTS.VOUCHER_CREATED, {
             companyId,
-            voucherId: result.id,
             voucherType: form.voucherType,
             amount: totalDr
           });
         }
         notify.success('Tạo chứng từ thành công!');
         setForm({ voucherType: defaultVoucherType || 'PT', date: new Date().toISOString().split('T')[0], desc: '', partnerId: '', currency: getDefaultCurrency(), exchangeRate: 1, details: [{ accountCode: '', entryType: 'DR', amount: '', partnerId: '' }] });
-      } else {
-        throw new Error(result.error || 'Lỗi tạo chứng từ');
+      } catch (error) {
+        throw new Error(error.response?.data?.error || 'Lỗi tạo chứng từ');
       }
     } catch (err) {
       notify.error(err.message || 'Lỗi tạo chứng từ!');
@@ -125,27 +124,23 @@ export default function VoucherFormTemplate({
       // Direct post for other voucher types
       try {
         const companyId = activeCompany?.id || activeCompany || 1;
-        const result = await postVoucher(voucherId, companyId);
-        if (result.success) {
-          notify.success('Ghi sổ chứng từ thành công!');
-        }
+        await postVoucher({ voucherId, companyId });
+        notify.success('Ghi sổ chứng từ thành công!');
       } catch (err) {
-        notify.error(err.message || 'Lỗi ghi sổ chứng từ!');
+        notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
       }
     }
   };
 
   // Handle OTP success
   const handleSignSuccess = async (signedVoucher) => {
-    if (pendingVoucher && postVoucher) {
+    if (pendingVoucher) {
       try {
         const companyId = activeCompany?.id || activeCompany || 1;
-        const result = await postVoucher(pendingVoucher.id, companyId);
-        if (result.success) {
-          notify.success('Ghi sổ chứng từ thành công!');
-        }
+        await postVoucher({ voucherId: pendingVoucher.id, companyId });
+        notify.success('Ghi sổ chứng từ thành công!');
       } catch (err) {
-        notify.error(err.message || 'Lỗi ghi sổ chứng từ!');
+        notify.error(err.response?.data?.error || 'Lỗi ghi sổ chứng từ!');
       }
     }
     setPendingVoucher(null);

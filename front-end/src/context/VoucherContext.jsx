@@ -2,74 +2,16 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import api from '../utils/api.js';
 import { normalizeVoucherPayload } from '../utils/accountingRules.js';
-import { useRealTimeSync } from '../hooks/useRealTimeSync.js';
-import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation.js';
 
-// 1. Khởi tạo Context nội bộ
+// 1. Khởi tạo Context cho Business Logic Only
 const VoucherContext = createContext(null);
 
-// 2. Định nghĩa Component Provider
-export function VoucherProvider({ children }) {
+// 2. Hook cung cấp Business Logic Functions (không còn state management)
+export function useVoucherLogic() {
   const { activeCompany, checkOpeningBalanceStatus, hasOpeningBalance } = useAuth();
-  const [vouchers, setVouchers] = useState([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  // Kiểm tra số dư đầu kỳ khi chuyển đổi công ty
-  useEffect(() => {
-    if (activeCompany?.id) {
-      checkOpeningBalanceStatus(activeCompany.id);
-    }
-  }, [activeCompany?.id, checkOpeningBalanceStatus]);
-
-  const loadVouchers = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const companyId = activeCompany?.id ?? activeCompany;
-      if (!companyId) return;
-      
-      const res = await api.get(`/vouchers?company_id=${companyId}`);
-      // Bảo vệ State: Đảm bảo dữ liệu nhận về luôn là mảng để không lỗi hàm render (.map)
-      setVouchers(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Lỗi tải danh sách chứng từ:', err);
-      setVouchers([]);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [activeCompany]);
-
-  // Tự động tải lại danh sách chứng từ khi thay đổi pháp nhân hạch toán
-  useEffect(() => {
-    if (activeCompany) {
-      loadVouchers();
-    } else {
-      setVouchers([]);
-    }
-  }, [activeCompany, loadVouchers]);
-
-  const { handlers: realtimeHandlers } = useRealtimeInvalidation(
-    { vouchers: loadVouchers },
-    {
-      eventMap: {
-        'voucher:created': ['vouchers'],
-        'voucher:updated': ['vouchers'],
-        'voucher:deleted': ['vouchers'],
-        'voucher:posted': ['vouchers'],
-        voucherCreated: ['vouchers'],
-        voucherUpdated: ['vouchers'],
-        voucherDeleted: ['vouchers'],
-        voucherPosted: ['vouchers'],
-        'closing:completed': ['vouchers'],
-        closingCompleted: ['vouchers']
-      }
-    }
-  );
-
-  useRealTimeSync(realtimeHandlers, { enabled: Boolean(activeCompany) });
 
   /**
    * 🛠️ HÀM NGHIỆP VỤ: ĐỐI CHIẾU CHÉO ĐỊNH KHOẢN (DOUBLE-ENTRY VALIDATION)
@@ -112,39 +54,27 @@ export function VoucherProvider({ children }) {
     return { isValid: true };
   };
 
-  const createNewVoucher = async (data) => {
+  const validateVoucherData = (data) => {
+    // Kiểm tra số dư đầu kỳ
     if (hasOpeningBalance === false && activeCompany?.id) {
       return {
-        success: false,
+        valid: false,
         error: 'Chưa nhập số dư đầu kỳ. Vui lòng vào phân hệ "Khai báo số dư đầu kỳ" để nhập trước khi thực hiện nghiệp vụ khác.'
       };
     }
 
     const voucherData = normalizeVoucherPayload(data || {}, activeCompany);
     const checkBalance = validateDoubleEntry(voucherData.details);
+    
     if (!checkBalance.isValid) {
-      return { success: false, error: checkBalance.error };
+      return { valid: false, error: checkBalance.error };
     }
 
     if (!voucherData.company_id) {
-      return { success: false, error: 'Vui lòng chọn doanh nghiệp trước khi ghi sổ.' };
+      return { valid: false, error: 'Vui lòng chọn doanh nghiệp trước khi ghi sổ.' };
     }
 
-    try {
-      const res = await api.post('/vouchers', {
-        ...voucherData,
-        company_id: voucherData.company_id,
-        details: voucherData.details || []
-      });
-
-      if (res.data?.success) {
-        setVouchers(prev => [res.data.voucher, ...prev]);
-        return { success: true };
-      }
-      return { success: false, error: res.data?.message || 'Không thể tạo chứng từ.' };
-    } catch (err) {
-      return { success: false, error: err.response?.data?.error || err.response?.data?.message || err.message };
-    }
+    return { valid: true, data: voucherData };
   };
 
   const fetchCashFlow = async (companyId, year, method = 'indirect') => {
@@ -162,75 +92,34 @@ export function VoucherProvider({ children }) {
     }
   };
 
-  const removeVoucher = async (id) => {
-    if (!id) return { success: false, error: 'Mã định danh chứng từ không hợp lệ.' };
-    try {
-      const res = await api.delete(`/vouchers/${id}`);
-      if (res.data?.success) {
-        setVouchers(prev => prev.filter(v => v.id !== id));
-        return { success: true, message: res.data.message };
-      }
-      return { success: false, error: res.data?.message || 'Xóa chứng từ thất bại.' };
-    } catch (err) {
-      console.error('Lỗi xóa chứng từ:', err);
-      return { 
-        success: false, 
-        error: err.response?.data?.error || err.response?.data?.message || err.message || 'Lỗi không thể xóa chứng từ' 
-      };
-    }
+  return {
+    validateDoubleEntry,
+    validateVoucherData,
+    fetchCashFlow,
+    activeCompany,
+    hasOpeningBalance
   };
+}
 
-  /**
-   * Post voucher (ghi sổ) - for XK/PT types that require signing
-   */
-  const postVoucher = async (voucherId, companyId) => {
-    if (!voucherId) return { success: false, error: 'Mã chứng từ không hợp lệ.' };
-    try {
-      const res = await api.post(`/vouchers/${voucherId}/post`, {
-        company_id: companyId
-      });
-      if (res.data?.success) {
-        // Update voucher status in local state
-        setVouchers(prev => prev.map(v => 
-          v.id === voucherId 
-            ? { ...v, isPosted: true, postedAt: new Date().toISOString() }
-            : v
-        ));
-        return { success: true, voucher: res.data.voucher };
-      }
-      return { success: false, error: res.data?.error || res.data?.message || 'Ghi sổ chứng từ thất bại.' };
-    } catch (err) {
-      // Check if signing is required
-      if (err.response?.data?.code === 'SIGNING_REQUIRED') {
-        return { 
-          success: false, 
-          error: err.response?.data?.error,
-          requiresSigning: true,
-          voucherType: err.response?.data?.voucherType
-        };
-      }
-      return { 
-        success: false, 
-        error: err.response?.data?.error || err.response?.data?.message || err.message || 'Lỗi không thể ghi sổ chứng từ' 
-      };
-    }
-  };
+// 3. Custom Hook để sử dụng Business Logic
+function useVoucherLogicContext() {
+  const context = useContext(VoucherContext);
+  if (!context) {
+    throw new Error('useVoucherLogicContext phải được lồng bên trong cấu trúc của VoucherProvider');
+  }
+  return context;
+}
 
+// 4. Provider (chỉ cung cấp logic, không quản lý state)
+export function VoucherProvider({ children }) {
+  const logic = useVoucherLogic();
+  
   return (
-    <VoucherContext.Provider value={{ vouchers, isSyncing, createNewVoucher, removeVoucher, postVoucher, reloadVouchers: loadVouchers, fetchVouchers: loadVouchers, fetchCashFlow }}>
+    <VoucherContext.Provider value={logic}>
       {children}
     </VoucherContext.Provider>
   );
 }
 
-// 3. Custom Hook nội bộ
-function useVouchers() {
-  const context = useContext(VoucherContext);
-  if (!context) {
-    throw new Error('useVouchers phải được lồng bên trong cấu trúc của VoucherProvider');
-  }
-  return context;
-}
-
 // Export tập trung theo chuẩn Vite
-export { useVouchers };
+export { useVoucherLogicContext as useVouchers };

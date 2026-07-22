@@ -14,7 +14,8 @@ const CheckoutForm = ({
   selectedCurrency,
   t,
   companyId,
-  onOrderSuccess
+  onOrderSuccess,
+  taxRate = 0.08
 }) => {
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,7 +27,7 @@ const CheckoutForm = ({
 
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price_sell) || 0) * item.quantity, 0);
   const total = Math.max(0, subtotal - discount);
-  const totalWithTax = Math.max(0, (subtotal * (1 + VAT_RATE)) - discount);
+  const totalWithTax = Math.max(0, (subtotal * (1 + taxRate)) - discount);
 
   const applyCoupon = () => {
     if (coupon === 'SAVE10') {
@@ -60,7 +61,7 @@ const CheckoutForm = ({
         phone,
         address,
         amount: totalWithTax,
-taxRate: 0.08
+        taxRate: taxRate
       };
 
       const result = await createOrder(orderPayload);
@@ -139,8 +140,8 @@ setMessage(`Đặt hàng thành công. Mã chứng từ: ${result?.voucherNumber
           </div>
         )}
         <div className="flex justify-between text-sm text-slate-500">
-<span>Thuế VAT 8%</span>
-          <span>{formatPrice(subtotal * VAT_RATE - discount * VAT_RATE, selectedCurrency)}</span>
+          <span>Thuế VAT {(taxRate * 100).toFixed(0)}%</span>
+          <span>{formatPrice(subtotal * taxRate - discount * taxRate, selectedCurrency)}</span>
         </div>
         <div className="flex justify-between text-lg font-bold text-indigo-600 mt-1">
           <span>Tổng thanh toán</span>

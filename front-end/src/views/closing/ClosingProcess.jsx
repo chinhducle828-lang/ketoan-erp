@@ -4,13 +4,12 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../utils/api.js';
-import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder } from 'lucide-react';
+import { BookOpenCheck, RefreshCw, Scale, CheckCircle, AlertTriangle, Layers, Folder, RotateCcw } from 'lucide-react';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
-import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
 
 // FIX 3: Account dictionary maintained locally for frontend
 // Backend updates via API if needed
@@ -47,13 +46,13 @@ const DEFAULT_ACCOUNT_DICTIONARY = {
 };
 
 export default function ClosingProcess() {
-  const { vouchers, fetchVouchers } = useVouchers();
   const { activeCompany, fiscalYear } = useAuth();
   const [log, setLog] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reversingLoading, setReversingLoading] = useState(false);
   const [accountDictionary] = useState(DEFAULT_ACCOUNT_DICTIONARY);
   
-  const currentCompanyId = activeCompany?.id || activeCompany || vouchers[0]?.companyId || localStorage.getItem('current_company_id') || '';
+  const currentCompanyId = activeCompany?.id || activeCompany || localStorage.getItem('current_company_id') || '';
 
   // React Query for account balances
   const { data: accountLedger = {}, isLoading: loadingBalances } = useQuery({
@@ -73,14 +72,6 @@ export default function ClosingProcess() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Realtime cache sync
-  useRealtimeCacheSync({
-    queries: [
-      { key: ['accountBalances', currentCompanyId, fiscalYear] }
-    ],
-    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
-    enabled: !!currentCompanyId
-  });
 
 
   const executeClosing = async () => {
@@ -101,7 +92,6 @@ export default function ClosingProcess() {
           setLog(`✓ ${result.message}`);
         } else {
           setLog(`[KẾT CHUYỂN THÀNH CÔNG]\n========================\nLãi/Lỗ ròng phát sinh: ${result.data?.profitOrLoss?.toLocaleString('vi-VN') || 0} đ\nBút toán đã tự động hạch toán dồn số dư từ tài khoản doanh thu/chi phí về 911 và chuyển kết quả vào 421.`);
-          if (fetchVouchers) fetchVouchers();
         }
       } else {
         setLog(`❌ Thất bại: ${result.error}`);
@@ -110,6 +100,42 @@ export default function ClosingProcess() {
       setLog('⚠️ Đã xảy ra lỗi kết nối đường truyền tới máy chủ.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateReversingEntries = async () => {
+    if (!currentCompanyId) return setLog('⚠️ Hệ thống từ chối: Không xác định được doanh nghiệp hiện tại.');
+    
+    const year = fiscalYear || new Date().getFullYear();
+    const nextYear = year + 1;
+    
+    if (!window.confirm(`Tạo bút toán hoàn nhập đầu năm ${nextYear}?\n\nHệ thống sẽ tự động tạo bút toán ngược lại (số tiền âm) để triệt tiêu các khoản chi phí trích trước năm ${year}.`)) {
+      return;
+    }
+    
+    setReversingLoading(true);
+    setLog('⏳ Đang tạo bút toán hoàn nhập đầu năm...');
+
+    try {
+      const response = await api.post('/reversing-entries', {
+        company_id: currentCompanyId,
+        year: nextYear
+      });
+      const result = response.data;
+
+      if (result.success) {
+        setLog(`[HOÀN NHẬP ĐẦU NĂM THÀNH CÔNG]\n========================\n` +
+              `Năm: ${nextYear}\n` +
+              `Số bút toán đã tạo: ${result.data?.count || 0}\n` +
+              `Tổng số tiền: ${result.data?.totalAmount?.toLocaleString('vi-VN') || 0} đ\n\n` +
+              `Các bút toán hoàn nhập đã được tạo với số tiền âm để triệt tiêu chi phí trích trước.`);
+      } else {
+        setLog(`❌ Thất bại: ${result.error}`);
+      }
+    } catch (error) {
+      setLog('⚠️ Đã xảy ra lỗi khi tạo bút toán hoàn nhập.');
+    } finally {
+      setReversingLoading(false);
     }
   };
 
@@ -241,6 +267,15 @@ export default function ClosingProcess() {
           >
             {loading ? <RefreshCw className="animate-spin" size={14} /> : <BookOpenCheck size={14} />}
             Thực hiện khóa sổ
+          </button>
+          <button
+            onClick={generateReversingEntries}
+            disabled={reversingLoading || loading || loadingBalances}
+            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
+            title="Tạo bút toán hoàn nhập đầu năm (triệt tiêu chi phí trích trước)"
+          >
+            {reversingLoading ? <RefreshCw className="animate-spin" size={14} /> : <RotateCcw size={14} />}
+            Hoàn nhập đầu năm
           </button>
         </div>
       </div>

@@ -134,15 +134,21 @@ export function useWebSocketStatus(url) {
 
     setIsConnecting(true);
     try {
-      const es = new EventSource(url);
+      // SECURITY: EventSource needs withCredentials to send cookies for authentication
+      // This allows the backend to authenticate via session cookies instead of URL tokens
+      const es = new EventSource(url, { withCredentials: true });
+      
+      console.log('[WebSocketHUD] Connecting to:', url);
       
       es.onopen = () => {
+        console.log('[WebSocketHUD] Connected successfully');
         setIsConnected(true);
         setIsConnecting(false);
         setLastSync(new Date().toISOString());
       };
 
-      es.onerror = () => {
+      es.onerror = (err) => {
+        console.log('[WebSocketHUD] Connection error:', err);
         setIsConnected(false);
         setIsConnecting(false);
       };

@@ -22,7 +22,8 @@ export default function ProductCard({
   isInWishlist = false,
   onToggleWishlist,
   secondaryLabel = 'Xem',
-  secondaryClassName = 'btn-balanced-secondary flex-1'
+  secondaryClassName = 'btn-balanced-secondary flex-1',
+  taxRate = 0.08
 }) {
   const unitPrice = Number(product?.price_sell) || 0;
   const stockQuantity = Number(product?.opening_quantity) || 0;
@@ -98,7 +99,7 @@ export default function ProductCard({
             </div>
           </div>
           <p className="text-[8px] text-emerald-600 font-medium mb-1">
-            Đã bao gồm Thuế VAT 8%
+            Đã bao gồm Thuế VAT {(taxRate * 100).toFixed(0)}%
           </p>
 
           {/* Action Buttons - compact */}

@@ -57,10 +57,13 @@ import {
   getRoleDisplayName,
   isExplicitNonAdminRole,
   getUnitPriceWithTax,
-  getOrderAmount
+  getOrderAmount,
+  getOrderDisplayDate
 } from './utils/formatters.js';
-import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner, authOperations } from './utils/api';
+import { publicApi, authApi, API_BASE_URL, getERPUrl, setAuthenticating, findOrCreatePartner, authOperations, systemConfigApi } from './utils/api';
 import { fetchExchangeRate } from './services/exchangeRate';
+import useStorefrontEvents from './hooks/useStorefrontEvents';
+import StorefrontCreditModal from './components/StorefrontCreditModal';
 
 const ImageWithFallback = ({
   src,
@@ -150,11 +153,13 @@ export default function StorefrontPage() {
   const [isRealtimeConnecting, setIsRealtimeConnecting] = useState(false);
   const [lastRealtimeSync, setLastRealtimeSync] = useState(null);
   const [pendingRealtimeOrders, setPendingRealtimeOrders] = useState(0);
+  const [taxRate, setTaxRate] = useState(0.08);
+  const [taxRateLoading, setTaxRateLoading] = useState(true);
   const checkoutSectionRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState('VI');
   const [selectedCurrency, setSelectedCurrency] = useState('VND');
-  const [storefrontToken, setStorefrontToken] = useState(() => localStorage.getItem('storefrontAccessToken') || '');
+  const [storefrontToken, setStorefrontToken] = useState('');
   const [hasAdminSession, setHasAdminSession] = useState(false);
   const [authenticatingAdmin, setAuthenticatingAdmin] = useState(false);
   const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
@@ -191,6 +196,11 @@ export default function StorefrontPage() {
   const firstQueueLoadRef = useRef(true);
   const salesOrderIdsRef = useRef(salesOrderIds);
   const streamRef = useRef(null);
+
+  // Feature flag: Use REA events (default: true if env var is set)
+  const useREAEvents = import.meta.env.VITE_USE_REA_EVENTS === 'true';
+  const storefrontEvents = useStorefrontEvents();
+  const [creditFreezeData, setCreditFreezeData] = useState(null);
 
   const isGuestRole = storefrontRole === 'guest';
   const isAdminRole = storefrontRole === 'admin';
@@ -268,7 +278,9 @@ export default function StorefrontPage() {
     setError('');
     setSuccess('');
     try {
-      const { data } = await publicApi.get('/items', { params: { company_id: id } });
+      // Use authApi with storefront token for authenticated requests
+      const config = storefrontToken ? { headers: { Authorization: `Bearer ${storefrontToken}` } } : { withCredentials: true };
+      const { data } = await authApi.get('/api/items', { params: { company_id: id }, ...config });
       setItems(data || []);
       // KHÔNG tự động chọn sản phẩm đầu tiên — container "sản phẩm đang chọn"
       // sẽ hiển thị placeholder cho đến khi user thực sự bấm chọn sản phẩm.
@@ -282,10 +294,10 @@ export default function StorefrontPage() {
   };
 
   useEffect(() => {
-    if (companyId) {
+    if (companyId && authBootstrapDone) {
       loadItems(companyId);
     }
-  }, [companyId]);
+  }, [companyId, authBootstrapDone]);
 
   // enhance loadItems error logging for production troubleshooting
 
@@ -422,7 +434,7 @@ export default function StorefrontPage() {
       const name = String(item?.name || '').toLowerCase();
       const code = String(item?.code || '').toLowerCase();
       const category = String(item?.category || 'Phổ biến').toLowerCase();
-      const price = getUnitPriceWithTax(item, 0.08);
+      const price = getUnitPriceWithTax(item, taxRate);
 
       const matchCategory = activeCategory === 'Tất cả' || category.includes(normalizedCategory);
       const matchSearch = !term || name.includes(term) || code.includes(term);
@@ -434,18 +446,18 @@ export default function StorefrontPage() {
     }
 
     if (sortBy === 'priceAsc') {
-      nextItems.sort((a, b) => getUnitPriceWithTax(a, 0.08) - getUnitPriceWithTax(b, 0.08));
+      nextItems.sort((a, b) => getUnitPriceWithTax(a, taxRate) - getUnitPriceWithTax(b, taxRate));
     } else if (sortBy === 'priceDesc') {
-      nextItems.sort((a, b) => getUnitPriceWithTax(b, 0.08) - getUnitPriceWithTax(a, 0.08));
+      nextItems.sort((a, b) => getUnitPriceWithTax(b, taxRate) - getUnitPriceWithTax(a, taxRate));
     } else if (sortBy === 'newest') {
       nextItems.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     }
 
     return nextItems;
-  }, [items, searchTerm, activeCategory, sortBy, priceMax]);
+  }, [items, searchTerm, activeCategory, sortBy, priceMax, taxRate]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
-  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPriceWithTax(item, 0.08) * item.quantity, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + getUnitPriceWithTax(item, taxRate) * item.quantity, 0), [cart, taxRate]);
   const discountAmount = couponCode.trim().toUpperCase() === 'SAVE10' ? cartSubtotal * 0.1 : 0;
   const totalAfterDiscount = cartSubtotal - discountAmount;
   const shippingEstimate = shippingCode.trim().length >= 4 ? 'Miễn phí vận chuyển trong 24h' : 'Nhập mã bưu chính để xem phí ship';
@@ -467,9 +479,9 @@ export default function StorefrontPage() {
     }
 
     const fromProducts = [...items]
-      .sort((a, b) => getUnitPriceWithTax(a, 0.08) - getUnitPriceWithTax(b, 0.08))
+      .sort((a, b) => getUnitPriceWithTax(a, taxRate) - getUnitPriceWithTax(b, taxRate))
       .slice(0, 2)
-      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)}.`);
+      .map((item) => `Giá tốt hôm nay: ${item.name} từ ${formatPrice(getUnitPriceWithTax(item, taxRate), selectedCurrency)}.`);
 
     if (fromProducts.length > 0) {
       return fromProducts;
@@ -479,7 +491,7 @@ export default function StorefrontPage() {
       'Ưu đãi sẽ hiển thị ngay khi doanh nghiệp cập nhật mô tả sản phẩm trong ERP.',
       'Bạn có thể chỉnh nội dung này bằng mô tả trong danh mục sản phẩm.'
     ];
-  }, [items, selectedCurrency]);
+  }, [items, selectedCurrency, taxRate]);
 
   const handleCheckoutSubmit = async (e) => {
     e.preventDefault();
@@ -499,76 +511,150 @@ export default function StorefrontPage() {
     setSuccess('');
 
     try {
-      // 1. Find or create partner by phone
-      let orderPartnerId = null;
-      try {
-        const partnerResult = await findOrCreatePartner(companyId, {
-          partner_name: checkoutForm.customerName,
-          phone: checkoutForm.phone,
-          address: checkoutForm.address
-        });
-        orderPartnerId = partnerResult?.partner?.id || partnerResult?.id || null;
-      } catch (partnerErr) {
-        // Partner creation is non-blocking - proceed without partner_id
-        console.warn('Could not find/create partner:', partnerErr);
-      }
-
-      // 2. Build order payload with all 2-way sales fields
-      const payload = {
-        companyId: Number(companyId),
-        ...(hasCheckoutCart
-          ? {
-              items: cart.map((entry) => ({
-                itemId: entry.id,
-                quantity: Number(entry.quantity || 1)
+      if (useREAEvents) {
+        // ── NEW PATH: Use REA events ──
+        const orderData = {
+          customerId: null,
+          customerName: checkoutForm.customerName,
+          customerEmail: null,
+          customerPhone: checkoutForm.phone,
+          orderCode: `ORD-${Date.now()}`,
+          items: hasCheckoutCart
+            ? cart.map((entry) => ({
+                productId: entry.id,
+                productName: entry.name,
+                quantity: entry.quantity,
+                unitPrice: getUnitPriceWithTax(entry, taxRate),
               }))
-            }
-          : {
-              itemId: selectedItem.id,
-              quantity: Number(checkoutForm.quantity || 1)
-            }),
-        customerName: checkoutForm.customerName,
-        phone: checkoutForm.phone,
-        address: checkoutForm.address,
-        amount: checkoutPreviewAmount,
-        taxRate: 0.08,
-        discount_amount: discountAmount,
-        coupon_code: couponCode.trim() || null,
-        tax_rate: 8.00,
-        tax_amount: Math.round(checkoutPreviewAmount * 0.08 / 1.08),
-        shipping_fee: 0,
-        payment_method: paymentMethod,
-        payment_status: 'pending',
-        sales_channel: 'storefront',
-        partner_id: orderPartnerId
-      };
+            : [
+                {
+                  productId: selectedItem.id,
+                  productName: selectedItem.name,
+                  quantity: Number(checkoutForm.quantity || 1),
+                  unitPrice: getUnitPriceWithTax(selectedItem, taxRate),
+                },
+              ],
+          subtotal: checkoutPreviewAmount,
+          taxAmount: Math.round(checkoutPreviewAmount * taxRate / (1 + taxRate)),
+          discountAmount: discountAmount,
+          total: checkoutPreviewAmount,
+          paymentMethod: paymentMethod,
+          paymentStatus: 'pending',
+          paidAmount: 0,
+          shippingAddress: checkoutForm.address,
+          shippingFee: 0,
+        };
 
-      const { data } = await publicApi.post('/orders', payload);
-      setSuccess(`Đặt hàng thành công. Mã chứng từ: ${data.voucherNumber || data.voucherId}`);
-      if (data?.voucherId) {
-        setSalesOrderIds((prev) => {
-          const next = [...new Set([Number(data.voucherId), ...prev])].slice(0, 60);
-          localStorage.setItem('salesOrderIds', JSON.stringify(next));
-          return next;
+        const result = await storefrontEvents.guestCheckout(orderData);
+
+        // Check for credit freeze
+        if (result.status === 'FROZEN' || result.credit_freeze) {
+          setCreditFreezeData({
+            orderCode: result.order_code,
+            total: result.total,
+            customerName: checkoutForm.customerName,
+            creditInfo: result.credit_info,
+          });
+          setSubmitting(false);
+          return;
+        }
+
+        setSuccess(`Đặt hàng thành công. Mã chứng từ: ${result.event_id}`);
+        if (result.event_id) {
+          setSalesOrderIds((prev) => {
+            const next = [...new Set([Number(result.event_id), ...prev])].slice(0, 60);
+            localStorage.setItem('salesOrderIds', JSON.stringify(next));
+            return next;
+          });
+        }
+        setRolePopup({
+          id: `sales-created-${Date.now()}`,
+          title: 'Đơn hàng đã chuyển xử lý',
+          message: 'Đơn đã được gửi cho kho và giám đốc theo dõi xử lý.'
         });
+        setCart([]);
+        setShowMiniCart(false);
+        setCheckoutForm((prev) => ({
+          ...prev,
+          customerName: '',
+          phone: '',
+          address: '',
+          quantity: '1',
+          amount: String(getOrderAmount(selectedItem, 1))
+        }));
+      } else {
+        // ── LEGACY PATH: Keep existing logic ──
+        // 1. Find or create partner by phone
+        let orderPartnerId = null;
+        try {
+          const partnerResult = await findOrCreatePartner(companyId, {
+            partner_name: checkoutForm.customerName,
+            phone: checkoutForm.phone,
+            address: checkoutForm.address
+          });
+          orderPartnerId = partnerResult?.partner?.id || partnerResult?.id || null;
+        } catch (partnerErr) {
+          // Partner creation is non-blocking - proceed without partner_id
+          console.warn('Could not find/create partner:', partnerErr);
+        }
+
+        // 2. Build order payload with all 2-way sales fields
+        const payload = {
+          companyId: Number(companyId),
+          ...(hasCheckoutCart
+            ? {
+                items: cart.map((entry) => ({
+                  itemId: entry.id,
+                  quantity: Number(entry.quantity || 1)
+                }))
+              }
+            : {
+                itemId: selectedItem.id,
+                quantity: Number(checkoutForm.quantity || 1)
+              }),
+          customerName: checkoutForm.customerName,
+          phone: checkoutForm.phone,
+          address: checkoutForm.address,
+          amount: checkoutPreviewAmount,
+          taxRate: taxRate,
+          discount_amount: discountAmount,
+          coupon_code: couponCode.trim() || null,
+          tax_rate: parseFloat((taxRate * 100).toFixed(2)),
+          tax_amount: Math.round(checkoutPreviewAmount * taxRate / (1 + taxRate)),
+          shipping_fee: 0,
+          payment_method: paymentMethod,
+          payment_status: 'pending',
+          sales_channel: 'storefront',
+          partner_id: orderPartnerId
+        };
+
+        const { data } = await publicApi.post('/orders', payload);
+        setSuccess(`Đặt hàng thành công. Mã chứng từ: ${data.voucherNumber || data.voucherId}`);
+        if (data?.voucherId) {
+          setSalesOrderIds((prev) => {
+            const next = [...new Set([Number(data.voucherId), ...prev])].slice(0, 60);
+            localStorage.setItem('salesOrderIds', JSON.stringify(next));
+            return next;
+          });
+        }
+        setRolePopup({
+          id: `sales-created-${Date.now()}`,
+          title: 'Đơn hàng đã chuyển xử lý',
+          message: 'Đơn đã được gửi cho kho và giám đốc theo dõi xử lý.'
+        });
+        setCart([]);
+        setShowMiniCart(false);
+        setCheckoutForm((prev) => ({
+          ...prev,
+          customerName: '',
+          phone: '',
+          address: '',
+          quantity: '1',
+          amount: String(getOrderAmount(selectedItem, 1))
+        }));
       }
-      setRolePopup({
-        id: `sales-created-${Date.now()}`,
-        title: 'Đơn hàng đã chuyển xử lý',
-        message: 'Đơn đã được gửi cho kho và giám đốc theo dõi xử lý.'
-      });
-      setCart([]);
-      setShowMiniCart(false);
-      setCheckoutForm((prev) => ({
-        ...prev,
-        customerName: '',
-        phone: '',
-        address: '',
-        quantity: '1',
-        amount: String(getOrderAmount(selectedItem, 1))
-      }));
     } catch (err) {
-      setError(err.response?.data?.error || 'Không thể gửi đơn hàng.');
+      setError(err.response?.data?.error || err.message || 'Không thể gửi đơn hàng.');
     } finally {
       setSubmitting(false);
     }
@@ -721,15 +807,26 @@ export default function StorefrontPage() {
     setIsRealtimeConnecting(true);
     setIsRealtimeConnected(false);
 
-    const streamUrl = new URL(`${API_BASE_URL}/api/logistics/stream`);
-    streamUrl.searchParams.set('company_id', String(companyId));
-    if (storefrontToken) {
-      streamUrl.searchParams.set('access_token', storefrontToken);
+    // Decode JWT token to extract user's company_ids for company_id validation
+    let tokenCompanyId = companyId;
+    try {
+      const payload = JSON.parse(atob(storefrontToken.split('.')[1]));
+      // Use company_id from JWT payload if available, fallback to the storefront companyId
+      tokenCompanyId = payload.activeCompanyId || payload.company_ids?.[0] || companyId;
+    } catch (e) {
+      // Ignore decode errors, use companyId as-is
     }
+
+    const streamUrl = new URL(`${API_BASE_URL}/api/logistics/stream`);
+    streamUrl.searchParams.set('company_id', String(tokenCompanyId));
+    // SECURITY: access_token is NOT passed via URL params to prevent token leakage
+    // through server logs, browser history, and referrer headers.
+    // Authentication uses HttpOnly cookies (withCredentials: true) or Authorization header.
+    // If EventSource fails due to auth, the polling fallback (60s interval) handles it.
 
     const eventSource = new EventSource(
       streamUrl.toString(),
-      storefrontToken ? undefined : { withCredentials: true }
+      { withCredentials: true }
     );
     streamRef.current = eventSource;
 
@@ -878,6 +975,33 @@ export default function StorefrontPage() {
     fetchExchangeRate().catch(() => {});
   }, []);
 
+  // Fetch dynamic tax rate from system config
+  useEffect(() => {
+    const loadTaxRate = async () => {
+      if (!companyId) {
+        setTaxRate(0.08);
+        setTaxRateLoading(false);
+        return;
+      }
+
+      try {
+        const result = await systemConfigApi.getTaxRate(companyId);
+        if (result !== null) {
+          setTaxRate(result);
+        } else {
+          setTaxRate(0.08);
+        }
+      } catch (err) {
+        console.error('Error fetching tax rate:', err);
+        setTaxRate(0.08);
+      } finally {
+        setTaxRateLoading(false);
+      }
+    };
+
+    loadTaxRate();
+  }, [companyId]);
+
   // Effect A: Bootstrap auth from URL params (erp_token) stored in localStorage by main.jsx
   useEffect(() => {
     const bootstrapAuth = async () => {
@@ -892,7 +1016,7 @@ export default function StorefrontPage() {
         return;
       }
 
-      // If we already have a storefront token, skip external-login call
+      // Check if we already have a valid storefront token before clearing
       const existingToken = localStorage.getItem('storefrontAccessToken');
       if (existingToken) {
         setStorefrontToken(existingToken);
@@ -906,6 +1030,11 @@ export default function StorefrontPage() {
         setAdminSessionChecked(true);
         return;
       }
+
+      // Clear any old storefront token to prevent using stale tokens
+      localStorage.removeItem('storefrontAccessToken');
+      setStorefrontToken('');
+      setHasAdminSession(false);
 
       // Check if the erp_token param already contains a storefront token (has storefront_role claim)
       // This happens when ERP frontend sends storefrontAccessToken directly in URL
@@ -955,13 +1084,23 @@ export default function StorefrontPage() {
         }
       } catch (err) {
         console.warn('Auth bootstrap external-login failed:', err?.response?.data || err.message);
-        // Fallback: still set role from URL params even if external-login fails
-        if (roleFromUrl) {
-          setSessionRole(roleFromUrl);
-          setStorefrontRole(roleFromUrl);
-          setStoredRole(roleFromUrl);
+        
+        // Check if it's a 401 error (expired/invalid ERP token)
+        const isTokenExpired = err?.response?.status === 401;
+        
+        if (isTokenExpired) {
+          // Clear the expired ERP token to prevent retry loops
+          localStorage.removeItem('url_erp_token');
+          setAdminMessage('Phiên đăng nhập ERP đã hết hạn. Vui lòng đăng nhập lại từ hệ thống ERP.');
+        } else {
+          // Fallback: still set role from URL params even if external-login fails
+          if (roleFromUrl) {
+            setSessionRole(roleFromUrl);
+            setStorefrontRole(roleFromUrl);
+            setStoredRole(roleFromUrl);
+          }
+          setAdminMessage('Không thể xác thực phiên ERP. Đã chuyển sang chế độ offline.');
         }
-        setAdminMessage('Không thể xác thực phiên ERP. Đã chuyển sang chế độ offline.');
       } finally {
         setAuthenticatingAdmin(false);
         setAuthBootstrapDone(true);
@@ -1064,7 +1203,7 @@ export default function StorefrontPage() {
       payload.append('unit', adminItemForm.unit.trim());
       payload.append('price_sell', String(Number(adminItemForm.price_sell || 0)));
       payload.append('opening_quantity', String(Number(adminItemForm.opening_quantity || 0)));
-      payload.append('companyId', String(Number(companyId)));
+      payload.append('company_id', String(Number(companyId)));
       adminImageFiles.forEach((file) => payload.append('images', file));
 
       if (adminEditingCode) {
@@ -1287,6 +1426,7 @@ export default function StorefrontPage() {
                         secondaryClassName="touch-target flex-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-semibold hover:bg-slate-200 transition flex items-center justify-center gap-1.5"
                         onToggleWishlist={(itemId) => toggleWishlist(itemId)}
                         isInWishlist={isWishlisted}
+                        taxRate={taxRate}
                       />
                     );
                   })}
@@ -1321,7 +1461,7 @@ export default function StorefrontPage() {
                             <button type="button" onClick={() => updateCartQuantity(entry.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">-</button>
                             <span className="w-5 text-center text-[10px] font-semibold text-slate-800">{entry.quantity}</span>
                             <button type="button" onClick={() => updateCartQuantity(entry.id, 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">+</button>
-                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, 0.08) * entry.quantity, selectedCurrency)}</div>
+                            <div className="ml-auto text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, taxRate) * entry.quantity, selectedCurrency)}</div>
                           </div>
                         </div>
                       ))
@@ -1426,7 +1566,7 @@ export default function StorefrontPage() {
                       {cart.map((entry) => (
                         <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1.5">
                           <span className="truncate text-[10px] font-semibold text-slate-900">{entry.name} x{entry.quantity}</span>
-                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, 0.08) * entry.quantity, selectedCurrency)}</span>
+                          <span className="text-[10px] font-semibold text-slate-700">{formatPrice(getUnitPriceWithTax(entry, taxRate) * entry.quantity, selectedCurrency)}</span>
                         </div>
                       ))}
                     </div>
@@ -1441,7 +1581,7 @@ export default function StorefrontPage() {
                     <h3 className="text-xs font-bold text-slate-900">{t('selectedProduct', selectedLang)}</h3>
                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <p className="text-xs font-semibold text-slate-900">{selectedItem.name}</p>
-                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPriceWithTax(selectedItem, 0.08), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
+                      <p className="text-[10px] text-slate-500">{selectedItem.code} - {formatPrice(getUnitPriceWithTax(selectedItem, taxRate), selectedCurrency)}/{selectedItem.unit || t('unit', selectedLang)}</p>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <button type="button" onClick={() => handleQuantityChange(Number(checkoutForm.quantity || 1) - 1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700">-</button>
                         <input type="number" min="1" value={checkoutForm.quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-14 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center text-xs text-slate-900 outline-none" />
@@ -1599,7 +1739,7 @@ export default function StorefrontPage() {
                         <div key={item.id || item.code} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[10px] font-semibold text-slate-900">{item.code} - {item.name}</p>
-                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
+                            <p className="text-[9px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, taxRate), selectedCurrency)} • {item.unit || t('unit', selectedLang)}</p>
                           </div>
                           <div className="ml-1 flex gap-0.5">
                             <button type="button" onClick={() => fillAdminFormFromItem(item)} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-100">{t('editAction', selectedLang)}</button>
@@ -1753,7 +1893,7 @@ export default function StorefrontPage() {
                   <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2">
                     <div>
                       <p className="text-xs font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, 0.08), selectedCurrency)}</p>
+                      <p className="text-[10px] text-slate-500">{formatPrice(getUnitPriceWithTax(item, taxRate), selectedCurrency)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => updateCartQuantity(item.id, -1)} className="rounded border border-slate-200 px-1.5 py-0.5 text-xs">-</button>
@@ -1785,6 +1925,7 @@ export default function StorefrontPage() {
         onClose={() => setShowMiniCart(false)}
         subtotal={cartSubtotal}
         itemCount={cartCount}
+        taxRate={taxRate}
       />
 
       {showCassoModal && (
@@ -1817,6 +1958,19 @@ export default function StorefrontPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Credit Freeze Modal (REA mode only) */}
+      {useREAEvents && creditFreezeData && (
+        <StorefrontCreditModal
+          isOpen={Boolean(creditFreezeData)}
+          onClose={() => setCreditFreezeData(null)}
+          orderData={creditFreezeData}
+          onRetry={() => {
+            setCreditFreezeData(null);
+            // User can retry checkout after adjusting credit
+          }}
+        />
       )}
     </div>
   );

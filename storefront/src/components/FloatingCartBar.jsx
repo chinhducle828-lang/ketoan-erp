@@ -18,7 +18,8 @@ export default function FloatingCartBar({
   onCheckout, 
   onClose,
   subtotal,
-  itemCount 
+  itemCount,
+  taxRate = 0.08
 }) {
   if (cart.length === 0) return null;
 
@@ -48,7 +49,7 @@ export default function FloatingCartBar({
           <span className="text-base font-bold text-indigo-600">
             {subtotal.toLocaleString('vi-VN')}đ
           </span>
-          <span className="text-[10px] text-emerald-600 font-medium">Đã bao gồm Thuế VAT 8%</span>
+          <span className="text-[10px] text-emerald-600 font-medium">Đã bao gồm Thuế VAT {(taxRate * 100).toFixed(0)}%</span>
         </div>
 
         {/* Cart Items Preview */}

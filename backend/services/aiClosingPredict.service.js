@@ -11,6 +11,7 @@ import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
 
 const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+const AI_INTERNAL_SECRET = process.env.AI_INTERNAL_SECRET || '';
 
 /**
  * Dự báo bút toán khóa sổ
@@ -53,7 +54,10 @@ export async function predictClosingEntries(companyId, period) {
     // Gọi AI service để dự báo
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-closing`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+      },
       body: JSON.stringify({
         company_id: companyId,
         period,
@@ -106,7 +110,10 @@ export async function predictDepreciation(companyId, period) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-depreciation`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       company_id: companyId,
       period,

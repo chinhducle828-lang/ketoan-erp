@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { calculateBalances } from '../../utils/accountingEngine.js'; 
 import { getDefaultCurrency } from '../../utils/accountingRules.js';
@@ -11,7 +11,7 @@ import VoucherFormTemplate from '../../components/VoucherFormTemplate.jsx';
 import { BookOpenCheck, Loader2 } from 'lucide-react';
 
 export default function WorkInProcess() {
-  const { vouchers, createNewVoucher } = useVouchers();
+  const { vouchers, createVoucher } = useVoucherQueries();
   const { activeCompany } = useAuth();
   const [wipAmount, setWipAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function WorkInProcess() {
     };
 
     try {
-      await createNewVoucher(payload);
+      await createVoucher(payload);
       alert('Đã kết chuyển nhập kho thành phẩm thành công!');
       setWipAmount('');
     } catch (err) {

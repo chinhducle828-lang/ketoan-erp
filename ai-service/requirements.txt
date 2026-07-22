@@ -5,11 +5,12 @@ numpy==1.26.4
 python-multipart==0.0.9
 httpx==0.26.0
 python-dotenv==1.0.0
-paddleocr==2.8.0
-pytesseract==0.3.10
-transformers==4.40.0
-torch==2.2.0
-scikit-learn==1.4.0
-google-generativeai==0.5.0
-pillow==10.2.0
-opencv-python-headless==4.9.0.80
+# HEAVY AI LIBRARIES (uncomment only if you have GPU/CPU memory for them):
+# paddleocr==2.8.0
+# pytesseract==0.3.10
+# transformers==4.40.0
+# torch==2.2.0
+# scikit-learn==1.4.0
+# google-generativeai==0.5.0
+# pillow==10.2.0
+# opencv-python-headless==4.9.0.80

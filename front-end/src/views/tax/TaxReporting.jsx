@@ -4,11 +4,10 @@
 
 // FILE_PATH: front-end/src/views/tax/TaxReporting.jsx
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useVouchers } from '../../context/VoucherContext.jsx';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useVoucherQueries } from '../../hooks/useVoucherQueries.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Percent, ArrowUpRight, ArrowDownRight, Users, Landmark, Building2, Calendar, AlertTriangle } from 'lucide-react';
-import { useRealtimeCacheSync } from '../../hooks/useRealtimeCacheSync.js';
+import { Percent, ArrowUpRight, ArrowDownRight, Users, Landmark, Building2, Calendar, AlertTriangle, FileText, ToggleLeft, ToggleRight } from 'lucide-react';
 import { notify } from '../../utils/notify.jsx';
 import ExportExcelButton from '../../components/ExportExcelButton.jsx';
 import ImportExcelButton from '../../components/ImportExcelButton.jsx';
@@ -18,19 +17,13 @@ export default function TaxReporting() {
   const companyId = activeCompany?.id ?? activeCompany;
   const [error, setError] = useState(null);
   
-  // Note: This component uses vouchers from VoucherContext
-  // The vouchers are already managed by VoucherList component with React Query
-  // We just add realtime cache sync here for completeness
-  useRealtimeCacheSync({
-    queries: [
-      { key: ['vouchers', companyId] }
-    ],
-    events: ['voucherCreated', 'voucherUpdated', 'voucherDeleted', 'closingCompleted'],
-    enabled: !!companyId
-  });
-
-  // Get vouchers from context with error handling
-  const { vouchers, isLoading: loadingVouchers, error: vouchersError } = useVouchers();
+  // Get vouchers from React Query
+  const { vouchers, isLoading: loadingVouchers, error: vouchersError } = useVoucherQueries();
+  
+  // State for non-deductible expenses management
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+  const [updatingDetail, setUpdatingDetail] = useState(null);
+  const [showNonDeductiblePanel, setShowNonDeductiblePanel] = useState(false);
 
   // Handle errors
   React.useEffect(() => {
@@ -81,6 +74,26 @@ export default function TaxReporting() {
     return { vatInput, vatOutput, tndnPhaiNop, tndnDaNop, tncnKhauTru };
   }, [vouchers]);
 
+  // Mutation for updating non-deductible flag
+  const updateNonDeductibleMutation = useMutation({
+    mutationFn: async ({ voucherId, detailId, isNonDeductible }) => {
+      const response = await api.put(`/vouchers/${voucherId}/details/${detailId}`, {
+        is_tax_deductible: !isNonDeductible
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      notify.success('Đã cập nhật trạng thái khấu trừ thuế!');
+      setUpdatingDetail(null);
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries(['vouchers']);
+    },
+    onError: (err) => {
+      notify.error(err.response?.data?.error || 'Lỗi khi cập nhật!');
+      setUpdatingDetail(null);
+    }
+  });
+
   // Show error state
   if (error) {
     return (
@@ -113,6 +126,37 @@ export default function TaxReporting() {
       </div>
     );
   }
+
+  // Extract non-deductible expenses for TNDN calculation
+  const nonDeductibleExpenses = useMemo(() => {
+    if (!vouchers || !Array.isArray(vouchers)) return [];
+    
+    const expenses = [];
+    vouchers.forEach(v => {
+      if (v.details && Array.isArray(v.details)) {
+        v.details.forEach(dt => {
+          const accCode = dt.accountCode || dt.account_code;
+          const isExpense = ['632', '635', '641', '642', '811'].some(prefix => accCode?.startsWith(prefix));
+          const isNonDeductible = dt.is_tax_deductible === false;
+          
+          if (isExpense && isNonDeductible) {
+            expenses.push({
+              ...dt,
+              voucherId: v.id,
+              voucherNumber: v.voucher_number,
+              voucherDate: v.voucher_date,
+              accountCode: accCode
+            });
+          }
+        });
+      }
+    });
+    return expenses;
+  }, [vouchers]);
+
+  const totalNonDeductible = useMemo(() => {
+    return nonDeductibleExpenses.reduce((sum, dt) => sum + (parseFloat(dt.amount) || 0), 0);
+  }, [nonDeductibleExpenses]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
@@ -217,28 +261,194 @@ export default function TaxReporting() {
            </div>
          </div>
 
-        {/* THUẾ THU NHẬP CÁ NHÂN */}
-        <div className="space-y-3">
-          <h2 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
-            <span className="w-1.5 h-3 bg-purple-500 rounded-sm inline-block"></span>
-            Thuế Thu Nhập Cá Nhân (TK 3335)
-          </h2>
-          <div className="bg-white p-5 rounded-2xl border border-purple-50 shadow-sm flex flex-col justify-between h-[130px]">
-            <div>
-              <span className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1 tracking-wider">
-                <Users size={12} /> Khấu trừ tại nguồn (Có 3335)
-              </span>
-              <h3 className="text-2xl font-black text-purple-700 mt-2">
-                {taxData.tncnKhauTru.toLocaleString('vi-VN')} đ
-              </h3>
-            </div>
-            <p className="text-[11px] text-slate-400 font-medium">
-              Khoản thuế thu giữ từ thu nhập của người lao động chờ quyết toán chuyển nộp NSNN.
-            </p>
-          </div>
-        </div>
+         {/* THUẾ THU NHẬP CÁ NHÂN */}
+         <div className="space-y-3">
+           <h2 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
+             <span className="w-1.5 h-3 bg-purple-500 rounded-sm inline-block"></span>
+             Thuế Thu Nhập Cá Nhân (TK 3335)
+           </h2>
+           <div className="bg-white p-5 rounded-2xl border border-purple-50 shadow-sm flex flex-col justify-between h-[130px]">
+             <div>
+               <span className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1 tracking-wider">
+                 <Users size={12} /> Khấu trừ tại nguồn (Có 3335)
+               </span>
+               <h3 className="text-2xl font-black text-purple-700 mt-2">
+                 {taxData.tncnKhauTru.toLocaleString('vi-VN')} đ
+               </h3>
+             </div>
+             <p className="text-[11px] text-slate-400 font-medium">
+               Khoản thuế thu giữ từ thu nhập của người lao động chờ quyết toán chuyển nộp NSNN.
+             </p>
+           </div>
+         </div>
+       </div>
 
+       {/* PHÂN HỆ 4: CHI PHÍ KHÔNG ĐƯỢC TRỪ (TK 8211) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
+            <span className="w-1.5 h-3 bg-red-500 rounded-sm inline-block"></span>
+            Chi Phí Không Được Trừ Thuế TNDN (TK 8211)
+          </h2>
+          <button
+            onClick={() => setShowNonDeductiblePanel(!showNonDeductiblePanel)}
+            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+          >
+            {showNonDeductiblePanel ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+            {showNonDeductiblePanel ? 'Ẩn chi tiết' : 'Quản lý chi phí'}
+          </button>
+        </div>
+        
+        {showNonDeductiblePanel && (
+          <div className="bg-white p-5 rounded-2xl border border-red-50 shadow-sm space-y-4">
+            {/* Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                <span className="text-[10px] font-bold text-red-500 uppercase block tracking-wider">
+                  Tổng chi phí không được trừ
+                </span>
+                <h3 className="text-2xl font-black text-red-700 mt-2">
+                  {totalNonDeductible.toLocaleString('vi-VN')} đ
+                </h3>
+                <p className="text-[11px] text-red-600 mt-1">
+                  {nonDeductibleExpenses.length} khoản chi phí
+                </p>
+              </div>
+              
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                <span className="text-[10px] font-bold text-amber-600 uppercase block tracking-wider">
+                  Ảnh hưởng đến thuế TNDN
+                </span>
+                <h3 className="text-2xl font-black text-amber-700 mt-2">
+                  {(totalNonDeductible * 0.2).toLocaleString('vi-VN')} đ
+                </h3>
+                <p className="text-[11px] text-amber-600 mt-1">
+                  Thuế TNDN phải nộp thêm (20%)
+                </p>
+              </div>
+            </div>
+
+            {/* Help text */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-700">
+                <strong>Hướng dẫn:</strong> Chọn chi phí từ danh sách chứng từ bên dưới và đánh dấu "Không được trừ" nếu thuế TNDN không cho phép khấu trừ khoản chi phí này (theo Thông tư 99/2025/TT-BTC).
+              </p>
+            </div>
+
+            {/* List of expense vouchers with toggle */}
+            {loadingVouchers ? (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-xs text-slate-500">Đang tải danh sách chi phí...</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {nonDeductibleExpenses.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-6">
+                    Chưa có chi phí nào được đánh dấu "không được trừ"
+                  </p>
+                ) : (
+                  nonDeductibleExpenses.map((expense, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:bg-slate-100 transition">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-700">
+                            {expense.voucherNumber}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {expense.voucherDate}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 ml-6">
+                          <span className="text-[10px] font-mono font-bold text-slate-500">
+                            TK {expense.accountCode}
+                          </span>
+                          <span className="text-xs text-slate-600">
+                            {expense.amount?.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => updateNonDeductibleMutation.mutate({
+                          voucherId: expense.voucherId,
+                          detailId: expense.id,
+                          isNonDeductible: true
+                        })}
+                        disabled={updatingDetail === expense.id}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition disabled:opacity-50"
+                        title="Bỏ đánh dấu không được trừ"
+                      >
+                        {updatingDetail === expense.id ? (
+                          <div className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <ToggleRight size={14} />
+                        )}
+                        Không được trừ
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* All expenses list for tagging */}
+            {!loadingVouchers && vouchers && vouchers.length > 0 && (
+              <div className="border-t border-slate-200 pt-4">
+                <h4 className="text-xs font-bold text-slate-700 mb-3">
+                  Tất cả chi phí (chọn để đánh dấu không được trừ)
+                </h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {vouchers.map(v => 
+                    v.details?.filter(dt => {
+                      const accCode = dt.accountCode || dt.account_code;
+                      return ['632', '635', '641', '642', '811'].some(prefix => accCode?.startsWith(prefix));
+                    }).map(dt => {
+                      const accCode = dt.accountCode || dt.account_code;
+                      const isNonDeductible = dt.is_tax_deductible === false;
+                      
+                      return (
+                        <div key={`${v.id}-${dt.id}`} className="flex items-center justify-between p-2 bg-white rounded border border-slate-200 hover:border-indigo-300 transition">
+                          <div className="flex-1">
+                            <span className="text-xs text-slate-600">
+                              {v.voucher_number} - TK {accCode}
+                            </span>
+                            <span className="text-xs text-slate-500 ml-2">
+                              {parseFloat(dt.amount)?.toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => updateNonDeductibleMutation.mutate({
+                              voucherId: v.id,
+                              detailId: dt.id,
+                              isNonDeductible
+                            })}
+                            disabled={updatingDetail === dt.id}
+                            className={`px-2 py-1 rounded text-xs font-medium transition disabled:opacity-50 ${
+                              isNonDeductible
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {updatingDetail === dt.id ? (
+                              <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : isNonDeductible ? (
+                              '✓ Không được trừ'
+                            ) : (
+                              'Đánh dấu'
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
     </div>
   );
 }

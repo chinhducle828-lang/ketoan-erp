@@ -9,18 +9,17 @@ import { pool } from '../config/db.js';
 import { AppError, ErrorCodes } from '../utils/AppError.js';
 import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
-import { initializeGemini, isGeminiAvailable, generateSQL, analyzeData, solveMathProblem as solveMathWithGemini, analyzeWorkflow as analyzeWorkflowWithGemini } from './geminiClient.js';
-
-// Python AI service endpoint từ config
-const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
-
-// Initialize Gemini on module load
-let geminiInitialized = false;
-try {
-  geminiInitialized = initializeGemini();
-} catch (error) {
-  logger.warn('Gemini initialization failed on module load', error);
-}
+import { getAiPythonServiceUrl } from '../utils/configHelper.js';
+import {
+  isGeminiAvailable,
+  isDeepSeekAvailable,
+  generateSQL,
+  analyzeData,
+  solveMathProblem as solveMathWithGemini,
+  analyzeWorkflow as analyzeWorkflowWithGemini
+} from './geminiClient.js';
+import { callWithAutoRouting } from './aiModelRouter.service.js';
+import aiApiPool from './aiApiPool.service.js';
 
 /**
  * Chuyển câu hỏi tự nhiên thành SQL
@@ -30,8 +29,8 @@ try {
  */
 export async function textToSQL(question, companyId) {
   try {
-    // Use Gemini if available, otherwise fallback to Python service
-    if (geminiInitialized && isGeminiAvailable()) {
+    // PRIORITY 1: Use Gemini AI (multi-key pool with Cloudflare proxy)
+    if (isGeminiAvailable()) {
       const schema = `
         Tables:
         - vouchers (id, company_id, voucher_type, voucher_date, description, created_at)
@@ -52,44 +51,112 @@ export async function textToSQL(question, companyId) {
         companyId, 
         question,
         sql: result.sql,
-        model: result.model 
-      }, 'Text-to-SQL generated with Gemini');
+        model: result.model,
+        provider: 'gemini'
+      }, '✅ Text-to-SQL generated with Gemini AI (online)');
 
       return result;
     }
 
-    // Fallback to Python service (only if configured)
-    if (!PYTHON_AI_SERVICE_URL) {
-      logger.warn('Neither Gemini nor Python AI service available');
-      throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI service chưa được cấu hình', 503);
+    // PRIORITY 2: Try DeepSeek fallback (good for structured output)
+    if (isDeepSeekAvailable()) {
+      try {
+        const deepseekPrompt = `You are a SQL expert for a Vietnamese accounting ERP system.
+Generate ONLY a SELECT SQL query for this question: "${question}"
+
+Database Schema:
+- vouchers (id, company_id, voucher_type, voucher_date, description, created_at)
+- voucher_details (id, voucher_id, account_code, entry_type, amount, description)
+- partners (id, company_id, partner_name, partner_type, tax_code, phone, email)
+- items (id, company_id, item_name, item_code, unit, unit_price)
+- accounts (code, name, account_type, parent_code)
+
+Company ID: ${companyId}
+
+Instructions:
+1. Generate ONLY a SELECT query (no INSERT, UPDATE, DELETE)
+2. ALWAYS include WHERE company_id = '${companyId}'
+3. Limit results to 100 rows maximum
+4. Return ONLY the SQL query, no explanations
+
+SQL Query:`;
+
+        const response = await aiApiPool.callDeepSeek(deepseekPrompt, 'deepseek-chat');
+        const sql = response.content
+          .replace(/```sql/g, '')
+          .replace(/```/g, '')
+          .trim();
+
+        logger.info({ 
+          companyId, 
+          question,
+          sql,
+          provider: 'deepseek-fallback'
+        }, '⚠️ Text-to-SQL generated with DeepSeek fallback');
+
+        return { sql, confidence: 80, model: 'deepseek-chat', provider: 'deepseek' };
+      } catch (deepseekError) {
+        logger.warn({ error: deepseekError.message }, '⚠️ DeepSeek fallback failed');
+      }
     }
 
-    logger.warn('Gemini not available, falling back to Python service');
-    const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/text-to-sql`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        question, 
-        company_id: companyId,
-        schema: 'vouchers, voucher_details, partners, items, accounts'
-      })
-    });
+    // PRIORITY 3: Try Groq fallback
+    try {
+      const groqPrompt = `You are a SQL expert. Generate ONLY a SELECT SQL query for: "${question}"
+Tables: vouchers, voucher_details, partners, items, accounts
+Company ID: ${companyId}
+Always include WHERE company_id = '${companyId}'
+Return ONLY the SQL query, no explanations.`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'Python AI service error');
-      throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI Copilot service không phản hồi', 503);
+      const response = await aiApiPool.callGroq(groqPrompt, 'mixtral-8x7b-32768');
+      const sql = response.content
+        .replace(/```sql/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+      logger.info({ 
+        companyId, 
+        question,
+        sql,
+        provider: 'groq-fallback'
+      }, '⚠️ Text-to-SQL generated with Groq fallback');
+
+      return { sql, confidence: 75, model: 'mixtral-8x7b-32768', provider: 'groq' };
+    } catch (groqError) {
+      logger.warn({ error: groqError.message }, '⚠️ Groq fallback failed');
     }
 
-    const result = await response.json();
-    
-    logger.info({ 
-      companyId, 
-      question,
-      sql: result.sql 
-    }, 'Text-to-SQL generated with Python service');
+    // PRIORITY 4: Python service (last resort)
+    const PYTHON_AI_SERVICE_URL = await getAiPythonServiceUrl(companyId) || AI_CONFIG.PYTHON_SERVICE_URL;
+    if (PYTHON_AI_SERVICE_URL) {
+      try {
+        const response = await fetch(`${PYTHON_AI_SERVICE_URL.replace(/\/$/, '')}/api/text-to-sql`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            question, 
+            company_id: companyId,
+            schema: 'vouchers, voucher_details, partners, items, accounts'
+          })
+        });
 
-    return result;
+        if (response.ok) {
+          const result = await response.json();
+          logger.info({ 
+            companyId, 
+            question,
+            sql: result.sql,
+            provider: 'python-fallback'
+          }, '⚠️ Text-to-SQL generated with Python fallback');
+          return result;
+        }
+      } catch (pythonError) {
+        logger.warn({ error: pythonError.message }, '⚠️ Python service fallback failed');
+      }
+    }
+
+    logger.warn('All AI services failed for textToSQL');
+    throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI service chưa được cấu hình', 503);
   } catch (error) {
     if (error instanceof AppError) {
       logger.error({ error: error.message, question, companyId }, 'textToSQL error');
@@ -209,7 +276,7 @@ export async function askFinancialCopilot(question, companyId) {
     const data = await executeSafeQuery(sqlResult.sql, companyId);
     
     // Bước 3: Phân tích kết quả bằng Gemini AI
-    if (geminiInitialized && isGeminiAvailable()) {
+    if (isGeminiAvailable()) {
       const analysis = await analyzeData(question, data, sqlResult.sql);
       
       return {
@@ -223,8 +290,34 @@ export async function askFinancialCopilot(question, companyId) {
       };
     }
 
-    // Fallback: Trả về dữ liệu thô nếu Gemini không khả dụng
-    logger.warn('Gemini not available, returning raw data');
+    // Fallback: Try DeepSeek for analysis if Gemini not available
+    if (isDeepSeekAvailable()) {
+      try {
+        const analysisPrompt = `Analyze this accounting data in Vietnamese:
+Question: "${question}"
+SQL: "${sqlResult.sql}"
+Data (${data.length} records): ${JSON.stringify(data.slice(0, 20))}
+
+Provide a concise analysis with specific numbers.`;
+
+        const deepseekResponse = await aiApiPool.callDeepSeek(analysisPrompt, 'deepseek-chat');
+        return {
+          question,
+          answer: deepseekResponse.content,
+          data,
+          sql: sqlResult.sql,
+          confidence: 70,
+          model: 'deepseek-chat',
+          provider: 'deepseek',
+          recordsAnalyzed: data.length
+        };
+      } catch (deepseekError) {
+        logger.warn({ error: deepseekError.message }, '⚠️ DeepSeek analysis fallback failed');
+      }
+    }
+
+    // Last resort: Trả về dữ liệu thô
+    logger.warn('Gemini and DeepSeek not available, returning raw data');
     return {
       question,
       answer: `Tìm được ${data.length} bản ghi phù hợp với câu hỏi của bạn.`,
@@ -296,7 +389,7 @@ export async function getSuggestedQueries(companyId) {
  * @returns {Promise<Object>}
  */
 export async function solveMathProblem(problem, context = 'financial') {
-  if (!geminiInitialized || !isGeminiAvailable()) {
+  if (!isGeminiAvailable()) {
     throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI Math service không khả dụng', 503);
   }
   return solveMathWithGemini(problem, context);
@@ -309,7 +402,7 @@ export async function solveMathProblem(problem, context = 'financial') {
  * @returns {Promise<Object>}
  */
 export async function analyzeWorkflow(workflowType, workflowData) {
-  if (!geminiInitialized || !isGeminiAvailable()) {
+  if (!isGeminiAvailable()) {
     throw new AppError(ErrorCodes.SERVICE_UNAVAILABLE, 'AI Workflow service không khả dụng', 503);
   }
   return analyzeWorkflowWithGemini(workflowType, workflowData);

@@ -11,6 +11,7 @@ import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
 
 const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+const AI_INTERNAL_SECRET = process.env.AI_INTERNAL_SECRET || '';
 
 /**
  * Xác thực hóa đơn điện tử
@@ -23,7 +24,10 @@ export async function verifyEInvoice(companyId, invoiceData) {
     // Gọi AI service để xác thực
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/verify-einvoice`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+      },
       body: JSON.stringify({
         company_id: companyId,
         invoice: invoiceData
@@ -91,7 +95,10 @@ export async function detectFraudulentInvoices(companyId, period) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/detect-fraud`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       company_id: companyId,
       period,
@@ -129,7 +136,10 @@ export async function reconcileInvoices(companyId, partnerId) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/reconcile-invoices`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       company_id: companyId,
       partner_id: partnerId,

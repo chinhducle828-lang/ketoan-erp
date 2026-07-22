@@ -4,7 +4,7 @@
 
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
-import redisClient from '../config/redis';
+import { redis as redisClient } from '../cache/redis.js';
 
 // SSO configuration
 const SSO_CONFIG = {

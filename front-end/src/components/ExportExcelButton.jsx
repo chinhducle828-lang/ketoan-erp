@@ -6,6 +6,7 @@ import React from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../utils/api.js';
+import { resolveApiBaseUrl } from '../utils/apiBaseUrl.js';
 import { getAccountsByDepartment } from '../constants/accountsTT99.js';
 
 export default function ExportExcelButton({ endpoint, filename, label = 'Xuất Excel', accountCodes }) {
@@ -15,7 +16,7 @@ export default function ExportExcelButton({ endpoint, filename, label = 'Xuất 
     if (!activeCompany?.id) return alert('Vui lòng chọn công ty trước khi xuất Excel.');
     try {
       const companyId = activeCompany.id;
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       
       // Build URL with token in Authorization header (download via fetch + blob)
       const params = new URLSearchParams({ company_id: companyId, year: fiscalYear });
@@ -26,7 +27,7 @@ export default function ExportExcelButton({ endpoint, filename, label = 'Xuất 
         codes.forEach(code => params.append('account_code', code));
       }
       
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/export/${endpoint}?${params}`, {
+      const res = await fetch(`${resolveApiBaseUrl()}/export/${endpoint}?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

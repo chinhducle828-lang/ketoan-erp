@@ -43,7 +43,7 @@ async function anonymizeDeletedUsers() {
     UPDATE users 
     SET username = 'deleted_user_' || id,
         password = '',
-        preferences = '{"anonymized": true, "deleted_at": "' || NOW()::text || '"}',
+        preferences = ('{"anonymized": true, "deleted_at": "' || NOW()::text || '"}')::jsonb,
         staff_ids = '{}'
     WHERE company_ids IS NULL 
       AND is_root_admin = false

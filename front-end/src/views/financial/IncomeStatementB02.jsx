@@ -44,7 +44,7 @@ export default function IncomeStatementB02() {
     queryKey: ['incomeStatementB02', companyId, fiscalYear],
     queryFn: async () => {
       if (!companyId) return {};
-      const response = await api.get(`/api/report/b02?company_id=${companyId}&year=${fiscalYear}`);
+      const response = await api.get(`/report/b02?company_id=${companyId}&year=${fiscalYear}`);
       if (response.data?.success && response.data.data) {
         return response.data.data;
       }
@@ -104,7 +104,9 @@ export default function IncomeStatementB02() {
 
   const evaluateFormula = (item, values) => {
     // Parse formula like "20=10-11"
-    const formula = item.name.split('(')[1]?.replace(')', '') || '';
+    const nameParts = item.name.split('(');
+    if (nameParts.length < 2) return 0;
+    const formula = (nameParts[1] || '').replace(')', '') || '';
     if (formula.includes('=')) {
       const expr = formula.split('=')[1];
       try {

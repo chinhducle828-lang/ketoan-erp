@@ -208,6 +208,8 @@ export const ACCOUNTS_TT99 = [
   { code: '3332', name: 'Thuế tiêu thụ đặc biệt', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '333' },
   { code: '3333', name: 'Thuế xuất, nhập khẩu', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '333' },
   { code: '3334', name: 'Thuế thu nhập doanh nghiệp', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '333' },
+  { code: '33341', name: 'Thuế TNDN hiện hành', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '3334' },
+  { code: '33342', name: 'Thuế tối thiểu toàn cầu', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '3334' },
   { code: '3335', name: 'Thuế thu nhập cá nhân', type: '3', group: 'tax', department: 'hr', nature: 'credit', parent: '333' },
   { code: '3336', name: 'Thuế tài nguyên', type: '3', group: 'tax', department: 'finance', nature: 'credit', parent: '333' },
   { code: '3337', name: 'Thuế nhà đất', type: '3', group: 'tax', department: 'admin', nature: 'credit', parent: '333' },
@@ -394,6 +396,7 @@ export const ACCOUNTS_TT99 = [
   { code: '821', name: 'Chi phí thuế thu nhập doanh nghiệp', type: '8', group: 'tax', department: 'finance', nature: 'debit', parent: null },
   { code: '8211', name: 'Chi phí thuế TNDN hiện hành', type: '8', group: 'tax', department: 'finance', nature: 'debit', parent: '821' },
   { code: '8212', name: 'Chi phí thuế TNDN hoãn lại', type: '8', group: 'tax', department: 'finance', nature: 'debit', parent: '821' },
+  { code: '82112', name: 'Chi phí thuế TNDN hoãn lại - chi tiết', type: '8', group: 'tax', department: 'finance', nature: 'debit', parent: '8212' },
 
   // ============================================================
   // LOẠI 9 - XÁC ĐỊNH KẾT QUẢ KINH DOANH

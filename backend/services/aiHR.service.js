@@ -11,6 +11,7 @@ import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
 
 const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+const AI_INTERNAL_SECRET = process.env.AI_INTERNAL_SECRET || '';
 
 /**
  * Dự báo chi phí lương
@@ -55,7 +56,10 @@ export async function predictSalaryCost(companyId, period) {
     // Gọi AI service
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-salary`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+      },
       body: JSON.stringify({
         company_id: companyId,
         period,
@@ -122,7 +126,10 @@ export async function analyzeEmployeeKPI(companyId, userId, period) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/analyze-kpi`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       user_id: userId,
       company_id: companyId,
@@ -163,7 +170,10 @@ export async function predictRecruitmentNeeds(companyId, period) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-recruitment`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       company_id: companyId,
       period,

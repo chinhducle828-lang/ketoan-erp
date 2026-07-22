@@ -1,5 +1,5 @@
 /**
- * @copyright [TÊN DOANH NGHJỆP] - SaaS ERP Kế toán
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  * 
  * trainFeedbackLoop - Cronjob thu thập phản hồi AI hàng tuần
  * Dùng cho RLHF (Reinforcement Learning from Human Feedback)
@@ -10,6 +10,25 @@ import logger from '../utils/logger.js';
 
 // Python AI service endpoint (cấu hình qua env)
 const PYTHON_AI_SERVICE_URL = process.env.PYTHON_AI_SERVICE_URL || 'http://localhost:8000';
+const FETCH_TIMEOUT_MS = 30000; // 30 seconds timeout
+
+/**
+ * Fetch with timeout wrapper to prevent hanging connections
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 /**
  * Chạy thu thập phản hồi AI
@@ -36,13 +55,24 @@ export async function runWeeklyFeedbackCollection(tenantId = null) {
     const { rows } = await client.query(query, params);
 
     if (rows.length > 0) {
+      // Parse JSON string fields to objects before sending to AI service
+      const parsedRows = rows.map(row => ({
+        ...row,
+        original_ai_proposal: typeof row.original_ai_proposal === 'string'
+          ? JSON.parse(row.original_ai_proposal)
+          : row.original_ai_proposal,
+        final_human_approved: typeof row.final_human_approved === 'string'
+          ? JSON.parse(row.final_human_approved)
+          : row.final_human_approved,
+      }));
+
       // Đẩy tệp log sai lệch này sang Python AI service 
       // dưới dạng "Fine-tuning dataset" để huấn luyện lại bộ gợi ý định khoản
       try {
-        const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/fine-tune`, {
+        const response = await fetchWithTimeout(`${PYTHON_AI_SERVICE_URL}/api/fine-tune`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ training_data: rows })
+          body: JSON.stringify({ training_data: parsedRows })
         });
 
         if (response.ok) {
@@ -57,10 +87,17 @@ export async function runWeeklyFeedbackCollection(tenantId = null) {
           }, '[SRE RLHF] Lỗi gửi dữ liệu tới Python AI service');
         }
       } catch (fetchErr) {
-        logger.error({ 
-          error: fetchErr.message,
-          tenantId 
-        }, '[SRE RLHF] Không thể kết nối tới Python AI service');
+        if (fetchErr.name === 'AbortError') {
+          logger.error({ 
+            tenantId,
+            timeout: FETCH_TIMEOUT_MS
+          }, '[SRE RLHF] Timeout khi kết nối tới Python AI service');
+        } else {
+          logger.error({ 
+            error: fetchErr.message,
+            tenantId 
+          }, '[SRE RLHF] Không thể kết nối tới Python AI service');
+        }
       }
     } else {
       logger.info({ tenantId }, '[SRE RLHF] Không có dữ liệu sửa lỗi trong 7 ngày qua');

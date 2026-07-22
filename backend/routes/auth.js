@@ -105,14 +105,15 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
     const hashedRefresh = hashToken(refreshToken);
     const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
-    // Insert ERP session token (accessToken)
+    // Insert ERP session token (accessToken) — token column stores SHA-256 hash for security
     try {
       if (shouldClearExistingSessions(user.role)) {
         await pool.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
       }
+      const hashedAccessToken = hashToken(accessToken);
       await pool.query(
         'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)', 
-        [user.id, accessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
+        [user.id, hashedAccessToken, hashedRefresh, refreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null]
       );
     } catch (err) {
       console.error('Không thể lưu session:', err.message);
@@ -133,9 +134,10 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
         const storefrontHashed = hashToken(storefrontRefresh);
         const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
+        const hashedStorefrontToken = hashToken(storefrontToken);
         await pool.query(
           'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1, $2, $3, now(), $4, $5, $6)',
-          [user.id, storefrontToken, storefrontHashed, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
+          [user.id, hashedStorefrontToken, storefrontHashed, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
         );
       } catch (err) {
         console.error('Không thể tạo session storefront:', err.message);
@@ -160,6 +162,24 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
       console.error('Không thể ghi audit log:', err.message);
     }
 
+    // Set HttpOnly cookie cho access token (bảo mật XSS)
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 15 * 60 * 1000, // 15 phút
+      domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
+    });
+    // Set HttpOnly cookie cho storefront token (nếu có)
+    if (storefrontToken) {
+      res.cookie('storefront_token', storefrontToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+        domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
+      });
+    }
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
     res.json({ 
       accessToken, 
@@ -172,6 +192,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
         department: user.department || null,
         must_change_password: !!user.must_change_password,
         is_root_admin: !!user.is_root_admin,
+        clearance_level: user.clearance_level || 1,
         web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role) ? 'storefront' : 'erp')
       },
       storefrontOnlyRole: ['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role),
@@ -187,7 +208,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
 // ✅ Lấy thông tin người dùng hiện tại từ token
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const q = await pool.query('SELECT id, username, role, company_ids, must_change_password, is_root_admin, department FROM users WHERE id = $1', [req.user.id]);
+    const q = await pool.query('SELECT id, username, role, company_ids, must_change_password, is_root_admin, department, clearance_level FROM users WHERE id = $1', [req.user.id]);
     if (q.rows.length === 0) return res.status(404).json({ error: 'Người dùng không tồn tại.' });
     
     const user = q.rows[0];
@@ -199,7 +220,8 @@ router.get('/me', authenticate, async (req, res) => {
         company_ids: user.company_ids,
         department: user.department || null,
         must_change_password: user.must_change_password,
-        is_root_admin: !!user.is_root_admin
+        is_root_admin: !!user.is_root_admin,
+        clearance_level: user.clearance_level || 1
       },
       fiscal_year: new Date().getFullYear()
     });
@@ -253,12 +275,21 @@ router.post('/refresh', async (req, res) => {
     const newRefreshToken = createRefreshToken();
     const newHashedRefresh = hashToken(newRefreshToken);
     const newRefreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
+    const hashedAccessToken = hashToken(accessToken);
 
     await pool.query(
       'UPDATE sessions SET token = $1, refresh_token = $2, expires_at = $3, ip_address = $4, device_info = $5 WHERE id = $6',
-      [accessToken, newHashedRefresh, newRefreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null, current.id]
+      [hashedAccessToken, newHashedRefresh, newRefreshExpiresAt.toISOString(), req.ip, req.headers['user-agent'] || null, current.id]
     );
 
+    // Set HttpOnly cookie cho access token mới
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 15 * 60 * 1000,
+      domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
+    });
     res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
     res.json({
       accessToken,
@@ -281,9 +312,11 @@ router.post('/refresh', async (req, res) => {
 // Đăng xuất
 router.post('/logout', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(400).json({ error: 'Thiếu token.' });
-    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    // SỬA: Xóa TẤT CẢ sessions của user để đảm bảo đăng xuất toàn bộ thiết bị
+    if (!req.user?.id) {
+      return res.status(400).json({ error: 'Không tìm thấy thông tin người dùng.' });
+    }
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
     res.clearCookie(REFRESH_COOKIE_NAME, cookieOptions);
     res.json({ success: true, message: 'Đăng xuất thành công.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -304,8 +337,9 @@ router.post('/change-password', authenticate, safeValidate(changePasswordSchema)
     
     const hashed = await bcrypt.hash(newPassword, 10);
     await pool.query('UPDATE users SET password = $1, must_change_password = false WHERE id = $2', [hashed, req.user.id]);
+    // SỬA: Xóa TẤT CẢ sessions (bao gồm cả storefront sessions) khi đổi mật khẩu
     await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
-    res.json({ success: true, message: 'Đổi mật khẩu thành công.' });
+    res.json({ success: true, message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -379,21 +413,86 @@ const isSessionAllowedForStorefrontRole = (targetRole, sessionRole) => {
 router.post('/external-login', async (req, res) => {
   try {
     const { erp_token, company_id, role } = req.body;
-    if (!erp_token) return res.status(400).json({ error: 'Missing erp_token' });
+    
+    // Log incoming request for debugging
+    console.log('[external-login] Request received:', {
+      hasToken: !!erp_token,
+      tokenLength: erp_token?.length,
+      company_id,
+      role,
+      ip: req.ip
+    });
+    
+    if (!erp_token) {
+      return res.status(400).json({ 
+        error: 'Missing erp_token',
+        message: 'ERP token is required. Please login from ERP system first.'
+      });
+    }
 
-    // Verify token: expect it to be a JWT issued by this ERP (signed with same JWT_SECRET)
+    // Verify token: accept expired tokens if user has a valid session in DB.
+    // This prevents issues where the 15-min accessToken expires during redirect to storefront.
     let payload;
+    let isExpired = false;
     try {
       payload = jwt.verify(erp_token, process.env.JWT_SECRET);
+      console.log('[external-login] Token verified successfully:', {
+        userId: payload.id,
+        username: payload.username,
+        role: payload.role
+      });
     } catch (err) {
-      return res.status(401).json({ error: 'Invalid erp_token' });
+      if (err.name === 'TokenExpiredError') {
+        isExpired = true;
+        payload = jwt.decode(erp_token);
+        console.log('[external-login] Token expired, checking session:', {
+          userId: payload?.id,
+          username: payload?.username
+        });
+      } else {
+        console.error('[external-login] Token verification failed:', err.message);
+        return res.status(401).json({ 
+          error: 'Invalid erp_token',
+          message: 'ERP token is invalid. Please login from ERP system again.',
+          details: err.message
+        });
+      }
+    }
+
+    // If token is expired, validate via session table
+    if (isExpired) {
+      if (!payload || !payload.id) {
+        return res.status(401).json({ error: 'Invalid token payload' });
+      }
+      const hashedErpToken = hashToken(erp_token);
+      const sessionCheck = await pool.query(
+        'SELECT id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+        [hashedErpToken, payload.id]
+      );
+      if (sessionCheck.rows.length === 0) {
+        console.error('[external-login] No valid session found for expired token:', payload.id);
+        return res.status(401).json({ 
+          error: 'Phiên đã hết hạn',
+          message: 'Your session has expired. Please login from ERP system again.'
+        });
+      }
+      console.log('[external-login] Token expired but valid session found - allowing exchange');
     }
 
     // Validate role match: the role in the URL/request must be compatible with the token's role
     const requestedRole = role || 'guest';
-    if (!isSessionAllowedForStorefrontRole(requestedRole, payload.role)) {
+    const roleAllowed = isSessionAllowedForStorefrontRole(requestedRole, payload.role);
+    
+    console.log('[external-login] Role validation:', {
+      requestedRole,
+      tokenRole: payload.role,
+      allowed: roleAllowed
+    });
+    
+    if (!roleAllowed) {
       return res.status(403).json({ 
-        error: `Tài khoản ${payload.role} không phù hợp với quyền ${requestedRole} trên storefront` 
+        error: `Tài khoản ${payload.role} không phù hợp với quyền ${requestedRole} trên storefront`,
+        message: `Your ERP role (${payload.role}) is not allowed to access storefront with role (${requestedRole})`
       });
     }
 
@@ -417,14 +516,37 @@ router.post('/external-login', async (req, res) => {
     const hashedRefresh = hashToken(refreshToken);
     const storefrontExpiresAt = new Date(Date.now() + STOREFRONT_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
 
-    try {
-      await pool.query(
-        'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1,$2,$3,now(),$4,$5,$6)',
-        [payload.id, storefrontToken, hashedRefresh, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
-      );
-    } catch (err) {
-      console.error('Failed to save storefront session:', err.message);
-      return res.status(500).json({ error: 'Failed to create session' });
+    console.log('[external-login] Creating storefront session for user:', payload.id, 'token length:', storefrontToken.length);
+    const hashedStorefrontToken = hashToken(storefrontToken);
+
+    // First, check if a session already exists for this token (using hash)
+    const existingSession = await pool.query(
+      'SELECT id FROM sessions WHERE token = $1 LIMIT 1',
+      [hashedStorefrontToken]
+    );
+
+    if (existingSession.rows.length > 0) {
+      console.log('[external-login] Session already exists, sessionId:', existingSession.rows[0].id);
+    } else {
+      // Session doesn't exist, create it
+      try {
+        const sessionResult = await pool.query(
+          'INSERT INTO sessions (user_id, token, refresh_token, created_at, expires_at, ip_address, device_info) VALUES ($1,$2,$3,now(),$4,$5,$6) RETURNING id',
+          [payload.id, hashedStorefrontToken, hashedRefresh, storefrontExpiresAt.toISOString(), req.ip, `storefront:${req.headers['user-agent'] || 'unknown'}`]
+        );
+        console.log('[external-login] Storefront session created successfully, sessionId:', sessionResult.rows[0]?.id);
+      } catch (err) {
+        console.error('[external-login] Failed to save storefront session:', err.message);
+        console.error('[external-login] Session insert details:', {
+          userId: payload.id,
+          tokenLength: storefrontToken.length,
+          expiresAt: storefrontExpiresAt.toISOString(),
+          error: err.code,
+          detail: err.detail,
+          constraint: err.constraint
+        });
+        // Don't fail the request - the token itself is valid even if session tracking fails
+      }
     }
 
 // Log audit entry
@@ -443,10 +565,23 @@ router.post('/external-login', async (req, res) => {
       console.warn('Failed to write audit log for storefront login:', e.message);
     }
 
+    // Set HttpOnly cookie cho storefront token
+    res.cookie('storefront_token', storefrontToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      domain: process.env.NODE_ENV === 'production' ? '.railway.app' : undefined
+    });
+    console.log('[external-login] Storefront token created successfully for user:', payload.id);
     return res.json({ success: true, storefrontToken });
   } catch (err) {
-    console.error('External login error:', err);
-    return res.status(500).json({ error: 'Server error' });
+    console.error('[external-login] Unexpected error:', err);
+    return res.status(500).json({ 
+      error: 'Server error',
+      message: 'An unexpected error occurred during storefront login',
+      details: err.message
+    });
   }
 });
 

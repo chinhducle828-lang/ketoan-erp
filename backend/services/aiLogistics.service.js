@@ -11,6 +11,7 @@ import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
 
 const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+const AI_INTERNAL_SECRET = process.env.AI_INTERNAL_SECRET || '';
 
 /**
  * Tối ưu tuyến đường giao hàng
@@ -22,7 +23,10 @@ export async function optimizeDeliveryRoute(orders, vehicles) {
   try {
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/optimize-route`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+      },
       body: JSON.stringify({
         orders,
         vehicles
@@ -83,7 +87,10 @@ export async function predictDeliveryTime(companyId, orderId) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-delivery-time`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       order: order[0],
       history
@@ -133,7 +140,10 @@ export async function predictWarehouseLoad(companyId, period) {
   // Gọi AI service
   const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/predict-warehouse-load`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+    },
     body: JSON.stringify({
       company_id: companyId,
       period,

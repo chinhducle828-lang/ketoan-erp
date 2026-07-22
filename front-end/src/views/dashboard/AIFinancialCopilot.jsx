@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import api from '../../utils/api.js';
 import {
   MessageSquare,
   Calculator,
@@ -42,7 +43,8 @@ export default function AIFinancialCopilot() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState('chat'); // chat, math, workflow, insights
-  const [geminiAvailable, setGeminiAvailable] = useState(true);
+  const [geminiAvailable, setGeminiAvailable] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
   const [cooldown, setCooldown] = useState(0);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -70,25 +72,20 @@ export default function AIFinancialCopilot() {
   useEffect(() => {
     if (companyId) {
       loadConversationHistory();
-      checkGeminiStatus();
+      loadAIStatus();
     }
   }, [companyId]);
 
-  const checkGeminiStatus = async () => {
+  const loadAIStatus = async () => {
     if (!companyId) return;
     
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE}/ai/query`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ question: 'test', company_id: companyId })
-      });
-      setGeminiAvailable(response.ok);
+      const response = await api.get('/ai/status');
+      const data = response.data;
+      setAiStatus(data.data || null);
+      setGeminiAvailable(Boolean(data.data?.gemini?.available));
     } catch (error) {
+      setAiStatus(null);
       setGeminiAvailable(false);
     }
   };
@@ -97,21 +94,18 @@ export default function AIFinancialCopilot() {
     if (!companyId) return;
     
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE}/ai/suggested?company_id=${companyId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get('/ai/suggested', {
+        params: { company_id: companyId }
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          const history = data.data.map(q => ({
-            id: q.id || Date.now() + Math.random(),
-            role: 'user',
-            content: q.question,
-            timestamp: q.created_at
-          }));
-          setMessages(history);
-        }
+      const data = response.data;
+      if (data.success && data.data) {
+        const history = data.data.map(q => ({
+          id: q.id || Date.now() + Math.random(),
+          role: 'user',
+          content: q.question,
+          timestamp: q.created_at
+        }));
+        setMessages(history);
       }
     } catch (error) {
       console.error('Failed to load history:', error);
@@ -161,9 +155,6 @@ export default function AIFinancialCopilot() {
 
       setMessages(prev => [...prev, aiMessage]);
 
-      // Save to knowledge base
-      await saveToKnowledgeBase(messageText, aiMessage.content);
-
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
@@ -182,19 +173,15 @@ export default function AIFinancialCopilot() {
   };
 
   const askQuestion = async (question) => {
-    const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE}/ai/query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ question, company_id: companyId })
+    const response = await api.post('/ai/query', {
+      question,
+      company_id: companyId
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      
+    const data = response.data;
+    if (!data?.success) {
+      const errorData = data || { error: 'Unknown error' };
+
       // Check for quota exceeded error
       if (errorData.error?.includes('quota') || errorData.error?.includes('429')) {
         throw new Error('Đã vượt quá giới hạn API. Vui lòng đợi 1-2 phút và thử lại.');
@@ -202,76 +189,43 @@ export default function AIFinancialCopilot() {
       
       throw new Error(errorData.error || errorData.message || 'Failed to get AI response');
     }
-    
-    const data = await response.json();
+
     return data.data;
   };
 
   const solveMath = async (problem) => {
-    const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE}/ai/math`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ problem, context: 'financial', company_id: companyId })
+    const response = await api.post('/ai/math', {
+      problem,
+      context: 'financial',
+      company_id: companyId
     });
 
-    if (!response.ok) throw new Error('Failed to solve math problem');
-    const data = await response.json();
-    return data.data;
+    if (!response.data?.success) throw new Error('Failed to solve math problem');
+    return response.data.data;
   };
 
   const executeWorkflow = async (workflowType) => {
-    const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE}/ai/workflow/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ workflowType, context: { period: 'current_month' }, company_id: companyId })
+    const response = await api.post('/ai/workflow/execute', {
+      workflowType,
+      context: { period: 'current_month' },
+      company_id: companyId
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    if (!response.data?.success) {
+      const errorData = response.data || { error: 'Unknown error' };
       throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: Failed to execute workflow`);
     }
-    const data = await response.json();
-    return data.data;
+    return response.data.data;
   };
 
   const getInsights = async (question) => {
-    const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE}/ai/cross-module`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ question, company_id: companyId })
+    const response = await api.post('/ai/cross-module', {
+      question,
+      company_id: companyId
     });
 
-    if (!response.ok) throw new Error('Failed to get insights');
-    const data = await response.json();
-    return data.data;
-  };
-
-  const saveToKnowledgeBase = async (question, answer) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      await fetch(`${API_BASE}/ai/query`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ question, answer, company_id: companyId })
-      });
-    } catch (error) {
-      console.error('Failed to save to knowledge base:', error);
-    }
+    if (!response.data?.success) throw new Error('Failed to get insights');
+    return response.data.data;
   };
 
   const handleQuickAction = (action) => {
@@ -319,7 +273,11 @@ export default function AIFinancialCopilot() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">AI Financial Copilot</h1>
                 <p className="text-sm text-gray-500">
-                  {geminiAvailable ? '✨ Gemini 2.5 Flash đã kết nối' : '⚠️ Chế độ offline (Python service)'}
+                  {aiStatus?.ready
+                    ? aiStatus?.mode === 'gemini'
+                      ? `✨ Gemini ${aiStatus?.gemini?.model || 'connected'} đã kết nối`
+                      : '🧠 AI đang chạy qua fallback backend/Python'
+                    : '⚠️ AI service chưa được cấu hình'}
                 </p>
               </div>
           </div>
@@ -457,8 +415,9 @@ export default function AIFinancialCopilot() {
                             <span className="text-gray-400">SQL Query:</span>
                             <button
                               onClick={() => navigator.clipboard.writeText(msg.sql)}
-                              className="text-xs text-blue-400 hover:text-blue-300"
+                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                             >
+                              <Download className="w-3 h-3" />
                               Copy
                             </button>
                           </div>
@@ -469,8 +428,18 @@ export default function AIFinancialCopilot() {
                       {/* Data Table */}
                       {msg.data && msg.data.length > 0 && (
                         <div className="mt-3 overflow-x-auto">
-                          <table className="min-w-full text-xs border border-gray-200">
-                            <thead className="bg-gray-50">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-700">
+                              📊 {msg.data.length} bản ghi được tìm thấy
+                            </span>
+                            {msg.data.length > 10 && (
+                              <span className="text-xs text-gray-500">
+                                Hiển thị 10/{msg.data.length} bản ghi
+                              </span>
+                            )}
+                          </div>
+                          <table className="min-w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
+                            <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
                               <tr>
                                 {Object.keys(msg.data[0]).map(key => (
                                   <th key={key} className="px-3 py-2 text-left text-gray-700 font-medium">
@@ -481,34 +450,84 @@ export default function AIFinancialCopilot() {
                             </thead>
                             <tbody>
                               {msg.data.slice(0, 10).map((row, idx) => (
-                                <tr key={idx} className="border-t border-gray-200">
-                                  {Object.values(row).map((val, vidx) => (
-                                    <td key={vidx} className="px-3 py-2 text-gray-600">
-                                      {val !== null && val !== undefined ? String(val) : '-'}
-                                    </td>
-                                  ))}
+                                <tr key={idx} className="border-t border-gray-200 hover:bg-gray-50">
+                                  {Object.values(row).map((val, vidx) => {
+                                    // Format numbers with VND currency
+                                    let displayValue = val;
+                                    if (val !== null && val !== undefined) {
+                                      const strVal = String(val);
+                                      // Check if it's a large number (likely currency)
+                                      if (/^\d+$/.test(strVal) && parseInt(strVal) > 1000) {
+                                        displayValue = new Intl.NumberFormat('vi-VN', {
+                                          style: 'currency',
+                                          currency: 'VND',
+                                          minimumFractionDigits: 0
+                                        }).format(parseInt(strVal));
+                                      }
+                                    }
+                                    return (
+                                      <td key={vidx} className="px-3 py-2 text-gray-600">
+                                        {displayValue !== null && displayValue !== undefined ? displayValue : '-'}
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                          {msg.data.length > 10 && (
-                            <p className="text-xs text-gray-500 mt-2">
-                              Hiển thị 10/{msg.data.length} bản ghi
-                            </p>
-                          )}
+                        </div>
+                      )}
+
+                      {/* No Data Message */}
+                      {msg.data && msg.data.length === 0 && !msg.error && (
+                        <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                            <div>
+                              <p className="text-sm text-yellow-800 font-medium">Không tìm thấy dữ liệu</p>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                Có thể công ty chưa có dữ liệu cho câu hỏi này, hoặc câu hỏi cần được diễn đạt khác.
+                              </p>
+                              <div className="mt-2 text-xs text-yellow-600">
+                                <p className="font-medium">Gợi ý:</p>
+                                <ul className="list-disc list-inside mt-1 space-y-1">
+                                  <li>Kiểm tra lại khoảng thời gian</li>
+                                  <li>Thử câu hỏi tổng quát hơn</li>
+                                  <li>Đảm bảo công ty đã có dữ liệu nhập</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
 
                       {/* Confidence & Meta */}
-                      <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+                      <div className="mt-3 flex items-center gap-3 text-xs">
                         {msg.confidence && (
-                          <span className="flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
+                          <span className={`flex items-center gap-1 ${
+                            msg.confidence >= 90 ? 'text-green-600' :
+                            msg.confidence >= 70 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {msg.confidence >= 90 ? <CheckCircle2 className="w-3 h-3" /> :
+                             msg.confidence >= 70 ? <AlertCircle className="w-3 h-3" /> :
+                             <XCircle className="w-3 h-3" />}
                             {msg.confidence}% confidence
                           </span>
                         )}
-                        {msg.model && <span>Model: {msg.model}</span>}
-                        <span>{new Date(msg.timestamp).toLocaleTimeString('vi-VN')}</span>
+                        {msg.model && (
+                          <span className="text-gray-600">
+                            🤖 {msg.model}
+                          </span>
+                        )}
+                        {msg.recordsAnalyzed && (
+                          <span className="text-gray-600">
+                            📈 {msg.recordsAnalyzed} records
+                          </span>
+                        )}
+                        <span className="text-gray-400">
+                          {new Date(msg.timestamp).toLocaleTimeString('vi-VN')}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -603,7 +622,16 @@ export default function AIFinancialCopilot() {
                       ⏱️ Vui lòng đợi {cooldown}s
                     </span>
                   )}
-                  <span>{geminiAvailable ? '✨ Gemini 2.5 Flash' : '⚠️ Fallback mode'}</span>
+                  <span>
+                    {aiStatus?.ready
+                      ? aiStatus.mode === 'gemini'
+                        ? '✨ Gemini 2.5 Flash'
+                        : '🐍 Python fallback mode'
+                      : '⚠️ Chưa cấu hình AI'}
+                  </span>
+                  {aiStatus?.pythonService?.configured && (
+                    <span>{aiStatus.pythonService.reachable ? '🐍 Python AI online' : '🐍 Python AI fallback'}</span>
+                  )}
                 </div>
               </div>
             </div>

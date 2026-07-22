@@ -11,7 +11,8 @@ import {
   askFinancialCopilot,
   getSuggestedQueries,
   solveMathProblem,
-  analyzeWorkflow
+  analyzeWorkflow,
+  saveQueryToKnowledgeBase
 } from '../services/aiCopilot.service.js';
 import { executeWorkflow, getProactiveInsights, analyzeCrossModule } from '../services/aiOrchestrator.service.js';
 import { processDocument, saveOCRResult, getPendingOCRInvoices, approveOCRResult, rejectOCRResult } from '../services/aiOcr.service.js';
@@ -20,11 +21,72 @@ import { getSuggestions, getAllSuggestionRules, getSuggestionRuleById, createSug
 import { processBatch, getAllBatchConfigs, getBatchConfigById, createBatchConfig, updateBatchConfig, deleteBatchConfig, getBatchStatus, getBatchHistory } from '../services/aiBatchProcessor.service.js';
 import { executeWorkflow as executeDataDrivenWorkflow, getAllWorkflows, getWorkflowByCode, createWorkflow, updateWorkflow, deleteWorkflow } from '../services/aiWorkflowEngine.service.js';
 import { AppError, ErrorCodes } from '../utils/AppError.js';
+import { AI_CONFIG } from '../config/aiConfig.js';
+import { isGeminiAvailable } from '../services/geminiClient.js';
 
 const router = express.Router();
+const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 4000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 
 // Middleware xác thực
 router.use(authenticate);
+
+/**
+ * GET /api/ai/status
+ * Trạng thái kết nối AI thực tế
+ */
+router.get('/status', asyncHandler(async (req, res) => {
+  let pythonReachable = false;
+
+  if (PYTHON_AI_SERVICE_URL) {
+    try {
+      const response = await fetchWithTimeout(`${PYTHON_AI_SERVICE_URL.replace(/\/$/, '')}/health`, { method: 'GET' }, 3500);
+      pythonReachable = response.ok;
+    } catch {
+      pythonReachable = false;
+    }
+  }
+
+  const geminiReady = Boolean(AI_CONFIG.GEMINI.API_KEY) && isGeminiAvailable();
+  const pythonConfigured = Boolean(PYTHON_AI_SERVICE_URL);
+  const ready = geminiReady || pythonConfigured;
+  const mode = geminiReady ? 'gemini' : pythonConfigured ? 'python-fallback' : 'offline';
+
+  res.json({
+    success: true,
+    data: {
+      gemini: {
+        configured: Boolean(AI_CONFIG.GEMINI.API_KEY),
+        available: geminiReady,
+        model: AI_CONFIG.GEMINI.MODEL,
+      },
+      pythonService: {
+        configured: pythonConfigured,
+        reachable: pythonReachable,
+        url: PYTHON_AI_SERVICE_URL || null,
+      },
+      ready,
+      mode,
+      knowledgeBase: {
+        enabled: true,
+        table: 'ai_copilot_kb'
+      }
+    }
+  });
+}));
 
 /**
  * POST /api/ai/query
@@ -40,9 +102,42 @@ router.post('/query', asyncHandler(async (req, res) => {
 
   const result = await askFinancialCopilot(question, companyId);
 
+  if (result?.answer && companyId && question) {
+    try {
+      await saveQueryToKnowledgeBase(question, companyId, result.answer);
+    } catch (error) {
+      // Knowledge base persistence must never block the AI response.
+      console.warn('[AI] Failed to save query to knowledge base:', error.message);
+    }
+  }
+
   res.json({
     success: true,
     data: result
+  });
+}));
+
+/**
+ * POST /api/ai/knowledge-base
+ * Lưu cặp câu hỏi - trả lời vào kho tri thức AI
+ */
+router.post('/knowledge-base', asyncHandler(async (req, res) => {
+  const { question, answer } = req.body;
+  const companyId = req.companyId || req.body.company_id;
+
+  if (!question || !answer) {
+    throw new AppError(ErrorCodes.VALIDATION_ERROR, 'Thiếu question hoặc answer', 400);
+  }
+
+  await saveQueryToKnowledgeBase(question, companyId, answer);
+
+  res.json({
+    success: true,
+    data: {
+      saved: true,
+      companyId,
+      question
+    }
   });
 }));
 
@@ -112,12 +207,22 @@ router.post('/math', asyncHandler(async (req, res) => {
     throw new AppError(ErrorCodes.VALIDATION_ERROR, 'Thiếu bài toán', 400);
   }
 
-  const result = await solveMathProblem(problem, context || 'financial');
-
-  res.json({
-    success: true,
-    data: result
-  });
+  try {
+    const result = await solveMathProblem(problem, context || 'financial');
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error({ error: error.message, problem, companyId }, 'Math solve failed');
+    res.json({
+      success: false,
+      data: {
+        solution: `Không thể giải bài toán: ${error.message}. Vui lòng thử lại sau.`,
+        confidence: 0
+      }
+    });
+  }
 }));
 
 /**

@@ -292,7 +292,7 @@ export default function CompanyManagement() {
   const loadCassoUserInfo = async () => {
     setCassoUserLoading(true);
     try {
-      const res = await api.get('/api/casso/user');
+      const res = await api.get('/casso/user');
       setCassoUserInfo(res.data?.data || null);
     } catch (err) {
       alert(err.response?.data?.error || 'Không thể lấy thông tin Casso');
@@ -303,7 +303,7 @@ export default function CompanyManagement() {
 
   const loadCassoAssignedAccounts = async (companyId) => {
     try {
-      const res = await api.get('/api/casso/company-accounts', { params: { company_id: companyId } });
+      const res = await api.get('/casso/company-accounts', { params: { company_id: companyId } });
       setCassoAssignedAccounts(Array.isArray(res.data?.data) ? res.data.data : []);
     } catch {
       setCassoAssignedAccounts([]);
@@ -318,7 +318,7 @@ export default function CompanyManagement() {
     setCassoAssignLoading(true);
     try {
       const bank = cassoBankAccounts.find((b) => b.bank_sub_acc_id === cassoAssignBankId);
-      await api.post('/api/casso/company-accounts', {
+      await api.post('/casso/company-accounts', {
         company_id: Number(cassoAssignCompanyId),
         bank_sub_acc_id: cassoAssignBankId,
         bank_name: bank?.bank_name || bank?.name || null,
@@ -341,7 +341,7 @@ export default function CompanyManagement() {
     }
     setCassoSyncLoading(true);
     try {
-      await api.post('/api/casso/sync', null, { params: { bank_acc_id: bankId } });
+      await api.post('/casso/sync', null, { params: { bank_acc_id: bankId } });
       alert('Đã gửi yêu cầu đồng bộ giao dịch mới');
     } catch (err) {
       alert(err.response?.data?.error || 'Lỗi đồng bộ Casso');

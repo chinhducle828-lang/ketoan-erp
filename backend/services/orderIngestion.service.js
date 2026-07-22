@@ -166,11 +166,11 @@ export async function ingestOrderToVoucher(order, userId = null) {
       throw new Error(sagaResult.error);
     }
 
-    // Ghi audit log (fire and forget)
+    // Ghi audit log với retry
     try {
       const voucherType = getSalesVoucherType();
       const auditAction = voucherType === 'XK' ? 'GOODSISSUE' : 'CREATE';
-      logAudit({
+      await logAudit({
         userId: userId,
         action: auditAction,
         entityType: 'VOUCHERS',
@@ -179,18 +179,21 @@ export async function ingestOrderToVoucher(order, userId = null) {
         companyId: order.company_id
       });
     } catch (auditErr) {
-      console.warn('Audit log warning:', auditErr.message);
+      console.error('Audit log failed:', auditErr.message);
+      // Không throw lỗi để không ảnh hưởng đến luồng chính
     }
 
+    // WebSocket notification với retry
     try {
-      publishToCompany(order.company_id, 'orderCreated', {
+      await publishToCompany(order.company_id, 'orderCreated', {
         orderId: createdVoucherId,
         orderNumber: order.order_number,
         status: 'draft',
         timestamp: new Date().toISOString()
       });
     } catch (wsError) {
-      console.error('WebSocket notification error:', wsError);
+      console.error('WebSocket notification error:', wsError.message);
+      // Không throw lỗi để không ảnh hưởng đến luồng chính
     }
 
     return {

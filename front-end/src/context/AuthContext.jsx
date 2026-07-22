@@ -4,7 +4,7 @@
 
 // FILE_PATH: front-end/src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../utils/api.js';
+import api, { setAccessToken, clearAccessToken } from '../utils/api.js';
 
 const AuthContext = createContext(null);
 
@@ -43,6 +43,7 @@ export function AuthProvider({ children }) {
   // Lắng nghe sự kiện token hết hạn từ response interceptor
   useEffect(() => {
     const handleAuthExpired = () => {
+      clearAccessToken();
       localStorage.removeItem('accessToken');
       setUser(null);
       setActiveCompany(null);
@@ -52,19 +53,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const initSession = async () => {
       const existingToken = localStorage.getItem('accessToken');
-      if (!existingToken) {
+      if (!existingToken || cancelled) {
         setIsSyncing(false);
         return;
       }
+      // Sync localStorage token to in-memory storage for api.js interceptor
+      setAccessToken(existingToken);
       try {
-        // /auth/me tự động qua interceptor: nếu access token hết hạn sẽ silent-refresh (có cooldown)
         const userRes = await api.get('/auth/me');
+        if (cancelled) return;
         setUser(userRes.data.user);
         setFiscalYear(userRes.data.fiscal_year);
 
-        // Phục hồi dữ liệu phân vùng doanh nghiệp làm việc
         const storedCompany = localStorage.getItem('activeCompany');
         let parsedStoredCompany = null;
         if (storedCompany) {
@@ -75,10 +78,12 @@ export function AuthProvider({ children }) {
           }
         }
 
-        // ✅ FIX: Tải danh sách công ty từ database khi khởi động phiên làm việc
-        const fetchedCompanies = await fetchCompanies();
+        // SỬA: Gọi API trực tiếp, không dùng fetchCompanies (tránh race condition do callback reference change)
+        const { data: companiesData } = await api.get('/companies');
+        if (cancelled) return;
+        const fetchedCompanies = Array.isArray(companiesData) ? companiesData : companiesData?.data || [];
+        setCompanies(fetchedCompanies);
 
-        // Nếu tài khoản mới đăng nhập chưa có activeCompany, tự chọn công ty đầu tiên được cấp quyền.
         const matchedCompany = parsedStoredCompany?.id
           ? fetchedCompanies.find((c) => Number(c.id) === Number(parsedStoredCompany.id))
           : null;
@@ -92,33 +97,36 @@ export function AuthProvider({ children }) {
           localStorage.removeItem('activeCompany');
         }
       } catch (err) {
+        if (cancelled) return;
         const status = err?.response?.status;
         if (status === 401) {
-          // Phiên thực sự hết hạn / mất cookie → dọn trạng thái, về trang login
           console.warn('Phiên làm việc đã hết hạn, yêu cầu đăng nhập lại.');
+          clearAccessToken();
           localStorage.removeItem('accessToken');
           localStorage.removeItem('activeCompany');
           setUser(null);
           setActiveCompany(null);
         } else {
-          // Lỗi tạm thời (429/500/network): GIỮ nguyên token, KHÔNG ép logout.
-          // Các request tiếp theo sẽ tự động thử lại qua interceptor (có cooldown).
           console.warn('Khởi tạo phiên tạm thời thất bại, sẽ thử lại khi gọi API:', err?.message);
         }
       } finally {
-        setIsSyncing(false); // Hoàn tất quá trình đồng bộ, cho phép ứng dụng render UI chính thức
+        if (!cancelled) setIsSyncing(false);
       }
     };
 
     initSession();
-  }, [fetchCompanies]);
+    return () => { cancelled = true; };
+  }, []); // SỬA: dependency = [] để chỉ chạy 1 lần, tránh race condition
 
   const login = useCallback(async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
+    setAccessToken(data.accessToken);
     localStorage.setItem('accessToken', data.accessToken);
     const loggedInUser = {
       ...(data.user || {}),
-      must_change_password: Boolean(data?.user?.must_change_password ?? data?.must_change_password)
+      must_change_password: Boolean(data?.user?.must_change_password ?? data?.must_change_password),
+      // Enhanced RBAC: Include clearance_level from backend
+      clearance_level: data.user?.clearance_level ?? data.clearance_level ?? 1
     };
     setUser(loggedInUser);
     setFiscalYear(data.fiscal_year);
@@ -159,6 +167,7 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error(e);
     } finally {
+      clearAccessToken();
       localStorage.removeItem('accessToken');
       localStorage.removeItem('activeCompany');
       setUser(null);
@@ -171,6 +180,7 @@ export function AuthProvider({ children }) {
 
     // Backend đã hủy toàn bộ session sau khi đổi mật khẩu,
     // nên client cũng dọn trạng thái để buộc đăng nhập lại.
+    clearAccessToken();
     localStorage.removeItem('accessToken');
     localStorage.removeItem('activeCompany');
     setUser(null);
@@ -182,6 +192,10 @@ export function AuthProvider({ children }) {
   const changeCompany = useCallback((company) => {
     setActiveCompany(company);
     localStorage.setItem('activeCompany', JSON.stringify(company));
+    // Đồng bộ company_id sang Storefront (cùng origin, cross-tab)
+    localStorage.setItem('shopCompanyId', String(company.id));
+    // Đánh dấu thời điểm đồng bộ để Storefront phát hiện thay đổi
+    localStorage.setItem('erp:company-changed', String(Date.now()));
   }, []);
 
   // Kiểm tra trạng thái số dư đầu kỳ
@@ -216,6 +230,7 @@ export function AuthProvider({ children }) {
   const token = localStorage.getItem('accessToken');
   const mustChangePassword = user?.must_change_password || user?.mustChangePassword || false;
 
+  // Memo hóa context value, loại bỏ token khỏi dependency để tránh re-render vô hạn
   const contextValue = useMemo(() => ({
     user,
     activeCompany,
@@ -242,7 +257,6 @@ export function AuthProvider({ children }) {
     logout,
     changePassword,
     changeCompany,
-    token,
     mustChangePassword,
     isSyncing,
     hasOpeningBalance,

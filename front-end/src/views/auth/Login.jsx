@@ -10,6 +10,7 @@ import { Lock, User, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
 import { MODULES_REGISTER } from '../../views/index.js';
 import { useNavigate } from 'react-router-dom';
 import getStorefrontURL from '../../utils/storefrontUrl.js';
+import { hasPermission } from '../../utils/rbac.js';
 
 export default function Login({ onFirstRun }) {
   const { login, logout, user, token, activeCompany } = useAuth();
@@ -45,13 +46,6 @@ export default function Login({ onFirstRun }) {
     }
   }, [navigate]);
 
-  // Check if the erp_token obtained at login is still fresh enough
-  const isTokenExpired = useCallback(() => {
-    if (!tokenTimestamp) return true;
-    // Token issued > 10 minutes ago → likely expired (15 min TTL)
-    return Date.now() - tokenTimestamp > 10 * 60 * 1000;
-  }, [tokenTimestamp]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitLockRef.current) return;
@@ -71,7 +65,9 @@ export default function Login({ onFirstRun }) {
               }
             }
             const roleToCheck = response.user?.roleId || response.user?.role || (user && (user.roleId || user.role));
-            const hasErpAccess = MODULES_REGISTER.some((m) => Array.isArray(m.allowedRoles) && m.allowedRoles.includes(roleToCheck));
+            const hasErpAccess = MODULES_REGISTER.some((module) => 
+              hasPermission({ roleId: roleToCheck, role: roleToCheck, department: response.user?.department }, module)
+            );
 
             // gd_kinhdoanh có route riêng → điều hướng trong Router (không reload trang)
             if (roleToCheck === 'gd_kinhdoanh') {
@@ -88,8 +84,9 @@ export default function Login({ onFirstRun }) {
           let companyId;
           try { companyId = storedCompany ? JSON.parse(storedCompany)?.id : undefined; } catch { companyId = undefined; }
           const role = response.user?.roleId || response.user?.role || '';
-          // Use storefrontAccessToken (7-day) instead of accessToken (15-min) to avoid expiry issues
-          const erpToken = localStorage.getItem('storefrontAccessToken') || '';
+          // Use storefrontToken (7-day) for external-login exchange
+          // Ưu tiên storefrontToken vì có thời gian sống dài hơn, tránh hết hạn khi redirect
+          const erpToken = response.storefrontToken || response.accessToken || '';
           const params = new URLSearchParams();
           if (companyId) params.set('company_id', String(companyId));
           if (role) params.set('role', role);
@@ -150,9 +147,11 @@ export default function Login({ onFirstRun }) {
       // Fallback: try refreshing the access token
       try {
         const { data } = await api.post('/auth/refresh');
-        if (data?.accessToken) {
+        if (data?.storefrontToken) {
+          erpToken = data.storefrontToken;
+          localStorage.setItem('storefrontAccessToken', data.storefrontToken);
+        } else if (data?.accessToken) {
           erpToken = data.accessToken;
-          localStorage.setItem('accessToken', data.accessToken);
         }
       } catch {
         // Keep current token as fallback if refresh is unavailable.
@@ -351,7 +350,6 @@ export default function Login({ onFirstRun }) {
                     <button
                       onClick={() => {
                         if (!postLoginHref) { alert('Chưa cấu hình URL cửa hàng.'); return; }
-                        if (isTokenExpired()) { setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'); return; }
                         handleRedirect(postLoginHref, 'storefront_newtab', showPostLoginChoice.canStayErp);
                       }}
                       className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
@@ -365,7 +363,6 @@ export default function Login({ onFirstRun }) {
                     <button
                       onClick={() => {
                         if (!postLoginHref) { alert('Chưa cấu hình URL cửa hàng.'); return; }
-                        if (isTokenExpired()) { setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'); return; }
                         handleRedirect(postLoginHref, 'storefront_replace', showPostLoginChoice.canStayErp);
                       }}
                       className="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-slate-800"

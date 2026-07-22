@@ -7,6 +7,9 @@ import axios from 'axios';
 import { getClientInstanceId } from './clientInstance.js';
 import { resolveApiBaseUrl } from './apiBaseUrl.js';
 
+// In-memory token storage (more secure than localStorage - not accessible via XSS)
+let memoryToken = null;
+
 const getBaseURL = () => {
   const base = resolveApiBaseUrl();
   if (base.includes('your-backend-domain')) {
@@ -17,20 +20,39 @@ const getBaseURL = () => {
 
 const api = axios.create({
   baseURL: getBaseURL(), 
-  withCredentials: true,  // Giữ nguyên để nhận/gửi cookie HttpOnly an toàn giữa 2 domain
+  withCredentials: true,  // Cookies are used for auth primarily (HttpOnly)
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
 // ====================================================================
+// TOKEN MANAGEMENT - Uses in-memory storage instead of localStorage
+// to prevent XSS-based token theft
+// ====================================================================
+
+/**
+ * Set access token in memory (NOT localStorage)
+ */
+export const setAccessToken = (token) => {
+  memoryToken = token;
+};
+
+/**
+ * Get access token from memory
+ */
+export const getAccessToken = () => memoryToken;
+
+/**
+ * Clear access token on logout
+ */
+export const clearAccessToken = () => {
+  memoryToken = null;
+};
+
+// ====================================================================
 // SILENT REFRESH (single-flight + cooldown) - Đồng bộ lại phiên khi access token hết hạn
 // ====================================================================
-// - Chỉ tạo tối đa 1 request /auth/refresh tại một thời điểm (tránh bão hòa).
-// - Có cooldown sau mỗi lần refresh thất bại (lỗi tạm thời 429/500/network)
-//   để KHÔNG tạo vòng lặp gọi refresh trên mọi request khi backend/network gián đoạn.
-// - CHỈ đăng xuất khi refresh trả về 401 (phiên thực sự hết hạn / mất cookie).
-//   Các lỗi tạm thời KHÔNG đăng xuất → giữ nguyên phiên, tránh mất ổn định đột ngột.
 let refreshPromise = null;
 let refreshCooldownUntil = 0;
 const REFRESH_COOLDOWN_MS = 10 * 1000; // 10 giây
@@ -45,12 +67,12 @@ const doSilentRefresh = () => {
       try {
         const { data } = await api.post('/auth/refresh');
         if (data && data.accessToken) {
-          localStorage.setItem('accessToken', data.accessToken);
+          // Store in memory instead of localStorage
+          setAccessToken(data.accessToken);
           return data.accessToken;
         }
         throw new Error('silent-refresh-no-token');
       } finally {
-        // Giải phóng để các lần sau có thể thử lại
         refreshPromise = null;
       }
     })();
@@ -70,7 +92,7 @@ api.interceptors.response.use(
     const alreadyRetried = originalRequest._retry === true;
 
     if (status === 401 && !isRefreshCall && !alreadyRetried) {
-      const hadToken = localStorage.getItem('accessToken');
+      const hadToken = getAccessToken();
       if (hadToken) {
         try {
           const newToken = await doSilentRefresh();
@@ -83,7 +105,7 @@ api.interceptors.response.use(
           const refreshStatus = refreshErr?.response?.status;
           // Chỉ đăng xuất khi refresh thực sự trả về 401 (cookie/phiên đã mất).
           if (refreshStatus === 401) {
-            localStorage.removeItem('accessToken');
+            clearAccessToken();
             try {
               window.dispatchEvent(new CustomEvent('erp:auth-expired', {
                 detail: { message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' }
@@ -104,7 +126,8 @@ api.interceptors.response.use(
 // Request Interceptor: Đính kèm mã định danh pháp nhân hạch toán và token bảo mật
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    // Get token from memory instead of localStorage
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -120,20 +143,19 @@ api.interceptors.request.use(
     const shouldSkipAutoCompanyScope = rawUrl.includes('/inventory/audit-logs');
 
     // Tự động kiểm tra và cấu hình ID doanh nghiệp đang làm việc vào Header hệ thống
-    const activeCompanyData = localStorage.getItem('activeCompany');
-    if (activeCompanyData && !shouldSkipAutoCompanyScope) {
-      try {
-        const company = JSON.parse(activeCompanyData);
+    // Store only company ID (not full object) for security
+    const activeCompanyId = localStorage.getItem('activeCompanyId');
+    if (activeCompanyId && !shouldSkipAutoCompanyScope) {
+      const companyId = parseInt(activeCompanyId, 10);
+      if (companyId > 0) {
         const hasCompanyIdParam = config.params?.company_id || config.params?.companyId || /[?&](company_id|companyId)=/.test(config.url || '');
-        if (company && company.id && !hasCompanyIdParam) {
-          config.headers['X-Company-Id'] = company.id;
+        if (!hasCompanyIdParam) {
+          config.headers['X-Company-Id'] = companyId;
           config.params = {
             ...config.params,
-            company_id: company.id
+            company_id: companyId
           };
         }
-      } catch (e) {
-        console.error('Lỗi định dạng cấu hình activeCompany', e);
       }
     }
     return config;
@@ -188,6 +210,34 @@ export const cancelSigningRequest = async ({ voucherId, companyId }) => {
     voucherId,
     companyId
   });
+  return response.data;
+};
+
+// ====================================================================
+// FEATURE FLAGS API
+// ====================================================================
+
+/**
+ * Get all feature flags (admin only)
+ */
+export const getFeatureFlags = async () => {
+  const response = await api.get('/feature-flags');
+  return response.data;
+};
+
+/**
+ * Update feature flags (admin only)
+ */
+export const updateFeatureFlags = async (flags) => {
+  const response = await api.put('/feature-flags', { flags });
+  return response.data;
+};
+
+/**
+ * Check if a specific feature flag is enabled
+ */
+export const checkFeatureFlag = async (flagName) => {
+  const response = await api.get(`/feature-flags/${flagName}`);
   return response.data;
 };
 

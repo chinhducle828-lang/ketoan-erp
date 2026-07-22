@@ -3,49 +3,81 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { pool } from '../config/db.js'; // Đường dẫn chuẩn xác từ middleware sang config/db.js
+import crypto from 'crypto';
+import { pool } from '../config/db.js';
 
 const normalizeCompanyId = (companyId) => {
   if (Array.isArray(companyId)) return companyId[0];
   return companyId;
 };
 
+/**
+ * Hash a token using SHA-256 for secure DB storage
+ * This prevents raw JWT tokens from being stored in the sessions table
+ */
+const hashToken = (token) => {
+  if (!token) return '';
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
 // 1. Middleware Xác thực người dùng & Kiểm tra Phiên làm việc
 export const authenticate = async (req, res, next) => {
-  const tokenFromHeader = req.headers.authorization?.split(' ')[1];
-  const tokenFromQuery = req.query?.access_token || req.query?.token;
-  const token = tokenFromHeader || tokenFromQuery;
-  if (!token) return res.status(401).json({ error: 'Truy cập bị từ chối. Vui lòng đăng nhập!' });
+  // Ưu tiên đọc token từ HttpOnly cookie (bảo mật XSS), fallback sang Authorization header
+  let token = req.cookies?.access_token || req.cookies?.storefront_token || null;
+  if (!token) {
+    token = req.headers.authorization?.split(' ')[1];
+  }
+  if (!token) {
+    // NOTE: Query string token is intentionally disabled for security.
+    // Tokens via URL can leak via server logs, browser history, and referrer headers.
+    // EventSource/SSE should use EventSource with Authorization header or cookie instead.
+    console.warn('[auth] No token provided');
+    return res.status(401).json({ error: 'Truy cập bị từ chối. Vui lòng đăng nhập!' });
+  }
   
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
     
+    // Look up session using SHA-256 hash of the token (tokens are stored hashed in DB)
+    const hashedToken = hashToken(token);
     const q = await pool.query(
       'SELECT id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1', 
-      [token, req.user.id]
+      [hashedToken, req.user.id]
     );
     
     if (q.rows.length === 0) {
-      // Diagnostic: check if a session exists but expired or missing
+      // Diagnostic: check if session exists but expired
       try {
-        const diag = await pool.query('SELECT id, created_at, expires_at, ip_address, device_info FROM sessions WHERE token = $1 LIMIT 1', [token]);
+        const diag = await pool.query(
+          'SELECT id, created_at, expires_at, ip_address, device_info FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', 
+          [req.user.id]
+        );
         if (diag.rows.length > 0) {
           const s = diag.rows[0];
-          console.warn(`Session rejected for user=${req.user.id} token present but invalid/expired. sessionId=${s.id} expires_at=${s.expires_at} device=${s.device_info}`);
+          const isExpired = s.expires_at && new Date(s.expires_at) < new Date();
+          if (isExpired) {
+            console.warn(`[auth] Session expired for user=${req.user.id}. Expired at: ${s.expires_at}`);
+          } else {
+            console.warn(`[auth] Session token mismatch for user=${req.user.id}. Token may have been rotated.`);
+          }
         } else {
-          console.warn(`Session missing for user=${req.user.id} token not found in sessions table.`);
+          console.warn(`[auth] No sessions found for user=${req.user.id}`);
         }
       } catch (e) {
-        console.warn('Session diagnostic query failed:', e?.message || e);
+        console.warn('[auth] Session diagnostic query failed:', e?.message || e);
       }
 
-      return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã bị đăng nhập từ nơi khác.' });
+      return res.status(401).json({ error: 'Phiên làm việc không hợp lệ hoặc đã hết hạn.' });
     }
     next();
-  } catch {
+  } catch (err) {
+    console.warn('[auth] Token verification failed:', err.message);
     res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn!' });
   }
 };
+
+// Alias for backward compatibility
+export const authenticateToken = authenticate;
 
 // 2. Middleware Phân quyền Chức năng
 export const requireRole = (roles) => {
@@ -57,30 +89,32 @@ export const requireRole = (roles) => {
   };
 };
 
+// Alias for backward compatibility
+export const authorizeAdmin = requireRole;
+
 // 2.1 Middleware Kiểm tra Root Admin (Dựa trên flag is_root_admin trong DB)
 export const requireRootAdmin = async (req, res, next) => {
   try {
-    // Lấy thông tin đầy đủ của user từ database để kiểm tra flag is_root_admin
-    const userResult = await pool.query(
-      'SELECT username, role, is_root_admin FROM users WHERE id = $1 LIMIT 1',
-      [req.user.id]
-    );
-    
-    if (userResult.rows.length === 0) {
-      return res.status(403).json({ error: 'Tài khoản không tồn tại!' });
+    // Use is_root_admin from JWT payload first to avoid DB round-trip
+    if (req.user.is_root_admin === true || req.user.role === 'admin') {
+      // Verify from DB for sensitive operations
+      const userResult = await pool.query(
+        'SELECT username, role, is_root_admin FROM users WHERE id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return res.status(403).json({ error: 'Tài khoản không tồn tại!' });
+      }
+      
+      const { username, role, is_root_admin } = userResult.rows[0];
+      
+      if (role === 'admin' || is_root_admin) {
+        return next();
+      }
     }
     
-    const { username, role, is_root_admin } = userResult.rows[0];
-    
-    // Cho phép cả role='admin' HOẶC is_root_admin=true
-    // Điều này đảm bảo admin luôn có quyền truy cập audit logs
-    if (role !== 'admin' && !is_root_admin) {
-      return res.status(403).json({ 
-        error: `Chỉ tài khoản Root Admin mới có quyền truy cập! Tài khoản hiện tại: ${username}` 
-      });
-    }
-    
-    next();
+    return res.status(403).json({ error: 'Chỉ tài khoản Root Admin mới có quyền truy cập!' });
   } catch (error) {
     console.error('Lỗi kiểm tra root admin:', error);
     res.status(500).json({ error: 'Lỗi xác thực quyền truy cập' });
@@ -89,7 +123,7 @@ export const requireRootAdmin = async (req, res, next) => {
 
 // 3. Middleware Cách ly dữ liệu giữa các Công ty (Row-Level Security)
 export const checkCompanyAccess = async (req, res, next) => {
-  const targetCompanyId = normalizeCompanyId(
+  const rawCompanyId = normalizeCompanyId(
     req.body.companyId ||
     req.body.company_id ||
     req.query.company_id ||
@@ -98,13 +132,18 @@ export const checkCompanyAccess = async (req, res, next) => {
     req.params.companyId
   );
   
-  if (!targetCompanyId) {
+  if (!rawCompanyId) {
     return res.status(400).json({ error: 'Yêu cầu không hợp lệ. Thiếu thông tin định danh công ty (companyId)!' });
   }
 
-  if (req.user && req.user.role === 'admin') {
-    return next();
+  // Validate that companyId is a positive integer to prevent SQL injection
+  const targetCompanyId = Number(rawCompanyId);
+  if (!Number.isInteger(targetCompanyId) || targetCompanyId <= 0) {
+    return res.status(400).json({ error: 'Mã công ty không hợp lệ!' });
   }
+
+  // Store validated companyId on request for downstream use
+  req.companyId = targetCompanyId;
 
   try {
     if (!req.user?.id) {
@@ -113,9 +152,35 @@ export const checkCompanyAccess = async (req, res, next) => {
       });
     }
 
+    if (req.user.role === 'admin') {
+      // Admin users must also be checked against user_companies for multi-tenant isolation
+      // unless they are root admin (is_root_admin = true)
+      const adminAccess = await pool.query(
+        'SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+        [req.user.id, targetCompanyId]
+      );
+      
+      if (adminAccess.rows.length === 0) {
+        // Admin without explicit company access - check if they are root admin
+        const rootCheck = await pool.query(
+          'SELECT is_root_admin FROM users WHERE id = $1 LIMIT 1',
+          [req.user.id]
+        );
+        
+        if (rootCheck.rows.length === 0 || !rootCheck.rows[0].is_root_admin) {
+          return res.status(403).json({
+            error: 'Từ chối truy cập! Tài khoản của bạn không có quyền thao tác trên dữ liệu của doanh nghiệp này.'
+          });
+        }
+        // Root admin bypasses company check - log for audit
+        console.log(`[AUDIT] Root admin ${req.user.id} accessing company ${targetCompanyId}`);
+      }
+      return next();
+    }
+
     const access = await pool.query(
       'SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2 LIMIT 1',
-      [req.user.id, Number(targetCompanyId)]
+      [req.user.id, targetCompanyId]
     );
 
     if (access.rows.length === 0) {

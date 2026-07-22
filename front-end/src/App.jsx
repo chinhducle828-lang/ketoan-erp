@@ -2,13 +2,14 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { MODULES_REGISTER } from './views/index.js';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PopupNotification from './components/PopupNotification.jsx';
+import useModuleAccess from './hooks/useModuleAccess.js';
 
 // Import các trang Auth
 import Login from './views/auth/Login.jsx';
@@ -17,6 +18,7 @@ import ChangePassword from './views/auth/ChangePassword.jsx';
 import StorefrontAccessNotice from './views/auth/StorefrontAccessNotice.jsx';
 import CustomerView from './views/auth/CustomerView.jsx';
 import { isStorefrontOnlyRole } from './constants/storefrontRoles.js';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Import Layout các phân hệ
 import Sidebar from './components/Sidebar.jsx';
@@ -24,6 +26,7 @@ import Header from './components/Header.jsx';
 import ResponsiveContainer from './components/ResponsiveContainer.jsx';
 import CompanyRouteWrapper from './components/CompanyRouteWrapper.jsx';
 import Footer from './components/Footer.jsx';
+import { getDefaultFeatureFlags } from './utils/featureFlags.js';
 
 export default function App() {
   const { user, token, mustChangePassword, loading } = useAuth();
@@ -36,9 +39,21 @@ export default function App() {
   const roleCode = user?.roleId || user?.role;
   const userNeedsStorefrontOnly = isStorefrontOnlyRole(roleCode);
   const isGiamDocKinhDoanh = roleCode === 'gd_kinhdoanh';
-  const defaultModule = MODULES_REGISTER.find((module) => module.allowedRoles?.includes(roleCode));
+  
+  // Memoize empty arrays/objects to prevent infinite loop in useModuleAccess
+  const enabledModules = useMemo(() => MODULES_REGISTER, []);
+  const featureFlags = useMemo(() => getDefaultFeatureFlags(), []);
+  
+  // Enhanced RBAC: Get accessible modules based on user role, department, and feature flags
+  const { accessibleModules, hasAccess } = useModuleAccess(user, enabledModules, featureFlags);
+  
+  // Get default module from accessible modules
+  const defaultModule = accessibleModules.length > 0 ? accessibleModules[0] : null;
   // Không bao giờ trỏ về /login để tránh vòng lặp redirect vô hạn (/ <-> /login)
-  const defaultPath = defaultModule ? `/${defaultModule.id}` : `/${MODULES_REGISTER[0]?.id || 'dashboard'}`;
+  // Memoize defaultPath to prevent infinite re-renders in Navigate component
+  const defaultPath = useMemo(() => {
+    return defaultModule ? `/${defaultModule.id}` : `/${MODULES_REGISTER[0]?.id || 'dashboard'}`;
+  }, [defaultModule?.id]);
 
   if (loading) {
     return (
@@ -52,6 +67,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route 
@@ -72,14 +88,14 @@ export default function App() {
             element={
               <div className="flex h-screen bg-slate-50 overflow-hidden">
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                  <main className="flex-1 overflow-y-auto bg-slate-50">
+                  <main className="flex-1 overflow-y-auto bg-slate-50 animate-page-enter">
                     <ResponsiveContainer className="py-6">
-                      <Routes>
+                    <Routes>
                         <Route path="/" element={<Navigate to="/gd-kinhdoanh/dashboard" replace />} />
-                        <Route path="/dashboard" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'dashboard').component} requiresActiveCompany={true} moduleId="dashboard" />} />
-                        <Route path="/reports" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'income-statement').component} requiresActiveCompany={true} moduleId="income-statement" />} />
-                        <Route path="/balance-sheet" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'balance-sheet').component} requiresActiveCompany={true} moduleId="balance-sheet" />} />
-                        <Route path="/cash-flow" element={<CompanyRouteWrapper component={MODULES_REGISTER.find(m => m.id === 'cash-flow').component} requiresActiveCompany={true} moduleId="cash-flow" />} />
+                        <Route path="/dashboard" element={<CompanyRouteWrapper component={(MODULES_REGISTER.find(m => m.id === 'dashboard') || {}).component || (() => <div>Module not found</div>)} requiresActiveCompany={true} moduleId="dashboard" />} />
+                        <Route path="/reports" element={<CompanyRouteWrapper component={(MODULES_REGISTER.find(m => m.id === 'income-statement') || {}).component || (() => <div>Module not found</div>)} requiresActiveCompany={true} moduleId="income-statement" />} />
+                        <Route path="/balance-sheet" element={<CompanyRouteWrapper component={(MODULES_REGISTER.find(m => m.id === 'balance-sheet') || {}).component || (() => <div>Module not found</div>)} requiresActiveCompany={true} moduleId="balance-sheet" />} />
+                        <Route path="/cash-flow" element={<CompanyRouteWrapper component={(MODULES_REGISTER.find(m => m.id === 'cash-flow') || {}).component || (() => <div>Module not found</div>)} requiresActiveCompany={true} moduleId="cash-flow" />} />
                       </Routes>
                     </ResponsiveContainer>
                   </main>
@@ -126,21 +142,28 @@ export default function App() {
                   
                   <main className="flex-1 overflow-y-auto bg-slate-50">
                     <ResponsiveContainer className="py-6">
-                      <Routes>
+                    <Routes>
                         <Route path="/" element={<Navigate to={defaultPath} replace />} />
-                      {MODULES_REGISTER.map(mod => (
-                        <Route
-                          key={mod.id}
-                          path={`/${mod.id}`}
-                          element={
-                            <CompanyRouteWrapper 
-                              component={mod.component} 
-                              requiresActiveCompany={mod.requiresActiveCompany}
-                              moduleId={mod.id}
-                            />
-                          }
-                        />
-                      ))}
+                      {MODULES_REGISTER.map(mod => {
+                        // Enhanced RBAC: Only render routes for accessible modules
+                        const isAccessible = hasAccess(mod.id);
+                        if (!isAccessible) {
+                          return null;
+                        }
+                        return (
+                          <Route
+                            key={mod.id}
+                            path={`/${mod.id}`}
+                            element={
+                              <CompanyRouteWrapper 
+                                component={mod.component} 
+                                requiresActiveCompany={mod.requiresActiveCompany}
+                                moduleId={mod.id}
+                              />
+                            }
+                          />
+                        );
+                      })}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </ResponsiveContainer>
@@ -166,5 +189,6 @@ export default function App() {
       />
       <PopupNotification />
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

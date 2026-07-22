@@ -8,8 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../config/db.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { authenticate, requireRole, checkCompanyAccess } from '../middleware/auth.js';
 import { emitInventoryRealtime } from '../services/voucherRealtime.service.js';
 import { assertCompanyOperational, assertItemCanBeDeleted } from '../services/cascadeValidation.service.js';
 import { logAction, getClientIp } from '../services/auditLog.service.js';
@@ -131,39 +130,48 @@ const normalizeImageUrlsField = (input) => {
 
 const codeExpr = "COALESCE(NULLIF(code, ''), item_code)";
 const nameExpr = "COALESCE(NULLIF(name, ''), item_name)";
-const descriptionExpr = "COALESCE(description, item_description, '')";
+const descriptionExpr = "COALESCE(NULLIF(description, ''), '')";
 const openingQuantityExpr = "COALESCE(opening_quantity, 0)";
 
 // Lấy danh sách vật tư
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, checkCompanyAccess, async (req, res) => {
   try {
-    const targetCompanyId = req.query.company_id;
-    if (!targetCompanyId) return res.json([]);
+    const targetCompanyId = req.companyId;
+    console.log('[items] Fetching items for company:', targetCompanyId, 'user:', req.user?.id, 'role:', req.user?.role);
 
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Từ chối quyền truy xuất danh mục vật tư!' });
+    let columns;
+    try {
+      columns = await getItemsColumns();
+    } catch (colErr) {
+      console.error('[items] getItemsColumns error:', colErr);
+      return res.status(500).json({ error: 'Lỗi đọc cấu trúc bảng items: ' + colErr.message });
     }
-
-    const columns = await getItemsColumns();
+    
     const hasImageUrls = columns.has('image_urls');
+    console.log('[items] Columns found:', Array.from(columns).join(', '));
 
-    const items = await pool.query(
-      `SELECT id,
-              ${codeExpr} AS code,
-              ${nameExpr} AS name,
-              ${descriptionExpr} AS description,
-              unit,
-              COALESCE(price_sell, 0) AS price_sell,
-              ${columns.has('opening_quantity') ? `${openingQuantityExpr}` : '0'} AS opening_quantity,
-              image_url,
-              ${hasImageUrls ? "COALESCE(image_urls, '[]'::jsonb)" : "'[]'::jsonb"} AS image_urls,
-              company_id
-       FROM items
-       WHERE company_id = $1
-       ORDER BY ${codeExpr}`,
-      [targetCompanyId]
-    );
+    let items;
+    try {
+      items = await pool.query(
+        `SELECT id,
+                ${codeExpr} AS code,
+                ${nameExpr} AS name,
+                ${descriptionExpr} AS description,
+                unit,
+                COALESCE(price_sell, 0) AS price_sell,
+                ${columns.has('opening_quantity') ? `${openingQuantityExpr}` : '0'} AS opening_quantity,
+                image_url,
+                ${hasImageUrls ? "COALESCE(image_urls, '[]'::jsonb)" : "'[]'::jsonb"} AS image_urls,
+                company_id
+         FROM items
+         WHERE company_id = $1
+         ORDER BY ${codeExpr}`,
+        [targetCompanyId]
+      );
+    } catch (queryErr) {
+      console.error('[items] Query error:', queryErr);
+      return res.status(500).json({ error: 'Lỗi truy vấn danh sách vật tư: ' + queryErr.message });
+    }
     const normalizedRows = items.rows.map((row) => {
       const imageUrl = toAbsoluteMediaUrl(req, row.image_url);
       const imageUrls = normalizeImageUrlsField(row.image_urls)
@@ -186,10 +194,10 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Thêm vật tư mới
-router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('images', 6), async (req, res) => {
+router.post('/', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, upload.array('images', 6), async (req, res) => {
   // Di chuyển khai báo biến ra ngoài try để catch có thể truy cập
-  const { code, name, description, item_description, unit, price_sell, opening_quantity, image_url, companyId, company_id } = req.body;
-  const targetCompanyId = companyId || company_id || req.query.company_id;
+  const { code, name, description, item_description, unit, price_sell, opening_quantity, image_url } = req.body;
+  const targetCompanyId = req.companyId;
   const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
   const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
   const imageUrlValue = normalizeImageUrlInput(image_url || req.body.imageUrl || null);
@@ -199,13 +207,7 @@ router.post('/', authenticate, requireRole(['admin', 'ktt']), upload.array('imag
 
   try {
     if (!code || !name || !unit) return res.status(400).json({ error: 'Thiếu mã, tên hoặc đơn vị tính.' });
-    if (!targetCompanyId) return res.status(400).json({ error: 'Không xác định được doanh nghiệp cần khai báo vật tư!' });
     await assertCompanyOperational(targetCompanyId);
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Bạn không có quyền khai báo danh mục cho đơn vị này!' });
-    }
 
     columns = await getItemsColumns();
     const imageUrlsValue = (parseImageUrls(req.body.image_urls, uploadedImages) || [])
@@ -381,17 +383,10 @@ const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ')
 });
 
 // Xóa vật tư
-router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req, res) => {
+router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, async (req, res) => {
   try {
     const { code } = req.params;
-    const targetCompanyId = req.query.company_id;
-    
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu tham số xác định doanh nghiệp cần xóa!' });
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Quyền thao tác danh mục bị chặn!' });
-    }
+    const targetCompanyId = req.companyId;
 
     await assertCompanyNotLockedForPhysicalDelete(targetCompanyId);
     await assertCompanyOperational(targetCompanyId);
@@ -445,11 +440,11 @@ router.delete('/:code', authenticate, requireRole(['admin', 'ktt']), async (req,
 });
 
 // Cập nhật vật tư
-router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('images', 6), async (req, res) => {
+router.put('/:code', authenticate, requireRole(['admin', 'ktt']), checkCompanyAccess, upload.array('images', 6), async (req, res) => {
   try {
     const { code } = req.params;
-    const { name, description, item_description, unit, price_sell, opening_quantity, image_url, companyId, company_id } = req.body;
-    const targetCompanyId = companyId || company_id || req.query.company_id;
+    const { name, description, item_description, unit, price_sell, opening_quantity, image_url } = req.body;
+    const targetCompanyId = req.companyId;
     const priceSellValue = Number(price_sell ?? req.body.priceSell ?? 0);
     const openingQuantityValue = Number(opening_quantity ?? req.body.openingQuantity ?? 0);
     const hasImageUrlField = Object.prototype.hasOwnProperty.call(req.body, 'image_url')
@@ -460,13 +455,7 @@ router.put('/:code', authenticate, requireRole(['admin', 'ktt']), upload.array('
     const uploadedImages = Array.isArray(req.files) ? req.files.map((file) => `/uploads/items/${file.filename}`) : [];
 
     if (!name || !unit) return res.status(400).json({ error: 'Thiếu tên hoặc đơn vị tính mới.' });
-    if (!targetCompanyId) return res.status(400).json({ error: 'Thiếu thông tin xác định doanh nghiệp cần cập nhật!' });
     await assertCompanyOperational(targetCompanyId);
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, targetCompanyId);
-      if (!hasAccess) return res.status(403).json({ error: 'Quyền chỉnh sửa danh mục tại đơn vị này bị chặn!' });
-    }
 
     const columns = await getItemsColumns();
     const shouldUpdateImageUrls = uploadedImages.length > 0 || hasImageUrlsField;

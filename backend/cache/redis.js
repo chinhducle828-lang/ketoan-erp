@@ -3,39 +3,60 @@
  */
 
 import Redis from 'ioredis';
+import { mtInvalidateCompany, mtGet, mtSet, mtDel } from './redisMultiTenancy.js';
 
 // Tự động nhận diện chuỗi kết nối từ file .env, nếu không tìm thấy mới dùng localhost làm dự phòng
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Biến flag theo dõi trạng thái kết nối Redis
 let isRedisReady = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 // Khởi tạo kết nối thực tế tới hệ thống Redis
 export const redis = new Redis(redisUrl, {
   retryStrategy: (times) => {
-    // Cơ chế phòng vệ: Nếu kết nối thất bại quá 3 lần (như khi chạy local không bật Redis)
-    // nó sẽ dừng lại để tránh làm nghẽn hoặc treo đứng toàn bộ server Express của bạn.
-    if (times > 3) {
+    // Exponential backoff với giới hạn
+    if (times > MAX_RECONNECT_ATTEMPTS) {
+      console.warn(`[Redis] Đã vượt quá ${MAX_RECONNECT_ATTEMPTS} lần thử kết nối. Dừng retry.`);
       return null; 
     }
-    return Math.min(times * 100, 2000);
+    const delay = Math.min(times * 1000, 30000); // Tối đa 30s
+    console.log(`[Redis] Thử kết nối lại lần ${times}, chờ ${delay}ms`);
+    return delay;
   },
-  maxRetriesPerRequest: 1,
+  maxRetriesPerRequest: 3,
+  keepAlive: 30000,
+  connectTimeout: 10000,
 });
 
 // Bọc lỗi kết nối an toàn để không làm sập tiến trình Node.js
 redis.on('error', (err) => {
   isRedisReady = false;
-  console.log('⚠️ Trạng thái: Redis chưa sẵn sàng (Dữ liệu sẽ chạy trực tiếp qua SQL gốc):', err.message);
+  reconnectAttempts++;
+  console.error(`⚠️ [Redis] Lỗi kết nối (lần thử ${reconnectAttempts}):`, err.message);
+  console.warn('⚠️ Trạng thái: Redis chưa sẵn sàng (Dữ liệu sẽ chạy trực tiếp qua SQL gốc)');
 });
 
 redis.on('connect', () => {
   isRedisReady = true;
-  console.log('🚀 Chúc mừng: Đã kết nối thành công tới máy chủ cơ sở dữ liệu Redis!');
+  reconnectAttempts = 0;
+  console.log('🚀 [Redis] Đã kết nối thành công tới máy chủ cơ sở dữ liệu Redis!');
 });
 
 redis.on('ready', () => {
   isRedisReady = true;
+  reconnectAttempts = 0;
+  console.log('✅ [Redis] Redis đã sẵn sàng nhận kết nối');
+});
+
+redis.on('reconnecting', (details) => {
+  console.log(`🔄 [Redis] Đang kết nối lại... (attempt ${details.attempt || 'unknown'})`);
+});
+
+redis.on('end', () => {
+  isRedisReady = false;
+  console.warn('🔌 [Redis] Kết nối đã đóng');
 });
 
 // Helper function để kiểm tra Redis sẵn sàng
@@ -54,10 +75,14 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
       return next();
     }
 
-    const cacheKey = `${keyPrefix}:${req.originalUrl || req.url}`;
+    // Multi-tenant cache key with companyId if available
+    const companyId = req.user?.activeCompanyId || req.query.company_id;
+    const cacheKey = companyId 
+      ? `company_${companyId}:${keyPrefix}:${req.originalUrl || req.url}`
+      : `${keyPrefix}:${req.originalUrl || req.url}`;
     
     try {
-      const cachedData = await redis.get(cacheKey);
+      const cachedData = await mtGet(companyId, keyPrefix, req.originalUrl || req.url);
       if (cachedData) {
         // Nếu có sẵn trong RAM Redis, trả về luôn để trang web tải trong tích tắc
         return res.json(JSON.parse(cachedData));
@@ -69,7 +94,12 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
     // Nếu chưa có cache, ghi đè tạm thời res.json để tự lưu dữ liệu sau khi SQL truy vấn xong
     const originalJson = res.json.bind(res);
     res.json = (data) => {
-      if (res.statusCode === 200 && isRedisReadyCheck()) {
+      if (res.statusCode === 200 && isRedisReadyCheck() && companyId) {
+        mtSet(companyId, keyPrefix, req.originalUrl || req.url, data, ttlSeconds).catch((err) => {
+          console.error('Lỗi ghi Cache:', err.message);
+        });
+      } else if (res.statusCode === 200 && isRedisReadyCheck() && !companyId) {
+        // Fallback to legacy cache for non-company-specific data
         redis.setex(cacheKey, ttlSeconds, JSON.stringify(data)).catch((err) => {
           console.error('Lỗi ghi Cache:', err.message);
         });
@@ -85,6 +115,7 @@ export const cacheMiddleware = (keyPrefix, ttlSeconds = 300) => {
  * Làm sạch cache một cách có chọn lọc (Selective Invalidation)
  * Sử dụng SCAN thay vì KEYS để tránh blocking Redis
  * @param {string} pattern - Pattern để match keys (ví dụ: 'company:1:year:2026:*')
+ * @deprecated Use mtInvalidateCompany(companyId, module) instead for multi-tenant safety
  */
 export const invalidateCache = async (pattern) => {
   if (!isRedisReadyCheck()) return;
@@ -124,23 +155,28 @@ export const invalidateCache = async (pattern) => {
 };
 
 /**
+ * Multi-tenant cache invalidation - SAFER alternative to invalidateCache
+ * @param {number} companyId - Company ID
+ * @param {string} module - Module name (e.g., 'voucher', 'report', 'dashboard')
+ * @param {string} [resource] - Optional resource type
+ */
+export const invalidateCompanyCache = async (companyId, module, resource = null) => {
+  await mtInvalidateCompany(companyId, module, resource);
+};
+
+/**
  * Xóa cache selective theo công ty và kỳ kế toán
  * @param {number} companyId - ID công ty
  * @param {number} year - Năm
  * @param {number} month - Tháng (optional)
+ * @deprecated Use mtInvalidateCompany(companyId, 'report', {year, month}) instead
  */
 export const invalidateSelectiveCache = async (companyId, year, month = null) => {
   if (!isRedisReadyCheck()) return;
   
   try {
-    let pattern;
-    if (month) {
-      pattern = `company:${companyId}:year:${year}:month:${month}:*`;
-    } else {
-      pattern = `company:${companyId}:year:${year}:*`;
-    }
-    
-    await invalidateCache(pattern);
+    const resource = month ? `year:${year}:month:${month}` : `year:${year}`;
+    await mtInvalidateCompany(companyId, 'report', resource);
   } catch (err) {
     console.error('Lỗi xóa cache selective:', err.message);
   }
@@ -150,20 +186,13 @@ export const invalidateSelectiveCache = async (companyId, year, month = null) =>
  * Xóa cache khi có thay đổi dữ liệu chứng từ
  * @param {number} companyId - ID công ty
  * @param {string} voucherDate - Ngày chứng từ (YYYY-MM-DD)
+ * @deprecated Use mtInvalidateCompany(companyId, 'voucher') instead
  */
 export const invalidateVoucherCache = async (companyId, voucherDate) => {
   if (!isRedisReadyCheck()) return;
   
   try {
-    const date = new Date(voucherDate);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    
-    // Chỉ xóa cache của tháng bị ảnh hưởng
-    await invalidateSelectiveCache(companyId, year, month);
-    
-    // Xóa cache danh sách chứng từ
-    await invalidateCache(`vouchers:${companyId}:*`);
+    await mtInvalidateCompany(companyId, 'voucher');
   } catch (err) {
     console.error('Lỗi xóa voucher cache:', err.message);
   }

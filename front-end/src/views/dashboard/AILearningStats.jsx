@@ -22,7 +22,7 @@ export default function AILearningStats({ companyId }) {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/hitl/stats?company_id=${companyId}`);
+      const response = await api.get(`/hitl/stats?company_id=${companyId}`);
       setStats(response.data);
     } catch (err) {
       console.error('Lỗi lấy thống kê AI:', err);

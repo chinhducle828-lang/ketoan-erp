@@ -412,3 +412,18 @@ export const isExplicitNonAdminRole = (roleCode) => {
   const normalized = String(roleCode || '').trim().toLowerCase();
   return normalized !== '' && normalized !== 'admin';
 };
+
+// Format order date for display
+export const getOrderDisplayDate = (order) => {
+  const date = order?.voucher_date || order?.created_at;
+  if (!date) return '--/--/----';
+  try {
+    return new Date(date).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch {
+    return String(date).split('T')[0] || '--/--/----';
+  }
+};

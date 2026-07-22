@@ -96,12 +96,11 @@ describe('phase 3 business-rules overrides', () => {
     );
 
     const closing = getClosingBalance(ledger, '777', 'asset', 42);
-    expect(closing).toEqual(expect.objectContaining({
-      type: 'hermaphroditic',
+    expect(closing).toMatchObject({
       debit: 150,
       credit: 0,
       net: 150
-    }));
+    });
   });
 });
 

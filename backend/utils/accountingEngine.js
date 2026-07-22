@@ -47,7 +47,7 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
   // Query bao gồm opening balances + transactions
   let query = `
     WITH opening AS (
-      SELECT 'DR' as entry_type, opening_debit as amount
+      SELECT 'DR' as entry_type, SUM(opening_debit) as amount
       FROM opening_balances
       WHERE company_id = $1 AND account_code LIKE $2
     `;
@@ -61,12 +61,18 @@ export async function getAccountBalance(companyId, accountCode, partnerId = null
     paramIdx++;
   }
   
-  query += ` UNION ALL SELECT 'CR' as entry_type, opening_credit FROM opening_balances WHERE company_id = $1 AND account_code LIKE $2`;
+  query += ` GROUP BY entry_type
+      UNION ALL
+      SELECT 'CR' as entry_type, SUM(opening_credit) as amount
+      FROM opening_balances
+      WHERE company_id = $1 AND account_code LIKE $2`;
+  
   if (isHermaphroditic && partnerId) {
-    query += ` AND partner_id = $${paramIdx - 1}`;
+    query += ` AND partner_id = $${paramIdx}`;
   }
   
-  query += `),
+  query += ` GROUP BY entry_type
+    ),
   transactions AS (
     SELECT vd.entry_type, SUM(vd.amount) as total_amount
     FROM voucher_details vd
@@ -514,20 +520,25 @@ export function getTaxRateByRevenue(revenue, entityType = 'company') {
  * @param {number} prevYearRevenue - Doanh thu năm trước (để tính thuế suất lũy tiến)
  * @returns {Object} - { taxAmount, taxRate }
  */
-export function calculateTax(profitBeforeTax, prevYearRevenue = 0) {
+export function calculateTax(profitBeforeTax, prevYearRevenue = 0, nonDeductibleExpenses = 0) {
   if (profitBeforeTax <= 0) {
     return {
       taxAmount: 0,
-      taxRate: 0
+      taxRate: 0,
+      nonDeductibleExpenses: 0,
+      taxableIncome: profitBeforeTax
     };
   }
   
   const taxRate = getTaxRateByRevenue(prevYearRevenue);
-  const taxAmount = profitBeforeTax * taxRate;
+  const taxableIncome = profitBeforeTax + nonDeductibleExpenses;
+  const taxAmount = taxableIncome * taxRate;
   
   return {
     taxAmount,
-    taxRate
+    taxRate,
+    nonDeductibleExpenses,
+    taxableIncome
   };
 }
 

@@ -11,6 +11,9 @@ import { runClosingEntries } from '../services/closing.service.js';
 import { assertCompanyOperational } from '../services/cascadeValidation.service.js';
 import { invalidateCache } from '../cache/redis.js';
 
+import { getConfigNumber, getConfigString, getConfig } from '../utils/configHelper.js';
+
+
 // Khởi tạo bộ lưu trữ Cache RAM cục bộ tốc độ cao cho ứng dụng
 // WARNING: Cache này chỉ tồn tại trong memory của process hiện tại
 // và KHÔNG tự động invalidation. Dữ liệu có thể bị stale.

@@ -1,36 +1,40 @@
-process.env.KETOAN_TEST = '1';
-process.env.NODE_ENV = process.env.NODE_ENV || 'test';
-process.env.JEST_WORKER_ID = process.env.JEST_WORKER_ID || '1';
+/**
+ * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
+ * Test Setup - Mock Redis and BullMQ for smooth testing
+ */
 
-import { beforeAll, afterAll, beforeEach, jest } from '@jest/globals';
-
-// Mock the database pool
-const mockPool = {
-  query: jest.fn(),
-  connect: jest.fn(),
-  on: jest.fn(),
-  end: jest.fn(),
-};
-
-// Reset mocks before each test
-beforeEach(() => {
-  jest.clearAllMocks();
+// Mock Redis for testing
+jest.mock('ioredis', () => {
+  const RedisMock = require('ioredis-mock');
+  return RedisMock;
 });
 
-beforeAll(() => {
-  // Any global setup
+// Mock BullMQ for testing
+jest.mock('bullmq', () => ({
+  Queue: jest.fn().mockImplementation(() => ({
+    add: jest.fn().mockResolvedValue({ id: 'mock-job-id', data: {} }),
+    process: jest.fn(),
+    on: jest.fn(),
+    getJob: jest.fn().mockResolvedValue(null),
+    getJobs: jest.fn().mockResolvedValue([]),
+    close: jest.fn().mockResolvedValue(undefined),
+  })),
+  Worker: jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    close: jest.fn().mockResolvedValue(undefined),
+  })),
+  Job: jest.fn(),
+}));
+
+// Mock node-cache for testing
+jest.mock('node-cache', () => {
+  return jest.fn().mockImplementation(() => ({
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    flushAll: jest.fn(),
+  }));
 });
 
-afterAll(async () => {
-  try {
-    const { pool } = await import('../config/db.js');
-    if (pool && typeof pool.end === 'function') {
-      await pool.end();
-    }
-  } catch (error) {
-    // Ignore errors closing the test pool; tests are already complete.
-  }
-});
-
-// ✅ Xuất bằng cú pháp ES Modules chuẩn
-export { mockPool };
+// Global test timeout
+jest.setTimeout(30000);

@@ -6,8 +6,7 @@ import express from 'express';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
 import { pool } from '../config/db.js';
-import { authenticate } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { authenticate, checkCompanyAccess } from '../middleware/auth.js';
 import { invalidateCache } from '../cache/redis.js';
 import { invalidateCompanyCache } from '../controllers/erpController.js';
 import { emitVoucherRealtime } from '../services/voucherRealtime.service.js';
@@ -110,20 +109,10 @@ function validateVoucherData(parsedRow, companyId) {
  * POST /api/import/vouchers
  * Import chứng từ từ Excel
  */
-router.post('/vouchers', authenticate, upload.single('file'), async (req, res) => {
+router.post('/vouchers', authenticate, checkCompanyAccess, upload.single('file'), async (req, res) => {
   const client = await pool.connect();
   try {
-    const companyId = req.body.companyId || req.query.company_id;
-    if (!companyId) {
-      return res.status(400).json({ error: 'Thiếu mã đơn vị doanh nghiệp!' });
-    }
-
-    if (req.user.role !== 'admin') {
-      const hasAccess = await canAccessCompany(req.user, companyId);
-      if (!hasAccess) {
-        return res.status(403).json({ error: 'Không có quyền nạp dữ liệu vào đơn vị này!' });
-      }
-    }
+    const companyId = req.companyId;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Vui lòng chọn tệp Excel chứng từ!' });

@@ -47,7 +47,10 @@ export class WebSocketBaseService {
     }
 
     // Get access token for WebSocket authentication
-    const accessToken = localStorage.getItem('accessToken');
+    // Try multiple storage locations (cookie-based auth stores in different keys)
+    const accessToken = localStorage.getItem('storefrontAccessToken') || 
+                        localStorage.getItem('accessToken') ||
+                        localStorage.getItem('token');
 
     this.socket = io(WS_URL_FINAL, {
       transports: ['websocket'],

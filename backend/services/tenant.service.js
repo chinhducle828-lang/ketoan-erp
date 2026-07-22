@@ -2,8 +2,8 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import { getTenantById, createTenantSchema } from '../config/tenant';
-import redisClient from '../config/redis';
+import { getTenantById, createTenantSchema } from '../config/tenant.js';
+import { redis as redisClient } from '../cache/redis.js';
 
 // Tenant service for multi-tenancy
 class TenantService {

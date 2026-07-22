@@ -2,16 +2,35 @@
  * @copyright [TÊN DOANH NGHIỆP] - SaaS ERP Kế toán
  */
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { RefreshCw, AlertTriangle, Lock } from 'lucide-react';
 import { MODULES_REGISTER } from '../views/index.js';
+import { hasPermission } from '../utils/rbac.js';
+import useModuleAccess from '../hooks/useModuleAccess.js';
+import { getDefaultFeatureFlags } from '../utils/featureFlags.js';
 
 export default function CompanyRouteWrapper({ component: Component, requiresActiveCompany, moduleId }) {
   const { user, activeCompany, hasOpeningBalance, checkOpeningBalanceStatus } = useAuth();
   const currentModule = MODULES_REGISTER.find((module) => module.id === moduleId);
+  
+  // Use the real registry and default flags so access checks match the sidebar/routes.
+  const enabledModules = useMemo(() => MODULES_REGISTER, []);
+  const featureFlags = useMemo(() => getDefaultFeatureFlags(), []);
+  
+  // Enhanced RBAC: Check module access with dependencies and feature flags
+  const { hasAccess, getModuleInfo } = useModuleAccess(user, enabledModules, featureFlags);
+  const moduleInfo = getModuleInfo(moduleId);
+  const isAccessible = moduleInfo?.isAccessible || false;
 
-  if (!currentModule || !currentModule.allowedRoles?.includes(user?.role)) {
+  // Kiểm tra trạng thái số dư đầu kỳ khi thay đổi công ty
+  useEffect(() => {
+    if (activeCompany?.id && moduleId !== 'opening') {
+      checkOpeningBalanceStatus(activeCompany.id);
+    }
+  }, [activeCompany?.id, moduleId, checkOpeningBalanceStatus]);
+
+  if (!currentModule || !isAccessible) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-white border border-slate-200 rounded-2xl shadow-sm max-w-lg mx-auto mt-12 animate-fade-in">
         <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl mb-4 border border-rose-100">
@@ -24,13 +43,6 @@ export default function CompanyRouteWrapper({ component: Component, requiresActi
       </div>
     );
   }
-
-  // Kiểm tra trạng thái số dư đầu kỳ khi thay đổi công ty
-  useEffect(() => {
-    if (activeCompany?.id && moduleId !== 'opening') {
-      checkOpeningBalanceStatus(activeCompany.id);
-    }
-  }, [activeCompany?.id, moduleId, checkOpeningBalanceStatus]);
 
   // Kiểm tra nếu phân hệ yêu cầu công ty mà người dùng chưa chọn pháp nhân
   if (requiresActiveCompany && !activeCompany?.id) {
@@ -76,7 +88,7 @@ export default function CompanyRouteWrapper({ component: Component, requiresActi
         <span>Đang nạp dữ liệu phân hệ hạch toán...</span>
       </div>
     }>
-      <Component />
+      <Component entityType={moduleId} />
     </Suspense>
   );
 }

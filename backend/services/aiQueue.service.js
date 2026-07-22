@@ -8,6 +8,7 @@
 import { Queue } from 'bullmq';
 import { redis } from '../cache/redis.js';
 import logger from '../utils/logger.js';
+import { predictWithSandbox } from './aiSandbox.service.js';
 
 // Queue cho AI processing
 const aiQueue = new Queue('ai-processing', {
@@ -40,7 +41,8 @@ export async function enqueueAIJob(type, data, traceId = null) {
   logger.info({ 
     jobId: job.id, 
     type, 
-    traceId 
+    traceId,
+    companyId: data.companyId || data.company_id
   }, `AI job enqueued: ${type}`);
 
   return job;
@@ -122,10 +124,47 @@ export async function getAIQueueStats() {
   };
 }
 
+/**
+ * Wrapper for AI predictions with sandbox safety
+ * @param {Function} predictionFn - AI prediction function
+ * @param {Object} params - { type, companyId, inputData, userId }
+ * @returns {Promise<Object>} Prediction result with safety checks
+ */
+export async function safeAIPrediction(predictionFn, params) {
+  const { type, companyId, inputData, userId } = params;
+  
+  try {
+    const result = await predictWithSandbox(predictionFn, {
+      type,
+      companyId,
+      inputData,
+      userId
+    });
+
+    logger.info({
+      type,
+      companyId,
+      suggestionId: result.suggestion?.id,
+      requiresApproval: result.suggestion?.requires_approval,
+      confidence: result.suggestion?.confidence
+    }, `AI prediction completed: ${type}`);
+
+    return result;
+  } catch (error) {
+    logger.error({
+      type,
+      companyId,
+      error: error.message
+    }, `AI prediction failed: ${type}`);
+    throw error;
+  }
+}
+
 export default {
   enqueueAIJob,
   getAIJobStatus,
   getPendingAIJobs,
   removeAIJob,
-  getAIQueueStats
+  getAIQueueStats,
+  safeAIPrediction
 };

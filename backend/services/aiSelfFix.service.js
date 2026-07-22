@@ -11,6 +11,7 @@ import logger from '../utils/logger.js';
 import { AI_CONFIG } from '../config/aiConfig.js';
 
 const PYTHON_AI_SERVICE_URL = AI_CONFIG.PYTHON_SERVICE_URL;
+const AI_INTERNAL_SECRET = process.env.AI_INTERNAL_SECRET || '';
 
 /**
  * Kiểm tra circuit breaker - có cho phép tự sửa không
@@ -131,7 +132,10 @@ export async function attemptSelfFix(voucherId, tenantId, originalProposal) {
     // Gọi Python AI service để tự sửa
     const response = await fetch(`${PYTHON_AI_SERVICE_URL}/api/self-fix`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_INTERNAL_SECRET}`
+      },
       body: JSON.stringify({
         voucher_id: voucherId,
         tenant_id: tenantId,
