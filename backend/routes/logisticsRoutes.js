@@ -5,7 +5,7 @@
 import express from 'express';
 import { pool } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import { canAccessCompany } from '../services/helpers.js';
+import { canAccessCompany, hashToken } from '../services/helpers.js';
 import {
   ensureStorefrontRealtimeListener,
   publishStorefrontOrderEvent,
@@ -214,7 +214,7 @@ router.get('/stream', async (req, res) => {
       if (isTokenExpired) {
         const sessionCheck = await pool.query(
           'SELECT id, user_id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
-          [finalToken, payload.id]
+          [hashToken(finalToken), payload.id]
         );
         
         if (sessionCheck.rows.length === 0) {
@@ -254,8 +254,8 @@ router.get('/stream', async (req, res) => {
         if (err.name === 'TokenExpiredError') {
           // Check if session exists in DB
           const sessionCheck = await pool.query(
-            'SELECT id, user_id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
-            [sessionToken, err?.payload?.id]
+          'SELECT id, user_id FROM sessions WHERE token = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+          [hashToken(sessionToken), err?.payload?.id]
           );
           
           if (sessionCheck.rows.length === 0) {
@@ -270,8 +270,8 @@ router.get('/stream', async (req, res) => {
           
           // Try to find session by token hash in DB
           const sessionCheck = await pool.query(
-            'SELECT id, user_id FROM sessions WHERE token = $1 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
-            [sessionToken]
+          'SELECT id, user_id FROM sessions WHERE token = $1 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1',
+          [hashToken(sessionToken)]
           );
           
           if (sessionCheck.rows.length > 0) {

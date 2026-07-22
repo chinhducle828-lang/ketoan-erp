@@ -192,7 +192,7 @@ router.post('/login', safeValidate(loginSchema), async (req, res) => {
         department: user.department || null,
         must_change_password: !!user.must_change_password,
         is_root_admin: !!user.is_root_admin,
-        clearance_level: user.clearance_level || 1,
+      clearance_level: user.clearance_level || (user.role === 'admin' ? 3 : (user.role === 'ktt' || user.role === 'gd_kinhdoanh' ? 2 : 1)),
         web_scope: user.role === 'admin' ? 'both' : (['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role) ? 'storefront' : 'erp')
       },
       storefrontOnlyRole: ['nv_banhang', 'nv_kho', 'gd_kinhdoanh'].includes(user.role),
@@ -242,7 +242,7 @@ router.get('/me', authenticate, async (req, res) => {
         department: user.department || null,
         must_change_password: user.must_change_password,
         is_root_admin: !!user.is_root_admin,
-        clearance_level: user.clearance_level || 1
+        clearance_level: user.clearance_level || (user.role === 'admin' ? 3 : (user.role === 'ktt' || user.role === 'gd_kinhdoanh' ? 2 : 1))
       },
       fiscal_year: new Date().getFullYear()
     });
