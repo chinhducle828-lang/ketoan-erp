@@ -107,7 +107,10 @@ console.log('🔧 CORS allowedOrigins=', normalizedOrigins);
 console.log('🔧 CORS allow any Railway origin=', allowedRailwayOrigin);
 console.log('🔧 CORS production strict mode=', isProduction);
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' }
+}));
 
 app.use(cors({
   origin: (origin, callback) => {
