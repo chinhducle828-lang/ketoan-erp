@@ -71,89 +71,92 @@
 
 ### Kiến trúc Tổng thể (Hybrid Microservices)
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│                             🌐 KETOAN ERP — SYSTEM ARCHITECTURE                        │
-├──────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                        │
-│  ┌──────────────────────┐    ┌──────────────────────┐    ┌────────────────────────┐   │
-│  │   💻 FRONTEND (ERP)  │    │   🛒 STOREFRONT      │    │   🤖 AI SERVICE        │   │
-│  │   React 18 + Vite 5  │    │   React 18 + Vite 5  │    │   Python 3.11/FastAPI  │   │
-│  │   TailwindCSS 3      │    │   TailwindCSS 3      │    │   4 ML Models          │   │
-│  │   :3000              │    │   :3001              │    │   :8000                │   │
-│  └──────────┬───────────┘    └──────────┬───────────┘    └────────────┬───────────┘   │
-│             │                          │                              │               │
-│             │   REST + WebSocket       │   REST + WebSocket          │  Internal HTTP │
-│             ▼                          ▼                              ▼               │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐   │
-│  │                     🖥️ BACKEND (Node.js 20 / Express 4.19)                    │   │
-│  │                                      :5000                                     │   │
-│  │                                                                                │   │
-│  │  ┌────────────────────────────────────────────────────────────────────────┐   │   │
-│  │  │                     MIDDLEWARE STACK (8 layers)                         │   │   │
-│  │  │  correlationId → helmet → CORS → JSON → cookieParser → WAF →          │   │   │
-│  │  │  → apiRateLimiter → waitForDb → [Routes] → errorHandler               │   │   │
-│  │  └────────────────────────────────────────────────────────────────────────┘   │   │
-│  │                                                                                │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐      │   │
-│  │  │   Routes     │ │  Services    │ │  Repositories│ │   Validators     │      │   │
-│  │  │   45+ files  │ │  50+ files   │ │  Data Access │ │   Zod schemas    │      │   │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────────┘      │   │
-│  │                                                                                │   │
-│  │  ┌────────────────────────────────────────────────────────────────────────┐   │   │
-│  │  │                EVENT-DRIVEN ARCHITECTURE                                │   │   │
-│  │  │  REA Events → CQRS Projections → WebSocket Broadcast → Event Store     │   │   │
-│  │  └────────────────────────────────────────────────────────────────────────┘   │   │
-│  │                                                                                │   │
-│  │  Cron Jobs: DataRetentionWorker │ trainFeedbackLoop │ reversingEntriesCron    │   │
-│  └──────────────────────────────────────────────────────────────────────────────┘   │
-│                                       │                                              │
-│                                       ▼                                              │
-│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────────┐   │
-│  │   🗄️ PostgreSQL 16   │  │   ⚡ Redis 7          │  │   📤 BullMQ              │   │
-│  │   • 60+ tables       │  │   • Session Cache    │  │   • Job Queue            │   │
-│  │   • Multi-tenant     │  │   • Rate Limiter     │  │   • Background Workers   │   │
-│  │   • JSONB + GIN idx  │  │   • WebSocket Pub/Sub│  │   • Scheduled Tasks      │   │
-│  │   • 20+ migrations   │  │   • Report Cache     │  │                          │   │
-│  └──────────────────────┘  └──────────────────────┘  └──────────────────────────┘   │
-│                                                                                        │
-└──────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Clients["💻 CLIENT LAYER"]
+        FE["Frontend ERP<br/>React 18 + Vite 5<br/>Port: 3000"]
+        SF["Storefront POS<br/>React 18 + Vite 5<br/>Port: 3001"]
+    end
+
+    subgraph AI["🤖 AI LAYER"]
+        AIS["AI Service<br/>Python 3.11 / FastAPI<br/>Port: 8000<br/>4 ML Models"]
+        GP["Gemini API<br/>6 keys (RR)"]
+        GQ["Groq API<br/>4 keys (RR)"]
+        DS["DeepSeek API<br/>3 keys (RR)"]
+        CF["Cloudflare Proxy<br/>IP Masking"]
+    end
+
+    subgraph BE["🖥️ BACKEND (Node.js 20 / Express 4.19)"]
+        direction TB
+        MW["Middleware Stack<br/>correlationId → helmet → CORS<br/>→ WAF → RateLimiter"]
+        RT["Routes Layer<br/>45+ route handlers"]
+        SV["Services Layer<br/>50+ business services"]
+        RP["Repositories<br/>Data Access Layer"]
+        VL["Validators<br/>Zod schemas"]
+        EV["Event-Driven Architecture<br/>REA → CQRS → WebSocket → EventStore"]
+        CK["Cron Jobs<br/>DataRetention │ trainFeedbackLoop │ reversingEntries"]
+    end
+
+    subgraph DATA["🗄️ DATA LAYER"]
+        PG["PostgreSQL 16<br/>60+ tables │ Multi-tenant<br/>JSONB + GIN indexes"]
+        RD["Redis 7<br/>Session Cache │ Rate Limiter<br/>WebSocket Pub/Sub"]
+        BQ["BullMQ<br/>Job Queue<br/>Background Workers"]
+    end
+
+    FE -- "REST + WebSocket" --> BE
+    SF -- "REST + WebSocket" --> BE
+    BE -- "Internal HTTP" --> AIS
+    AIS --> GP & GQ & DS
+    GP & GQ & DS --> CF
+    BE --> PG
+    BE --> RD
+    BE --> BQ
 ```
 
 ### Kiến trúc AI Multi-Provider
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        🤖 AI PROVIDER POOL (Node.js)                              │
-│                                                                                   │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌─────────────────┐   │
-│  │  🟢 GEMINI   │   │  🟡 GROQ     │   │  🔵 DEEPSEEK │   │  🟣 PYTHON AI   │   │
-│  │  6 API Keys  │   │  4 API Keys  │   │  3 API Keys  │   │  FastAPI        │   │
-│  │  Round-robin │   │  Round-robin │   │  Round-robin │   │  4 ML Models    │   │
-│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘   └────────┬────────┘   │
-│         │                  │                  │                     │            │
-│         └──────────┬───────┴──────────┬───────┘                     │            │
-│                    │                  │                             │            │
-│           ┌────────▼────────┐  ┌──────▼──────┐                     │            │
-│           │  Cloudflare     │  │   Direct    │                     │            │
-│           │  Proxy (IP mask)│  │   API Call  │                     │            │
-│           └─────────────────┘  └─────────────┘                     │            │
-│                                                                                   │
-│  ┌────────────────────────────────────────────────────────────────────────┐       │
-│  │                         AI MODEL ROUTER                                  │       │
-│  │  • SQL/Financial Query  →  Gemini       (best at structured output)     │       │
-│  │  • Chat/General Query   →  Groq         (best at speed)                 │       │
-│  │  • Math/Code/Logic      →  DeepSeek     (best at reasoning)             │       │
-│  │  • Dynamic Fallback     →  Circuit Breaker (auto-switch on failure)     │       │
-│  └────────────────────────────────────────────────────────────────────────┘       │
-│                                                                                   │
-│  Python AI Service Endpoints:                                                      │
-│  /api/ocr | /api/self-fix | /api/fine-tune | /api/text-to-sql                     │
-│  /api/predict-closing | /api/predict-cashflow | /api/predict-salary               │
-│  /api/detect-fraud | /api/verify-einvoice | /api/reconcile-invoices               │
-│  /api/analyze-kpi | /api/predict-recruitment | /api/analyze-notification-priority │
-│                                                                                   │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Input["📥 INPUT"]
+        UQ["User Query / Request"]
+    end
+
+    subgraph Router["🧠 AI MODEL ROUTER"]
+        DET["detectTaskType()"]
+        CB["Circuit Breaker<br/>Auto-fallback on failure"]
+    end
+
+    subgraph Providers["🤖 AI PROVIDERS"]
+        GM["Gemini<br/>6 API Keys (RR)<br/>gemini-2.5-flash<br/>Best: SQL, Finance"]
+        GR["Groq<br/>4 API Keys (RR)<br/>mixtral-8x7b-32768<br/>Best: Chat, Speed"]
+        DK["DeepSeek<br/>3 API Keys (RR)<br/>deepseek-chat<br/>Best: Math, Code"]
+    end
+
+    subgraph Proxy["🌐 PROXY LAYER"]
+        CP["Cloudflare Worker<br/>IP Masking Proxy"]
+        DIR["Direct API Call"]
+    end
+
+    subgraph Python["🐍 PYTHON AI SERVICE"]
+        OCR["OCR Model<br/>PaddleOCR"]
+        NLP["NLP Model<br/>Text-to-SQL"]
+        TS["TimeSeries<br/>Prediction"]
+        SFX["SelfFix Model<br/>RLHF"]
+    end
+
+    UQ --> DET
+    DET -->|"SQL / Financial"| GM
+    DET -->|"Chat / General"| GR
+    DET -->|"Math / Code / Classify"| DK
+    GM --> CP
+    GR --> CP
+    DK --> CP
+    GM --> DIR
+    GR --> DIR
+    DK --> DIR
+    DET -.->|"on failure"| CB
+    CB -.->|"switch provider"| Providers
+    DET -->|"OCR / Predict"| Python
 ```
 
 ---
@@ -234,19 +237,33 @@
 
 ### 📒 1. Kế toán Tổng hợp (Core Accounting)
 
-```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                         ACCOUNTING ENGINE FLOW                                 │
-│                                                                                │
-│  Input → Validate → Process → Post → Project → Report                         │
-│                                                                                │
-│  ┌──────┐   ┌──────────┐   ┌───────────┐   ┌──────┐   ┌───────────┐          │
-│  │User  │   │Zod Schema│   │Accounting │   │Post │   │CQRS      │          │
-│  │/OCR  │──►│Validation│──►│Engine     │──►│to   │──►│Projection │──► Report │
-│  │/AI   │   │          │   │DR = CR    │   │Ledger│   │           │          │
-│  └──────┘   └──────────┘   └───────────┘   └──────┘   └───────────┘          │
-│                                                                                │
-└───────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Input["📥 INPUT"]
+        U["User / OCR / AI"]
+    end
+
+    subgraph Validate["🔍 VALIDATE"]
+        Z["Zod Schema<br/>Validation"]
+    end
+
+    subgraph Process["⚙️ PROCESS"]
+        AE["Accounting Engine<br/>DR = CR Check<br/>Business Rules"]
+    end
+
+    subgraph Post["📤 POST"]
+        PL["Post to Ledger<br/>Transaction Atomic"]
+    end
+
+    subgraph Project["📊 PROJECT"]
+        CQ["CQRS Projection<br/>Update Balances<br/>Invalidate Cache"]
+    end
+
+    subgraph Report["📋 REPORT"]
+        R["Financial Reports<br/>Balance Sheet<br/>Income Statement"]
+    end
+
+    U --> Z --> AE --> PL --> CQ --> R
 ```
 
 - **Hệ thống tài khoản (COA)**: 33+ tài khoản mặc định theo TT200/TT99
@@ -321,30 +338,38 @@ AI Copilot:
 
 ### Multi-Provider Architecture
 
-```
-                    ┌─────────────────────────┐
-                    │   User Query / Request   │
-                    └────────────┬────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │    AI Model Router       │
-                    │  detectTaskType(query)   │
-                    └────┬──────┬──────┬──────┘
-                         │      │      │
-              ┌──────────┘      │      └──────────┐
-              ▼                 ▼                  ▼
-     ┌────────────────┐ ┌──────────────┐ ┌────────────────┐
-     │    GEMINI      │ │    GROQ      │ │   DEEPSEEK     │
-     │ SQL/Financial  │ │ Chat/General │ │ Math/Code/Cls  │
-     │ 6 keys (RR)    │ │ 4 keys (RR)  │ │ 3 keys (RR)    │
-     └───────┬────────┘ └──────┬───────┘ └───────┬────────┘
-             │                 │                  │
-             └────────┬────────┴────────┬─────────┘
-                      │                 │
-             ┌────────▼────────┐  ┌─────▼──────┐
-             │  Cloudflare     │  │  Direct    │
-             │  Proxy (IP mask)│  │  API Call  │
-             └─────────────────┘  └────────────┘
+```mermaid
+sequenceDiagram
+    participant U as Người dùng
+    participant R as AI Model Router
+    participant G as Gemini (6 keys)
+    participant Q as Groq (4 keys)
+    participant D as DeepSeek (3 keys)
+    participant C as Cloudflare Proxy
+    participant P as Python AI Service
+
+    U->>R: "Tổng doanh thu tháng 7?"
+    R->>R: detectTaskType("sql")
+    R->>G: Route to Gemini
+    G->>C: Proxy request
+    C->>G: Response
+    G->>R: SQL + Result
+    R->>U: "150,000,000 VND (95.5%)"
+
+    U->>R: "Xin chào, giúp tôi với"
+    R->>R: detectTaskType("chat")
+    R->>Q: Route to Groq
+    Q->>U: Trả lời nhanh
+
+    U->>R: "Tính 15% của 1 triệu"
+    R->>R: detectTaskType("math")
+    R->>D: Route to DeepSeek
+    D->>U: "150,000 VND"
+
+    U->>R: "Quét hóa đơn này"
+    R->>P: Route to Python AI
+    P->>P: OCR Processing
+    P->>U: Invoice data + confidence
 ```
 
 ### AI Model Router — Task Detection Matrix
@@ -393,83 +418,75 @@ AI_AMOUNT_HUMAN_REVIEW_MAX=50000000 → Số tiền cần duyệt tối đa
 
 KETOAN ERP sử dụng mô hình **REA** (Resources-Events-Agents) làm nền tảng cho tất cả xử lý nghiệp vụ — đây là bước tiến vượt bậc so với kế toán truyền thống:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         REA MODEL                                │
-│                                                                  │
-│     ┌──────────┐          ┌──────────┐          ┌──────────┐     │
-│     │ RESOURCE │◄─────────│  EVENT   │─────────►│  AGENT   │     │
-│     └──────────┘          └──────────┘          └──────────┘     │
-│          │                     │                     │            │
-│          ▼                     ▼                     ▼            │
-│     ┌──────────┐          ┌──────────┐          ┌──────────┐     │
-│     │  Items   │          │  Sale    │          │ Customer │     │
-│     │  Cash    │          │ Purchase │          │ Supplier │     │
-│     │Inventory │          │ Payment  │          │ Employee │     │
-│     └──────────┘          └──────────┘          └──────────┘     │
-│                                                                  │
-│  Event → Dynamic Posting Rules → Accounting Entries              │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │ rea_events → accounting_posting_rules → voucher_details   │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph REA["📐 REA MODEL"]
+        R["RESOURCE<br/>Items │ Cash │ Inventory"]
+        E["EVENT<br/>Sale │ Purchase │ Payment"]
+        A["AGENT<br/>Customer │ Supplier │ Employee"]
+    end
+
+    R <--> E --> A
+
+    subgraph Posting["📝 DYNAMIC POSTING"]
+        RE["rea_events"]
+        PR["accounting_posting_rules"]
+        VD["voucher_details"]
+    end
+
+    RE --> PR --> VD
 ```
 
 **Event Flow chi tiết:**
-```
-1. User Action (e.g., Tạo hóa đơn bán hàng)
-       │
-       ▼
-2. INSERT INTO rea_events (event_type: 'sale_invoice', event_data: {...})
-       │
-       ▼
-3. rea_event_processors lookup (match event_type + company_id)
-       │
-       ▼
-4. Áp dụng accounting_posting_rules → sinh debit/credit entries
-       │
-       ▼
-5. Tạo voucher + voucher_details (transaction atomic)
-       │
-       ▼
-6. CQRS Projection Engine → Update account_dimension_balances
-       │
-       ▼
-7. WebSocket broadcast → Notify connected clients
-       │
-       ▼
-8. Event Store → Log to event_store for audit
+
+```mermaid
+flowchart TB
+    UA["1. User Action<br/>Tạo hóa đơn bán hàng"]
+    RE2["2. INSERT INTO rea_events<br/>event_type: 'sale_invoice'"]
+    PR2["3. rea_event_processors lookup<br/>match event_type + company_id"]
+    APR["4. Áp dụng accounting_posting_rules<br/>→ sinh debit/credit entries"]
+    VCH["5. Tạo voucher + voucher_details<br/>(transaction atomic)"]
+    CQ["6. CQRS Projection Engine<br/>→ Update account_dimension_balances"]
+    WS["7. WebSocket broadcast<br/>→ Notify connected clients"]
+    ES["8. Event Store<br/>→ Log to event_store for audit"]
+
+    UA --> RE2 --> PR2 --> APR --> VCH --> CQ --> WS --> ES
 ```
 
 ### CQRS (Command Query Responsibility Segregation)
 
-```
-┌──────────────────────────────────────────────────────┐
-│                   CQRS ARCHITECTURE                    │
-├──────────────────────────────────────────────────────┤
-│                                                       │
-│  ┌─────────────────┐      ┌──────────────────┐       │
-│  │  COMMAND SIDE   │      │   QUERY SIDE     │       │
-│  │  (Write)        │      │   (Read)         │       │
-│  ├─────────────────┤      ├──────────────────┤       │
-│  │                 │      │                  │       │
-│  │ POST /vouchers  │      │ GET /vouchers    │       │
-│  │ POST /rea-events│      │ GET /balances    │       │
-│  │ PATCH /items    │      │ GET /reports     │       │
-│  │                 │      │                  │       │
-│  └────────┬────────┘      └────────▲─────────┘       │
-│           │                       │                   │
-│           ▼                       │                   │
-│  ┌──────────────────┐     ┌───────┴────────┐         │
-│  │   PostgreSQL     │     │  Redis Cache   │         │
-│  │  (Normalized)    │     │  (Projections) │         │
-│  └──────────────────┘     └────────────────┘         │
-│           │                       ▲                   │
-│           │    Projection Engine  │                   │
-│           └───────────────────────┘                   │
-│                                                       │
-└──────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Command["✏️ COMMAND SIDE (Write)"]
+        direction TB
+        C1["POST /vouchers"]
+        C2["POST /rea-events"]
+        C3["PATCH /items"]
+    end
+
+    subgraph Query["📖 QUERY SIDE (Read)"]
+        direction TB
+        Q1["GET /vouchers"]
+        Q2["GET /balances"]
+        Q3["GET /reports"]
+    end
+
+    subgraph DB["🗄️ PostgreSQL<br/>(Normalized)"]
+        PG[("Database")]
+    end
+
+    subgraph Cache["⚡ Redis Cache<br/>(Projections)"]
+        RC[("Cache")]
+    end
+
+    subgraph PE["🔄 Projection Engine"]
+        P["Event → Update Projections<br/>→ Invalidate Cache"]
+    end
+
+    Command --> DB
+    DB --> P
+    P --> Cache
+    Cache --> Query
 ```
 
 ### Workflow Engine
@@ -504,51 +521,41 @@ Thay vì hard-code tài khoản kế toán trong code, hệ thống sử dụng 
 
 ## 🔒 Bảo mật Đa tầng (Multi-Layer Security)
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    8-LAYER SECURITY ARCHITECTURE                     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Layer 1: 🛡️ WAF (Web Application Firewall)                         │
-│  ├─ Chặn SQL injection, XSS, Path traversal                          │
-│  └─ File: middleware/waf.js                                          │
-│                                                                      │
-│  Layer 2: ⏱️ Rate Limiting                                           │
-│  ├─ Auth: 20 requests / 15 phút                                      │
-│  ├─ API: 100 requests / 1 phút                                       │
-│  └─ File: middleware/rateLimiter.js                                   │
-│                                                                      │
-│  Layer 3: 🌐 CORS                                                    │
-│  ├─ Whitelist dynamic (env FRONTEND_URL)                             │
-│  ├─ Chặn mọi origin không xác định                                    │
-│  └─ File: server.js (cors config)                                    │
-│                                                                      │
-│  Layer 4: 🔒 Helmet                                                  │
-│  ├─ HTTP security headers (CSP, HSTS, X-Frame-Options, etc)         │
-│  └─ File: server.js (helmet middleware)                              │
-│                                                                      │
-│  Layer 5: 🔐 JWT Authentication                                       │
-│  ├─ Access token: 15 phút (Bearer header)                           │
-│  ├─ Refresh token: 30 ngày (HttpOnly cookie)                        │
-│  ├─ Session management (sessions table)                             │
-│  └─ File: middleware/auth.js                                         │
-│                                                                      │
-│  Layer 6: 👥 RBAC Authorization                                      │
-│  ├─ 6 roles: admin, ktt, nv, nv_banhang, nv_kho, gd_kinhdoanh      │
-│  ├─ Company-level isolation (company_ids array)                      │
-│  └─ File: middleware/auth.js + utils/rbac.js                         │
-│                                                                      │
-│  Layer 7: ✅ Input Validation                                        │
-│  ├─ Zod schemas cho mọi input                                        │
-│  ├─ Parameterized queries (chống SQL injection)                     │
-│  └─ File: validators/index.js                                        │
-│                                                                      │
-│  Layer 8: 📝 Audit Trail                                             │
-│  ├─ Mọi CRUD operation được log (old_values, new_values, IP, user)  │
-│  ├─ Chỉ ROOT ADMIN mới xem được audit logs                          │
-│  └─ File: services/auditLog.service.js + middleware/audit.js         │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph L1["🛡️ Layer 1: WAF"]
+        WAF["middleware/waf.js<br/>Chặn SQL injection, XSS, Path traversal"]
+    end
+
+    subgraph L2["⏱️ Layer 2: Rate Limiting"]
+        RL["middleware/rateLimiter.js<br/>Auth: 20 req/15ph │ API: 100 req/ph"]
+    end
+
+    subgraph L3["🌐 Layer 3: CORS"]
+        CORS["server.js (cors config)<br/>Whitelist dynamic origins<br/>Chặn unknown origins"]
+    end
+
+    subgraph L4["🔒 Layer 4: Helmet"]
+        HLM["server.js (helmet)<br/>CSP │ HSTS │ X-Frame-Options"]
+    end
+
+    subgraph L5["🔐 Layer 5: JWT Authentication"]
+        JWT["middleware/auth.js<br/>Access: 15ph (Bearer)<br/>Refresh: 30 ngày (HttpOnly)"]
+    end
+
+    subgraph L6["👥 Layer 6: RBAC Authorization"]
+        RBAC["middleware/auth.js + utils/rbac.js<br/>6 roles │ Company isolation"]
+    end
+
+    subgraph L7["✅ Layer 7: Input Validation"]
+        VAL["validators/index.js<br/>Zod schemas │ Parameterized queries"]
+    end
+
+    subgraph L8["📝 Layer 8: Audit Trail"]
+        AUDIT["services/auditLog.service.js<br/>CRUD logs │ IP │ User │ Timestamp"]
+    end
+
+    Request["📥 Request"] --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> API["✅ API Response"]
 ```
 
 ### Security Headers (Helmet)
@@ -569,42 +576,74 @@ Cross-Origin-Opener-Policy: unsafe-none
 
 ### Entity Relationship Diagram (Tổng quan)
 
-```
-┌───────────┐     ┌───────────┐     ┌───────────┐     ┌───────────┐
-│ companies │─────│   users   │─────│ sessions  │     │audit_logs │
-└───────────┘     └───────────┘     └───────────┘     └───────────┘
-      │                                                    
-      ├─────┌───────────┐     ┌───────────┐     ┌───────────┐
-      │     │ partners  │     │  items    │     │  trucks   │
-      │     └───────────┘     └───────────┘     └───────────┘
-      │
-      ├─────┌─────────────────────────────────────────────────┐
-      │     │                    vouchers                       │
-      │     ├─────────────────────────────────────────────────┤
-      │     │  id │ company_id │ voucher_number │ voucher_date│
-      │     │  voucher_type │ is_posted │ amount │ ai_score  │
-      │     └───────────────────────┬─────────────────────────┘
-      │                             │ 1:N
-      │     ┌───────────────────────▼─────────────────────────┐
-      │     │                 voucher_details                   │
-      │     ├─────────────────────────────────────────────────┤
-      │     │  id │ voucher_id │ account_code │ entry_type    │
-      │     │  amount │ partner_id │ item_id │ dimensions     │
-      │     └─────────────────────────────────────────────────┘
-      │
-      ├─────┌───────────┐     ┌───────────┐     ┌───────────┐
-      │     │opening_   │     │ monthly_  │     │ closing_  │
-      │     │balances   │     │ balances  │     │ entries   │
-      │     └───────────┘     └───────────┘     └───────────┘
-      │
-      ├─────┌───────────┐     ┌───────────┐     ┌───────────┐
-      │     │rea_events │     │event_store│     │ai_hitl_   │
-      │     └───────────┘     └───────────┘     │logs       │
-      │                                         └───────────┘
-      └─────┌───────────┐     ┌───────────┐     ┌───────────┐
-            │workflows  │     │workflow_  │     │casso_     │
-            └───────────┘     │instances  │     │transactions│
-                              └───────────┘     └───────────┘
+```mermaid
+erDiagram
+    companies ||--o{ users : "has"
+    companies ||--o{ partners : "has"
+    companies ||--o{ items : "has"
+    companies ||--o{ vouchers : "has"
+    companies ||--o{ rea_events : "has"
+    companies ||--o{ workflows : "has"
+    
+    users ||--o{ sessions : "has"
+    users ||--o{ audit_logs : "creates"
+    users ||--o{ vouchers : "creates"
+    
+    vouchers ||--o{ voucher_details : "contains"
+    vouchers ||--o{ ai_hitl_logs : "tracked_by"
+    vouchers ||--o{ rea_events : "generates"
+    
+    voucher_details }o--|| partners : "references"
+    voucher_details }o--|| items : "references"
+    
+    companies ||--o{ opening_balances : "has"
+    companies ||--o{ monthly_balances : "has"
+    companies ||--o{ closing_entries : "has"
+    
+    companies ||--o{ event_store : "logs"
+    companies ||--o{ casso_transactions : "syncs"
+    
+    workflows ||--o{ workflow_instances : "instantiates"
+    workflow_instances ||--o{ workflow_step_executions : "executes"
+
+    companies {
+        int id PK
+        varchar name
+        varchar tax_code UK
+        text address
+        date lock_date
+        boolean is_active
+    }
+
+    users {
+        int id PK
+        varchar username UK
+        text password
+        varchar role
+        int[] company_ids
+        boolean is_root_admin
+    }
+
+    vouchers {
+        int id PK
+        int company_id FK
+        varchar voucher_number
+        date voucher_date
+        varchar voucher_type
+        boolean is_posted
+        decimal amount
+        decimal ai_confidence_score
+    }
+
+    voucher_details {
+        int id PK
+        int voucher_id FK
+        varchar account_code
+        varchar entry_type
+        decimal amount
+        int partner_id FK
+        int item_id FK
+    }
 ```
 
 ### Performance Indexes
@@ -776,31 +815,27 @@ npm run perf:update-baseline
 
 ### Railway Deployment Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    RAILWAY DEPLOYMENT                            │
-│                                                                  │
-│  ┌──────────────────────┐    ┌──────────────────────┐           │
-│  │  🖥️ Backend Service  │    │  🌐 Frontend Service  │           │
-│  │  Node.js 20          │    │  Nginx + Static      │           │
-│  │  Port: 5000          │    │  Port: 3000          │           │
-│  │  CMD: node server.js │    │  CMD: vite preview   │           │
-│  │  Image: Dockerfile   │    │  Image: Dockerfile   │           │
-│  └──────────┬───────────┘    └──────────────────────┘           │
-│             │                                                    │
-│  ┌──────────▼───────────┐    ┌──────────────────────┐           │
-│  │  🗄️ PostgreSQL 16    │    │  🛒 Storefront       │           │
-│  │  Railway Managed      │    │  Nginx + Static      │           │
-│  │  Auto-backup daily    │    │  Port: 3001          │           │
-│  └──────────────────────┘    └──────────────────────┘           │
-│                                                                  │
-│  ┌──────────────────────┐    ┌──────────────────────┐           │
-│  │  ⚡ Redis 7           │    │  🤖 AI Service       │           │
-│  │  Railway Managed      │    │  Python 3.11         │           │
-│  │  Cache + Queue        │    │  Port: 8000          │           │
-│  └──────────────────────┘    └──────────────────────┘           │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Railway["🚂 RAILWAY DEPLOYMENT"]
+        subgraph Services["Services"]
+            BE["🖥️ Backend Service<br/>Node.js 20 │ Port: 5000<br/>CMD: node server.js<br/>Dockerfile.backend"]
+            FE["🌐 Frontend Service<br/>Nginx + Static │ Port: 3000<br/>CMD: vite preview<br/>Dockerfile.frontend"]
+            SF["🛒 Storefront Service<br/>Nginx + Static │ Port: 3001<br/>CMD: vite preview<br/>Dockerfile.storefront"]
+            AI["🤖 AI Service<br/>Python 3.11 │ Port: 8000<br/>CMD: uvicorn main:app<br/>ai-service/Dockerfile"]
+        end
+
+        subgraph Plugins["Railway Plugins"]
+            PG["🗄️ PostgreSQL 16<br/>Managed │ Auto-backup daily"]
+            RD["⚡ Redis 7<br/>Managed │ Cache + Queue"]
+        end
+    end
+
+    BE --> PG
+    BE --> RD
+    BE --> AI
+    FE --> BE
+    SF --> BE
 ```
 
 ### Dockerfiles
@@ -814,16 +849,44 @@ npm run perf:update-baseline
 
 ### CI/CD Pipeline (Git Flow)
 
-```
-main ──────────────► Railway Production (auto-deploy)
-  │
-  ├── develop ─────► Railway Preview (PR)
-  │     │
-  │     ├── feature/xxx  → PR → develop
-  │     ├── fix/xxx      → PR → develop
-  │     └── refactor/xxx → PR → develop
-  │
-  └── hotfix/xxx ──► PR → main (urgent fix)
+```mermaid
+gitGraph
+    commit id: "initial"
+    branch develop
+    commit id: "setup"
+
+    branch feature/accounting
+    commit id: "COA schema"
+    commit id: "voucher CRUD"
+    commit id: "posting engine"
+    checkout develop
+    merge feature/accounting
+
+    branch feature/ai-copilot
+    commit id: "Gemini integration"
+    commit id: "text-to-sql"
+    checkout develop
+    merge feature/ai-copilot
+
+    branch feature/storefront
+    commit id: "POS interface"
+    commit id: "order management"
+    checkout develop
+    merge feature/storefront
+
+    branch fix/performance
+    commit id: "optimize queries"
+    commit id: "add indexes"
+    checkout develop
+    merge fix/performance
+
+    checkout main
+    merge develop tag: "v1.0.0"
+
+    branch hotfix/security
+    commit id: "patch CORS"
+    checkout main
+    merge hotfix/security tag: "v1.0.1"
 ```
 
 ---
